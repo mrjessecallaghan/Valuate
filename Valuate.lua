@@ -1,12 +1,12 @@
 -- Valuate - Stat Weight Calculator for WoW Ascension Bronzebeard
--- Version: 0.1.0
+-- Version: 0.2.0
 -- Interface: 30300 (WotLK 3.3.5a)
 
 -- Addon namespace
 Valuate = {}
 
 -- Version info
-Valuate.version = "0.1.0"
+Valuate.version = "0.2.0"
 Valuate.interface = 30300
 
 -- Initialize saved variables
@@ -14,7 +14,7 @@ ValuateDB = ValuateDB or {}
 ValuateOptions = ValuateOptions or {}
 ValuateScales = ValuateScales or {}
 
--- Default options
+-- Default options (set defaults before using them)
 if not ValuateOptions.cacheSize then
     ValuateOptions.cacheSize = 150  -- Max number of items to cache
 end
@@ -25,7 +25,6 @@ end
 -- Item cache (LRU - Least Recently Used)
 -- Array of cached items, with newest items at the end
 local ItemCache = {}
-local ItemCacheMaxSize = ValuateOptions.cacheSize
 
 -- Frame for event handling
 local frame = CreateFrame("Frame")
@@ -46,8 +45,13 @@ function Valuate:Initialize()
     -- Basic initialization
     print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
     
-    -- Initialize cache size
-    ItemCacheMaxSize = ValuateOptions.cacheSize
+    -- Ensure options are set (in case they weren't loaded properly)
+    if not ValuateOptions.cacheSize then
+        ValuateOptions.cacheSize = 150
+    end
+    if ValuateOptions.debug == nil then
+        ValuateOptions.debug = false
+    end
     
     -- Clear cache on load (fresh start each session)
     Valuate:ClearCache()
@@ -109,8 +113,11 @@ function Valuate:CacheItem(item)
         return
     end
     
+    -- Get cache size (always read from options to ensure it's current)
+    local maxSize = ValuateOptions.cacheSize or 150
+    
     -- Cache size of 0 or less means caching is disabled
-    if ItemCacheMaxSize <= 0 then
+    if maxSize <= 0 then
         return
     end
     
@@ -123,7 +130,7 @@ function Valuate:CacheItem(item)
     tinsert(ItemCache, item)
     
     -- Remove oldest items if cache exceeds max size
-    while #ItemCache > ItemCacheMaxSize do
+    while #ItemCache > maxSize do
         tremove(ItemCache, 1)  -- Remove from front (oldest)
     end
 end
@@ -135,10 +142,11 @@ end
 
 -- Gets cache statistics (for debugging/testing)
 function Valuate:GetCacheStats()
+    local maxSize = ValuateOptions.cacheSize or 150
     return {
         size = ItemCache and #ItemCache or 0,
-        maxSize = ItemCacheMaxSize,
-        enabled = ItemCacheMaxSize > 0 and not ValuateOptions.debug
+        maxSize = maxSize,
+        enabled = maxSize > 0 and not (ValuateOptions.debug == true)
     }
 end
 
