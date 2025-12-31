@@ -385,10 +385,11 @@ local function UpdateScaleList()
         btn:SetHeight(ENTRY_HEIGHT)
         btn:SetWidth(168)  -- Fits within scroll content area
         
+        -- Center the scale buttons horizontally
         if i == 1 then
-            btn:SetPoint("TOPLEFT", ScaleListFrame, "TOPLEFT", 0, 0)
+            btn:SetPoint("TOP", ScaleListFrame, "TOP", 0, 0)
         else
-            btn:SetPoint("TOPLEFT", lastButton, "BOTTOMLEFT", 0, -2)
+            btn:SetPoint("TOP", lastButton, "BOTTOM", 0, -2)
         end
         lastButton = btn
         
