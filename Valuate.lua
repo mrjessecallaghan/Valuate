@@ -290,6 +290,87 @@ function Valuate:GetStatsFromDisplayedTooltip(tooltipName)
     return Valuate:ParseStatsFromTooltip(tooltipName)
 end
 
+-- ========================================
+-- Tooltip Integration (Performance-Optimized)
+-- ========================================
+
+-- Track last processed item to avoid duplicate work
+local LastProcessedTooltip = nil
+local LastProcessedItem = nil
+
+-- Hooks into tooltip display functions to parse and display item scores
+function Valuate:HookTooltips()
+    -- Hook main GameTooltip methods
+    hooksecurefunc(GameTooltip, "SetBagItem", function(self, bag, slot)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetBagItem", bag, slot)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetInventoryItem", function(self, unit, slot)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetInventoryItem", unit, slot)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetHyperlink", function(self, link)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetHyperlink", link)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetLootItem", function(self, slot)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetLootItem", slot)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetAuctionItem", function(self, type, index)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetAuctionItem", type, index)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetMerchantItem", function(self, index)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetMerchantItem", index)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetQuestItem", function(self, type, index)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetQuestItem", type, index)
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetQuestLogItem", function(self, type, index)
+        Valuate:OnTooltipUpdate("GameTooltip", "SetQuestLogItem", type, index)
+    end)
+    
+    -- Clear last processed item when tooltip hides
+    hooksecurefunc(GameTooltip, "Hide", function(self)
+        LastProcessedTooltip = nil
+        LastProcessedItem = nil
+    end)
+end
+
+-- Called when a tooltip is updated
+-- This parses stats from the displayed tooltip (which has scaled values)
+function Valuate:OnTooltipUpdate(tooltipName, methodName, ...)
+    -- Early exit: skip if no active scales (we'll add scales later)
+    -- For now, we'll just parse and cache the stats
+    
+    -- Get the tooltip frame
+    local tooltip = getglobal(tooltipName)
+    if not tooltip then
+        return
+    end
+    
+    -- Check if we've already processed this tooltip (debouncing)
+    local currentItem = tooltipName .. ":" .. methodName
+    if LastProcessedTooltip == currentItem and LastProcessedItem == LastProcessedItem then
+        return
+    end
+    
+    -- Parse stats from the displayed tooltip (this has scaled values!)
+    local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
+    
+    if stats then
+        -- Store for potential future use (when we add scoring)
+        LastProcessedTooltip = currentItem
+        LastProcessedItem = stats
+        
+        -- For now, we're just parsing and caching
+        -- Later we'll calculate scores and display them on the tooltip
+    end
+end
+
 -- Register events
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
