@@ -458,14 +458,24 @@ end
 -- Displays calculated scores on the tooltip
 function Valuate:DisplayScoresOnTooltip(tooltip, stats)
     if not tooltip or not stats then
+        if ValuateOptions.debug then
+            print("|cFFFF8800[Valuate Debug]|r DisplayScoresOnTooltip: missing tooltip or stats")
+        end
         return
     end
     
     -- Get active scales
     local activeScales = Valuate:GetActiveScales()
     
+    if ValuateOptions.debug then
+        print("|cFFFF8800[Valuate Debug]|r Found " .. #activeScales .. " active scale(s)")
+    end
+    
     -- If no active scales, don't display anything
     if #activeScales == 0 then
+        if ValuateOptions.debug then
+            print("|cFFFF8800[Valuate Debug]|r No active scales - cannot display scores")
+        end
         return
     end
     
@@ -475,8 +485,11 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
         local scale = ValuateScales[scaleName]
         if scale then
             local score = Valuate:CalculateItemScore(stats, scale)
-            if score then
+            if score and score ~= 0 then
                 scores[scaleName] = score
+                if ValuateOptions.debug then
+                    print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' score: " .. score)
+                end
             end
         end
     end
@@ -491,12 +504,21 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
             local scale = ValuateScales[scaleName]
             local color = scale.Color or "FFFFFF"
             local displayName = scale.DisplayName or scaleName
-            tooltip:AddLine("|cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r")
+            local lineText = "|cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r"
+            tooltip:AddLine(lineText)
+            
+            if ValuateOptions.debug then
+                print("|cFFFF8800[Valuate Debug]|r Added line to tooltip: " .. lineText)
+            end
+        end
+        
+        -- Show the tooltip with updated lines
+        tooltip:Show()
+    else
+        if ValuateOptions.debug then
+            print("|cFFFF8800[Valuate Debug]|r No scores to display (all were 0 or nil)")
         end
     end
-    
-    -- Show the tooltip with updated lines
-    tooltip:Show()
 end
 
 -- Register events
