@@ -1,0 +1,22 @@
+# WoW AddOn development
+*.lua.bak
+*.lua~
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# SavedVariables (user data - don't commit personal settings)
+# Uncomment if you want to exclude these:
+# SavedVariables/
+
