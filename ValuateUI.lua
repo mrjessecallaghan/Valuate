@@ -900,13 +900,6 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
         ScaleEditorFrame.nameEditBox:SetText(scale.DisplayName or scaleName)
     end
     
-    -- Update color preview
-    if ScaleEditorFrame.colorButton then
-        local color = scale.Color or "FFFFFF"
-        local r, g, b = HexToRGB(color)
-        ScaleEditorFrame.colorButton.preview:SetVertexColor(r, g, b, 1)
-    end
-    
     -- Update stat weights
     UpdateStatWeightsList(scaleName, scale)
 end
@@ -998,61 +991,9 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     
-    -- Color Picker
-    local colorLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
-    colorLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -SPACING - 4)
-    colorLabel:SetText("Color:")
-    
-    local colorButton = CreateFrame("Button", nil, headerFrame)
-    colorButton:SetSize(60, 20)
-    colorButton:SetPoint("LEFT", colorLabel, "RIGHT", 10, 0)
-    colorButton:SetBackdrop(BACKDROP_INPUT)
-    colorButton:SetBackdropColor(1, 1, 1, 1)
-    colorButton:SetBackdropBorderColor(unpack(COLORS.border))
-    
-    local preview = colorButton:CreateTexture(nil, "OVERLAY")
-    preview:SetAllPoints(colorButton)
-    preview:SetTexture(1, 1, 1, 1)
-    preview:SetVertexColor(1, 1, 1, 1)
-    colorButton.preview = preview
-    
-    colorButton:SetScript("OnClick", function()
-        if not EditingScaleName or not ValuateScales[EditingScaleName] then return end
-        
-        local scale = ValuateScales[EditingScaleName]
-        local scaleName = EditingScaleName
-        local color = scale.Color or "FFFFFF"
-        local r, g, b = HexToRGB(color)
-        
-        ColorPickerFrame.previousValues = { r, g, b }
-        
-        ColorPickerFrame.func = function()
-            local newR, newG, newB = ColorPickerFrame:GetColorRGB()
-            local newColor = RGBToHex(newR, newG, newB)
-            if ValuateScales[scaleName] then
-                ValuateScales[scaleName].Color = newColor
-            end
-            preview:SetVertexColor(newR, newG, newB, 1)
-            UpdateScaleList()  -- Sync scale list with new color
-        end
-        
-        ColorPickerFrame.cancelFunc = function()
-            local prev = ColorPickerFrame.previousValues
-            if prev and ValuateScales[scaleName] then
-                ValuateScales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
-            end
-            UpdateScaleList()
-        end
-        
-        ColorPickerFrame.opacityFunc = nil
-        ColorPickerFrame:SetColorRGB(r, g, b)
-        ColorPickerFrame.hasOpacity = false
-        ColorPickerFrame:Show()
-    end)
-    
     -- Stat weights header (in header area)
     local statsHeader = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
-    statsHeader:SetPoint("TOPLEFT", colorLabel, "BOTTOMLEFT", 0, -SPACING - 4)
+    statsHeader:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -SPACING - 4)
     statsHeader:SetText("Stat Weights:")
     
     -- Scroll frame for stat weights (below header, reserves space for scrollbar on right)
@@ -1108,7 +1049,6 @@ local function CreateScaleEditor(parent)
     ScaleEditorFrame.scrollFrame = scrollFrame
     ScaleEditorFrame.container = container
     ScaleEditorFrame.nameEditBox = nameEditBox
-    ScaleEditorFrame.colorButton = colorButton
     ScaleEditorFrame.statsHeader = statsHeader
     
     -- Save/Cancel buttons
