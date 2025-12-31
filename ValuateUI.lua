@@ -469,10 +469,55 @@ local function UpdateScaleList()
             GameTooltip:Hide()
         end)
         
+        -- Delete button (red "D" on right side)
+        local deleteBtn = CreateFrame("Button", nil, btn)
+        deleteBtn:SetSize(16, 16)
+        deleteBtn:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+        
+        local deleteLabel = deleteBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        deleteLabel:SetPoint("CENTER", deleteBtn, "CENTER", 0, 0)
+        deleteLabel:SetText("D")
+        deleteLabel:SetTextColor(0.7, 0.2, 0.2, 1)
+        
+        deleteBtn:SetScript("OnEnter", function(self)
+            deleteLabel:SetTextColor(1, 0.3, 0.3, 1)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("Delete Scale", 1, 0.3, 0.3)
+            GameTooltip:AddLine("Click to delete this scale.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end)
+        deleteBtn:SetScript("OnLeave", function(self)
+            deleteLabel:SetTextColor(0.7, 0.2, 0.2, 1)
+            GameTooltip:Hide()
+        end)
+        deleteBtn:SetScript("OnClick", function(self)
+            local scaleName = scaleData.name
+            StaticPopupDialogs["VALUATE_DELETE_SCALE"] = {
+                text = "Are you sure you want to delete the scale \"" .. (scaleData.scale.DisplayName or scaleName) .. "\"?",
+                button1 = "Delete",
+                button2 = "Cancel",
+                OnAccept = function()
+                    ValuateScales[scaleName] = nil
+                    if CurrentSelectedScale == scaleName then
+                        CurrentSelectedScale = nil
+                        EditingScaleName = nil
+                        if ScaleEditorFrame and ScaleEditorFrame.container then
+                            ScaleEditorFrame.container:Hide()
+                        end
+                    end
+                    UpdateScaleList()
+                end,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+            }
+            StaticPopup_Show("VALUATE_DELETE_SCALE")
+        end)
+        
         -- Scale name
         local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
         nameLabel:SetPoint("LEFT", colorBtn, "RIGHT", 4, 0)
-        nameLabel:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
+        nameLabel:SetPoint("RIGHT", deleteBtn, "LEFT", -4, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetText(scaleData.scale.DisplayName or scaleData.name)
         
@@ -604,21 +649,11 @@ local function CreateScaleList(parent)
         ValuateUI_NewScale()
     end)
     
-    -- Delete button
-    local deleteButton = CreateStyledButton(container, "Delete", nil, BUTTON_HEIGHT)
-    deleteButton:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -SPACING)
-    deleteButton:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", 0, -SPACING)
-    deleteButton:SetScript("OnClick", function()
-        if CurrentSelectedScale then
-            ValuateUI_DeleteScale(CurrentSelectedScale)
-        end
-    end)
-    
     -- Scroll frame for scale list (reserves space for scrollbar on right)
     local scrollFrame = CreateFrame("ScrollFrame", nil, container)
-    scrollFrame:SetPoint("TOPLEFT", deleteButton, "BOTTOMLEFT", 0, -SPACING)
+    scrollFrame:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -SPACING)
     scrollFrame:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
-    scrollFrame:SetPoint("TOPRIGHT", deleteButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -SPACING)
+    scrollFrame:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -SPACING)
     scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
     scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
@@ -928,39 +963,6 @@ function ValuateUI_NewScale()
     if ScaleListButtons[name] then
         ScaleListButtons[name]:GetScript("OnClick")(ScaleListButtons[name])
     end
-end
-
-function ValuateUI_DeleteScale(scaleName)
-    if not scaleName or not ValuateScales[scaleName] then return end
-    
-    -- Confirmation dialog (simple)
-    StaticPopup_Show("VALUATE_DELETE_SCALE", scaleName, nil, { scaleName = scaleName })
-end
-
--- Handle delete confirmation (register on first use)
-if not StaticPopupDialogs["VALUATE_DELETE_SCALE"] then
-    StaticPopupDialogs["VALUATE_DELETE_SCALE"] = {
-        text = "Delete scale '%s'?",
-        button1 = "Delete",
-        button2 = "Cancel",
-        OnAccept = function(self, data)
-            if data and data.scaleName then
-                ValuateScales[data.scaleName] = nil
-                if CurrentSelectedScale == data.scaleName then
-                    CurrentSelectedScale = nil
-                    EditingScaleName = nil
-                    -- Hide the container, not the content frame
-                    if ScaleEditorFrame and ScaleEditorFrame.container then
-                        ScaleEditorFrame.container:Hide()
-                    end
-                end
-                UpdateScaleList()
-            end
-        end,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-    }
 end
 
 local function CreateScaleEditor(parent)
