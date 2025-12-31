@@ -53,6 +53,11 @@ function Valuate:Initialize()
         ValuateOptions.debug = false
     end
     
+    -- Initialize scales if empty
+    if not ValuateScales then
+        ValuateScales = {}
+    end
+    
     -- Verify stat patterns loaded
     if not ValuateStatPatterns then
         print("|cFFFF0000Valuate|r: ERROR - StatDefinitions.lua failed to load!")
@@ -63,6 +68,44 @@ function Valuate:Initialize()
     
     -- Hook into tooltips to parse scaled stats
     Valuate:HookTooltips()
+    
+    -- Create a default scale if none exist
+    if not next(ValuateScales) then
+        Valuate:CreateDefaultScale()
+    end
+end
+
+-- Creates a simple default scale for testing
+function Valuate:CreateDefaultScale()
+    local defaultScale = {
+        DisplayName = "Default",
+        Color = "00FF00",
+        Values = {
+            Strength = 1.0,
+            Agility = 1.0,
+            Stamina = 1.0,
+            Intellect = 1.0,
+            Spirit = 1.0,
+            AttackPower = 1.0,
+            HitRating = 1.0,
+            CritRating = 1.0,
+            HasteRating = 1.0,
+            ExpertiseRating = 1.0,
+            DefenseRating = 1.0,
+            DodgeRating = 1.0,
+            ParryRating = 1.0,
+            BlockRating = 1.0,
+            ResilienceRating = 1.0,
+            SpellPower = 1.0,
+            Armor = 0.1,
+            DPS = 10.0,
+            BlockValue = 1.0,
+            PVEPower = 1.0,
+            PVPPower = 1.0,
+        }
+    }
+    
+    ValuateScales["Default"] = defaultScale
 end
 
 -- ========================================
