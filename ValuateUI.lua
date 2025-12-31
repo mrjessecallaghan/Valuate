@@ -208,9 +208,9 @@ local function CreateMainWindow()
     titleBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -30, -8)
     titleBar:SetHeight(24)
     
-    -- Title text
+    -- Title text (centered)
     local titleText = titleBar:CreateFontString(nil, "OVERLAY", FONT_TITLE)
-    titleText:SetPoint("LEFT", titleBar, "LEFT", 4, 0)
+    titleText:SetPoint("CENTER", frame, "TOP", 0, -20)
     titleText:SetText("Valuate")
     titleText:SetTextColor(unpack(COLORS.textTitle))
     
@@ -257,12 +257,6 @@ end
 -- ========================================
 
 local function CreateTabSystem(mainFrame, contentFrame)
-    -- Tab bar sitting on the bottom border of the window
-    local tabFrame = CreateFrame("Frame", nil, mainFrame)
-    tabFrame:SetPoint("TOPLEFT", mainFrame, "BOTTOMLEFT", 20, 1)  -- Sits just on the border
-    tabFrame:SetHeight(24)
-    tabFrame:SetWidth(200)
-    
     local activeTab = "scales"
     local tabs = {}
     local tabPanels = {}
@@ -297,8 +291,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
     end
     
     -- Create tab buttons dynamically - sitting on bottom border of window
-    local function CreateTab(name, text, panel)
-        local btn = CreateFrame("Button", nil, tabFrame)
+    local function CreateTab(name, text, panel, anchorSide)
+        local btn = CreateFrame("Button", nil, mainFrame)  -- Parent to mainFrame for proper anchoring
         btn:SetHeight(22)
         btn:SetBackdrop(BACKDROP_BUTTON)
         btn:SetBackdropColor(unpack(COLORS.buttonBg))
@@ -316,13 +310,13 @@ local function CreateTabSystem(mainFrame, contentFrame)
         -- Size button based on text
         btn:SetWidth(label:GetStringWidth() + 40)
         
-        -- Position tabs horizontally, outside bottom of window
-        if not tabs.lastTab then
-            btn:SetPoint("TOPLEFT", tabFrame, "TOPLEFT", 0, 0)
+        -- Position tab on specified side of window bottom
+        if anchorSide == "right" then
+            btn:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, -21)
         else
-            btn:SetPoint("TOPLEFT", tabs.lastTab, "TOPRIGHT", -1, 0)
+            btn:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, -21)
         end
-        tabs.lastTab = btn
+        
         tabs[name] = btn
         tabPanels[name] = panel
         
@@ -339,9 +333,9 @@ local function CreateTabSystem(mainFrame, contentFrame)
     settingsPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     settingsPanel:Hide()
     
-    -- Create tabs
-    CreateTab("scales", "Scales", scalesPanel)
-    CreateTab("settings", "Settings", settingsPanel)
+    -- Create tabs (Scales on left, Settings on right)
+    CreateTab("scales", "Scales", scalesPanel, "left")
+    CreateTab("settings", "Settings", settingsPanel, "right")
     
     -- Select default tab
     SelectTab("scales")
