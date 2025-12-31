@@ -10,6 +10,36 @@ local BUTTON_HEIGHT = 24
 local ENTRY_HEIGHT = 24
 local SCROLLBAR_WIDTH = 20  -- Width reserved for scrollbars (18px bar + 2px gap)
 
+-- ========================================
+-- Color Palette (Modern, clean look)
+-- ========================================
+local COLORS = {
+    -- Backgrounds
+    windowBg = { 0.06, 0.06, 0.06, 0.98 },
+    panelBg = { 0.04, 0.04, 0.04, 0.95 },
+    inputBg = { 0.08, 0.08, 0.08, 0.95 },
+    buttonBg = { 0.15, 0.15, 0.15, 1 },
+    buttonHover = { 0.22, 0.22, 0.22, 1 },
+    buttonPressed = { 0.1, 0.1, 0.1, 1 },
+    
+    -- Borders
+    border = { 0.35, 0.35, 0.35, 1 },
+    borderLight = { 0.45, 0.45, 0.45, 1 },
+    borderDark = { 0.25, 0.25, 0.25, 1 },
+    
+    -- Text
+    textTitle = { 0.9, 0.9, 0.9, 1 },
+    textHeader = { 0.75, 0.75, 0.75, 1 },
+    textBody = { 0.85, 0.85, 0.85, 1 },
+    textDim = { 0.5, 0.5, 0.5, 1 },
+    textAccent = { 0.4, 0.7, 0.9, 1 },  -- Soft blue accent
+    
+    -- States
+    selected = { 0.25, 0.45, 0.65, 1 },
+    selectedBorder = { 0.4, 0.6, 0.8, 1 },
+    disabled = { 0.3, 0.3, 0.3, 0.6 },
+}
+
 -- Standardized Border Styles
 local BORDER_TOOLTIP = "Interface\\Tooltips\\UI-Tooltip-Border"  -- Clean, minimal border
 local BORDER_EDGE_SIZE = 12
@@ -47,18 +77,12 @@ local BACKDROP_BUTTON = {
     insets = { left = 2, right = 2, top = 2, bottom = 2 }
 }
 
--- Font Standards (WoW built-in fonts)
--- Title: Window titles, major headings
-local FONT_TITLE = "GameFontNormalLarge"       -- ~16pt, yellow/gold
--- H1: Panel headers, section titles  
-local FONT_H1 = "GameFontNormal"               -- ~12pt, yellow/gold
--- H2: Category headers, subsection titles
-local FONT_H2 = "GameFontNormalSmall"          -- ~10pt, yellow/gold
--- H3: Minor headers, group labels
+-- Font Standards (all use white/highlight fonts for modern look)
+local FONT_TITLE = "GameFontHighlightLarge"    -- ~16pt, white
+local FONT_H1 = "GameFontHighlight"            -- ~12pt, white  
+local FONT_H2 = "GameFontHighlightSmall"       -- ~10pt, white
 local FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
--- Body: Regular text, labels, button text
 local FONT_BODY = "GameFontHighlight"          -- ~12pt, white
--- Small: Compact text, stat labels
 local FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
 
 -- Main UI Frame
@@ -96,6 +120,40 @@ local function RGBToHex(r, g, b)
     return string.format("%02X%02X%02X", r, g, b)
 end
 
+-- Creates a styled button with consistent look
+local function CreateStyledButton(parent, text, width, height)
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetWidth(width or 100)
+    btn:SetHeight(height or BUTTON_HEIGHT)
+    btn:SetBackdrop(BACKDROP_BUTTON)
+    btn:SetBackdropColor(unpack(COLORS.buttonBg))
+    btn:SetBackdropBorderColor(unpack(COLORS.border))
+    
+    local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    label:SetText(text or "")
+    label:SetTextColor(unpack(COLORS.textBody))
+    btn.label = label
+    
+    -- Hover and click effects
+    btn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonHover))
+        self:SetBackdropBorderColor(unpack(COLORS.borderLight))
+    end)
+    btn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonBg))
+        self:SetBackdropBorderColor(unpack(COLORS.border))
+    end)
+    btn:SetScript("OnMouseDown", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonPressed))
+    end)
+    btn:SetScript("OnMouseUp", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonHover))
+    end)
+    
+    return btn
+end
+
 -- ========================================
 -- Main Window Creation
 -- ========================================
@@ -117,8 +175,8 @@ local function CreateMainWindow()
     
     -- Backdrop (standardized clean border)
     frame:SetBackdrop(BACKDROP_WINDOW)
-    frame:SetBackdropColor(0.05, 0.05, 0.05, 0.95)
-    frame:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    frame:SetBackdropColor(unpack(COLORS.windowBg))
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
     
     -- Position (ensure ValuateOptions exists)
     ValuateOptions = ValuateOptions or {}
@@ -144,27 +202,39 @@ local function CreateMainWindow()
         ValuateOptions.uiPosition.y = y
     end)
     
-    -- Title bar background
+    -- Title bar (clean, minimal)
     local titleBar = CreateFrame("Frame", nil, frame)
-    titleBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
-    titleBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
-    titleBar:SetHeight(32)
-    titleBar:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Header",
-        edgeFile = nil,
-        tile = true,
-        tileSize = 256,
-        edgeSize = 0
-    })
+    titleBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -8)
+    titleBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -30, -8)
+    titleBar:SetHeight(24)
     
     -- Title text
     local titleText = titleBar:CreateFontString(nil, "OVERLAY", FONT_TITLE)
-    titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
+    titleText:SetPoint("LEFT", titleBar, "LEFT", 4, 0)
     titleText:SetText("Valuate")
+    titleText:SetTextColor(unpack(COLORS.textTitle))
     
-    -- Close button
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -4, -4)
+    -- Close button (custom styled)
+    local closeButton = CreateFrame("Button", nil, frame)
+    closeButton:SetSize(18, 18)
+    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
+    closeButton:SetBackdrop(BACKDROP_BUTTON)
+    closeButton:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    closeButton:SetBackdropBorderColor(unpack(COLORS.border))
+    
+    local closeLabel = closeButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    closeLabel:SetPoint("CENTER", closeButton, "CENTER", 0, 0)
+    closeLabel:SetText("×")
+    closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+    
+    closeButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.5, 0.2, 0.2, 1)
+        closeLabel:SetTextColor(1, 1, 1, 1)
+    end)
+    closeButton:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0.2, 0.2, 0.2, 1)
+        closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+    end)
     closeButton:SetScript("OnClick", function()
         Valuate:HideUI()
     end)
@@ -214,14 +284,14 @@ local function CreateTabSystem(mainFrame, contentFrame)
         for name, btn in pairs(tabs) do
             if name == tabName then
                 -- Selected tab: brighter background and border
-                btn:SetBackdropColor(0.12, 0.12, 0.12, 1)
-                btn:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-                btn.label:SetTextColor(1, 0.82, 0, 1)  -- Gold text
+                btn:SetBackdropColor(unpack(COLORS.buttonHover))
+                btn:SetBackdropBorderColor(unpack(COLORS.borderLight))
+                btn.label:SetTextColor(unpack(COLORS.textBody))
             else
                 -- Unselected tab: darker, recessed look
-                btn:SetBackdropColor(0.06, 0.06, 0.06, 1)
-                btn:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
-                btn.label:SetTextColor(0.5, 0.5, 0.5, 1)  -- Dim text
+                btn:SetBackdropColor(unpack(COLORS.buttonPressed))
+                btn:SetBackdropBorderColor(unpack(COLORS.borderDark))
+                btn.label:SetTextColor(unpack(COLORS.textDim))
             end
         end
     end
@@ -231,8 +301,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
         local btn = CreateFrame("Button", nil, tabFrame)
         btn:SetHeight(22)
         btn:SetBackdrop(BACKDROP_BUTTON)
-        btn:SetBackdropColor(0.1, 0.1, 0.1, 1)
-        btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        btn:SetBackdropColor(unpack(COLORS.buttonBg))
+        btn:SetBackdropBorderColor(unpack(COLORS.border))
         btn:SetScript("OnClick", function()
             SelectTab(name)
         end)
@@ -240,6 +310,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
         local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
         label:SetPoint("CENTER", btn, "CENTER", 0, 0)
         label:SetText(text)
+        label:SetTextColor(unpack(COLORS.textBody))
         btn.label = label
         
         -- Size button based on text
@@ -328,8 +399,8 @@ local function UpdateScaleList()
         lastButton = btn
         
         btn:SetBackdrop(BACKDROP_BUTTON)
-        btn:SetBackdropColor(0.12, 0.12, 0.12, 0.9)
-        btn:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+        btn:SetBackdropColor(unpack(COLORS.buttonBg))
+        btn:SetBackdropBorderColor(unpack(COLORS.border))
         
         -- Visibility checkbox (leftmost element)
         local visCheckbox = CreateFrame("CheckButton", nil, btn)
@@ -364,11 +435,11 @@ local function UpdateScaleList()
             if visible then
                 nameLabel:SetTextColor(r, g, b, 1)
                 colorPreview:SetVertexColor(r, g, b, 1)
-                btn:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
+                btn:SetBackdropColor(unpack(COLORS.buttonBg))
             else
-                nameLabel:SetTextColor(0.4, 0.4, 0.4, 1)
-                colorPreview:SetVertexColor(0.4, 0.4, 0.4, 1)
-                btn:SetBackdropColor(0.15, 0.15, 0.15, 0.6)
+                nameLabel:SetTextColor(unpack(COLORS.textDim))
+                colorPreview:SetVertexColor(unpack(COLORS.textDim))
+                btn:SetBackdropColor(unpack(COLORS.disabled))
             end
         end
         
@@ -407,7 +478,7 @@ local function UpdateScaleList()
             if CurrentSelectedScale ~= scaleData.name then
                 local vis = ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Visible ~= false
                 if vis then
-                    self:SetBackdropColor(0.3, 0.3, 0.3, 0.9)
+                    self:SetBackdropColor(unpack(COLORS.buttonHover))
                 end
             end
         end)
@@ -415,9 +486,9 @@ local function UpdateScaleList()
             if CurrentSelectedScale ~= scaleData.name then
                 local vis = ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Visible ~= false
                 if vis then
-                    self:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
+                    self:SetBackdropColor(unpack(COLORS.buttonBg))
                 else
-                    self:SetBackdropColor(0.15, 0.15, 0.15, 0.6)
+                    self:SetBackdropColor(unpack(COLORS.disabled))
                 end
             end
         end)
@@ -429,15 +500,18 @@ local function UpdateScaleList()
                 local prevBtn = ScaleListButtons[CurrentSelectedScale]
                 local prevVis = ValuateScales[CurrentSelectedScale] and ValuateScales[CurrentSelectedScale].Visible ~= false
                 if prevVis then
-                    prevBtn:SetBackdropColor(0.2, 0.2, 0.2, 0.8)
+                    prevBtn:SetBackdropColor(unpack(COLORS.buttonBg))
+                    prevBtn:SetBackdropBorderColor(unpack(COLORS.border))
                 else
-                    prevBtn:SetBackdropColor(0.15, 0.15, 0.15, 0.6)
+                    prevBtn:SetBackdropColor(unpack(COLORS.disabled))
+                    prevBtn:SetBackdropBorderColor(unpack(COLORS.borderDark))
                 end
             end
             
             -- Select this one
             CurrentSelectedScale = scaleData.name
-            self:SetBackdropColor(0.3, 0.5, 0.8, 1.0)
+            self:SetBackdropColor(unpack(COLORS.selected))
+            self:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
             
             -- Update editor with current scale data from ValuateScales
             ValuateUI_UpdateScaleEditor(scaleData.name, ValuateScales[scaleData.name])
@@ -473,9 +547,7 @@ local function CreateScaleList(parent)
     container:SetWidth(200)
     
     -- New Scale button
-    local newButton = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    newButton:SetText("New Scale")
-    newButton:SetHeight(BUTTON_HEIGHT)
+    local newButton = CreateStyledButton(container, "New Scale", nil, BUTTON_HEIGHT)
     newButton:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
     newButton:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
     newButton:SetScript("OnClick", function()
@@ -483,9 +555,7 @@ local function CreateScaleList(parent)
     end)
     
     -- Delete button
-    local deleteButton = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    deleteButton:SetText("Delete")
-    deleteButton:SetHeight(BUTTON_HEIGHT)
+    local deleteButton = CreateStyledButton(container, "Delete", nil, BUTTON_HEIGHT)
     deleteButton:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -SPACING)
     deleteButton:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", 0, -SPACING)
     deleteButton:SetScript("OnClick", function()
@@ -501,8 +571,8 @@ local function CreateScaleList(parent)
     scrollFrame:SetPoint("TOPRIGHT", deleteButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -SPACING)
     scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
-    scrollFrame:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
-    scrollFrame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
+    scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
     scrollFrame:EnableMouseWheel(true)
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local current = self:GetVerticalScroll()
@@ -524,8 +594,8 @@ local function CreateScaleList(parent)
     scrollBarBg:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 0, 0)
     scrollBarBg:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
     scrollBarBg:SetBackdrop(BACKDROP_PANEL)
-    scrollBarBg:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
-    scrollBarBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
+    scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
     
     -- Scrollbar (positioned to the right of clip frame, inside container)
     local scrollBar = CreateFrame("Slider", nil, scrollBarBg, "UIPanelScrollBarTemplate")
@@ -602,7 +672,7 @@ local function UpdateStatWeightsList(scaleName, scale)
         local headerLabel = headerRow:CreateFontString(nil, "OVERLAY", FONT_H2)
         headerLabel:SetPoint("LEFT", headerRow, "LEFT", 0, 0)
         headerLabel:SetText(category.header)
-        headerLabel:SetTextColor(0.7, 0.7, 0.5, 1)
+        headerLabel:SetTextColor(unpack(COLORS.textHeader))
         
         tinsert(StatWeightRows, headerRow)
         
@@ -632,8 +702,8 @@ local function UpdateStatWeightsList(scaleName, scale)
                 editBox:SetFontObject(_G[FONT_SMALL])
                 editBox:SetJustifyH("CENTER")
                 editBox:SetBackdrop(BACKDROP_INPUT)
-                editBox:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-                editBox:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+                editBox:SetBackdropColor(unpack(COLORS.inputBg))
+                editBox:SetBackdropBorderColor(unpack(COLORS.border))
                 editBox:SetTextInsets(2, 2, 0, 0)
                 editBox.statName = statName
                 
@@ -655,19 +725,19 @@ local function UpdateStatWeightsList(scaleName, scale)
                 local function UpdateBannedState(isBanned)
                     if isBanned then
                         -- Grey out and disable
-                        label:SetTextColor(0.4, 0.4, 0.4, 1)
+                        label:SetTextColor(unpack(COLORS.textDim))
                         editBox:SetText("")
                         editBox:EnableMouse(false)
                         editBox:EnableKeyboard(false)
-                        editBox:SetBackdropColor(0.05, 0.05, 0.05, 0.5)
-                        editBox:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+                        editBox:SetBackdropColor(unpack(COLORS.disabled))
+                        editBox:SetBackdropBorderColor(unpack(COLORS.borderDark))
                     else
                         -- Restore normal state
-                        label:SetTextColor(1, 1, 1, 1)
+                        label:SetTextColor(unpack(COLORS.textBody))
                         editBox:EnableMouse(true)
                         editBox:EnableKeyboard(true)
-                        editBox:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
-                        editBox:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                        editBox:SetBackdropColor(unpack(COLORS.inputBg))
+                        editBox:SetBackdropBorderColor(unpack(COLORS.border))
                     end
                 end
                 
@@ -873,8 +943,8 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetAutoFocus(false)
     nameEditBox:SetFontObject(_G[FONT_BODY])
     nameEditBox:SetBackdrop(BACKDROP_INPUT)
-    nameEditBox:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    nameEditBox:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    nameEditBox:SetBackdropColor(unpack(COLORS.inputBg))
+    nameEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     nameEditBox:SetTextInsets(6, 6, 0, 0)
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
@@ -889,7 +959,7 @@ local function CreateScaleEditor(parent)
     colorButton:SetPoint("LEFT", colorLabel, "RIGHT", 10, 0)
     colorButton:SetBackdrop(BACKDROP_INPUT)
     colorButton:SetBackdropColor(1, 1, 1, 1)
-    colorButton:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    colorButton:SetBackdropBorderColor(unpack(COLORS.border))
     
     local preview = colorButton:CreateTexture(nil, "OVERLAY")
     preview:SetAllPoints(colorButton)
@@ -927,8 +997,8 @@ local function CreateScaleEditor(parent)
     scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -SPACING)
     scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 40)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
-    scrollFrame:SetBackdropColor(0.04, 0.04, 0.04, 0.95)
-    scrollFrame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
+    scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
     scrollFrame:EnableMouseWheel(true)
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local current = self:GetVerticalScroll()
@@ -952,8 +1022,8 @@ local function CreateScaleEditor(parent)
     scrollBarBg:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 0, 0)
     scrollBarBg:SetWidth(SCROLLBAR_WIDTH)
     scrollBarBg:SetBackdrop(BACKDROP_PANEL)
-    scrollBarBg:SetBackdropColor(0.06, 0.06, 0.06, 0.95)
-    scrollBarBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
+    scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
     
     -- Scrollbar (inside the backdrop)
     local scrollBar = CreateFrame("Slider", nil, scrollBarBg, "UIPanelScrollBarTemplate")
@@ -979,12 +1049,9 @@ local function CreateScaleEditor(parent)
     ScaleEditorFrame.statsHeader = statsHeader
     
     -- Save/Cancel buttons
-    local saveButton = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    saveButton:SetText("Save")
-    saveButton:SetHeight(BUTTON_HEIGHT)
-    saveButton:SetWidth(80)
+    local saveButton = CreateStyledButton(container, "Save", 80, BUTTON_HEIGHT)
     saveButton:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, PADDING)
-    saveButton:SetScript("OnClick", function()
+    saveButton:HookScript("OnClick", function()
         if not EditingScaleName or not ValuateScales[EditingScaleName] then return end
         
         local scale = ValuateScales[EditingScaleName]
@@ -1038,12 +1105,9 @@ local function CreateScaleEditor(parent)
         OriginalScaleData = nil
     end)
     
-    local cancelButton = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    cancelButton:SetText("Cancel")
-    cancelButton:SetHeight(BUTTON_HEIGHT)
-    cancelButton:SetWidth(80)
+    local cancelButton = CreateStyledButton(container, "Cancel", 80, BUTTON_HEIGHT)
     cancelButton:SetPoint("LEFT", saveButton, "RIGHT", SPACING, 0)
-    cancelButton:SetScript("OnClick", function()
+    cancelButton:HookScript("OnClick", function()
         if OriginalScaleData and EditingScaleName and ValuateScales[EditingScaleName] then
             -- Restore original data
             for k in pairs(ValuateScales[EditingScaleName]) do
@@ -1095,8 +1159,8 @@ local function CreateSettingsPanel(parent)
     cacheEditBox:SetFontObject(_G[FONT_BODY])
     cacheEditBox:SetJustifyH("CENTER")
     cacheEditBox:SetBackdrop(BACKDROP_INPUT)
-    cacheEditBox:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    cacheEditBox:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    cacheEditBox:SetBackdropColor(unpack(COLORS.inputBg))
+    cacheEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     cacheEditBox:SetTextInsets(4, 4, 0, 0)
     cacheEditBox:SetNumeric(true)
     cacheEditBox:SetNumber(ValuateOptions.cacheSize or 150)
@@ -1125,8 +1189,8 @@ local function CreateSettingsPanel(parent)
     decimalEditBox:SetFontObject(_G[FONT_BODY])
     decimalEditBox:SetJustifyH("CENTER")
     decimalEditBox:SetBackdrop(BACKDROP_INPUT)
-    decimalEditBox:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
-    decimalEditBox:SetBackdropBorderColor(0.35, 0.35, 0.35, 1)
+    decimalEditBox:SetBackdropColor(unpack(COLORS.inputBg))
+    decimalEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     decimalEditBox:SetTextInsets(4, 4, 0, 0)
     decimalEditBox:SetNumeric(true)
     decimalEditBox:SetNumber(ValuateOptions.decimalPlaces or 1)
