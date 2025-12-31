@@ -4,7 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.1.0] - [Current Date]
+## [0.2.0] - [Current Date]
+
+### Added
+- Item cache system (LRU - Least Recently Used)
+- Cache management functions (CacheItem, GetCachedItem, ClearCache)
+- Cache statistics command (/valuate cache)
+- Clear cache command (/valuate clearcache)
+- Configurable cache size (default: 150 items)
+- Cache disabled in debug mode
+
+### Changed
+- Improved slash command help menu
+
+## [0.1.0] - [Initial Release]
 
 ### Added
 - Initial addon structure
@@ -14,6 +27,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Documentation structure (README, CHANGELOG, DEVELOPER, ASCENSION_DEV)
 
 ### Notes
-- Addon loads successfully but has no functionality yet
-- Core features will be added incrementally
+- Addon loads successfully
+- Cache system provides performance foundation for future features
 
