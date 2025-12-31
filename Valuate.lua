@@ -223,28 +223,33 @@ end
 
 -- Gets stats for an item link by parsing its tooltip
 -- Returns a stats table, or nil if parsing fails
-function Valuate:GetStatsForItemLink(itemLink)
+-- Note: For scaled items, this reads the base item stats, not scaled values
+-- Scaled values are only available when reading from the actual displayed tooltip
+function Valuate:GetStatsForItemLink(itemLink, useCache)
     if not itemLink then
         return nil
     end
     
-    -- Check cache first
-    local cached = Valuate:GetCachedItem(itemLink, nil)
-    if cached and cached.Stats then
-        return cached.Stats
+    -- Check cache first (unless explicitly disabled)
+    if useCache ~= false then
+        local cached = Valuate:GetCachedItem(itemLink, nil)
+        if cached and cached.Stats then
+            return cached.Stats
+        end
     end
     
-    -- Parse tooltip
+    -- Parse tooltip from the item link
+    -- Note: SetHyperlink uses base item data, not scaled values
     local tooltip = GetPrivateTooltip()
     tooltip:ClearLines()
     tooltip:SetHyperlink(itemLink)
     
-    -- Wait a frame for tooltip to populate (tooltips load asynchronously)
-    -- For now, we'll try immediate parsing (may need to adjust)
+    -- Parse the tooltip (note: this will show base stats, not scaled stats)
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     
-    -- Cache the result if we got stats
-    if stats then
+    -- Cache the result if we got stats and caching is enabled
+    if stats and useCache ~= false then
+        local cached = Valuate:GetCachedItem(itemLink, nil)
         if not cached then
             cached = Valuate:CreateEmptyCachedItem(itemLink, nil)
         end
@@ -253,6 +258,18 @@ function Valuate:GetStatsForItemLink(itemLink)
     end
     
     return stats
+end
+
+-- Gets stats directly from an already-displayed tooltip
+-- This reads the actual tooltip text (includes scaled values)
+-- tooltipName: Name of the tooltip frame (e.g., "GameTooltip")
+function Valuate:GetStatsFromDisplayedTooltip(tooltipName)
+    if not tooltipName then
+        return nil
+    end
+    
+    -- Parse the tooltip that's already displayed (this will have scaled values)
+    return Valuate:ParseStatsFromTooltip(tooltipName)
 end
 
 -- Register events
@@ -287,13 +304,15 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then
-            local stats = Valuate:GetStatsForItemLink(itemLink)
+            -- Parse without cache to get fresh data
+            local stats = Valuate:GetStatsForItemLink(itemLink, false)
             if stats then
-                print("|cFF00FF00Valuate|r: Parsed stats for item:")
+                print("|cFF00FF00Valuate|r: Parsed stats for item (base values, not scaled):")
                 for statName, value in pairs(stats) do
                     local displayName = ValuateStatNames[statName] or statName
                     print("  " .. displayName .. ": " .. value)
                 end
+                print("|cFFFFFF00Note:|r For scaled items, hover over the item and use tooltip parsing (coming soon)")
             else
                 print("|cFFFF0000Valuate|r: Failed to parse stats for item.")
             end

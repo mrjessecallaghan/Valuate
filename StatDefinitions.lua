@@ -13,16 +13,16 @@ ValuateStatPatterns = {
     -- Attack Power
     {"^Equip: Increases attack power by (%d+)%.?$", "AttackPower"},
     
-    -- Ratings (these often appear as "Equip: Increases your X rating by Y")
-    {"^Equip: Increases your hit rating by (%d+)%.?$", "HitRating"},
-    {"^Equip: Increases your crit rating by (%d+)%.?$", "CritRating"},
-    {"^Equip: Increases your haste rating by (%d+)%.?$", "HasteRating"},
-    {"^Equip: Increases your expertise rating by (%d+)%.?$", "ExpertiseRating"},
-    {"^Equip: Increases your defense rating by (%d+)%.?$", "DefenseRating"},
-    {"^Equip: Increases your dodge rating by (%d+)%.?$", "DodgeRating"},
-    {"^Equip: Increases your parry rating by (%d+)%.?$", "ParryRating"},
-    {"^Equip: Increases your block rating by (%d+)%.?$", "BlockRating"},
-    {"^Equip: Increases your resilience rating by (%d+)%.?$", "ResilienceRating"},
+    -- Ratings (these can appear as "Equip: Increases/Improves your X rating by Y")
+    {"^Equip: (?:Increases|Improves) your hit rating by (%d+)%.?$", "HitRating"},
+    {"^Equip: (?:Increases|Improves) your crit rating by (%d+)%.?$", "CritRating"},
+    {"^Equip: (?:Increases|Improves) your haste rating by (%d+)%.?$", "HasteRating"},
+    {"^Equip: (?:Increases|Improves) your expertise rating by (%d+)%.?$", "ExpertiseRating"},
+    {"^Equip: (?:Increases|Improves) your defense rating by (%d+)%.?$", "DefenseRating"},
+    {"^Equip: (?:Increases|Improves) your dodge rating by (%d+)%.?$", "DodgeRating"},
+    {"^Equip: (?:Increases|Improves) your parry rating by (%d+)%.?$", "ParryRating"},
+    {"^Equip: (?:Increases|Improves) your block rating by (%d+)%.?$", "BlockRating"},
+    {"^Equip: (?:Increases|Improves) your resilience rating by (%d+)%.?$", "ResilienceRating"},
     
     -- Spell Power
     {"^Equip: Increases spell power by (%d+)%.?$", "SpellPower"},
