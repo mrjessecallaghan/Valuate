@@ -414,27 +414,82 @@ local function UpdateScaleList()
         local isVisible = scaleData.scale.Visible ~= false
         visCheckbox:SetChecked(isVisible)
         
-        -- Color preview
-        local colorPreview = btn:CreateTexture(nil, "OVERLAY")
-        colorPreview:SetSize(14, 14)
-        colorPreview:SetPoint("LEFT", visCheckbox, "RIGHT", 4, 0)
+        -- Color preview button (clickable to change color)
+        local colorBtn = CreateFrame("Button", nil, btn)
+        colorBtn:SetSize(14, 14)
+        colorBtn:SetPoint("LEFT", visCheckbox, "RIGHT", 4, 0)
+        
+        local colorPreview = colorBtn:CreateTexture(nil, "OVERLAY")
+        colorPreview:SetAllPoints(colorBtn)
         local color = scaleData.scale.Color or "FFFFFF"
         local r, g, b = HexToRGB(color)
         colorPreview:SetTexture(1, 1, 1, 1)
         colorPreview:SetVertexColor(r, g, b, 1)
         
+        -- Color picker on click
+        colorBtn:SetScript("OnClick", function(self)
+            local scale = ValuateScales[scaleData.name]
+            if not scale then return end
+            
+            local currentColor = scale.Color or "FFFFFF"
+            local cr, cg, cb = HexToRGB(currentColor)
+            
+            -- Store reference for callback
+            local scaleName = scaleData.name
+            
+            ColorPickerFrame.previousValues = { cr, cg, cb }
+            
+            ColorPickerFrame.func = function()
+                local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+                local newColor = RGBToHex(newR, newG, newB)
+                if ValuateScales[scaleName] then
+                    ValuateScales[scaleName].Color = newColor
+                end
+                colorPreview:SetVertexColor(newR, newG, newB, 1)
+                -- Update the scale list to reflect new color
+                UpdateScaleList()
+            end
+            
+            ColorPickerFrame.cancelFunc = function()
+                local prev = ColorPickerFrame.previousValues
+                if prev and ValuateScales[scaleName] then
+                    ValuateScales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
+                end
+                UpdateScaleList()
+            end
+            
+            ColorPickerFrame.opacityFunc = nil
+            ColorPickerFrame.hasOpacity = false
+            ColorPickerFrame:SetColorRGB(cr, cg, cb)
+            ColorPickerFrame:Show()
+        end)
+        
+        colorBtn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("Change Color", 1, 1, 1)
+            GameTooltip:AddLine("Click to change this scale's display color.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end)
+        colorBtn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        
         -- Scale name
         local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-        nameLabel:SetPoint("LEFT", colorPreview, "RIGHT", 4, 0)
+        nameLabel:SetPoint("LEFT", colorBtn, "RIGHT", 4, 0)
         nameLabel:SetPoint("RIGHT", btn, "RIGHT", -4, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetText(scaleData.scale.DisplayName or scaleData.name)
         
         -- Helper to update visual state based on visibility
         local function UpdateVisualState(visible)
+            -- Get current color from scale data (may have been updated by color picker)
+            local currentColor = (ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Color) or "FFFFFF"
+            local cr, cg, cb = HexToRGB(currentColor)
+            
             if visible then
-                nameLabel:SetTextColor(r, g, b, 1)
-                colorPreview:SetVertexColor(r, g, b, 1)
+                nameLabel:SetTextColor(cr, cg, cb, 1)
+                colorPreview:SetVertexColor(cr, cg, cb, 1)
                 btn:SetBackdropColor(unpack(COLORS.buttonBg))
             else
                 nameLabel:SetTextColor(unpack(COLORS.textDim))
@@ -971,14 +1026,28 @@ local function CreateScaleEditor(parent)
         if not EditingScaleName or not ValuateScales[EditingScaleName] then return end
         
         local scale = ValuateScales[EditingScaleName]
+        local scaleName = EditingScaleName
         local color = scale.Color or "FFFFFF"
         local r, g, b = HexToRGB(color)
+        
+        ColorPickerFrame.previousValues = { r, g, b }
         
         ColorPickerFrame.func = function()
             local newR, newG, newB = ColorPickerFrame:GetColorRGB()
             local newColor = RGBToHex(newR, newG, newB)
-            scale.Color = newColor
+            if ValuateScales[scaleName] then
+                ValuateScales[scaleName].Color = newColor
+            end
             preview:SetVertexColor(newR, newG, newB, 1)
+            UpdateScaleList()  -- Sync scale list with new color
+        end
+        
+        ColorPickerFrame.cancelFunc = function()
+            local prev = ColorPickerFrame.previousValues
+            if prev and ValuateScales[scaleName] then
+                ValuateScales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
+            end
+            UpdateScaleList()
         end
         
         ColorPickerFrame.opacityFunc = nil
