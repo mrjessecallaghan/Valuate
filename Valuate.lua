@@ -338,8 +338,7 @@ end
 -- ========================================
 
 -- Track last processed item to avoid duplicate work
-local LastProcessedTooltip = nil
-local LastProcessedItem = nil
+local LastProcessedTooltipItem = nil
 
 -- Hooks into tooltip display functions to parse and display item scores
 function Valuate:HookTooltips()
@@ -378,8 +377,7 @@ function Valuate:HookTooltips()
     
     -- Clear last processed item when tooltip hides
     hooksecurefunc(GameTooltip, "Hide", function(self)
-        LastProcessedTooltip = nil
-        LastProcessedItem = nil
+        LastProcessedTooltipItem = nil
     end)
 end
 
@@ -392,19 +390,20 @@ function Valuate:OnTooltipUpdate(tooltipName, methodName, ...)
         return
     end
     
-    -- Check if we've already processed this tooltip (debouncing)
-    local currentItem = tooltipName .. ":" .. methodName
-    if LastProcessedTooltip == currentItem and LastProcessedItem == LastProcessedItem then
+    -- Try to get item link for better debouncing
+    local itemLink = tooltip:GetItem()
+    local currentItem = itemLink or (tooltipName .. ":" .. methodName)
+    
+    -- Simple debouncing - skip if we just processed this item
+    if LastProcessedTooltipItem == currentItem then
         return
     end
+    LastProcessedTooltipItem = currentItem
     
     -- Parse stats from the displayed tooltip (this has scaled values!)
     local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
     
-    if stats then
-        LastProcessedTooltip = currentItem
-        LastProcessedItem = stats
-        
+    if stats and next(stats) then  -- Make sure we have some stats
         -- Calculate and display scores
         Valuate:DisplayScoresOnTooltip(tooltip, stats)
     end
