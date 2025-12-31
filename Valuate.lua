@@ -337,76 +337,116 @@ end
 -- Tooltip Integration (Performance-Optimized)
 -- ========================================
 
--- Track last processed item to avoid duplicate work
-local LastProcessedTooltipItem = nil
+-- Track current item and whether we've added our lines
+local CurrentTooltipItem = nil
+local CurrentTooltipStats = nil
+local ValuateLinesAdded = false
+
+-- Check if our Valuate lines are present in the tooltip
+local function HasValuateLines(tooltip)
+    if not tooltip then return false end
+    local numLines = tooltip:NumLines()
+    for i = 1, numLines do
+        local leftText = getglobal(tooltip:GetName() .. "TextLeft" .. i)
+        if leftText then
+            local text = leftText:GetText()
+            if text and text:find("Valuate:") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Add score lines to tooltip
+local function AddScoreLinesToTooltip(tooltip, stats)
+    if not tooltip or not stats then return end
+    
+    -- Get active scales
+    local activeScales = Valuate:GetActiveScales()
+    if #activeScales == 0 then return end
+    
+    -- Calculate and display scores
+    local hasScores = false
+    for _, scaleName in ipairs(activeScales) do
+        local scale = ValuateScales[scaleName]
+        if scale then
+            local score = Valuate:CalculateItemScore(stats, scale)
+            if score and score > 0 then
+                if not hasScores then
+                    tooltip:AddLine(" ")
+                    hasScores = true
+                end
+                local color = scale.Color or "FFFFFF"
+                local displayName = scale.DisplayName or scaleName
+                tooltip:AddLine("|cFF00FF00Valuate:|r |cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r")
+            end
+        end
+    end
+    
+    if hasScores then
+        tooltip:Show()  -- Resize tooltip to fit new lines
+    end
+end
 
 -- Hooks into tooltip display functions to parse and display item scores
 function Valuate:HookTooltips()
-    -- Hook main GameTooltip methods
-    hooksecurefunc(GameTooltip, "SetBagItem", function(self, bag, slot)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetBagItem", bag, slot)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetInventoryItem", function(self, unit, slot)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetInventoryItem", unit, slot)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetHyperlink", function(self, link)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetHyperlink", link)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetLootItem", function(self, slot)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetLootItem", slot)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetAuctionItem", function(self, type, index)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetAuctionItem", type, index)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetMerchantItem", function(self, index)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetMerchantItem", index)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetQuestItem", function(self, type, index)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetQuestItem", type, index)
-    end)
-    
-    hooksecurefunc(GameTooltip, "SetQuestLogItem", function(self, type, index)
-        Valuate:OnTooltipUpdate("GameTooltip", "SetQuestLogItem", type, index)
-    end)
-    
-    -- Clear last processed item when tooltip hides
-    hooksecurefunc(GameTooltip, "Hide", function(self)
-        LastProcessedTooltipItem = nil
-    end)
-end
-
--- Called when a tooltip is updated
--- This parses stats from the displayed tooltip (which has scaled values)
-function Valuate:OnTooltipUpdate(tooltipName, methodName, ...)
-    -- Get the tooltip frame
-    local tooltip = getglobal(tooltipName)
-    if not tooltip then
-        return
+    -- Hook the Set* methods to parse stats and mark for update
+    local function OnTooltipSet(self)
+        local itemLink = self:GetItem()
+        if itemLink then
+            -- New item - reset state
+            if CurrentTooltipItem ~= itemLink then
+                CurrentTooltipItem = itemLink
+                CurrentTooltipStats = nil
+                ValuateLinesAdded = false
+            end
+        end
     end
     
-    -- Try to get item link for better debouncing
-    local itemLink = tooltip:GetItem()
-    local currentItem = itemLink or (tooltipName .. ":" .. methodName)
+    hooksecurefunc(GameTooltip, "SetBagItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetInventoryItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetHyperlink", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetLootItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetAuctionItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetMerchantItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetQuestItem", OnTooltipSet)
+    hooksecurefunc(GameTooltip, "SetQuestLogItem", OnTooltipSet)
     
-    -- Simple debouncing - skip if we just processed this item
-    if LastProcessedTooltipItem == currentItem then
-        return
-    end
-    LastProcessedTooltipItem = currentItem
+    -- Hook OnUpdate to continuously check and add our lines
+    GameTooltip:HookScript("OnUpdate", function(self, elapsed)
+        -- Only process if tooltip is visible and has an item
+        if not self:IsVisible() then return end
+        local itemLink = self:GetItem()
+        if not itemLink then return end
+        
+        -- Check if our lines are already present
+        if HasValuateLines(self) then
+            ValuateLinesAdded = true
+            return
+        end
+        
+        -- If lines were added but are now gone, the tooltip was rebuilt - need to re-add
+        -- Parse stats if we haven't yet for this item
+        if not CurrentTooltipStats or CurrentTooltipItem ~= itemLink then
+            CurrentTooltipItem = itemLink
+            CurrentTooltipStats = Valuate:GetStatsFromDisplayedTooltip("GameTooltip")
+            ValuateLinesAdded = false
+        end
+        
+        -- Add our lines if we have stats
+        if CurrentTooltipStats and next(CurrentTooltipStats) and not ValuateLinesAdded then
+            AddScoreLinesToTooltip(self, CurrentTooltipStats)
+            ValuateLinesAdded = true
+        end
+    end)
     
-    -- Parse stats from the displayed tooltip (this has scaled values!)
-    local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
-    
-    if stats and next(stats) then  -- Make sure we have some stats
-        -- Calculate and display scores
-        Valuate:DisplayScoresOnTooltip(tooltip, stats)
-    end
+    -- Clear state when tooltip hides
+    GameTooltip:HookScript("OnHide", function(self)
+        CurrentTooltipItem = nil
+        CurrentTooltipStats = nil
+        ValuateLinesAdded = false
+    end)
 end
 
 -- ========================================
