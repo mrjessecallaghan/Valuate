@@ -150,6 +150,100 @@ function Valuate:GetCacheStats()
     }
 end
 
+-- ========================================
+-- Stat Parsing System
+-- ========================================
+
+-- Helper function to strip color codes from text
+local function StripColorCodes(text)
+    if not text then return "" end
+    -- Remove color codes like |cAARRGGBB| and |r|
+    text = string.gsub(text, "|c%x%x%x%x%x%x%x%x", "")
+    text = string.gsub(text, "|r", "")
+    return text
+end
+
+-- Creates or gets the hidden tooltip used for parsing
+local function GetPrivateTooltip()
+    if not ValuatePrivateTooltip then
+        ValuatePrivateTooltip = CreateFrame("GameTooltip", "ValuatePrivateTooltip", nil, "GameTooltipTemplate")
+        ValuatePrivateTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+    return ValuatePrivateTooltip
+end
+
+-- Parses stats from tooltip text using regex patterns
+-- Returns a table with stat names as keys and values as numbers
+function Valuate:ParseStatsFromTooltip(tooltipName)
+    local stats = {}
+    local tooltip = getglobal(tooltipName)
+    
+    if not tooltip then
+        return nil
+    end
+    
+    -- Iterate through all tooltip lines
+    for i = 1, tooltip:NumLines() do
+        local leftText = getglobal(tooltipName .. "TextLeft" .. i)
+        if leftText then
+            local lineText = StripColorCodes(leftText:GetText() or "")
+            
+            -- Try to match against each stat pattern
+            if lineText and lineText ~= "" then
+                for _, patternData in ipairs(ValuateStatPatterns) do
+                    local pattern = patternData[1]
+                    local statName = patternData[2]
+                    
+                    local matches = {string.match(lineText, pattern)}
+                    if matches[1] then
+                        local value = tonumber(matches[1])
+                        if value then
+                            stats[statName] = (stats[statName] or 0) + value
+                            break  -- Found a match, move to next line
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return stats
+end
+
+-- Gets stats for an item link by parsing its tooltip
+-- Returns a stats table, or nil if parsing fails
+function Valuate:GetStatsForItemLink(itemLink)
+    if not itemLink then
+        return nil
+    end
+    
+    -- Check cache first
+    local cached = Valuate:GetCachedItem(itemLink, nil)
+    if cached and cached.Stats then
+        return cached.Stats
+    end
+    
+    -- Parse tooltip
+    local tooltip = GetPrivateTooltip()
+    tooltip:ClearLines()
+    tooltip:SetHyperlink(itemLink)
+    
+    -- Wait a frame for tooltip to populate (tooltips load asynchronously)
+    -- For now, we'll try immediate parsing (may need to adjust)
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+    
+    -- Cache the result if we got stats
+    if stats then
+        if not cached then
+            cached = Valuate:CreateEmptyCachedItem(itemLink, nil)
+        end
+        cached.Stats = stats
+        Valuate:CacheItem(cached)
+    end
+    
+    return stats
+end
+
 -- Register events
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -168,6 +262,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate version - Show version info")
         print("  /valuate cache - Show cache statistics")
         print("  /valuate clearcache - Clear the item cache")
+        print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "cache" then
@@ -178,6 +273,23 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif command == "clearcache" then
         Valuate:ClearCache()
         print("|cFF00FF00Valuate|r: Item cache cleared.")
+    elseif strsub(command, 1, 4) == "test" then
+        local itemLink = strsub(command, 6)
+        if itemLink and itemLink ~= "" then
+            local stats = Valuate:GetStatsForItemLink(itemLink)
+            if stats then
+                print("|cFF00FF00Valuate|r: Parsed stats for item:")
+                for statName, value in pairs(stats) do
+                    local displayName = ValuateStatNames[statName] or statName
+                    print("  " .. displayName .. ": " .. value)
+                end
+            else
+                print("|cFFFF0000Valuate|r: Failed to parse stats for item.")
+            end
+        else
+            print("|cFFFF0000Valuate|r: Usage: /valuate test [itemlink]")
+            print("  Shift-click an item in chat to get its link, then paste after 'test'")
+        end
     else
         print("|cFF00FF00Valuate|r: Unknown command. Type /valuate help for available commands.")
     end

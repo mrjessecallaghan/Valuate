@@ -6,4 +6,5 @@
 ## SavedVariablesPerCharacter: ValuateOptions, ValuateScales
 
 Valuate.lua
+StatDefinitions.lua
 
