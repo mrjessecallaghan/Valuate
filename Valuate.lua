@@ -53,6 +53,11 @@ function Valuate:Initialize()
         ValuateOptions.debug = false
     end
     
+    -- Verify stat patterns loaded
+    if not ValuateStatPatterns then
+        print("|cFFFF0000Valuate|r: ERROR - StatDefinitions.lua failed to load!")
+    end
+    
     -- Clear cache on load (fresh start each session)
     Valuate:ClearCache()
 end
