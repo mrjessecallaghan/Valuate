@@ -60,6 +60,9 @@ function Valuate:Initialize()
     
     -- Clear cache on load (fresh start each session)
     Valuate:ClearCache()
+    
+    -- Hook into tooltips to parse scaled stats
+    Valuate:HookTooltips()
 end
 
 -- ========================================
