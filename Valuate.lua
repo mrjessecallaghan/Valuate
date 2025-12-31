@@ -182,6 +182,12 @@ function Valuate:ParseStatsFromTooltip(tooltipName)
         return nil
     end
     
+    -- Ensure stat patterns are loaded
+    if not ValuateStatPatterns then
+        print("|cFFFF0000Valuate|r: Stat patterns not loaded. Please reload UI.")
+        return nil
+    end
+    
     -- Iterate through all tooltip lines
     for i = 1, tooltip:NumLines() do
         local leftText = getglobal(tooltipName .. "TextLeft" .. i)
