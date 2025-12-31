@@ -7,4 +7,5 @@
 
 Valuate.lua
 StatDefinitions.lua
+ValuateUI.lua
 

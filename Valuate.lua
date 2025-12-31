@@ -21,6 +21,12 @@ end
 if ValuateOptions.debug == nil then
     ValuateOptions.debug = false
 end
+if ValuateOptions.decimalPlaces == nil then
+    ValuateOptions.decimalPlaces = 1  -- Number of decimal places for scores
+end
+if ValuateOptions.rightAlign == nil then
+    ValuateOptions.rightAlign = false  -- Right-align scores in tooltip
+end
 
 -- Item cache (LRU - Least Recently Used)
 -- Array of cached items, with newest items at the end
@@ -80,6 +86,7 @@ function Valuate:CreateDefaultScale()
     local defaultScale = {
         DisplayName = "Default",
         Color = "00FF00",
+        Visible = true,
         Values = {
             Strength = 1.0,
             Agility = 1.0,
@@ -371,15 +378,41 @@ local function AddScoreLinesToTooltip(tooltip, stats)
     for _, scaleName in ipairs(activeScales) do
         local scale = ValuateScales[scaleName]
         if scale then
-            local score = Valuate:CalculateItemScore(stats, scale)
-            if score and score > 0 then
-                if not hasScores then
-                    tooltip:AddLine(" ")
-                    hasScores = true
+            -- Check if item has any stats marked as unusable (banned) for this scale
+            local hasUnusableStat = false
+            if scale.Unusable then
+                for statName, statValue in pairs(stats) do
+                    if scale.Unusable[statName] and statValue and statValue > 0 then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
+                        end
+                        break
+                    end
                 end
-                local color = scale.Color or "FFFFFF"
-                local displayName = scale.DisplayName or scaleName
-                tooltip:AddLine("|cFF00FF00Valuate:|r |cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r")
+            end
+            
+            -- Only show score if no banned stats found on this item
+            if not hasUnusableStat then
+                local score = Valuate:CalculateItemScore(stats, scale)
+                if score and score > 0 then
+                    if not hasScores then
+                        tooltip:AddLine(" ")
+                        hasScores = true
+                    end
+                    local color = scale.Color or "FFFFFF"
+                    local displayName = scale.DisplayName or scaleName
+                    local decimals = ValuateOptions.decimalPlaces or 1
+                    local formatStr = "%." .. decimals .. "f"
+                    local scoreText = string.format(formatStr, score)
+                    
+                    if ValuateOptions.rightAlign then
+                        -- Use AddDoubleLine for right-aligned scores
+                        tooltip:AddDoubleLine("|cFFFFFFFFValuate:|r |cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                    else
+                        tooltip:AddLine("|cFFFFFFFFValuate:|r |cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                    end
+                end
             end
         end
     end
@@ -486,8 +519,8 @@ function Valuate:GetActiveScales()
     end
     
     for scaleName, scaleData in pairs(ValuateScales) do
-        -- For now, show all scales (later we'll add visibility options)
-        if scaleData.Values then
+        -- Check if scale has values and is visible
+        if scaleData.Values and (scaleData.Visible ~= false) then  -- Default to visible if not set
             tinsert(active, scaleName)
         end
     end
@@ -524,11 +557,27 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
     for _, scaleName in ipairs(activeScales) do
         local scale = ValuateScales[scaleName]
         if scale then
-            local score = Valuate:CalculateItemScore(stats, scale)
-            if score and score ~= 0 then
-                scores[scaleName] = score
-                if ValuateOptions.debug then
-                    print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' score: " .. score)
+            -- Check if item has any stats marked as unusable for this scale
+            local hasUnusableStat = false
+            if scale.Unusable then
+                for statName, statValue in pairs(stats) do
+                    if scale.Unusable[statName] and statValue and statValue > 0 then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
+                        end
+                        break
+                    end
+                end
+            end
+            
+            if not hasUnusableStat then
+                local score = Valuate:CalculateItemScore(stats, scale)
+                if score and score ~= 0 then
+                    scores[scaleName] = score
+                    if ValuateOptions.debug then
+                        print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' score: " .. score)
+                    end
                 end
             end
         end
@@ -582,6 +631,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
+        print("  /valuate ui - Open the configuration UI")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "cache" then
@@ -630,6 +680,8 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFFFF0000Valuate|r: No scales configured. Using default scale.")
         end
+    elseif command == "ui" then
+        Valuate:ToggleUI()
     else
         print("|cFF00FF00Valuate|r: Unknown command. Type /valuate help for available commands.")
     end
