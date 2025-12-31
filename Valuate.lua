@@ -179,7 +179,7 @@ end
 
 -- Parses stats from tooltip text using regex patterns
 -- Returns a table with stat names as keys and values as numbers
-function Valuate:ParseStatsFromTooltip(tooltipName)
+function Valuate:ParseStatsFromTooltip(tooltipName, debug)
     local stats = {}
     local tooltip = getglobal(tooltipName)
     
@@ -193,14 +193,22 @@ function Valuate:ParseStatsFromTooltip(tooltipName)
         return nil
     end
     
+    debug = debug or (ValuateOptions.debug == true)
+    
     -- Iterate through all tooltip lines
     for i = 1, tooltip:NumLines() do
         local leftText = getglobal(tooltipName .. "TextLeft" .. i)
         if leftText then
-            local lineText = StripColorCodes(leftText:GetText() or "")
+            local rawText = leftText:GetText() or ""
+            local lineText = StripColorCodes(rawText)
+            
+            if debug then
+                print("|cFF8888FF[DEBUG]|r Line " .. i .. ": '" .. lineText .. "'")
+            end
             
             -- Try to match against each stat pattern
             if lineText and lineText ~= "" then
+                local matched = false
                 for _, patternData in ipairs(ValuateStatPatterns) do
                     local pattern = patternData[1]
                     local statName = patternData[2]
@@ -210,9 +218,16 @@ function Valuate:ParseStatsFromTooltip(tooltipName)
                         local value = tonumber(matches[1])
                         if value then
                             stats[statName] = (stats[statName] or 0) + value
+                            if debug then
+                                print("|cFF00FF00[DEBUG]|r Matched " .. statName .. " = " .. value .. " (pattern: " .. pattern .. ")")
+                            end
+                            matched = true
                             break  -- Found a match, move to next line
                         end
                     end
+                end
+                if debug and not matched then
+                    print("|cFFFF8800[DEBUG]|r No pattern matched for: '" .. lineText .. "'")
                 end
             end
         end
@@ -245,7 +260,7 @@ function Valuate:GetStatsForItemLink(itemLink, useCache)
     tooltip:SetHyperlink(itemLink)
     
     -- Parse the tooltip (note: this will show base stats, not scaled stats)
-    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", ValuateOptions.debug)
     
     -- Cache the result if we got stats and caching is enabled
     if stats and useCache ~= false then
@@ -291,6 +306,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate cache - Show cache statistics")
         print("  /valuate clearcache - Clear the item cache")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
+        print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "cache" then
@@ -304,8 +320,12 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then
+            -- Temporarily enable debug for test command
+            local oldDebug = ValuateOptions.debug
+            ValuateOptions.debug = true
             -- Parse without cache to get fresh data
             local stats = Valuate:GetStatsForItemLink(itemLink, false)
+            ValuateOptions.debug = oldDebug
             if stats then
                 print("|cFF00FF00Valuate|r: Parsed stats for item (base values, not scaled):")
                 for statName, value in pairs(stats) do
@@ -320,6 +340,9 @@ SlashCmdList["VALUATE"] = function(msg)
             print("|cFFFF0000Valuate|r: Usage: /valuate test [itemlink]")
             print("  Shift-click an item in chat to get its link, then paste after 'test'")
         end
+    elseif command == "debug" then
+        ValuateOptions.debug = not ValuateOptions.debug
+        print("|cFF00FF00Valuate|r: Debug mode " .. (ValuateOptions.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     else
         print("|cFF00FF00Valuate|r: Unknown command. Type /valuate help for available commands.")
     end
