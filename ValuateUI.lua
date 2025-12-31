@@ -671,7 +671,7 @@ local function CreateScaleList(parent)
     end)
     
     local contentFrame = CreateFrame("Frame", nil, scrollFrame)
-    contentFrame:SetWidth(170)  -- Content width (container width minus scrollbar)
+    contentFrame:SetWidth(180)  -- Content width (wider than buttons to allow centering)
     scrollFrame:SetScrollChild(contentFrame)
     
     -- Scrollbar backdrop for visibility
