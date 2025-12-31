@@ -343,9 +343,6 @@ end
 -- Called when a tooltip is updated
 -- This parses stats from the displayed tooltip (which has scaled values)
 function Valuate:OnTooltipUpdate(tooltipName, methodName, ...)
-    -- Early exit: skip if no active scales (we'll add scales later)
-    -- For now, we'll just parse and cache the stats
-    
     -- Get the tooltip frame
     local tooltip = getglobal(tooltipName)
     if not tooltip then
@@ -362,13 +359,102 @@ function Valuate:OnTooltipUpdate(tooltipName, methodName, ...)
     local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
     
     if stats then
-        -- Store for potential future use (when we add scoring)
         LastProcessedTooltip = currentItem
         LastProcessedItem = stats
         
-        -- For now, we're just parsing and caching
-        -- Later we'll calculate scores and display them on the tooltip
+        -- Calculate and display scores
+        Valuate:DisplayScoresOnTooltip(tooltip, stats)
     end
+end
+
+-- ========================================
+-- Stat Weight System
+-- ========================================
+
+-- Calculate item score based on stat weights (scale)
+-- stats: Table of stat values {Strength = 10, Stamina = 20, ...}
+-- scale: Table of stat weights {Strength = 1.5, Stamina = 1.0, ...}
+-- Returns: Total score (number)
+function Valuate:CalculateItemScore(stats, scale)
+    if not stats or not scale or not scale.Values then
+        return nil
+    end
+    
+    local total = 0
+    local scaleValues = scale.Values
+    
+    -- Multiply each stat value by its weight and sum them
+    for statName, statValue in pairs(stats) do
+        local weight = scaleValues[statName]
+        if weight and weight ~= 0 then
+            total = total + (statValue * weight)
+        end
+    end
+    
+    return total
+end
+
+-- Gets all active scales (scales that should be displayed)
+-- Returns: Table of scale names that are active
+function Valuate:GetActiveScales()
+    local active = {}
+    
+    if not ValuateScales then
+        return active
+    end
+    
+    for scaleName, scaleData in pairs(ValuateScales) do
+        -- For now, show all scales (later we'll add visibility options)
+        if scaleData.Values then
+            tinsert(active, scaleName)
+        end
+    end
+    
+    return active
+end
+
+-- Displays calculated scores on the tooltip
+function Valuate:DisplayScoresOnTooltip(tooltip, stats)
+    if not tooltip or not stats then
+        return
+    end
+    
+    -- Get active scales
+    local activeScales = Valuate:GetActiveScales()
+    
+    -- If no active scales, don't display anything
+    if #activeScales == 0 then
+        return
+    end
+    
+    -- Calculate scores for each active scale
+    local scores = {}
+    for _, scaleName in ipairs(activeScales) do
+        local scale = ValuateScales[scaleName]
+        if scale then
+            local score = Valuate:CalculateItemScore(stats, scale)
+            if score then
+                scores[scaleName] = score
+            end
+        end
+    end
+    
+    -- If we have scores, display them
+    if next(scores) then
+        -- Add a blank line first
+        tooltip:AddLine(" ")
+        
+        -- Display each scale's score
+        for scaleName, score in pairs(scores) do
+            local scale = ValuateScales[scaleName]
+            local color = scale.Color or "FFFFFF"
+            local displayName = scale.DisplayName or scaleName
+            tooltip:AddLine("|cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r")
+        end
+    end
+    
+    -- Show the tooltip with updated lines
+    tooltip:Show()
 end
 
 -- Register events
@@ -391,6 +477,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate clearcache - Clear the item cache")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
+        print("  /valuate scales - List all stat weight scales")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "cache" then
@@ -427,6 +514,18 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif command == "debug" then
         ValuateOptions.debug = not ValuateOptions.debug
         print("|cFF00FF00Valuate|r: Debug mode " .. (ValuateOptions.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "scales" then
+        local activeScales = Valuate:GetActiveScales()
+        if #activeScales > 0 then
+            print("|cFF00FF00Valuate|r: Active scales:")
+            for _, scaleName in ipairs(activeScales) do
+                local scale = ValuateScales[scaleName]
+                local color = scale.Color or "FFFFFF"
+                print("  |cFF" .. color .. (scale.DisplayName or scaleName) .. "|r")
+            end
+        else
+            print("|cFFFF0000Valuate|r: No scales configured. Using default scale.")
+        end
     else
         print("|cFF00FF00Valuate|r: Unknown command. Type /valuate help for available commands.")
     end
