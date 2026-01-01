@@ -4,11 +4,31 @@
 -- ========================================
 -- UI Constants
 -- ========================================
-local PADDING = 12
-local SPACING = 8
+
+-- Window dimensions
+local WINDOW_WIDTH = 950
+local WINDOW_HEIGHT = 600
+
+-- Standardized spacing
+local PADDING = 12              -- Outer padding from window edges
+local ELEMENT_SPACING = 8       -- Between major UI sections
+local INNER_SPACING = 4         -- Within elements
+local COLUMN_GAP = 6            -- Gap between stat columns
+
+-- Component sizing
 local BUTTON_HEIGHT = 24
 local ENTRY_HEIGHT = 24
-local SCROLLBAR_WIDTH = 20  -- Width reserved for scrollbars (18px bar + 2px gap)
+local SCROLLBAR_WIDTH = 20      -- Width reserved for scrollbars (18px bar + 2px gap)
+
+-- Stat editor sizing (4-column layout)
+local COLUMN_WIDTH = 160        -- Each stat column width
+local ROW_HEIGHT = 16           -- Stat row height
+local ROW_SPACING = 1           -- Spacing between stat rows
+local HEADER_HEIGHT = 14        -- Category header height
+local HEADER_SPACING = 6        -- Spacing above headers
+
+-- Scale list sizing
+local SCALE_LIST_WIDTH = 200    -- Left panel width for scale list
 
 -- ========================================
 -- Color Palette (Modern, clean look)
@@ -165,8 +185,8 @@ local function CreateMainWindow()
     
     -- Main frame
     local frame = CreateFrame("Frame", "ValuateUIFrame", UIParent)
-    frame:SetWidth(600)
-    frame:SetHeight(500)
+    frame:SetWidth(WINDOW_WIDTH)
+    frame:SetHeight(WINDOW_HEIGHT)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
@@ -709,200 +729,311 @@ end
 local ScaleEditorFrame = nil
 local StatWeightRows = {}
 
+-- Helper to create a stat row
+local function CreateStatRow(parent, statName, scale, yOffset)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetHeight(ROW_HEIGHT)
+    row:SetWidth(COLUMN_WIDTH)
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
+    
+    -- Stat label (shorter width for 4-column layout)
+    local label = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    label:SetPoint("LEFT", row, "LEFT", 0, 0)
+    label:SetWidth(75)
+    label:SetJustifyH("RIGHT")
+    label:SetText((ValuateStatNames[statName] or statName) .. ":")
+    
+    -- Value input (compact)
+    local editBox = CreateFrame("EditBox", nil, row)
+    editBox:SetHeight(14)
+    editBox:SetWidth(38)
+    editBox:SetPoint("LEFT", label, "RIGHT", 2, 0)
+    editBox:SetAutoFocus(false)
+    editBox:SetFontObject(_G[FONT_SMALL])
+    editBox:SetJustifyH("CENTER")
+    editBox:SetBackdrop(BACKDROP_INPUT)
+    editBox:SetBackdropColor(unpack(COLORS.inputBg))
+    editBox:SetBackdropBorderColor(unpack(COLORS.border))
+    editBox:SetTextInsets(2, 2, 0, 0)
+    editBox.statName = statName
+    
+    -- Focus handling
+    editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    editBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    
+    -- Unusable checkbox (ban stat) - smaller for compact layout
+    local unusableCheckbox = CreateFrame("CheckButton", nil, row)
+    unusableCheckbox:SetSize(12, 12)
+    unusableCheckbox:SetPoint("LEFT", editBox, "RIGHT", 2, 0)
+    unusableCheckbox:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
+    unusableCheckbox:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
+    unusableCheckbox:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
+    unusableCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    unusableCheckbox.statName = statName
+    
+    -- Helper function to update banned visual state
+    local function UpdateBannedState(isBanned)
+        if isBanned then
+            label:SetTextColor(unpack(COLORS.textDim))
+            editBox:SetText("")
+            editBox:EnableMouse(false)
+            editBox:EnableKeyboard(false)
+            editBox:SetBackdropColor(unpack(COLORS.disabled))
+            editBox:SetBackdropBorderColor(unpack(COLORS.borderDark))
+        else
+            label:SetTextColor(unpack(COLORS.textBody))
+            editBox:EnableMouse(true)
+            editBox:EnableKeyboard(true)
+            editBox:SetBackdropColor(unpack(COLORS.inputBg))
+            editBox:SetBackdropBorderColor(unpack(COLORS.border))
+        end
+    end
+    
+    -- Check if this stat is marked as unusable
+    local isUnusable = (scale and scale.Unusable and scale.Unusable[statName])
+    unusableCheckbox:SetChecked(isUnusable == true)
+    
+    -- Set initial visual state
+    if isUnusable then
+        UpdateBannedState(true)
+    else
+        local value = (scale and scale.Values and scale.Values[statName])
+        if value and value ~= 0 then
+            editBox:SetText(tostring(value))
+        else
+            editBox:SetText("")
+        end
+    end
+    
+    -- OnClick handler for ban checkbox
+    unusableCheckbox:SetScript("OnClick", function(self)
+        local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        if EditingScaleName and ValuateScales[EditingScaleName] then
+            local currentScale = ValuateScales[EditingScaleName]
+            if not currentScale.Unusable then
+                currentScale.Unusable = {}
+            end
+            
+            if checked then
+                currentScale.Unusable[statName] = true
+                if currentScale.Values then
+                    currentScale.Values[statName] = nil
+                end
+            else
+                currentScale.Unusable[statName] = nil
+            end
+        end
+        
+        UpdateBannedState(checked)
+    end)
+    
+    -- Tooltip for unusable checkbox
+    unusableCheckbox:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Ban Stat", 1, 1, 1)
+        GameTooltip:AddLine("Items with this stat won't show a score for this scale.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    unusableCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    row.label = label
+    row.editBox = editBox
+    row.unusableCheckbox = unusableCheckbox
+    row.updateBannedState = UpdateBannedState
+    
+    return row
+end
+
 local function UpdateStatWeightsList(scaleName, scale)
     if not ScaleEditorFrame then return end
     
     -- Clear existing rows
     for _, row in pairs(StatWeightRows) do
-        row:Hide()
-        row:SetParent(nil)
+        if row.Hide then row:Hide() end
+        if row.SetParent then row:SetParent(nil) end
     end
     StatWeightRows = {}
     
-    -- Stat categories with headers
-    local statCategories = {
-        { header = "Primary", stats = { "Strength", "Agility", "Stamina", "Intellect", "Spirit" } },
-        { header = "Physical", stats = { "AttackPower", "HitRating", "CritRating", "HasteRating", "ExpertiseRating", "DPS" } },
-        { header = "Spell", stats = { "SpellPower" } },
-        { header = "Mitigation", stats = { "Armor", "DefenseRating", "DodgeRating", "ParryRating", "BlockRating", "BlockValue" } },
-        { header = "PvP & Other", stats = { "ResilienceRating", "PVEPower", "PVPPower" } },
-    }
+    -- Use categories from StatDefinitions.lua
+    if not ValuateStatCategories then
+        print("|cFFFF0000Valuate|r: Stat categories not defined!")
+        return
+    end
     
-    local ROW_HEIGHT = 18
-    local ROW_SPACING = 1
-    local HEADER_HEIGHT = 16
-    local HEADER_SPACING = 4
+    -- Create 4 column frames
+    local columnFrames = {}
+    local columnHeights = {0, 0, 0, 0}
     
-    -- Create rows dynamically - anchor to content frame top
-    local lastElement = nil
-    local isFirstElement = true
-    local totalHeight = 0
+    for i = 1, 4 do
+        local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
+        colFrame:SetWidth(COLUMN_WIDTH)
+        colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), 0)
+        columnFrames[i] = colFrame
+        tinsert(StatWeightRows, colFrame)
+    end
     
-    for _, category in ipairs(statCategories) do
-        -- Create category header
-        local headerRow = CreateFrame("Frame", nil, ScaleEditorFrame)
-        headerRow:SetHeight(HEADER_HEIGHT)
-        headerRow:SetWidth(280)
-        
-        if isFirstElement then
-            headerRow:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", 0, 0)
-            isFirstElement = false
-        else
-            headerRow:SetPoint("TOPLEFT", lastElement, "BOTTOMLEFT", 0, -HEADER_SPACING)
-            totalHeight = totalHeight + HEADER_SPACING
-        end
-        lastElement = headerRow
-        totalHeight = totalHeight + HEADER_HEIGHT
-        
-        local headerLabel = headerRow:CreateFontString(nil, "OVERLAY", FONT_H2)
-        headerLabel:SetPoint("LEFT", headerRow, "LEFT", 0, 0)
-        headerLabel:SetText(category.header)
-        headerLabel:SetTextColor(unpack(COLORS.textHeader))
-        
-        tinsert(StatWeightRows, headerRow)
-        
-        -- Create stat rows for this category
-        for _, statName in ipairs(category.stats) do
-            if ValuateStatNames[statName] then
-                local row = CreateFrame("Frame", nil, ScaleEditorFrame)
-                row:SetHeight(ROW_HEIGHT)
-                row:SetWidth(280)
-                row:SetPoint("TOPLEFT", lastElement, "BOTTOMLEFT", 0, -ROW_SPACING)
-                lastElement = row
-                totalHeight = totalHeight + ROW_HEIGHT + ROW_SPACING
-                
-                -- Stat label
-                local label = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                label:SetPoint("LEFT", row, "LEFT", 8, 0)
-                label:SetWidth(100)
-                label:SetJustifyH("RIGHT")
-                label:SetText(ValuateStatNames[statName] .. ":")
-                
-                -- Value input
-                local editBox = CreateFrame("EditBox", nil, row)
-                editBox:SetHeight(16)
-                editBox:SetWidth(45)
-                editBox:SetPoint("LEFT", label, "RIGHT", 4, 0)
-                editBox:SetAutoFocus(false)
-                editBox:SetFontObject(_G[FONT_SMALL])
-                editBox:SetJustifyH("CENTER")
-                editBox:SetBackdrop(BACKDROP_INPUT)
-                editBox:SetBackdropColor(unpack(COLORS.inputBg))
-                editBox:SetBackdropBorderColor(unpack(COLORS.border))
-                editBox:SetTextInsets(2, 2, 0, 0)
-                editBox.statName = statName
-                
-                -- Focus handling
-                editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-                editBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-                
-                -- Unusable checkbox (ban stat)
-                local unusableCheckbox = CreateFrame("CheckButton", nil, row)
-                unusableCheckbox:SetSize(14, 14)
-                unusableCheckbox:SetPoint("LEFT", editBox, "RIGHT", 4, 0)
-                unusableCheckbox:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
-                unusableCheckbox:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
-                unusableCheckbox:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
-                unusableCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
-                unusableCheckbox.statName = statName
-                
-                -- Helper function to update banned visual state
-                local function UpdateBannedState(isBanned)
-                    if isBanned then
-                        -- Grey out and disable
-                        label:SetTextColor(unpack(COLORS.textDim))
-                        editBox:SetText("")
-                        editBox:EnableMouse(false)
-                        editBox:EnableKeyboard(false)
-                        editBox:SetBackdropColor(unpack(COLORS.disabled))
-                        editBox:SetBackdropBorderColor(unpack(COLORS.borderDark))
-                    else
-                        -- Restore normal state
-                        label:SetTextColor(unpack(COLORS.textBody))
-                        editBox:EnableMouse(true)
-                        editBox:EnableKeyboard(true)
-                        editBox:SetBackdropColor(unpack(COLORS.inputBg))
-                        editBox:SetBackdropBorderColor(unpack(COLORS.border))
-                    end
-                end
-                
-                -- Check if this stat is marked as unusable
-                local isUnusable = (scale and scale.Unusable and scale.Unusable[statName])
-                unusableCheckbox:SetChecked(isUnusable == true)
-                
-                -- Set initial visual state based on whether banned
-                if isUnusable then
-                    UpdateBannedState(true)
-                else
-                    -- Show value only if not banned
-                    local value = (scale and scale.Values and scale.Values[statName])
-                    if value and value ~= 0 then
-                        editBox:SetText(tostring(value))
-                    else
-                        editBox:SetText("")
-                    end
-                end
-                
-                -- OnClick handler for ban checkbox
-                unusableCheckbox:SetScript("OnClick", function(self)
-                    local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    -- Populate each column with its categories
+    for _, category in ipairs(ValuateStatCategories) do
+        local col = category.column
+        if col and col >= 1 and col <= 4 and columnFrames[col] then
+            local colFrame = columnFrames[col]
+            local yOffset = -columnHeights[col]
+            
+            -- Create category header
+            local headerFrame = CreateFrame("Frame", nil, colFrame)
+            headerFrame:SetHeight(HEADER_HEIGHT)
+            headerFrame:SetWidth(COLUMN_WIDTH)
+            
+            if columnHeights[col] > 0 then
+                yOffset = yOffset - HEADER_SPACING
+            end
+            headerFrame:SetPoint("TOPLEFT", colFrame, "TOPLEFT", 0, yOffset)
+            
+            local headerLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H3)
+            headerLabel:SetPoint("LEFT", headerFrame, "LEFT", 0, 0)
+            headerLabel:SetText(category.header)
+            headerLabel:SetTextColor(unpack(COLORS.textAccent))
+            
+            tinsert(StatWeightRows, headerFrame)
+            
+            if columnHeights[col] > 0 then
+                columnHeights[col] = columnHeights[col] + HEADER_SPACING
+            end
+            columnHeights[col] = columnHeights[col] + HEADER_HEIGHT
+            
+            -- Create stat rows for this category
+            for _, statName in ipairs(category.stats) do
+                if ValuateStatNames[statName] then
+                    local rowYOffset = -columnHeights[col] - ROW_SPACING
+                    local row = CreateStatRow(colFrame, statName, scale, rowYOffset)
                     
-                    -- Immediately save to scale data
-                    if EditingScaleName and ValuateScales[EditingScaleName] then
-                        local currentScale = ValuateScales[EditingScaleName]
-                        if not currentScale.Unusable then
-                            currentScale.Unusable = {}
-                        end
-                        
-                        if checked then
-                            currentScale.Unusable[statName] = true
-                            -- Clear the value when banning
-                            if currentScale.Values then
-                                currentScale.Values[statName] = nil
-                            end
-                        else
-                            currentScale.Unusable[statName] = nil
-                        end
-                    end
-                    
-                    -- Update visual state
-                    UpdateBannedState(checked)
-                end)
-                
-                -- Tooltip for unusable checkbox
-                unusableCheckbox:SetScript("OnEnter", function(self)
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:AddLine("Ban Stat", 1, 1, 1)
-                    GameTooltip:AddLine("If checked, items with this stat will not show a score for this scale.", 0.8, 0.8, 0.8, true)
-                    GameTooltip:Show()
-                end)
-                unusableCheckbox:SetScript("OnLeave", function()
-                    GameTooltip:Hide()
-                end)
-                
-                -- Store references
-                row.label = label
-                row.editBox = editBox
-                row.unusableCheckbox = unusableCheckbox
-                row.updateBannedState = UpdateBannedState
-                StatWeightRows[statName] = row
-                tinsert(StatWeightRows, row)
+                    StatWeightRows[statName] = row
+                    tinsert(StatWeightRows, row)
+                    columnHeights[col] = columnHeights[col] + ROW_HEIGHT + ROW_SPACING
+                end
             end
         end
     end
     
+    -- Find tallest column for scroll height (core stats section)
+    local coreMaxHeight = 0
+    for i = 1, 4 do
+        if columnHeights[i] > coreMaxHeight then
+            coreMaxHeight = columnHeights[i]
+        end
+    end
+    
+    -- Set column frame heights for core stats
+    for i = 1, 4 do
+        columnFrames[i]:SetHeight(coreMaxHeight)
+    end
+    
+    -- ========================================
+    -- Equipment Types Section (below core stats)
+    -- ========================================
+    local equipmentStartY = coreMaxHeight + ELEMENT_SPACING * 2
+    
+    if ValuateEquipmentCategories then
+        -- Equipment section header
+        local equipHeader = CreateFrame("Frame", nil, ScaleEditorFrame)
+        equipHeader:SetHeight(HEADER_HEIGHT + 4)
+        equipHeader:SetWidth(4 * COLUMN_WIDTH + 3 * COLUMN_GAP)
+        equipHeader:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", 0, -equipmentStartY)
+        
+        -- Separator line
+        local separator = equipHeader:CreateTexture(nil, "BACKGROUND")
+        separator:SetHeight(1)
+        separator:SetPoint("TOPLEFT", equipHeader, "TOPLEFT", 0, 0)
+        separator:SetPoint("TOPRIGHT", equipHeader, "TOPRIGHT", 0, 0)
+        separator:SetColorTexture(unpack(COLORS.border))
+        
+        local equipLabel = equipHeader:CreateFontString(nil, "OVERLAY", FONT_H2)
+        equipLabel:SetPoint("LEFT", equipHeader, "LEFT", 0, -6)
+        equipLabel:SetText("Equipment Types")
+        equipLabel:SetTextColor(unpack(COLORS.textHeader))
+        
+        tinsert(StatWeightRows, equipHeader)
+        
+        local equipStartY = equipmentStartY + HEADER_HEIGHT + ELEMENT_SPACING
+        
+        -- Create equipment column frames
+        local equipColumnFrames = {}
+        local equipColumnHeights = {0, 0, 0, 0}
+        
+        for i = 1, 4 do
+            local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
+            colFrame:SetWidth(COLUMN_WIDTH)
+            colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), -equipStartY)
+            equipColumnFrames[i] = colFrame
+            tinsert(StatWeightRows, colFrame)
+        end
+        
+        -- Populate equipment categories
+        for _, category in ipairs(ValuateEquipmentCategories) do
+            local col = category.column
+            if col and col >= 1 and col <= 4 and equipColumnFrames[col] then
+                local colFrame = equipColumnFrames[col]
+                local yOffset = -equipColumnHeights[col]
+                
+                -- Create category header
+                local headerFrame = CreateFrame("Frame", nil, colFrame)
+                headerFrame:SetHeight(HEADER_HEIGHT)
+                headerFrame:SetWidth(COLUMN_WIDTH)
+                headerFrame:SetPoint("TOPLEFT", colFrame, "TOPLEFT", 0, yOffset)
+                
+                local headerLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H3)
+                headerLabel:SetPoint("LEFT", headerFrame, "LEFT", 0, 0)
+                headerLabel:SetText(category.header)
+                headerLabel:SetTextColor(unpack(COLORS.textAccent))
+                
+                tinsert(StatWeightRows, headerFrame)
+                equipColumnHeights[col] = equipColumnHeights[col] + HEADER_HEIGHT
+                
+                -- Create stat rows for equipment types
+                for _, statName in ipairs(category.stats) do
+                    if ValuateStatNames[statName] then
+                        local rowYOffset = -equipColumnHeights[col] - ROW_SPACING
+                        local row = CreateStatRow(colFrame, statName, scale, rowYOffset)
+                        
+                        StatWeightRows[statName] = row
+                        tinsert(StatWeightRows, row)
+                        equipColumnHeights[col] = equipColumnHeights[col] + ROW_HEIGHT + ROW_SPACING
+                    end
+                end
+            end
+        end
+        
+        -- Find tallest equipment column
+        local equipMaxHeight = 0
+        for i = 1, 4 do
+            if equipColumnHeights[i] > equipMaxHeight then
+                equipMaxHeight = equipColumnHeights[i]
+            end
+        end
+        
+        -- Set equipment column heights
+        for i = 1, 4 do
+            equipColumnFrames[i]:SetHeight(equipMaxHeight)
+        end
+        
+        -- Total height includes equipment section
+        coreMaxHeight = equipStartY + equipMaxHeight
+    end
+    
     -- Update content frame height for scrolling
     if ScaleEditorFrame and ScaleEditorFrame.scrollFrame then
-        ScaleEditorFrame:SetHeight(math.max(totalHeight, 100))
+        ScaleEditorFrame:SetHeight(math.max(coreMaxHeight, 100))
         
-        -- Update scrollbar range
         local scrollFrame = ScaleEditorFrame.scrollFrame
         local scrollBar = scrollFrame.scrollBar
         if scrollBar then
             local scrollFrameHeight = scrollFrame:GetHeight()
-            local maxScroll = math.max(0, totalHeight - scrollFrameHeight)
+            local maxScroll = math.max(0, coreMaxHeight - scrollFrameHeight)
             scrollBar:SetMinMaxValues(0, maxScroll)
-            scrollBar:SetValue(0)  -- Reset scroll to top when changing scales
+            scrollBar:SetValue(0)
         end
     end
 end
@@ -967,18 +1098,18 @@ end
 
 local function CreateScaleEditor(parent)
     local container = CreateFrame("Frame", nil, parent)
-    container:SetPoint("TOPLEFT", parent, "TOPLEFT", 200 + PADDING, 0)
+    container:SetPoint("TOPLEFT", parent, "TOPLEFT", SCALE_LIST_WIDTH + PADDING, 0)
     container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
     
-    -- Header area (non-scrolling) for Scale Name and Color
+    -- Header area (non-scrolling) for Scale Name - reduced height
     local headerFrame = CreateFrame("Frame", nil, container)
     headerFrame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
     headerFrame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
-    headerFrame:SetHeight(70)
+    headerFrame:SetHeight(40)
     
-    -- Scale Name
+    -- Scale Name (single line header)
     local nameLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
-    nameLabel:SetPoint("TOPLEFT", headerFrame, "TOPLEFT", 0, 0)
+    nameLabel:SetPoint("LEFT", headerFrame, "LEFT", 0, 0)
     nameLabel:SetText("Scale Name:")
     
     local nameEditBox = CreateFrame("EditBox", nil, headerFrame)
@@ -993,11 +1124,6 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetTextInsets(6, 6, 0, 0)
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    
-    -- Stat weights header (in header area)
-    local statsHeader = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
-    statsHeader:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -SPACING - 4)
-    statsHeader:SetText("Stat Weights:")
     
     -- Scroll frame for stat weights (below header, reserves space for scrollbar on right)
     local scrollFrame = CreateFrame("ScrollFrame", nil, container)
@@ -1019,7 +1145,8 @@ local function CreateScaleEditor(parent)
     end)
     
     local contentFrame = CreateFrame("Frame", nil, scrollFrame)
-    contentFrame:SetWidth(280)  -- Content width for labels + input boxes + checkbox
+    -- Width for 4 columns: 4 * COLUMN_WIDTH + 3 * COLUMN_GAP
+    contentFrame:SetWidth(4 * COLUMN_WIDTH + 3 * COLUMN_GAP)
     contentFrame:SetHeight(600)  -- Initial height, updated dynamically
     scrollFrame:SetScrollChild(contentFrame)
     

@@ -248,7 +248,92 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
     
     debug = debug or (ValuateOptions.debug == true)
     
-    -- Iterate through all tooltip lines
+    -- Track weapon slot type for assigning type-specific DPS/Speed
+    local weaponSlotType = nil  -- IsMainHand, IsOffHand, IsOneHand, IsTwoHand, IsRanged
+    local isMelee = false
+    local isRanged = false
+    
+    -- First pass: identify weapon/armor slot type and item level
+    for i = 1, tooltip:NumLines() do
+        local leftText = getglobal(tooltipName .. "TextLeft" .. i)
+        local rightText = getglobal(tooltipName .. "TextRight" .. i)
+        
+        if leftText then
+            local rawText = leftText:GetText() or ""
+            local lineText = StripColorCodes(rawText)
+            
+            -- Check for item level
+            local itemLevel = string.match(lineText, "^Item Level (%d+)$")
+            if itemLevel then
+                stats["ItemLevel"] = tonumber(itemLevel)
+                if debug then
+                    print("|cFF00FF00[DEBUG]|r Item Level = " .. itemLevel)
+                end
+            end
+            
+            -- Check for weapon slot type (appears on left side)
+            if ValuateWeaponSlotPatterns then
+                for _, patternData in ipairs(ValuateWeaponSlotPatterns) do
+                    if string.match(lineText, patternData[1]) then
+                        weaponSlotType = patternData[2]
+                        stats[patternData[2]] = 1
+                        if debug then
+                            print("|cFF00FF00[DEBUG]|r Weapon slot: " .. patternData[2])
+                        end
+                        -- Determine if melee or ranged
+                        if patternData[2] == "IsRanged" then
+                            isRanged = true
+                        else
+                            isMelee = true
+                        end
+                        break
+                    end
+                end
+            end
+        end
+        
+        -- Check right side for weapon type (e.g., "Sword", "Axe")
+        if rightText then
+            local rawRightText = rightText:GetText() or ""
+            local rightLineText = StripColorCodes(rawRightText)
+            
+            -- Check for weapon types
+            if ValuateWeaponTypePatterns then
+                for _, patternData in ipairs(ValuateWeaponTypePatterns) do
+                    if string.match(rightLineText, patternData[1]) then
+                        local statName = patternData[2]
+                        -- Handle 2H weapon type conversion
+                        if weaponSlotType == "IsTwoHand" then
+                            if statName == "IsAxe" then statName = "Is2HAxe"
+                            elseif statName == "IsMace" then statName = "Is2HMace"
+                            elseif statName == "IsSword" then statName = "Is2HSword"
+                            end
+                        end
+                        stats[statName] = 1
+                        if debug then
+                            print("|cFF00FF00[DEBUG]|r Weapon type: " .. statName)
+                        end
+                        break
+                    end
+                end
+            end
+            
+            -- Check for armor types
+            if ValuateArmorTypePatterns then
+                for _, patternData in ipairs(ValuateArmorTypePatterns) do
+                    if string.match(rightLineText, patternData[1]) then
+                        stats[patternData[2]] = 1
+                        if debug then
+                            print("|cFF00FF00[DEBUG]|r Armor type: " .. patternData[2])
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Second pass: parse regular stats
     for i = 1, tooltip:NumLines() do
         local leftText = getglobal(tooltipName .. "TextLeft" .. i)
         if leftText then
@@ -282,6 +367,65 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
                 if debug and not matched then
                     print("|cFFFF8800[DEBUG]|r No pattern matched for: '" .. lineText .. "'")
                 end
+            end
+        end
+    end
+    
+    -- Assign type-specific DPS and Speed based on weapon slot
+    if stats["Dps"] then
+        local dps = stats["Dps"]
+        
+        -- Assign to slot-specific DPS
+        if stats["IsMainHand"] then
+            stats["MainHandDps"] = dps
+        end
+        if stats["IsOffHand"] then
+            stats["OffHandDps"] = dps
+        end
+        if stats["IsOneHand"] then
+            stats["OneHandDps"] = dps
+        end
+        if stats["IsTwoHand"] then
+            stats["TwoHandDps"] = dps
+        end
+        
+        -- Assign to melee/ranged DPS
+        if isMelee then
+            stats["MeleeDps"] = dps
+        end
+        if isRanged or stats["IsRanged"] then
+            stats["RangedDps"] = dps
+        end
+        
+        if debug then
+            print("|cFF00FF00[DEBUG]|r Assigned DPS to type-specific stats")
+        end
+    end
+    
+    if stats["Speed"] then
+        local speed = stats["Speed"]
+        
+        -- Assign to melee/ranged Speed
+        if isMelee then
+            stats["MeleeSpeed"] = speed
+        end
+        if isRanged or stats["IsRanged"] then
+            stats["RangedSpeed"] = speed
+        end
+        
+        if debug then
+            print("|cFF00FF00[DEBUG]|r Assigned Speed to type-specific stats")
+        end
+    end
+    
+    -- Calculate Feral AP from weapon DPS (for druids)
+    -- Feral AP = (Weapon DPS - 54.8) * 14
+    if stats["Dps"] and stats["IsStaff"] then
+        local feralAP = math.floor((stats["Dps"] - 54.8) * 14)
+        if feralAP > 0 then
+            stats["FeralAP"] = feralAP
+            if debug then
+                print("|cFF00FF00[DEBUG]|r Calculated Feral AP = " .. feralAP)
             end
         end
     end
