@@ -671,9 +671,9 @@ local function CreateScaleList(parent)
     
     -- Scroll frame for scale list (reserves space for scrollbar on right)
     local scrollFrame = CreateFrame("ScrollFrame", nil, container)
-    scrollFrame:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -SPACING)
+    scrollFrame:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     scrollFrame:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
-    scrollFrame:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -SPACING)
+    scrollFrame:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -ELEMENT_SPACING)
     scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
     scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
@@ -1127,7 +1127,7 @@ local function CreateScaleEditor(parent)
     
     -- Scroll frame for stat weights (below header, reserves space for scrollbar on right)
     local scrollFrame = CreateFrame("ScrollFrame", nil, container)
-    scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -SPACING)
+    scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 40)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
     scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
@@ -1239,7 +1239,7 @@ local function CreateScaleEditor(parent)
     end)
     
     local cancelButton = CreateStyledButton(container, "Cancel", 80, BUTTON_HEIGHT)
-    cancelButton:SetPoint("LEFT", saveButton, "RIGHT", SPACING, 0)
+    cancelButton:SetPoint("LEFT", saveButton, "RIGHT", ELEMENT_SPACING, 0)
     cancelButton:HookScript("OnClick", function()
         if OriginalScaleData and EditingScaleName and ValuateScales[EditingScaleName] then
             -- Restore original data
@@ -1311,7 +1311,7 @@ local function CreateSettingsPanel(parent)
     
     -- Decimal Places
     local decimalLabel = container:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    decimalLabel:SetPoint("TOPLEFT", cacheLabel, "BOTTOMLEFT", 0, -SPACING - 4)
+    decimalLabel:SetPoint("TOPLEFT", cacheLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING - 4)
     decimalLabel:SetText("Decimal Places:")
     
     local decimalEditBox = CreateFrame("EditBox", nil, container)
@@ -1342,7 +1342,7 @@ local function CreateSettingsPanel(parent)
     -- Right-Align Values checkbox
     local alignCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
     alignCheckbox:SetSize(24, 24)
-    alignCheckbox:SetPoint("TOPLEFT", decimalLabel, "BOTTOMLEFT", 0, -SPACING)
+    alignCheckbox:SetPoint("TOPLEFT", decimalLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     
     local alignLabel = alignCheckbox:CreateFontString(nil, "OVERLAY", FONT_BODY)
     alignLabel:SetPoint("LEFT", alignCheckbox, "RIGHT", 5, 0)
@@ -1355,7 +1355,7 @@ local function CreateSettingsPanel(parent)
     -- Debug Mode
     local debugCheckbox = CreateFrame("CheckButton", nil, container, "UICheckButtonTemplate")
     debugCheckbox:SetSize(24, 24)
-    debugCheckbox:SetPoint("TOPLEFT", alignCheckbox, "BOTTOMLEFT", 0, -SPACING)
+    debugCheckbox:SetPoint("TOPLEFT", alignCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     
     local debugLabel = debugCheckbox:CreateFontString(nil, "OVERLAY", FONT_BODY)
     debugLabel:SetPoint("LEFT", debugCheckbox, "RIGHT", 5, 0)
