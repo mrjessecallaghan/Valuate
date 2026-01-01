@@ -234,6 +234,12 @@ local function CreateMainWindow()
     titleText:SetText("Valuate")
     titleText:SetTextColor(unpack(COLORS.textTitle))
     
+    -- Version text (smaller, next to title)
+    local versionText = titleBar:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    versionText:SetPoint("LEFT", titleText, "RIGHT", 6, 0)
+    versionText:SetText("v" .. (Valuate.version or "?"))
+    versionText:SetTextColor(unpack(COLORS.textDim))
+    
     -- Close button (custom styled)
     local closeButton = CreateFrame("Button", nil, frame)
     closeButton:SetSize(18, 18)
