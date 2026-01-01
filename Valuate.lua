@@ -1,12 +1,11 @@
 -- Valuate - Stat Weight Calculator for WoW Ascension Bronzebeard
--- Version: 0.4.1
 -- Interface: 30300 (WotLK 3.3.5a)
 
 -- Addon namespace
 Valuate = {}
 
--- Version info
-Valuate.version = "0.4.1"
+-- Version info (read from .toc file automatically)
+Valuate.version = GetAddOnMetadata("Valuate", "Version") or "Unknown"
 Valuate.interface = 30300
 
 -- Initialize saved variables
