@@ -939,12 +939,42 @@ local function CreateScaleList(parent)
     container:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
     container:SetWidth(200)
     
-    -- New Scale button
-    local newButton = CreateStyledButton(container, "New Scale", nil, BUTTON_HEIGHT)
+    -- New Blank Scale button (main button)
+    local newButton = CreateStyledButton(container, "New Blank Scale", nil, BUTTON_HEIGHT)
     newButton:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    newButton:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    newButton:SetPoint("TOPRIGHT", container, "TOPRIGHT", -28, 0)  -- Leave space for + button
     newButton:SetScript("OnClick", function()
         ValuateUI_NewScale()
+    end)
+    
+    -- "+" button for default scale templates
+    local plusButton = CreateFrame("Button", nil, container)
+    plusButton:SetSize(24, 24)
+    plusButton:SetPoint("LEFT", newButton, "RIGHT", 4, 0)
+    plusButton:SetBackdrop(BACKDROP_BUTTON)
+    plusButton:SetBackdropColor(unpack(COLORS.buttonBg))
+    plusButton:SetBackdropBorderColor(unpack(COLORS.border))
+    
+    local plusLabel = plusButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    plusLabel:SetPoint("CENTER", plusButton, "CENTER", 0, 0)
+    plusLabel:SetText("+")
+    plusLabel:SetTextColor(unpack(COLORS.textBody))
+    
+    plusButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonHover))
+        plusLabel:SetTextColor(unpack(COLORS.textAccent))
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("New Scale from Template", 1, 1, 1)
+        GameTooltip:AddLine("Create a scale with pre-configured stat weights for your class/spec.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    plusButton:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonBg))
+        plusLabel:SetTextColor(unpack(COLORS.textBody))
+        GameTooltip:Hide()
+    end)
+    plusButton:SetScript("OnClick", function()
+        ValuateUI_ShowDefaultScalePicker()
     end)
     
     -- Scroll frame for scale list (reserves space for scrollbar on right)
@@ -1389,7 +1419,8 @@ local function CreateImportExportDialog()
     dialog:SetWidth(600)
     dialog:SetHeight(300)
     dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    dialog:SetFrameStrata("DIALOG")
+    dialog:SetFrameStrata("FULLSCREEN_DIALOG")
+    dialog:SetFrameLevel(100)
     dialog:SetBackdrop(BACKDROP_WINDOW)
     dialog:SetBackdropColor(unpack(COLORS.windowBg))
     dialog:SetBackdropBorderColor(unpack(COLORS.border))
@@ -1444,6 +1475,17 @@ local function CreateImportExportDialog()
         end
         local height = math.max(150, numLines * 14)
         self:SetHeight(height)
+    end)
+    -- Keyboard handling for Ctrl+C and Ctrl+A
+    editBox:SetScript("OnKeyDown", function(self, key)
+        if key == "C" and IsControlKeyDown() then
+            -- Ctrl+C: Highlight all text for easy copying
+            self:HighlightText()
+            self:SetFocus()
+        elseif key == "A" and IsControlKeyDown() then
+            -- Ctrl+A: Select all text
+            self:HighlightText()
+        end
     end)
     
     scrollFrame:SetScrollChild(editBox)
@@ -1511,7 +1553,7 @@ function Valuate:ShowImportDialog()
     local dialog = CreateImportExportDialog()
     
     dialog.title:SetText("Import Scale")
-    dialog.prompt:SetText("Press Ctrl+V to paste a scale tag:")
+    dialog.prompt:SetText("Press Ctrl+V to paste a scale tag (supports multiple scales):")
     dialog.editBox:SetText("")
     dialog.editBox:SetFocus()
     
@@ -1522,33 +1564,91 @@ function Valuate:ShowImportDialog()
     dialog.cancelButton:SetPoint("BOTTOM", dialog, "BOTTOM", 55, 15)
     
     dialog.okCallback = function(text)
-        local status, scaleName = self:ImportScale(text, true)  -- Allow overwrite
+        -- Check if multiple scales
+        local parsedScales, errors = self:ParseMultipleScaleTags(text)
         
-        if status == Valuate.ImportResult.SUCCESS then
-            print("|cFF00FF00Valuate|r: Successfully imported scale |cFFFFFFFF" .. scaleName .. "|r")
-            
-            -- Refresh the UI if it's open
-            if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                UpdateScaleList()
-                -- Select the imported scale
-                if ScaleListButtons[scaleName] then
-                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
-                end
+        if #parsedScales == 0 and #errors > 0 then
+            -- No valid scales, show error
+            local errorMsg = errors[1].error or "Invalid scale tag format"
+            print("|cFFFF0000Valuate|r: Import failed: " .. errorMsg)
+            return
+        end
+        
+        if #parsedScales == 0 then
+            print("|cFFFF0000Valuate|r: Import failed: No valid scale tags found")
+            return
+        end
+        
+        -- Check for existing scales
+        local successCount, failCount, existingScales = self:ImportMultipleScales(text, false)
+        
+        if #existingScales > 0 then
+            -- Show confirmation dialog
+            if #existingScales == 1 then
+                -- Single scale conflict
+                StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE_SINGLE"] = {
+                    text = "A scale named \"" .. existingScales[1] .. "\" already exists.\n\nOverwrite it?",
+                    button1 = "Overwrite",
+                    button2 = "Cancel",
+                    OnAccept = function()
+                        local success, fail, _ = self:ImportMultipleScales(text, true)
+                        if success > 0 then
+                            print("|cFF00FF00Valuate|r: Imported " .. success .. " scale(s)")
+                            if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                                UpdateScaleList()
+                            end
+                        end
+                        if fail > 0 then
+                            print("|cFFFF0000Valuate|r: Failed to import " .. fail .. " scale(s)")
+                        end
+                    end,
+                    timeout = 0,
+                    whileDead = true,
+                    hideOnEscape = true,
+                }
+                StaticPopup_Show("VALUATE_IMPORT_OVERWRITE_SINGLE")
+            else
+                -- Multiple scale conflicts
+                local scaleList = table.concat(existingScales, ", ")
+                StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE"] = {
+                    text = "The following scales already exist:\n" .. scaleList .. "\n\nOverwrite them?",
+                    button1 = "Overwrite",
+                    button2 = "Skip",
+                    OnAccept = function()
+                        local success, fail, _ = self:ImportMultipleScales(text, true)
+                        if success > 0 then
+                            print("|cFF00FF00Valuate|r: Imported " .. success .. " scale(s)")
+                            if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                                UpdateScaleList()
+                            end
+                        end
+                        if fail > 0 then
+                            print("|cFFFF0000Valuate|r: Failed to import " .. fail .. " scale(s)")
+                        end
+                    end,
+                    timeout = 0,
+                    whileDead = true,
+                    hideOnEscape = true,
+                }
+                StaticPopup_Show("VALUATE_IMPORT_OVERWRITE")
             end
-        elseif status == Valuate.ImportResult.ALREADY_EXISTS then
-            print("|cFF00FF00Valuate|r: Overwrote existing scale |cFFFFFFFF" .. scaleName .. "|r")
-            
-            -- Refresh the UI
-            if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                UpdateScaleList()
-                if ScaleListButtons[scaleName] then
-                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
-                end
-            end
-        elseif status == Valuate.ImportResult.VERSION_ERROR then
-            print("|cFFFF0000Valuate|r: Import failed: Scale tag is from a newer version of Valuate. Please update the addon.")
         else
-            print("|cFFFF0000Valuate|r: Import failed: Invalid scale tag format. Please check that you copied the entire tag.")
+            -- No conflicts, import directly
+            if successCount > 0 then
+                if successCount == 1 then
+                    print("|cFF00FF00Valuate|r: Successfully imported scale")
+                else
+                    print("|cFF00FF00Valuate|r: Imported " .. successCount .. " scale(s)")
+                end
+                
+                if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                    UpdateScaleList()
+                end
+            end
+            
+            if failCount > 0 then
+                print("|cFFFF0000Valuate|r: Failed to import " .. failCount .. " scale(s)")
+            end
         end
     end
     
@@ -3075,6 +3175,290 @@ local function InitializeCharacterWindowUI()
     end
 end
 
+-- ========================================
+-- Default Scale Picker Dialog
+-- ========================================
+
+local DefaultScalePickerFrame = nil
+
+-- Create a new scale from a default template
+function ValuateUI_NewScaleFromDefault(scaleData)
+    if not scaleData or not scaleData.displayName then
+        return
+    end
+    
+    -- Generate unique scale name
+    local baseName = scaleData.displayName
+    local scaleName = baseName
+    local counter = 1
+    while ValuateScales[scaleName] do
+        counter = counter + 1
+        scaleName = baseName .. " " .. counter
+    end
+    
+    -- Create the new scale
+    ValuateScales[scaleName] = {
+        DisplayName = scaleName,
+        Color = scaleData.color or "FFFFFF",
+        Icon = scaleData.icon or "",
+        Values = {},
+        Unusable = {},
+        Visible = true
+    }
+    
+    -- Copy stat values
+    if scaleData.values then
+        for stat, value in pairs(scaleData.values) do
+            ValuateScales[scaleName].Values[stat] = value
+        end
+    end
+    
+    -- Copy unusable item types
+    if scaleData.unusable then
+        for flag, value in pairs(scaleData.unusable) do
+            ValuateScales[scaleName].Unusable[flag] = value
+        end
+    end
+    
+    -- Update UI
+    UpdateScaleList()
+    
+    -- Select the new scale
+    CurrentSelectedScale = scaleName
+    EditingScaleName = scaleName
+    ValuateUI_UpdateScaleEditor(scaleName, ValuateScales[scaleName])
+    
+    -- Show success message
+    print("|cFF00FF00[Valuate]|r Created scale: " .. scaleName)
+end
+
+-- Show the Default Scale Picker dialog
+function ValuateUI_ShowDefaultScalePicker()
+    if not Valuate or not Valuate.GetAllDefaultScales then
+        print("|cFFFF0000[Valuate]|r Error: Default scales not loaded")
+        return
+    end
+    
+    -- Create dialog if it doesn't exist
+    if not DefaultScalePickerFrame then
+        local frame = CreateFrame("Frame", "ValuateDefaultScalePickerFrame", UIParent)
+        frame:SetSize(400, 500)
+        frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        frame:SetFrameStrata("FULLSCREEN_DIALOG")
+        frame:SetFrameLevel(100)
+        frame:SetMovable(true)
+        frame:EnableMouse(true)
+        frame:SetClampedToScreen(true)
+        frame:RegisterForDrag("LeftButton")
+        frame:SetBackdrop(BACKDROP_WINDOW)
+        frame:SetBackdropColor(unpack(COLORS.windowBg))
+        frame:SetBackdropBorderColor(unpack(COLORS.border))
+        
+        frame:SetScript("OnDragStart", function(self)
+            self:StartMoving()
+        end)
+        frame:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+        end)
+        
+        -- Make Escape close the dialog
+        frame:SetScript("OnKeyDown", function(self, key)
+            if key == "ESCAPE" then
+                self:Hide()
+            end
+        end)
+        
+        -- Title
+        local title = frame:CreateFontString(nil, "OVERLAY", FONT_TITLE)
+        title:SetPoint("TOP", frame, "TOP", 0, -16)
+        title:SetText("Choose a Class/Spec Template")
+        title:SetTextColor(unpack(COLORS.textTitle))
+        
+        -- Close button
+        local closeButton = CreateFrame("Button", nil, frame)
+        closeButton:SetSize(18, 18)
+        closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
+        closeButton:SetBackdrop(BACKDROP_BUTTON)
+        closeButton:SetBackdropColor(unpack(COLORS.buttonBg))
+        closeButton:SetBackdropBorderColor(unpack(COLORS.border))
+        
+        local closeLabel = closeButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        closeLabel:SetPoint("CENTER", closeButton, "CENTER", 0, 0)
+        closeLabel:SetText("×")
+        closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        
+        closeButton:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(0.5, 0.2, 0.2, 1)
+            closeLabel:SetTextColor(1, 1, 1, 1)
+        end)
+        closeButton:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(COLORS.buttonBg))
+            closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        end)
+        closeButton:SetScript("OnClick", function()
+            frame:Hide()
+        end)
+        
+        -- Scroll frame
+        local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
+        scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -50)
+        scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, 12)
+        scrollFrame:SetBackdrop(BACKDROP_PANEL)
+        scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
+        scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
+        
+        -- Scroll child
+        local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+        scrollFrame:SetScrollChild(scrollChild)
+        scrollChild:SetWidth(scrollFrame:GetWidth() - 20)
+        
+        -- Scrollbar
+        local scrollBar = CreateFrame("Slider", nil, scrollFrame)
+        scrollBar:SetPoint("TOPRIGHT", scrollFrame, "TOPRIGHT", 20, -4)
+        scrollBar:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT", 20, 4)
+        scrollBar:SetWidth(16)
+        scrollBar:SetOrientation("VERTICAL")
+        scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+        scrollBar:SetBackdrop({
+            bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+            edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+            tile = true, tileSize = 8, edgeSize = 8,
+            insets = { left = 3, right = 3, top = 3, bottom = 3 }
+        })
+        scrollBar:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
+        scrollBar:SetMinMaxValues(0, 100)
+        scrollBar:SetValue(0)
+        scrollBar:SetValueStep(1)
+        scrollBar:SetScript("OnValueChanged", function(self, value)
+            scrollFrame:SetVerticalScroll(value)
+        end)
+        
+        scrollFrame:EnableMouseWheel(true)
+        scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+            local current = scrollBar:GetValue()
+            local minVal, maxVal = scrollBar:GetMinMaxValues()
+            local newValue = current - (delta * 30)
+            newValue = math.max(minVal, math.min(maxVal, newValue))
+            scrollBar:SetValue(newValue)
+        end)
+        
+        scrollFrame.scrollBar = scrollBar
+        frame.scrollFrame = scrollFrame
+        frame.scrollChild = scrollChild
+        
+        DefaultScalePickerFrame = frame
+    end
+    
+    -- Populate with default scales
+    local scrollChild = DefaultScalePickerFrame.scrollChild
+    
+    -- Clear existing children
+    local children = {scrollChild:GetChildren()}
+    for _, child in ipairs(children) do
+        child:Hide()
+        child:SetParent(nil)
+    end
+    
+    -- Get all default scales organized by class
+    local defaultScales = Valuate:GetAllDefaultScales()
+    
+    -- Group by class
+    local classesByOrder = {"Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid"}
+    local scalesByClass = {}
+    for _, scaleData in ipairs(defaultScales) do
+        -- Extract class name from key (e.g., "WarriorArms" -> "Warrior")
+        local className = scaleData.key:match("^(%a+)")
+        if not scalesByClass[className] then
+            scalesByClass[className] = {}
+        end
+        table.insert(scalesByClass[className], scaleData)
+    end
+    
+    local yOffset = 0
+    local lastFrame = nil
+    
+    -- Create entries for each class
+    for _, className in ipairs(classesByOrder) do
+        local classScales = scalesByClass[className]
+        if classScales and #classScales > 0 then
+            -- Class header
+            local headerFrame = CreateFrame("Frame", nil, scrollChild)
+            headerFrame:SetSize(scrollChild:GetWidth(), 20)
+            if lastFrame then
+                headerFrame:SetPoint("TOPLEFT", lastFrame, "BOTTOMLEFT", 0, -4)
+            else
+                headerFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
+            end
+            
+            local headerText = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H2)
+            headerText:SetPoint("LEFT", headerFrame, "LEFT", 4, 0)
+            headerText:SetText(className)
+            -- Use class color
+            local r, g, b = HexToRGB(classScales[1].color)
+            headerText:SetTextColor(r, g, b, 1)
+            
+            lastFrame = headerFrame
+            yOffset = yOffset + 24
+            
+            -- Spec entries
+            for _, scaleData in ipairs(classScales) do
+                local entryButton = CreateFrame("Button", nil, scrollChild)
+                entryButton:SetSize(scrollChild:GetWidth(), 24)
+                entryButton:SetPoint("TOPLEFT", lastFrame, "BOTTOMLEFT", 0, -2)
+                entryButton:SetBackdrop(BACKDROP_BUTTON)
+                entryButton:SetBackdropColor(unpack(COLORS.buttonBg))
+                entryButton:SetBackdropBorderColor(unpack(COLORS.border))
+                
+                -- Icon
+                if scaleData.icon and scaleData.icon ~= "" then
+                    local icon = entryButton:CreateTexture(nil, "OVERLAY")
+                    icon:SetSize(18, 18)
+                    icon:SetPoint("LEFT", entryButton, "LEFT", 4, 0)
+                    icon:SetTexture(scaleData.icon)
+                end
+                
+                -- Name
+                local nameText = entryButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
+                nameText:SetPoint("LEFT", entryButton, "LEFT", 28, 0)
+                nameText:SetText(scaleData.displayName)
+                nameText:SetTextColor(unpack(COLORS.textBody))
+                
+                -- Hover effect
+                entryButton:SetScript("OnEnter", function(self)
+                    self:SetBackdropColor(unpack(COLORS.buttonHover))
+                    nameText:SetTextColor(unpack(COLORS.textAccent))
+                end)
+                entryButton:SetScript("OnLeave", function(self)
+                    self:SetBackdropColor(unpack(COLORS.buttonBg))
+                    nameText:SetTextColor(unpack(COLORS.textBody))
+                end)
+                
+                -- Click to create scale
+                entryButton:SetScript("OnClick", function()
+                    ValuateUI_NewScaleFromDefault(scaleData)
+                    DefaultScalePickerFrame:Hide()
+                end)
+                
+                lastFrame = entryButton
+                yOffset = yOffset + 26
+            end
+        end
+    end
+    
+    -- Update scroll child height
+    scrollChild:SetHeight(math.max(yOffset, DefaultScalePickerFrame.scrollFrame:GetHeight()))
+    
+    -- Update scrollbar
+    local scrollFrame = DefaultScalePickerFrame.scrollFrame
+    local scrollBar = scrollFrame.scrollBar
+    local maxScroll = math.max(0, yOffset - scrollFrame:GetHeight())
+    scrollBar:SetMinMaxValues(0, maxScroll)
+    scrollBar:SetValue(0)
+    
+    -- Show the dialog
+    DefaultScalePickerFrame:Show()
+end
+
 -- Create a simple initialization function that can be called from Valuate:Initialize
 function Valuate:InitializeCharacterWindowUI()
     if ValuateOptions and ValuateOptions.debug then
@@ -3192,4 +3576,5 @@ function Valuate:ToggleUI()
 end
 
 -- Verify UI loaded
+
 

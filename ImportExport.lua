@@ -123,37 +123,41 @@ end
 
 -- Parses a scale tag and extracts the scale data
 -- scaleTag: The import string
--- Returns: scaleName, scaleData table, or nil on error
+-- Returns: scaleName, scaleData, errorMessage, versionMessage
 function Valuate:ParseScaleTag(scaleTag)
     if not scaleTag or type(scaleTag) ~= "string" then
-        return nil
+        return nil, nil, "Invalid input: scale tag must be a non-empty string"
     end
     
     -- Trim whitespace
     scaleTag = strtrim(scaleTag)
     
+    if scaleTag == "" then
+        return nil, nil, "Invalid input: scale tag must be a non-empty string"
+    end
+    
     -- Parse the outer structure: {Valuate:v1:ScaleName{props}}
     local version, scaleName, propsString = string.match(scaleTag, "^{Valuate:v(%d+):([^{]+){(.+)}}$")
     
     if not version or not scaleName or not propsString then
-        return nil
+        return nil, nil, "Invalid format: scale tag must be in format {Valuate:v1:Name{props}}"
     end
     
     version = tonumber(version)
     if not version then
-        return nil
+        return nil, nil, "Invalid version number in scale tag"
     end
     
     -- Trim scale name
     scaleName = strtrim(scaleName)
     if scaleName == "" then
-        return nil
+        return nil, nil, "Scale name cannot be empty"
     end
     
     -- Check version compatibility
     if version > SCALE_TAG_VERSION then
         -- Future version - we might not be able to parse it correctly
-        return nil, "VERSION_ERROR"
+        return nil, nil, "This scale tag is from a newer version of Valuate (v" .. version .. "). Please update the addon.", version
     end
     
     -- Parse the properties string (key=value pairs separated by commas)
@@ -241,7 +245,7 @@ function Valuate:ParseScaleTag(scaleTag)
     -- Validate that we got at least some data
     if not next(scaleData.Values) then
         -- No stat values found
-        return nil
+        return nil, nil, "No valid stat values found in scale tag"
     end
     
     -- Clean up empty Unusable table
@@ -249,23 +253,24 @@ function Valuate:ParseScaleTag(scaleTag)
         scaleData.Unusable = nil
     end
     
-    return scaleName, scaleData
+    return scaleName, scaleData, nil, nil
 end
 
 -- Imports a scale from a scale tag
 -- scaleTag: The import string
 -- overwrite: If true, overwrite existing scale with same name; if false, fail if exists
--- Returns: status, scaleName
+-- Returns: status, scaleName, errorMessage
 --   status: One of Valuate.ImportResult.*
 --   scaleName: The name of the imported scale
+--   errorMessage: Detailed error message if import failed
 function Valuate:ImportScale(scaleTag, overwrite)
-    local scaleName, scaleData, error = self:ParseScaleTag(scaleTag)
+    local scaleName, scaleData, errorMessage, versionMessage = self:ParseScaleTag(scaleTag)
     
     if not scaleName then
-        if error == "VERSION_ERROR" then
-            return Valuate.ImportResult.VERSION_ERROR
+        if versionMessage then
+            return Valuate.ImportResult.VERSION_ERROR, nil, errorMessage
         else
-            return Valuate.ImportResult.TAG_ERROR
+            return Valuate.ImportResult.TAG_ERROR, nil, errorMessage
         end
     end
     
@@ -273,7 +278,7 @@ function Valuate:ImportScale(scaleTag, overwrite)
     local alreadyExists = (self.db.profile.Scales[scaleName] ~= nil)
     
     if alreadyExists and not overwrite then
-        return Valuate.ImportResult.ALREADY_EXISTS, scaleName
+        return Valuate.ImportResult.ALREADY_EXISTS, scaleName, nil
     end
     
     -- Import the scale
@@ -288,6 +293,84 @@ function Valuate:ImportScale(scaleTag, overwrite)
         Valuate:RefreshStatEditor()
     end
     
-    return Valuate.ImportResult.SUCCESS, scaleName
+    return Valuate.ImportResult.SUCCESS, scaleName, nil
+end
+
+-- Parses multiple scale tags from a single string
+-- text: String containing one or more scale tags
+-- Returns: array of {scaleName, scaleData}, array of {error, tag}
+function Valuate:ParseMultipleScaleTags(text)
+    if not text or type(text) ~= "string" then
+        return {}, {}
+    end
+    
+    local parsedScales = {}
+    local errors = {}
+    
+    -- Extract all scale tags using pattern matching
+    -- Pattern: {Valuate:...}
+    for scaleTag in string.gmatch(text, "{Valuate:[^}]+}}") do
+        local scaleName, scaleData, errorMessage, versionMessage = self:ParseScaleTag(scaleTag)
+        
+        if scaleName and scaleData then
+            table.insert(parsedScales, {
+                name = scaleName,
+                data = scaleData,
+                tag = scaleTag
+            })
+        else
+            table.insert(errors, {
+                error = errorMessage or "Unknown error",
+                tag = scaleTag
+            })
+        end
+    end
+    
+    return parsedScales, errors
+end
+
+-- Imports multiple scales from a string containing multiple scale tags
+-- text: String containing one or more scale tags
+-- overwrite: If true, overwrite existing scales; if false, return list of conflicts
+-- Returns: successCount, failCount, existingScales (array of scale names that exist)
+function Valuate:ImportMultipleScales(text, overwrite)
+    local parsedScales, errors = self:ParseMultipleScaleTags(text)
+    
+    local successCount = 0
+    local failCount = #errors
+    local existingScales = {}
+    
+    -- First pass: check for existing scales if not overwriting
+    if not overwrite then
+        for _, parsed in ipairs(parsedScales) do
+            if self.db.profile.Scales[parsed.name] then
+                table.insert(existingScales, parsed.name)
+            end
+        end
+        
+        -- If there are existing scales, return without importing
+        if #existingScales > 0 then
+            return 0, 0, existingScales
+        end
+    end
+    
+    -- Second pass: import all scales
+    for _, parsed in ipairs(parsedScales) do
+        self.db.profile.Scales[parsed.name] = parsed.data
+        successCount = successCount + 1
+    end
+    
+    -- Refresh UI once at the end
+    if successCount > 0 then
+        if Valuate.RefreshScaleList then
+            Valuate:RefreshScaleList()
+        end
+        
+        if Valuate.RefreshStatEditor then
+            Valuate:RefreshStatEditor()
+        end
+    end
+    
+    return successCount, failCount, existingScales
 end
 

@@ -12,6 +12,7 @@ libs\AceDB-3.0\AceDB-3.0.lua
 
 Valuate.lua
 StatDefinitions.lua
+DefaultScales.lua
 ImportExport.lua
 ValuateUI.lua
 MinimapButton.lua
