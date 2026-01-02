@@ -1,11 +1,18 @@
 ## Interface: 30300
 ## Title: Valuate
-## Version: 0.4.2
+## Version: 0.4.6
 ## Notes: Stat weight calculator for gear evaluation. Calculates item scores based on customizable stat weights.
 ## SavedVariables: ValuateDB
-## SavedVariablesPerCharacter: ValuateOptions, ValuateScales
+
+Bindings.xml
+
+libs\LibStub\LibStub.lua
+libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+libs\AceDB-3.0\AceDB-3.0.lua
 
 Valuate.lua
 StatDefinitions.lua
+ImportExport.lua
 ValuateUI.lua
+MinimapButton.lua
 
