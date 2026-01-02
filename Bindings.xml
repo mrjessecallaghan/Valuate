@@ -1,0 +1,6 @@
+<Bindings>
+	<Binding name="VALUATE_TOGGLE_UI" header="VALUATE">
+		ValuateToggleUI()
+	</Binding>
+</Bindings>
+

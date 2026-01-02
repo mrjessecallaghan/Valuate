@@ -8,28 +8,34 @@ Valuate = {}
 Valuate.version = GetAddOnMetadata("Valuate", "Version") or "Unknown"
 Valuate.interface = 30300
 
--- Initialize saved variables
-ValuateDB = ValuateDB or {}
-ValuateOptions = ValuateOptions or {}
-ValuateScales = ValuateScales or {}
-
--- Default options (set defaults before using them)
-if not ValuateOptions.cacheSize then
-    ValuateOptions.cacheSize = 150  -- Max number of items to cache
-end
-if ValuateOptions.debug == nil then
-    ValuateOptions.debug = false
-end
-if ValuateOptions.decimalPlaces == nil then
-    ValuateOptions.decimalPlaces = 1  -- Number of decimal places for scores
-end
-if ValuateOptions.rightAlign == nil then
-    ValuateOptions.rightAlign = false  -- Right-align scores in tooltip
-end
-
--- Item cache (LRU - Least Recently Used)
--- Array of cached items, with newest items at the end
-local ItemCache = {}
+-- Equipment slot to inventory slot mapping (for upgrade comparison)
+local EquipSlotToInvNumber = {
+    ["INVTYPE_AMMO"] = { 0 },
+    ["INVTYPE_HEAD"] = { 1 },
+    ["INVTYPE_NECK"] = { 2 },
+    ["INVTYPE_SHOULDER"] = { 3 },
+    ["INVTYPE_BODY"] = { 4 },
+    ["INVTYPE_CHEST"] = { 5 },
+    ["INVTYPE_ROBE"] = { 5 },
+    ["INVTYPE_WAIST"] = { 6 },
+    ["INVTYPE_LEGS"] = { 7 },
+    ["INVTYPE_FEET"] = { 8 },
+    ["INVTYPE_WRIST"] = { 9 },
+    ["INVTYPE_HAND"] = { 10 },
+    ["INVTYPE_FINGER"] = { 11, 12 },
+    ["INVTYPE_TRINKET"] = { 13, 14 },
+    ["INVTYPE_CLOAK"] = { 15 },
+    ["INVTYPE_WEAPON"] = { 16, 17 },
+    ["INVTYPE_SHIELD"] = { 17 },
+    ["INVTYPE_2HWEAPON"] = { 16 },
+    ["INVTYPE_WEAPONMAINHAND"] = { 16 },
+    ["INVTYPE_WEAPONOFFHAND"] = { 17 },
+    ["INVTYPE_HOLDABLE"] = { 17 },
+    ["INVTYPE_RANGED"] = { 18 },
+    ["INVTYPE_THROWN"] = { 18 },
+    ["INVTYPE_RANGEDRIGHT"] = { 18 },
+    ["INVTYPE_RELIC"] = { 18 },
+}
 
 -- Frame for event handling
 local frame = CreateFrame("Frame")
@@ -47,29 +53,33 @@ end
 
 -- Initialize function
 function Valuate:Initialize()
-    -- Basic initialization
-    print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
-    
-    -- Ensure options are set (in case they weren't loaded properly)
-    if not ValuateOptions.cacheSize then
-        ValuateOptions.cacheSize = 150
+    -- Initialize SavedVariables with defaults if they don't exist
+    if not ValuateOptions then
+        ValuateOptions = {
+            debug = false,
+            decimalPlaces = 1,
+            rightAlign = false,
+            showScaleValue = true,
+            comparisonMode = "number",
+            characterWindowScale = nil,
+            showCharacterWindowDisplay = true,
+            minimapButtonHidden = false,
+            characterWindowDisplayMode = "total",
+            uiPosition = {},
+        }
     end
-    if ValuateOptions.debug == nil then
-        ValuateOptions.debug = false
-    end
     
-    -- Initialize scales if empty
     if not ValuateScales then
         ValuateScales = {}
     end
+    
+    -- Basic initialization
+    print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
     
     -- Verify stat patterns loaded
     if not ValuateStatPatterns then
         print("|cFFFF0000Valuate|r: ERROR - StatDefinitions.lua failed to load!")
     end
-    
-    -- Clear cache on load (fresh start each session)
-    Valuate:ClearCache()
     
     -- Hook into tooltips to parse scaled stats
     Valuate:HookTooltips()
@@ -77,6 +87,11 @@ function Valuate:Initialize()
     -- Create a default scale if none exist
     if not next(ValuateScales) then
         Valuate:CreateDefaultScale()
+    end
+    
+    -- Initialize character window UI if available
+    if Valuate.InitializeCharacterWindowUI then
+        Valuate:InitializeCharacterWindowUI()
     end
 end
 
@@ -86,125 +101,10 @@ function Valuate:CreateDefaultScale()
         DisplayName = "Default",
         Color = "00FF00",
         Visible = true,
-        Values = {
-            Strength = 1.0,
-            Agility = 1.0,
-            Stamina = 1.0,
-            Intellect = 1.0,
-            Spirit = 1.0,
-            AttackPower = 1.0,
-            HitRating = 1.0,
-            CritRating = 1.0,
-            HasteRating = 1.0,
-            ExpertiseRating = 1.0,
-            DefenseRating = 1.0,
-            DodgeRating = 1.0,
-            ParryRating = 1.0,
-            BlockRating = 1.0,
-            ResilienceRating = 1.0,
-            SpellPower = 1.0,
-            Armor = 0.1,
-            DPS = 10.0,
-            BlockValue = 1.0,
-            PVEPower = 1.0,
-            PVPPower = 1.0,
-        }
+        Values = {}
     }
     
     ValuateScales["Default"] = defaultScale
-end
-
--- ========================================
--- Item Cache System (Performance Foundation)
--- ========================================
-
--- Creates an empty cached item structure
-function Valuate:CreateEmptyCachedItem(itemLink, itemName)
-    return {
-        Link = itemLink,
-        Name = itemName,
-        Stats = {},  -- Parsed stats table
-        -- Future: Add more fields as needed (Rarity, Level, ID, etc.)
-    }
-end
-
--- Searches the cache for an item by link or name
--- Returns cached item if found, nil otherwise
-function Valuate:GetCachedItem(itemLink, itemName)
-    -- Cache disabled in debug mode
-    if ValuateOptions.debug then
-        return nil
-    end
-    
-    -- Cache empty, nothing to find
-    if not ItemCache or #ItemCache == 0 then
-        return nil
-    end
-    
-    -- Search cache (newest items are at the end, so search backwards for efficiency)
-    for i = #ItemCache, 1, -1 do
-        local cached = ItemCache[i]
-        if cached then
-            -- Match by link first (most reliable)
-            if itemLink and cached.Link and itemLink == cached.Link then
-                -- Move to end (mark as recently used) and return
-                tremove(ItemCache, i)
-                tinsert(ItemCache, cached)
-                return cached
-            -- Fall back to name match
-            elseif itemName and cached.Name and itemName == cached.Name then
-                tremove(ItemCache, i)
-                tinsert(ItemCache, cached)
-                return cached
-            end
-        end
-    end
-    
-    return nil
-end
-
--- Adds an item to the cache (LRU - adds to end, removes from front if needed)
-function Valuate:CacheItem(item)
-    -- Cache disabled in debug mode or if item is invalid
-    if ValuateOptions.debug or not item then
-        return
-    end
-    
-    -- Get cache size (always read from options to ensure it's current)
-    local maxSize = ValuateOptions.cacheSize or 150
-    
-    -- Cache size of 0 or less means caching is disabled
-    if maxSize <= 0 then
-        return
-    end
-    
-    -- Ensure cache exists
-    if not ItemCache then
-        ItemCache = {}
-    end
-    
-    -- Add to end (most recently used)
-    tinsert(ItemCache, item)
-    
-    -- Remove oldest items if cache exceeds max size
-    while #ItemCache > maxSize do
-        tremove(ItemCache, 1)  -- Remove from front (oldest)
-    end
-end
-
--- Clears the entire item cache
-function Valuate:ClearCache()
-    ItemCache = {}
-end
-
--- Gets cache statistics (for debugging/testing)
-function Valuate:GetCacheStats()
-    local maxSize = ValuateOptions.cacheSize or 150
-    return {
-        size = ItemCache and #ItemCache or 0,
-        maxSize = maxSize,
-        enabled = maxSize > 0 and not (ValuateOptions.debug == true)
-    }
 end
 
 -- ========================================
@@ -436,17 +336,9 @@ end
 -- Returns a stats table, or nil if parsing fails
 -- Note: For scaled items, this reads the base item stats, not scaled values
 -- Scaled values are only available when reading from the actual displayed tooltip
-function Valuate:GetStatsForItemLink(itemLink, useCache)
+function Valuate:GetStatsForItemLink(itemLink)
     if not itemLink then
         return nil
-    end
-    
-    -- Check cache first (unless explicitly disabled)
-    if useCache ~= false then
-        local cached = Valuate:GetCachedItem(itemLink, nil)
-        if cached and cached.Stats then
-            return cached.Stats
-        end
     end
     
     -- Parse tooltip from the item link
@@ -457,16 +349,6 @@ function Valuate:GetStatsForItemLink(itemLink, useCache)
     
     -- Parse the tooltip (note: this will show base stats, not scaled stats)
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", ValuateOptions.debug)
-    
-    -- Cache the result if we got stats and caching is enabled
-    if stats and useCache ~= false then
-        local cached = Valuate:GetCachedItem(itemLink, nil)
-        if not cached then
-            cached = Valuate:CreateEmptyCachedItem(itemLink, nil)
-        end
-        cached.Stats = stats
-        Valuate:CacheItem(cached)
-    end
     
     return stats
 end
@@ -492,6 +374,10 @@ local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
 local ValuateLinesAdded = false
 
+-- Unique marker for detecting Valuate lines in tooltips (nearly invisible color code)
+local VALUATE_MARKER = "|cFF000001"
+local VALUATE_MARKER_FULL = "|cFF000001|r"
+
 -- Check if our Valuate lines are present in the tooltip
 local function HasValuateLines(tooltip)
     if not tooltip then return false end
@@ -500,7 +386,7 @@ local function HasValuateLines(tooltip)
         local leftText = getglobal(tooltip:GetName() .. "TextLeft" .. i)
         if leftText then
             local text = leftText:GetText()
-            if text and text:find("Valuate:") then
+            if text and text:find(VALUATE_MARKER, 1, true) then
                 return true
             end
         end
@@ -509,12 +395,19 @@ local function HasValuateLines(tooltip)
 end
 
 -- Add score lines to tooltip
-local function AddScoreLinesToTooltip(tooltip, stats)
+local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
     if not tooltip or not stats then return end
     
     -- Get active scales
     local activeScales = Valuate:GetActiveScales()
     if #activeScales == 0 then return end
+    
+    -- Get the item's equipment slot for comparison
+    local equipSlot = nil
+    if itemLink then
+        local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+        equipSlot = itemEquipLoc
+    end
     
     -- Calculate and display scores
     local hasScores = false
@@ -549,11 +442,108 @@ local function AddScoreLinesToTooltip(tooltip, stats)
                     local formatStr = "%." .. decimals .. "f"
                     local scoreText = string.format(formatStr, score)
                     
+                    -- Build the display text based on options
+                    local showValue = ValuateOptions.showScaleValue ~= false
+                    local compMode = ValuateOptions.comparisonMode or "number"
+                    local comparisonText = ""
+                    
+                    -- Calculate comparison if enabled and item is equippable
+                    if compMode ~= "off" and equipSlot and equipSlot ~= "" then
+                        -- Try to get equipped score from shopping tooltip first (if comparing items)
+                        -- This ensures both items use the same scaled stats context
+                        local equippedScore = nil
+                        if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
+                            local equippedItemLink = ShoppingTooltip1:GetItem()
+                            if equippedItemLink then
+                                -- Check if this shopping tooltip shows the equipped item for this slot
+                                local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
+                                if shoppingEquipLoc == equipSlot then
+                                    local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
+                                    if equippedStats then
+                                        equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Fall back to getting equipped score the normal way
+                        if not equippedScore then
+                            equippedScore = Valuate:GetEquippedItemScore(equipSlot, scale)
+                        end
+                        
+                        if equippedScore then
+                            local diff = score - equippedScore
+                            local diffColor = ""
+                            local diffSign = ""
+                            
+                            if diff > 0 then
+                                diffColor = "|cFF00FF00"  -- Green for upgrades
+                                diffSign = "+"
+                            elseif diff < 0 then
+                                diffColor = "|cFFFF0000"  -- Red for downgrades
+                                diffSign = ""  -- Negative sign is included in the number
+                            else
+                                diffColor = "|cFFFFFF00"  -- Yellow for no change
+                                diffSign = ""
+                            end
+                            
+                            local diffText = string.format(formatStr, diff)
+                            
+                            if compMode == "number" then
+                                comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
+                            elseif compMode == "percent" then
+                                if equippedScore > 0 then
+                                    local percent = (diff / equippedScore) * 100
+                                    local percentText = string.format("%.1f", percent)
+                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
+                                else
+                                    -- No equipped item, show as new
+                                    comparisonText = " " .. diffColor .. "(new)|r"
+                                end
+                            elseif compMode == "both" then
+                                if equippedScore > 0 then
+                                    local percent = (diff / equippedScore) * 100
+                                    local percentText = string.format("%.1f", percent)
+                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
+                                else
+                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", new)|r"
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Build icon prefix based on scale's Icon setting
+                    local prefix = VALUATE_MARKER_FULL
+                    local icon = scale.Icon
+                    if icon and icon ~= "" then
+                        prefix = prefix .. "|T" .. icon .. ":0|t "
+                    end
+                    
+                    -- Build final display text
+                    local displayText
+                    if showValue then
+                        displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
+                    else
+                        -- Show only comparison (no base score)
+                        if comparisonText ~= "" then
+                            -- Remove the leading space and parentheses from comparison text for cleaner display
+                            local cleanComp = comparisonText:gsub("^ ", ""):gsub("%(", ""):gsub("%)", "")
+                            displayText = prefix .. "|cFF" .. color .. displayName .. ":|r " .. cleanComp
+                        else
+                            -- No comparison available, show score anyway
+                            displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r"
+                        end
+                    end
+                    
                     if ValuateOptions.rightAlign then
                         -- Use AddDoubleLine for right-aligned scores
-                        tooltip:AddDoubleLine("|cFFFFFFFFValuate:|r |cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                        local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
+                        if not showValue and comparisonText ~= "" then
+                            rightText = comparisonText:gsub("^ ", "")
+                        end
+                        tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", rightText)
                     else
-                        tooltip:AddLine("|cFFFFFFFFValuate:|r |cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                        tooltip:AddLine(displayText)
                     end
                 end
             end
@@ -612,7 +602,7 @@ function Valuate:HookTooltips()
         
         -- Add our lines if we have stats
         if CurrentTooltipStats and next(CurrentTooltipStats) and not ValuateLinesAdded then
-            AddScoreLinesToTooltip(self, CurrentTooltipStats)
+            AddScoreLinesToTooltip(self, CurrentTooltipStats, itemLink)
             ValuateLinesAdded = true
         end
     end)
@@ -623,6 +613,76 @@ function Valuate:HookTooltips()
         CurrentTooltipStats = nil
         ValuateLinesAdded = false
     end)
+    
+    -- ========================================
+    -- Shopping/Comparison Tooltip Hooks
+    -- ========================================
+    --
+    -- IMPLEMENTATION NOTES (for future reference):
+    -- 
+    -- The shopping tooltips (ShoppingTooltip1, ShoppingTooltip2) show the "Currently Equipped"
+    -- item when you hover over gear. Adding Valuate scores to these required special handling.
+    --
+    -- WHAT DIDN'T WORK:
+    -- 1. OnUpdate hooks - Caused flickering because the tooltip gets rebuilt frequently by the
+    --    game or other addons (like EquipCompare). Our lines would be added, then the tooltip
+    --    would be rebuilt (removing our lines), then we'd add them again, causing flicker.
+    -- 2. OnTooltipSetItem - This script hook doesn't fire on shopping tooltips.
+    -- 3. Frame-based delays/throttling - Still caused flickering because the underlying
+    --    rebuild issue wasn't addressed.
+    --
+    -- WHAT WORKS (Pawn-style approach):
+    -- Hook the actual methods that SET the tooltip content:
+    -- - SetHyperlinkCompareItem: Main method used by the game for comparison tooltips
+    -- - SetInventoryItem: Used by EquipCompare addon
+    --
+    -- By hooking these methods with hooksecurefunc, our code runs immediately AFTER the
+    -- tooltip content is set, before any rebuild can occur. This is a one-time addition
+    -- per tooltip set, not a continuous loop, so there's no flickering.
+    --
+    -- Reference: This approach is used by Pawn addon (Pawn.lua lines 212-219)
+    -- ========================================
+    
+    -- Update a shopping tooltip with Valuate scores (called from method hooks)
+    local function UpdateShoppingTooltip(tooltipName)
+        local tooltip = getglobal(tooltipName)
+        if not tooltip then return end
+        
+        -- Skip if our lines are already present
+        if HasValuateLines(tooltip) then return end
+        
+        -- Parse stats from the displayed tooltip (gets scaled values)
+        local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
+        if stats and next(stats) then
+            -- nil itemLink = no upgrade comparison (this IS the equipped item)
+            AddScoreLinesToTooltip(tooltip, stats, nil)
+            tooltip:Show()  -- Resize tooltip to fit new lines
+        end
+    end
+    
+    -- Hook SetHyperlinkCompareItem - main comparison method used by the game
+    if ShoppingTooltip1 and ShoppingTooltip1.SetHyperlinkCompareItem then
+        hooksecurefunc(ShoppingTooltip1, "SetHyperlinkCompareItem", function(self, ...)
+            UpdateShoppingTooltip("ShoppingTooltip1")
+        end)
+    end
+    if ShoppingTooltip2 and ShoppingTooltip2.SetHyperlinkCompareItem then
+        hooksecurefunc(ShoppingTooltip2, "SetHyperlinkCompareItem", function(self, ...)
+            UpdateShoppingTooltip("ShoppingTooltip2")
+        end)
+    end
+    
+    -- Hook SetInventoryItem - used by EquipCompare addon for comparison tooltips
+    if ShoppingTooltip1 then
+        hooksecurefunc(ShoppingTooltip1, "SetInventoryItem", function(self, ...)
+            UpdateShoppingTooltip("ShoppingTooltip1")
+        end)
+    end
+    if ShoppingTooltip2 then
+        hooksecurefunc(ShoppingTooltip2, "SetInventoryItem", function(self, ...)
+            UpdateShoppingTooltip("ShoppingTooltip2")
+        end)
+    end
 end
 
 -- ========================================
@@ -650,6 +710,72 @@ function Valuate:CalculateItemScore(stats, scale)
     end
     
     return total
+end
+
+-- Gets the score of currently equipped item(s) for comparison
+-- equipSlot: The equipment slot type (e.g., "INVTYPE_HEAD", "INVTYPE_FINGER")
+-- scale: The scale data table to use for scoring
+-- Returns: The lowest score among equipped items in that slot (for multi-slot items like rings)
+function Valuate:GetEquippedItemScore(equipSlot, scale)
+    local invSlots = EquipSlotToInvNumber[equipSlot]
+    if not invSlots then return nil end
+    
+    local lowestScore = nil
+    local tooltip = GetPrivateTooltip()
+    
+    for _, slotId in ipairs(invSlots) do
+        local itemLink = GetInventoryItemLink("player", slotId)
+        if itemLink then
+            tooltip:ClearLines()
+            -- Use SetHyperlink instead of SetInventoryItem to get consistent base stats
+            -- This ensures we're comparing the same type of stats (base vs base, not base vs scaled)
+            tooltip:SetHyperlink(itemLink)
+            local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+            if stats then
+                local score = Valuate:CalculateItemScore(stats, scale)
+                if score and (not lowestScore or score < lowestScore) then
+                    lowestScore = score
+                end
+            end
+        end
+    end
+    
+    return lowestScore or 0
+end
+
+-- Calculates the total score for all currently equipped gear
+-- scale: The scale data table to use for scoring
+-- Returns: Total score (number) for all equipped items
+function Valuate:CalculateTotalEquippedScore(scale)
+    if not scale or not scale.Values then
+        return 0
+    end
+    
+    local totalScore = 0
+    local tooltip = GetPrivateTooltip()
+    
+    -- Equipment slots: 1=head, 2=neck, 3=shoulder, 4=shirt(skip), 5=chest, 6=waist, 7=legs,
+    -- 8=feet, 9=wrist, 10=hands, 11=finger1, 12=finger2, 13=trinket1, 14=trinket2,
+    -- 15=back, 16=mainhand, 17=offhand, 18=ranged, 19=tabard(skip)
+    for slotId = 1, 18 do
+        -- Skip shirt (4) and tabard (19, but that's after 18 anyway)
+        if slotId ~= 4 then
+            local itemLink = GetInventoryItemLink("player", slotId)
+            if itemLink then
+                tooltip:ClearLines()
+                tooltip:SetInventoryItem("player", slotId)
+                local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                if stats then
+                    local score = Valuate:CalculateItemScore(stats, scale)
+                    if score then
+                        totalScore = totalScore + score
+                    end
+                end
+            end
+        end
+    end
+    
+    return totalScore
 end
 
 -- Gets all active scales (scales that should be displayed)
@@ -764,35 +890,37 @@ SLASH_VALUATE2 = "/val"
 SlashCmdList["VALUATE"] = function(msg)
     local command = strlower(strtrim(msg))
     
-    if command == "" or command == "help" then
+    -- Default behavior: open UI (unless help is explicitly requested)
+    if command == "" then
+        if Valuate.ToggleUI then
+            Valuate:ToggleUI()
+        else
+            print("|cFFFF0000Valuate|r: UI not loaded. Please reload UI with /reload")
+        end
+        return
+    end
+    
+    if command == "help" then
         print("|cFF00FF00Valuate|r - Stat Weight Calculator")
         print("Commands:")
-        print("  /valuate or /val - Show this help")
+        print("  /valuate or /val - Open the configuration UI")
+        print("  /valuate help - Show this help")
         print("  /valuate version - Show version info")
-        print("  /valuate cache - Show cache statistics")
-        print("  /valuate clearcache - Clear the item cache")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
+        print("  /valuate import - Import a scale from a scale tag")
+        print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
-    elseif command == "cache" then
-        local stats = Valuate:GetCacheStats()
-        print("|cFF00FF00Valuate|r Cache Statistics:")
-        print("  Size: " .. stats.size .. " / " .. stats.maxSize)
-        print("  Status: " .. (stats.enabled and "|cFF00FF00Enabled|r" or "|cFFFF0000Disabled|r"))
-    elseif command == "clearcache" then
-        Valuate:ClearCache()
-        print("|cFF00FF00Valuate|r: Item cache cleared.")
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then
             -- Temporarily enable debug for test command
             local oldDebug = ValuateOptions.debug
             ValuateOptions.debug = true
-            -- Parse without cache to get fresh data
-            local stats = Valuate:GetStatsForItemLink(itemLink, false)
+            local stats = Valuate:GetStatsForItemLink(itemLink)
             ValuateOptions.debug = oldDebug
             if stats then
                 print("|cFF00FF00Valuate|r: Parsed stats for item (base values, not scaled):")
@@ -823,10 +951,80 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFFFF0000Valuate|r: No scales configured. Using default scale.")
         end
+    elseif command == "import" then
+        -- Open import dialog
+        if Valuate.ShowImportDialog then
+            Valuate:ShowImportDialog()
+        else
+            print("|cFFFF0000Valuate|r: UI not loaded. Please open Valuate UI first with /valuate")
+        end
+    elseif strsub(command, 1, 6) == "export" then
+        -- Export a scale
+        local scaleName = strtrim(strsub(command, 8))
+        
+        if scaleName == "" then
+            -- No scale name specified - list available scales
+            print("|cFF00FF00Valuate|r: Please specify a scale name to export.")
+            print("Available scales:")
+            for name, scale in pairs(ValuateScales) do
+                local displayName = scale.DisplayName or name
+                print("  " .. displayName)
+            end
+            print("Usage: /valuate export [scalename]")
+        else
+            -- Try to find the scale (case-insensitive, match by display name or internal name)
+            local foundScale = nil
+            local foundName = nil
+            
+            for name, scale in pairs(ValuateScales) do
+                local displayName = scale.DisplayName or name
+                if strlower(name) == strlower(scaleName) or strlower(displayName) == strlower(scaleName) then
+                    foundScale = scale
+                    foundName = name
+                    break
+                end
+            end
+            
+            if foundScale and foundName then
+                local scaleTag = Valuate:GetScaleTag(foundName)
+                if scaleTag then
+                    print("|cFF00FF00Valuate|r: Scale tag for |cFFFFFFFF" .. (foundScale.DisplayName or foundName) .. "|r:")
+                    print(scaleTag)
+                    print("|cFFFFFF00Tip:|r Open the Valuate UI (/valuate) to use the Export button for easier copying.")
+                else
+                    print("|cFFFF0000Valuate|r: Failed to generate export string for scale.")
+                end
+            else
+                print("|cFFFF0000Valuate|r: Scale not found: " .. scaleName)
+                print("Available scales:")
+                for name, scale in pairs(ValuateScales) do
+                    local displayName = scale.DisplayName or name
+                    print("  " .. displayName)
+                end
+            end
+        end
     elseif command == "ui" then
+        if Valuate.ToggleUI then
+            Valuate:ToggleUI()
+        else
+            print("|cFFFF0000Valuate|r: UI not loaded. Please reload UI with /reload")
+        end
+    else
+        print("|cFF00FF00Valuate|r: Unknown command. Type |cFFFFFFFF/valuate help|r for available commands.")
+    end
+end
+
+-- ========================================
+-- Keybinding System
+-- ========================================
+
+-- Keybinding function that WoW calls when the key is pressed
+-- This is registered in Bindings.xml
+function ValuateToggleUI()
+    if Valuate and Valuate.ToggleUI then
         Valuate:ToggleUI()
     else
-        print("|cFF00FF00Valuate|r: Unknown command. Type /valuate help for available commands.")
+        print("|cFFFF0000Valuate|r: UI not ready. Please try again or /reload.")
     end
 end
 

@@ -4,15 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.2.0] - [Current Date]
+## [0.3.0] - [Current Date]
+
+### Removed
+- Removed vestigial cache system (was never actually used - tooltip path bypassed it)
+- Removed `/valuate cache` and `/valuate clearcache` commands
+- Removed cache size setting from UI
+
+### Notes
+- Cache was architecturally unused: the main tooltip path (GetStatsFromDisplayedTooltip) 
+  never touched the cache. Only GetStatsForItemLink used it, which was only called 
+  from the /valuate test command. Removed to clean up dead code.
+
+## [0.2.0]
 
 ### Added
-- Item cache system (LRU - Least Recently Used)
-- Cache management functions (CacheItem, GetCachedItem, ClearCache)
-- Cache statistics command (/valuate cache)
-- Clear cache command (/valuate clearcache)
-- Configurable cache size (default: 150 items)
-- Cache disabled in debug mode
+- Stat parsing system with regex patterns
+- Tooltip integration for displaying item scores
+- Scale system for stat weights
+- Configuration UI
 
 ### Changed
 - Improved slash command help menu
@@ -25,8 +35,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Slash command handler (/valuate, /val)
 - Version info command
 - Documentation structure (README, CHANGELOG, DEVELOPER, ASCENSION_DEV)
-
-### Notes
-- Addon loads successfully
-- Cache system provides performance foundation for future features
 

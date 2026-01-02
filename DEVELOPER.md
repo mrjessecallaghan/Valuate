@@ -17,7 +17,7 @@ This ensures we can easily revert to a working state if we break something. The 
 ### Git Workflow
 
 - Always commit working code before starting experimental changes
-- Use descriptive commit messages (e.g., "Add item cache system", "Fix cache stats bug")
+- Use descriptive commit messages (e.g., "Add stat parsing system", "Fix tooltip display bug")
 - Push to GitHub after each working feature is complete
 - If something breaks, we can revert using GitHub Desktop or `git reset --hard [commit-hash]`
 
@@ -47,30 +47,32 @@ git commit -m "Experimental: trying new approach"
 
 ### Current Modules
 
-#### Cache System
-- **Location**: `Valuate.lua` (lines ~60-150)
-- **Purpose**: LRU cache for parsed item data (performance foundation)
-- **Functions**: `GetCachedItem()`, `CacheItem()`, `ClearCache()`, `GetCacheStats()`
-- **Configuration**: `ValuateOptions.cacheSize` (default: 150 items)
+#### Stat Parsing System
+- **Location**: `Valuate.lua` and `StatDefinitions.lua`
+- **Purpose**: Parse item stats from tooltips using regex patterns
+- **Functions**: `ParseStatsFromTooltip()`, `GetStatsForItemLink()`, `GetStatsFromDisplayedTooltip()`
+
+#### Scale System
+- **Location**: `Valuate.lua`
+- **Purpose**: Calculate item scores based on stat weights
+- **Functions**: `CalculateItemScore()`, `GetActiveScales()`, `CreateDefaultScale()`
 
 ## Performance Considerations
 
-- Item caching implemented to minimize tooltip parsing overhead
-- LRU (Least Recently Used) cache strategy
-- Cache disabled in debug mode (`ValuateOptions.debug = true`)
+- Tooltip parsing is done on-demand when hovering items
 - Always read configuration values directly (don't cache in local variables that can become stale)
 
 ## Testing Guidelines
 
 - Test incrementally as features are added
-- Use `/valuate cache` to verify cache functionality
+- Use `/valuate test [itemlink]` to verify stat parsing
 - Test with standard WotLK items
 - Test with Ascension-specific items containing PvE/PvP Power
 - Monitor performance during tooltip updates
 
 ## Code Style
 
-- Use descriptive function names (`GetCachedItem`, not `GetCache`)
+- Use descriptive function names (e.g., `GetStatsForItemLink`)
 - Use camelCase for function names
 - Use local variables for internal functions/data
 - Always handle nil cases (use `or` defaults where appropriate)
