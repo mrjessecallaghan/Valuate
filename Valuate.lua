@@ -229,6 +229,19 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
                     end
                 end
             end
+            
+            -- Check for relic types
+            if ValuateRelicTypePatterns then
+                for _, patternData in ipairs(ValuateRelicTypePatterns) do
+                    if string.match(rightLineText, patternData[1]) then
+                        stats[patternData[2]] = 1
+                        if debug then
+                            print("|cFF00FF00[DEBUG]|r Relic type: " .. patternData[2])
+                        end
+                        break
+                    end
+                end
+            end
         end
     end
     
@@ -374,9 +387,91 @@ local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
 local ValuateLinesAdded = false
 
+-- Store default tooltip border colors
+local DefaultTooltipBorderColor = nil
+
 -- Unique marker for detecting Valuate lines in tooltips (nearly invisible color code)
 local VALUATE_MARKER = "|cFF000001"
 local VALUATE_MARKER_FULL = "|cFF000001|r"
+
+-- Determine tooltip border color based on displayed scale
+-- Returns r, g, b values (0-1 range) or nil if no coloring should be applied
+local function GetTooltipBorderColor(stats, itemLink)
+    -- Check if a character window scale is selected
+    local scaleName = ValuateOptions.characterWindowScale
+    if not scaleName or scaleName == "" then
+        return nil  -- No scale selected, use default border
+    end
+    
+    -- Get the scale data
+    local scale = ValuateScales[scaleName]
+    if not scale or not scale.Values then
+        return nil  -- Invalid scale
+    end
+    
+    -- Check if item is equippable
+    local equipSlot = nil
+    if itemLink then
+        local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+        equipSlot = itemEquipLoc
+    end
+    
+    if not equipSlot or equipSlot == "" then
+        return nil  -- Non-equippable item, use default border
+    end
+    
+    -- Check if item has any stats marked as unusable (banned) for this scale
+    if scale.Unusable then
+        for statName, statValue in pairs(stats) do
+            if scale.Unusable[statName] and statValue and statValue > 0 then
+                return nil  -- Item has banned stat, use default border
+            end
+        end
+    end
+    
+    -- Calculate item score
+    local score = Valuate:CalculateItemScore(stats, scale)
+    if not score or score <= 0 then
+        return nil  -- No score, use default border
+    end
+    
+    -- Get equipped item score for comparison
+    local equippedScore = nil
+    
+    -- Try to get equipped score from shopping tooltip first (if comparing items)
+    if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
+        local equippedItemLink = ShoppingTooltip1:GetItem()
+        if equippedItemLink then
+            local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
+            if shoppingEquipLoc == equipSlot then
+                local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
+                if equippedStats then
+                    equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
+                end
+            end
+        end
+    end
+    
+    -- Fall back to getting equipped score the normal way
+    if not equippedScore then
+        equippedScore = Valuate:GetEquippedItemScore(equipSlot, scale)
+    end
+    
+    if not equippedScore then
+        return nil  -- No equipped item to compare, use default border
+    end
+    
+    -- Determine border color based on comparison
+    local diff = score - equippedScore
+    
+    if diff > 0 then
+        return 0, 1, 0  -- Green for upgrades
+    elseif diff < 0 then
+        return 1, 0, 0  -- Red for downgrades
+    else
+        return nil  -- Equal scores - use default border
+    end
+end
 
 -- Check if our Valuate lines are present in the tooltip
 local function HasValuateLines(tooltip)
@@ -494,8 +589,15 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             elseif compMode == "percent" then
                                 if equippedScore > 0 then
                                     local percent = (diff / equippedScore) * 100
-                                    local percentText = string.format("%.1f", percent)
-                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
+                                    local percentText
+                                    -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
+                                    if math.abs(percent) >= 1000 then
+                                        percentText = "HUGE!"
+                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. ")|r"
+                                    else
+                                        percentText = string.format("%.1f", percent)
+                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
+                                    end
                                 else
                                     -- No equipped item, show as new
                                     comparisonText = " " .. diffColor .. "(new)|r"
@@ -503,8 +605,15 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             elseif compMode == "both" then
                                 if equippedScore > 0 then
                                     local percent = (diff / equippedScore) * 100
-                                    local percentText = string.format("%.1f", percent)
-                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
+                                    local percentText
+                                    -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
+                                    if math.abs(percent) >= 1000 then
+                                        percentText = "HUGE!"
+                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. ")|r"
+                                    else
+                                        percentText = string.format("%.1f", percent)
+                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
+                                    end
                                 else
                                     comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", new)|r"
                                 end
@@ -584,12 +693,18 @@ function Valuate:HookTooltips()
         -- Only process if tooltip is visible and has an item
         if not self:IsVisible() then return end
         local itemLink = self:GetItem()
-        if not itemLink then return end
+        if not itemLink then
+            -- No item, reset border to default
+            if DefaultTooltipBorderColor then
+                self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+            end
+            return
+        end
         
         -- Check if our lines are already present
         if HasValuateLines(self) then
             ValuateLinesAdded = true
-            return
+            -- Don't return yet - still need to update border color
         end
         
         -- If lines were added but are now gone, the tooltip was rebuilt - need to re-add
@@ -605,6 +720,26 @@ function Valuate:HookTooltips()
             AddScoreLinesToTooltip(self, CurrentTooltipStats, itemLink)
             ValuateLinesAdded = true
         end
+        
+        -- Apply border coloring based on displayed scale
+        if CurrentTooltipStats and next(CurrentTooltipStats) then
+            -- Store default border color on first run
+            if not DefaultTooltipBorderColor then
+                local r, g, b, a = self:GetBackdropBorderColor()
+                DefaultTooltipBorderColor = {r, g, b, a}
+            end
+            
+            -- Get border color based on displayed scale
+            local r, g, b = GetTooltipBorderColor(CurrentTooltipStats, itemLink)
+            if r and g and b then
+                self:SetBackdropBorderColor(r, g, b, 1)
+            else
+                -- No coloring needed, use default
+                if DefaultTooltipBorderColor then
+                    self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+                end
+            end
+        end
     end)
     
     -- Clear state when tooltip hides
@@ -612,6 +747,11 @@ function Valuate:HookTooltips()
         CurrentTooltipItem = nil
         CurrentTooltipStats = nil
         ValuateLinesAdded = false
+        
+        -- Reset border color to default
+        if DefaultTooltipBorderColor then
+            self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+        end
     end)
     
     -- ========================================
@@ -657,6 +797,28 @@ function Valuate:HookTooltips()
             -- nil itemLink = no upgrade comparison (this IS the equipped item)
             AddScoreLinesToTooltip(tooltip, stats, nil)
             tooltip:Show()  -- Resize tooltip to fit new lines
+            
+            -- Apply border coloring for shopping tooltips as well
+            -- Shopping tooltips show equipped items, so we want to color them too
+            local itemLink = tooltip:GetItem()
+            if itemLink then
+                -- Store default border color on first run
+                if not DefaultTooltipBorderColor then
+                    local r, g, b, a = tooltip:GetBackdropBorderColor()
+                    DefaultTooltipBorderColor = {r, g, b, a}
+                end
+                
+                -- Get border color based on displayed scale
+                local r, g, b = GetTooltipBorderColor(stats, itemLink)
+                if r and g and b then
+                    tooltip:SetBackdropBorderColor(r, g, b, 1)
+                else
+                    -- No coloring needed, use default
+                    if DefaultTooltipBorderColor then
+                        tooltip:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+                    end
+                end
+            end
         end
     end
     
@@ -701,11 +863,26 @@ function Valuate:CalculateItemScore(stats, scale)
     local total = 0
     local scaleValues = scale.Values
     
-    -- Multiply each stat value by its weight and sum them
+    -- If normalize is enabled, find the max weight first
+    local normalizeFactor = 1
+    if scale.Normalize then
+        local maxWeight = 0
+        for statName, weight in pairs(scaleValues) do
+            local absWeight = math.abs(weight)
+            if absWeight > maxWeight then
+                maxWeight = absWeight
+            end
+        end
+        if maxWeight > 0 then
+            normalizeFactor = 1 / maxWeight
+        end
+    end
+    
+    -- Multiply each stat value by its weight (normalized if needed) and sum them
     for statName, statValue in pairs(stats) do
         local weight = scaleValues[statName]
         if weight and weight ~= 0 then
-            total = total + (statValue * weight)
+            total = total + (statValue * weight * normalizeFactor)
         end
     end
     
@@ -796,6 +973,7 @@ function Valuate:GetActiveScales()
     
     return active
 end
+
 
 -- Displays calculated scores on the tooltip
 function Valuate:DisplayScoresOnTooltip(tooltip, stats)

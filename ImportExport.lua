@@ -21,14 +21,14 @@ Valuate.ImportResult = {
 -- ========================================
 
 -- Generates an export string (scale tag) for a scale
--- scaleName: Internal scale name (key in Valuate.db.profile.Scales)
+-- scaleName: Internal scale name (key in ValuateScales)
 -- Returns: Scale tag string, or nil if scale doesn't exist
 function Valuate:GetScaleTag(scaleName)
     if not scaleName or scaleName == "" then
         return nil
     end
     
-    local scale = self.db.profile.Scales[scaleName]
+    local scale = ValuateScales[scaleName]
     if not scale then
         return nil
     end
@@ -46,6 +46,10 @@ function Valuate:GetScaleTag(scaleName)
     -- Add Visible flag (0 or 1)
     local visible = (scale.Visible ~= false) and 1 or 0
     table.insert(parts, string.format("Visible=%d", visible))
+    
+    -- Add Normalize flag (0 or 1)
+    local normalize = (scale.Normalize == true) and 1 or 0
+    table.insert(parts, string.format("Normalize=%d", normalize))
     
     -- Add Icon path if present
     if scale.Icon and scale.Icon ~= "" then
@@ -100,7 +104,7 @@ function Valuate:ExportAllScales()
     
     -- Get all scale names and sort them
     local scaleNames = {}
-    for scaleName, _ in pairs(self.db.profile.Scales) do
+    for scaleName, _ in pairs(ValuateScales) do
         table.insert(scaleNames, scaleName)
     end
     table.sort(scaleNames)
@@ -218,6 +222,8 @@ function Valuate:ParseScaleTag(scaleTag)
                 scaleData.Color = value
             elseif key == "Visible" then
                 scaleData.Visible = (tonumber(value) == 1)
+            elseif key == "Normalize" then
+                scaleData.Normalize = (tonumber(value) == 1)
             elseif key == "Icon" then
                 scaleData.Icon = value
             elseif string.match(key, "^Unusable%.(.+)$") then
@@ -275,14 +281,14 @@ function Valuate:ImportScale(scaleTag, overwrite)
     end
     
     -- Check if scale already exists
-    local alreadyExists = (self.db.profile.Scales[scaleName] ~= nil)
+    local alreadyExists = (ValuateScales[scaleName] ~= nil)
     
     if alreadyExists and not overwrite then
         return Valuate.ImportResult.ALREADY_EXISTS, scaleName, nil
     end
     
     -- Import the scale
-    self.db.profile.Scales[scaleName] = scaleData
+    ValuateScales[scaleName] = scaleData
     
     -- If the UI is loaded, refresh it
     if Valuate.RefreshScaleList then
@@ -343,7 +349,7 @@ function Valuate:ImportMultipleScales(text, overwrite)
     -- First pass: check for existing scales if not overwriting
     if not overwrite then
         for _, parsed in ipairs(parsedScales) do
-            if self.db.profile.Scales[parsed.name] then
+            if ValuateScales[parsed.name] then
                 table.insert(existingScales, parsed.name)
             end
         end
@@ -356,7 +362,7 @@ function Valuate:ImportMultipleScales(text, overwrite)
     
     -- Second pass: import all scales
     for _, parsed in ipairs(parsedScales) do
-        self.db.profile.Scales[parsed.name] = parsed.data
+        ValuateScales[parsed.name] = parsed.data
         successCount = successCount + 1
     end
     

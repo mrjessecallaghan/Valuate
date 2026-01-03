@@ -101,7 +101,13 @@ ValuateEquipmentCategories = {
     {
         column = 4,
         header = "Armor",
-        stats = { "IsCloth", "IsLeather", "IsMail", "IsPlate", "IsShield" }
+        stats = { "IsCloth", "IsLeather", "IsMail", "IsPlate", "IsShield", "IsFrill" }
+    },
+    {
+        column = 1,
+        header = "Relics",
+        row = 2,  -- Second row of equipment types
+        stats = { "IsLibram", "IsTotem", "IsSigil", "IsIdol" }
     },
 }
 
@@ -229,6 +235,15 @@ ValuateArmorTypePatterns = {
     {"^Mail$", "IsMail"},
     {"^Plate$", "IsPlate"},
     {"^Shield$", "IsShield"},
+    {"^Frill$", "IsFrill"},
+}
+
+-- Relic type patterns
+ValuateRelicTypePatterns = {
+    {"^Libram$", "IsLibram"},
+    {"^Totem$", "IsTotem"},
+    {"^Sigil$", "IsSigil"},
+    {"^Idol$", "IsIdol"},
 }
 
 -- ========================================
@@ -322,4 +337,11 @@ ValuateStatNames = {
     IsMail = "Mail",
     IsPlate = "Plate",
     IsShield = "Shield",
+    IsFrill = "Off-hand Frill",
+    
+    -- Equipment Types - Relics
+    IsLibram = "Libram",
+    IsTotem = "Totem",
+    IsSigil = "Sigil",
+    IsIdol = "Idol",
 }

@@ -7,7 +7,8 @@
 
 -- Window dimensions
 local WINDOW_WIDTH = 950
-local WINDOW_HEIGHT = 600
+local MIN_WINDOW_HEIGHT = 600
+local MAX_WINDOW_HEIGHT = 900
 
 -- Standardized spacing
 local PADDING = 12              -- Outer padding from window edges
@@ -97,6 +98,108 @@ local BACKDROP_BUTTON = {
     insets = { left = 2, right = 2, top = 2, bottom = 2 }
 }
 
+-- ========================================
+-- Input Validation Functions
+-- ========================================
+
+-- Validates and cleans numeric stat value input
+-- Allows: up to 5 digits, one decimal point, minus sign at start only
+-- Returns: cleaned string that meets validation rules
+local function ValidateStatValueInput(text)
+    if not text or text == "" then return "" end
+    
+    -- Allow lone minus sign temporarily (for better UX when typing)
+    if text == "-" then return "-" end
+    
+    -- Check if starts with minus
+    local hasNegative = text:sub(1, 1) == "-"
+    local workingText = hasNegative and text:sub(2) or text
+    
+    -- Remove all invalid characters (keep only digits and one decimal)
+    local cleaned = ""
+    local decimalCount = 0
+    local digitCount = 0
+    
+    for i = 1, #workingText do
+        local char = workingText:sub(i, i)
+        
+        if char == "." then
+            -- Only allow one decimal point
+            if decimalCount == 0 then
+                cleaned = cleaned .. char
+                decimalCount = decimalCount + 1
+            end
+        elseif char:match("%d") then
+            -- Only allow up to 5 digits total
+            if digitCount < 5 then
+                cleaned = cleaned .. char
+                digitCount = digitCount + 1
+            end
+        end
+        -- Silently skip any other characters
+    end
+    
+    -- Prevent malformed inputs like ".", ".5" without leading zero is ok, but lone "." is not
+    if cleaned == "." then
+        cleaned = ""
+    end
+    
+    -- Add back negative sign if it was present
+    if hasNegative and cleaned ~= "" then
+        cleaned = "-" .. cleaned
+    end
+    
+    return cleaned
+end
+
+-- Validates whole number input (for decimal places setting)
+-- Allows: only digits 0-9, no decimals or signs
+-- Returns: cleaned string with only digits
+local function ValidateWholeNumberInput(text)
+    if not text or text == "" then return "" end
+    
+    -- Remove all non-digit characters
+    local cleaned = text:gsub("[^0-9]", "")
+    
+    return cleaned
+end
+
+-- Applies validation to an EditBox for stat values
+local function ApplyStatValueValidation(editBox)
+    -- Intercept text changes (handles both typing and pasting)
+    editBox:SetScript("OnTextChanged", function(self, userInput)
+        if userInput then
+            local text = self:GetText()
+            local validText = ValidateStatValueInput(text)
+            
+            if text ~= validText then
+                local cursorPos = self:GetCursorPosition()
+                self:SetText(validText)
+                -- Adjust cursor position to stay at roughly the same place
+                self:SetCursorPosition(math.min(cursorPos, #validText))
+            end
+        end
+    end)
+end
+
+-- Applies validation to an EditBox for whole numbers
+local function ApplyWholeNumberValidation(editBox)
+    -- Intercept text changes (handles both typing and pasting)
+    editBox:SetScript("OnTextChanged", function(self, userInput)
+        if userInput then
+            local text = self:GetText()
+            local validText = ValidateWholeNumberInput(text)
+            
+            if text ~= validText then
+                local cursorPos = self:GetCursorPosition()
+                self:SetText(validText)
+                -- Adjust cursor position to stay at roughly the same place
+                self:SetCursorPosition(math.min(cursorPos, #validText))
+            end
+        end
+    end)
+end
+
 -- Font Standards (all use white/highlight fonts for modern look)
 local FONT_TITLE = "GameFontHighlightLarge"    -- ~16pt, white
 local FONT_H1 = "GameFontHighlight"            -- ~12pt, white  
@@ -114,6 +217,12 @@ local OriginalScaleData = nil
 -- Icon Picker state
 local IconPickerFrame = nil
 local IconPickerCallback = nil
+
+-- Template Picker state
+local TemplatePickerFrame = nil
+
+-- Forward declaration for overwrite callback
+local ValuateUI_OnTemplateOverwrite = nil
 
 -- Curated icon list (safe, common icons that exist in WotLK 3.3.5a)
 local SCALE_ICON_LIST = {
@@ -157,6 +266,334 @@ local SCALE_ICON_LIST = {
 
 -- ValuateOptions and ValuateScales are initialized by Valuate:Initialize() in Valuate.lua
 -- as simple SavedVariables tables
+
+-- ========================================
+-- Class/Spec Templates
+-- ========================================
+
+-- Template data for creating pre-configured scales for each class/spec
+local CLASS_SPEC_TEMPLATES = {
+    {
+        class = "Warrior",
+        color = "C79C6E",
+        specs = {
+            {
+                name = "Arms",
+                icon = "Interface\\Icons\\Ability_Warrior_SavageBlow",
+                color = "FF4444",  -- Red - aggressive DPS
+                weights = {
+                    Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
+                    HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
+                    Agility = 0.3, Stamina = 0.1
+                }
+            },
+            {
+                name = "Fury",
+                icon = "Interface\\Icons\\Ability_Warrior_InnerRage",
+                color = "FF8800",  -- Orange - berserker fury
+                weights = {
+                    Strength = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
+                    HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
+                    Agility = 0.3, Stamina = 0.1
+                }
+            },
+            {
+                name = "Protection",
+                icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance",
+                color = "4488FF",  -- Blue - defensive steel
+                weights = {
+                    Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
+                    ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
+                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6
+                }
+            }
+        }
+    },
+    {
+        class = "Paladin",
+        color = "F58CBA",
+        specs = {
+            {
+                name = "Holy",
+                icon = "Interface\\Icons\\Spell_Holy_HolyBolt",
+                color = "FFD700",  -- Gold - holy light
+                weights = {
+                    Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.6,
+                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                }
+            },
+            {
+                name = "Protection",
+                icon = "Interface\\Icons\\Ability_Paladin_ShieldoftheTemplar",
+                color = "AAAAAA",  -- Silver - protective shield
+                weights = {
+                    Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
+                    ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
+                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6, SpellPower = 0.3
+                }
+            },
+            {
+                name = "Retribution",
+                icon = "Interface\\Icons\\Spell_Holy_AuraOfLight",
+                color = "CC0000",  -- Crimson - righteous vengeance
+                weights = {
+                    Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
+                    HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
+                    Intellect = 0.3, Stamina = 0.1
+                }
+            }
+        }
+    },
+    {
+        class = "Hunter",
+        color = "ABD473",
+        specs = {
+            {
+                name = "Beast Mastery",
+                icon = "Interface\\Icons\\Ability_Hunter_BeastTaming",
+                color = "44CC44",  -- Green - beast nature
+                weights = {
+                    Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
+                    HitRating = 1.0, HasteRating = 0.5, ArmorPenetration = 0.7,
+                    Intellect = 0.2, Stamina = 0.1
+                }
+            },
+            {
+                name = "Marksmanship",
+                icon = "Interface\\Icons\\Ability_Marksmanship",
+                color = "4488DD",  -- Blue - precision aim
+                weights = {
+                    Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.9,
+                    HitRating = 1.0, HasteRating = 0.6, ArmorPenetration = 0.8,
+                    Intellect = 0.2, Stamina = 0.1
+                }
+            },
+            {
+                name = "Survival",
+                icon = "Interface\\Icons\\Ability_Hunter_SwiftStrike",
+                color = "AA6633",  -- Brown - wilderness survival
+                weights = {
+                    Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
+                    HitRating = 1.0, HasteRating = 0.7, ArmorPenetration = 0.9,
+                    Intellect = 0.2, Stamina = 0.1
+                }
+            }
+        }
+    },
+    {
+        class = "Rogue",
+        color = "FFF569",
+        specs = {
+            {
+                name = "Assassination",
+                icon = "Interface\\Icons\\Ability_Rogue_Eviscerate",
+                color = "00DD00",  -- Bright green - poison/venom
+                weights = {
+                    Agility = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
+                    HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
+                    Strength = 0.2, Stamina = 0.1
+                }
+            },
+            {
+                name = "Combat",
+                icon = "Interface\\Icons\\Ability_BackStab",
+                color = "DD0000",  -- Red - bloodthirsty combat
+                weights = {
+                    Agility = 1.0, AttackPower = 0.5, CritRating = 0.7, HitRating = 1.0,
+                    HasteRating = 0.8, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
+                    Strength = 0.2, Stamina = 0.1
+                }
+            },
+            {
+                name = "Subtlety",
+                icon = "Interface\\Icons\\Ability_Stealth",
+                color = "6600AA",  -- Purple - shadowy stealth
+                weights = {
+                    Agility = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
+                    HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
+                    Strength = 0.2, Stamina = 0.1
+                }
+            }
+        }
+    },
+    {
+        class = "Priest",
+        color = "FFFFFF",
+        specs = {
+            {
+                name = "Discipline",
+                icon = "Interface\\Icons\\Spell_Holy_PowerWordShield",
+                color = "DDDDDD",  -- Light gray - discipline/balance
+                weights = {
+                    Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.8,
+                    Mp5 = 0.7, Spirit = 0.6, Stamina = 0.2
+                }
+            },
+            {
+                name = "Holy",
+                icon = "Interface\\Icons\\Spell_Holy_GuardianSpirit",
+                color = "FFEE66",  -- Bright yellow - holy radiance
+                weights = {
+                    Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
+                    Mp5 = 0.8, Spirit = 0.7, Stamina = 0.2
+                }
+            },
+            {
+                name = "Shadow",
+                icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+                color = "8800CC",  -- Purple - shadow magic
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
+                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                }
+            }
+        }
+    },
+    {
+        class = "Shaman",
+        color = "0070DE",
+        specs = {
+            {
+                name = "Elemental",
+                icon = "Interface\\Icons\\Spell_Nature_Lightning",
+                color = "3399FF",  -- Bright blue - lightning storm
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
+                    HasteRating = 0.9, Mp5 = 0.5, Spirit = 0.4, Stamina = 0.2
+                }
+            },
+            {
+                name = "Enhancement",
+                icon = "Interface\\Icons\\Spell_Nature_LightningShield",
+                color = "FF6622",  -- Orange - fiery enhancement
+                weights = {
+                    Agility = 1.0, AttackPower = 0.6, CritRating = 0.8, HitRating = 1.0,
+                    HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
+                    Intellect = 0.4, Strength = 0.5, Stamina = 0.1
+                }
+            },
+            {
+                name = "Restoration",
+                icon = "Interface\\Icons\\Spell_Nature_MagicImmunity",
+                color = "22DD77",  -- Teal green - healing waters
+                weights = {
+                    Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
+                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                }
+            }
+        }
+    },
+    {
+        class = "Mage",
+        color = "69CCF0",
+        specs = {
+            {
+                name = "Arcane",
+                icon = "Interface\\Icons\\Spell_Holy_MagicalSentry",
+                color = "AA44FF",  -- Purple - arcane magic
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
+                    HasteRating = 0.9, Spirit = 0.4, Stamina = 0.2
+                }
+            },
+            {
+                name = "Fire",
+                icon = "Interface\\Icons\\Spell_Fire_FlameBolt",
+                color = "FF4400",  -- Red-orange - burning flames
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
+                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                }
+            },
+            {
+                name = "Frost",
+                icon = "Interface\\Icons\\Spell_Frost_FrostBolt02",
+                color = "00DDFF",  -- Cyan - ice cold
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
+                    HasteRating = 0.9, Spirit = 0.3, Stamina = 0.2
+                }
+            }
+        }
+    },
+    {
+        class = "Warlock",
+        color = "9482C9",
+        specs = {
+            {
+                name = "Affliction",
+                icon = "Interface\\Icons\\Spell_Shadow_DeathCoil",
+                color = "00BB44",  -- Green - disease/decay
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
+                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                }
+            },
+            {
+                name = "Demonology",
+                icon = "Interface\\Icons\\Spell_Shadow_Metamorphosis",
+                color = "AA22AA",  -- Purple - demonic power
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
+                    HasteRating = 0.8, Spirit = 0.4, Stamina = 0.2
+                }
+            },
+            {
+                name = "Destruction",
+                icon = "Interface\\Icons\\Spell_Shadow_RainOfFire",
+                color = "EE3300",  -- Red - destructive fire
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
+                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                }
+            }
+        }
+    },
+    {
+        class = "Druid",
+        color = "FF7D0A",
+        specs = {
+            {
+                name = "Balance",
+                icon = "Interface\\Icons\\Spell_Nature_StarFall",
+                color = "4488FF",  -- Blue - celestial balance
+                weights = {
+                    Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
+                    HasteRating = 0.9, Spirit = 0.6, Stamina = 0.2
+                }
+            },
+            {
+                name = "Feral DPS",
+                icon = "Interface\\Icons\\Ability_Druid_CatForm",
+                color = "FFAA00",  -- Orange - cat ferocity
+                weights = {
+                    Agility = 1.0, Strength = 0.5, FeralAP = 0.8, AttackPower = 0.5,
+                    CritRating = 0.8, HitRating = 1.0, HasteRating = 0.7,
+                    ExpertiseRating = 0.9, ArmorPenetration = 0.8, Stamina = 0.1
+                }
+            },
+            {
+                name = "Feral Tank",
+                icon = "Interface\\Icons\\Ability_Racial_BearForm",
+                color = "996633",  -- Brown - bear strength
+                weights = {
+                    Stamina = 1.0, Agility = 0.8, Armor = 0.7, DodgeRating = 0.8,
+                    FeralAP = 0.5, Strength = 0.4, HitRating = 0.5,
+                    ExpertiseRating = 0.6, DefenseRating = 0.3
+                }
+            },
+            {
+                name = "Restoration",
+                icon = "Interface\\Icons\\Spell_Nature_HealingTouch",
+                color = "11DD55",  -- Green - nature's healing
+                weights = {
+                    Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.8,
+                    Mp5 = 0.7, Spirit = 0.7, Stamina = 0.2
+                }
+            }
+        }
+    }
+}
 
 -- ========================================
 -- Utility Functions
@@ -352,6 +789,254 @@ local function ShowIconPicker(callback)
 end
 
 -- ========================================
+-- Template Picker Frame
+-- ========================================
+
+local function CreateTemplatePickerFrame()
+    local frame = CreateFrame("Frame", "ValuateTemplatePickerFrame", UIParent)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(100)
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetBackdrop(BACKDROP_WINDOW)
+    frame:SetBackdropColor(unpack(COLORS.windowBg))
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+    
+    -- Make draggable
+    frame:SetScript("OnDragStart", function(self)
+        self:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+    end)
+    
+    -- ESC key to close
+    frame:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:Hide()
+        end
+    end)
+    
+    -- Title
+    local title = frame:CreateFontString(nil, "OVERLAY", FONT_H1)
+    title:SetPoint("TOP", frame, "TOP", 0, -16)
+    title:SetText("Select Class Spec Template")
+    title:SetTextColor(unpack(COLORS.textTitle))
+    
+    -- Close button
+    local closeButton = CreateFrame("Button", nil, frame)
+    closeButton:SetSize(18, 18)
+    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
+    
+    local closeX = closeButton:CreateFontString(nil, "OVERLAY", FONT_H1)
+    closeX:SetPoint("CENTER")
+    closeX:SetText("×")
+    closeX:SetTextColor(0.7, 0.7, 0.7, 1)
+    
+    closeButton:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+    closeButton:SetScript("OnEnter", function()
+        closeX:SetTextColor(1, 1, 1, 1)
+    end)
+    closeButton:SetScript("OnLeave", function()
+        closeX:SetTextColor(0.7, 0.7, 0.7, 1)
+    end)
+    
+    -- Content area
+    local contentTop = -45
+    
+    -- Temporary font string for measuring text widths
+    local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    
+    -- Create 3 columns
+    local column1 = CreateFrame("Frame", nil, frame)
+    column1:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop)
+    
+    local column2 = CreateFrame("Frame", nil, frame)
+    
+    local column3 = CreateFrame("Frame", nil, frame)
+    
+    -- Function to create a spec button with dynamic width
+    local function CreateSpecButton(parent, template, classColor, yOffset, columnWidth)
+        local btn = CreateFrame("Button", nil, parent)
+        btn:SetSize(columnWidth, BUTTON_HEIGHT)
+        btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
+        btn:SetBackdrop(BACKDROP_BUTTON)
+        btn:SetBackdropColor(unpack(COLORS.buttonBg))
+        btn:SetBackdropBorderColor(unpack(COLORS.border))
+        
+        -- Icon
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(16, 16)
+        icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
+        icon:SetTexture(template.icon)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        
+        -- Name
+        local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        nameLabel:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+        nameLabel:SetText(template.name)
+        nameLabel:SetTextColor(unpack(COLORS.textBody))
+        
+        -- Hover effects
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(COLORS.buttonHover))
+            self:SetBackdropBorderColor(unpack(COLORS.borderLight))
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(COLORS.buttonBg))
+            self:SetBackdropBorderColor(unpack(COLORS.border))
+        end)
+        
+        -- Click handler (will be set by the picker)
+        btn.template = template
+        
+        return btn
+    end
+    
+    -- Populate columns with class/spec data (3 columns, 3 classes each)
+    local column1Classes = {"Warrior", "Paladin", "Hunter"}
+    local column2Classes = {"Rogue", "Priest", "Shaman"}
+    local column3Classes = {"Mage", "Warlock", "Druid"}
+    
+    -- First pass: calculate required widths for each column
+    local function CalculateColumnWidth(classList)
+        local maxWidth = 100  -- Minimum width
+        
+        for _, className in ipairs(classList) do
+            -- Find the class data
+            local classData = nil
+            for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+                if data.class == className then
+                    classData = data
+                    break
+                end
+            end
+            
+            if classData then
+                -- Check each spec name width
+                for _, spec in ipairs(classData.specs) do
+                    measureString:SetText(spec.name)
+                    local textWidth = measureString:GetStringWidth()
+                    -- Add icon (16) + left padding (4) + icon-to-text gap (6) + text + right padding (8)
+                    local buttonWidth = 16 + 4 + 6 + textWidth + 8
+                    if buttonWidth > maxWidth then
+                        maxWidth = buttonWidth
+                    end
+                end
+            end
+        end
+        
+        return math.ceil(maxWidth)
+    end
+    
+    local width1 = CalculateColumnWidth(column1Classes)
+    local width2 = CalculateColumnWidth(column2Classes)
+    local width3 = CalculateColumnWidth(column3Classes)
+    
+    -- Set column widths
+    column1:SetWidth(width1)
+    column2:SetWidth(width2)
+    column3:SetWidth(width3)
+    
+    -- Position columns
+    column2:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + width1 + ELEMENT_SPACING, contentTop)
+    column3:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + width1 + ELEMENT_SPACING + width2 + ELEMENT_SPACING, contentTop)
+    
+    local function PopulateColumn(column, classList, columnWidth)
+        local yOffset = 0
+        
+        for _, className in ipairs(classList) do
+            -- Find the class data
+            local classData = nil
+            for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+                if data.class == className then
+                    classData = data
+                    break
+                end
+            end
+            
+            if classData then
+                -- Class header
+                local header = column:CreateFontString(nil, "OVERLAY", FONT_H2)
+                header:SetPoint("TOPLEFT", column, "TOPLEFT", 0, yOffset)
+                header:SetText(classData.class)
+                local r, g, b = HexToRGB(classData.color)
+                header:SetTextColor(r, g, b, 1)
+                
+                yOffset = yOffset - 18  -- Header height + spacing
+                
+                -- Spec buttons
+                for _, spec in ipairs(classData.specs) do
+                    local btn = CreateSpecButton(column, spec, spec.color, yOffset, columnWidth)
+                    yOffset = yOffset - (BUTTON_HEIGHT + 2)  -- Button height + spacing
+                end
+                
+                -- Extra spacing after each class
+                yOffset = yOffset - INNER_SPACING
+            end
+        end
+        
+        return -yOffset  -- Return total height used
+    end
+    
+    local height1 = PopulateColumn(column1, column1Classes, width1)
+    local height2 = PopulateColumn(column2, column2Classes, width2)
+    local height3 = PopulateColumn(column3, column3Classes, width3)
+    
+    -- Set column heights
+    local maxHeight = math.max(height1, height2, height3)
+    column1:SetHeight(maxHeight)
+    column2:SetHeight(maxHeight)
+    column3:SetHeight(maxHeight)
+    
+    -- Calculate and set window size
+    local windowWidth = PADDING + width1 + ELEMENT_SPACING + width2 + ELEMENT_SPACING + width3 + PADDING
+    local windowHeight = 45 + maxHeight + PADDING  -- Title area (45) + content + bottom padding
+    
+    frame:SetSize(windowWidth, windowHeight)
+    
+    -- Clean up temporary measurement string
+    measureString:Hide()
+    
+    return frame
+end
+
+function ValuateUI_ShowTemplatePicker()
+    if not TemplatePickerFrame then
+        TemplatePickerFrame = CreateTemplatePickerFrame()
+        
+        -- Set up click handlers for all spec buttons after frame is created
+        local function SetupButtonHandlers(frame)
+            local children = {frame:GetChildren()}
+            for _, child in ipairs(children) do
+                if child.template then
+                    child:SetScript("OnClick", function(self, button)
+                        local created = ValuateUI_CreateScaleFromTemplate(self.template)
+                        
+                        -- Close window on normal click, keep open on shift-click
+                        if created and not IsShiftKeyDown() then
+                            TemplatePickerFrame:Hide()
+                        end
+                    end)
+                end
+                
+                -- Recursively check children
+                SetupButtonHandlers(child)
+            end
+        end
+        
+        SetupButtonHandlers(TemplatePickerFrame)
+    end
+    
+    TemplatePickerFrame:Show()
+end
+
+-- ========================================
 -- Main Window Creation
 -- ========================================
 
@@ -363,7 +1048,7 @@ local function CreateMainWindow()
     -- Main frame
     local frame = CreateFrame("Frame", "ValuateUIFrame", UIParent)
     frame:SetWidth(WINDOW_WIDTH)
-    frame:SetHeight(WINDOW_HEIGHT)
+    frame:SetHeight(MIN_WINDOW_HEIGHT)
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
@@ -479,6 +1164,17 @@ local function CreateTabSystem(mainFrame, contentFrame)
             tabPanels[tabName]:Show()
         end
         
+        -- Adjust window height based on tab
+        if ValuateUIFrame then
+            if tabName == "scales" then
+                -- Scales tab: Keep dynamic height (will be updated by UpdateStatWeightsList)
+                -- Don't change height here, let the scale editor manage it
+            else
+                -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
+                ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+            end
+        end
+        
         -- Update tab buttons - selected vs unselected appearance
         for name, btn in pairs(tabs) do
             if name == tabName then
@@ -543,13 +1239,65 @@ local function CreateTabSystem(mainFrame, contentFrame)
     settingsPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     settingsPanel:Hide()
     
-    -- Create tabs (Scales on left, Instructions and Settings on right)
+    local aboutPanel = CreateFrame("Frame", nil, contentFrame)
+    aboutPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    aboutPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
+    aboutPanel:Hide()
+    
+    local changelogPanel = CreateFrame("Frame", nil, contentFrame)
+    changelogPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    changelogPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
+    changelogPanel:Hide()
+    
+    -- Create tabs (Scales on left, Instructions/About/Changelog/Settings on right)
     CreateTab("scales", "Scales", scalesPanel, "left")
     
     -- Create Settings tab first (anchored to right)
     local settingsTab = CreateTab("settings", "Settings", settingsPanel, "right")
     
-    -- Create Instructions tab to the left of Settings
+    -- Create Changelog tab to the left of Settings
+    local changelogBtn = CreateFrame("Button", nil, mainFrame)
+    changelogBtn:SetHeight(22)
+    changelogBtn:SetBackdrop(BACKDROP_BUTTON)
+    changelogBtn:SetBackdropColor(unpack(COLORS.buttonBg))
+    changelogBtn:SetBackdropBorderColor(unpack(COLORS.border))
+    changelogBtn:SetScript("OnClick", function()
+        SelectTab("changelog")
+    end)
+    
+    local changelogLabel = changelogBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    changelogLabel:SetPoint("CENTER", changelogBtn, "CENTER", 0, 0)
+    changelogLabel:SetText("Changelog")
+    changelogLabel:SetTextColor(unpack(COLORS.textBody))
+    changelogBtn.label = changelogLabel
+    changelogBtn:SetWidth(changelogLabel:GetStringWidth() + 40)
+    changelogBtn:SetPoint("RIGHT", settingsTab, "LEFT", -4, 0)
+    
+    tabs["changelog"] = changelogBtn
+    tabPanels["changelog"] = changelogPanel
+    
+    -- Create About tab to the left of Changelog
+    local aboutBtn = CreateFrame("Button", nil, mainFrame)
+    aboutBtn:SetHeight(22)
+    aboutBtn:SetBackdrop(BACKDROP_BUTTON)
+    aboutBtn:SetBackdropColor(unpack(COLORS.buttonBg))
+    aboutBtn:SetBackdropBorderColor(unpack(COLORS.border))
+    aboutBtn:SetScript("OnClick", function()
+        SelectTab("about")
+    end)
+    
+    local aboutLabel = aboutBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    aboutLabel:SetPoint("CENTER", aboutBtn, "CENTER", 0, 0)
+    aboutLabel:SetText("About")
+    aboutLabel:SetTextColor(unpack(COLORS.textBody))
+    aboutBtn.label = aboutLabel
+    aboutBtn:SetWidth(aboutLabel:GetStringWidth() + 40)
+    aboutBtn:SetPoint("RIGHT", changelogBtn, "LEFT", -4, 0)
+    
+    tabs["about"] = aboutBtn
+    tabPanels["about"] = aboutPanel
+    
+    -- Create Instructions tab to the left of About
     local instructionsBtn = CreateFrame("Button", nil, mainFrame)
     instructionsBtn:SetHeight(22)
     instructionsBtn:SetBackdrop(BACKDROP_BUTTON)
@@ -564,12 +1312,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
     instructionsLabel:SetText("Instructions")
     instructionsLabel:SetTextColor(unpack(COLORS.textBody))
     instructionsBtn.label = instructionsLabel
-    
-    -- Size button based on text
     instructionsBtn:SetWidth(instructionsLabel:GetStringWidth() + 40)
-    
-    -- Position Instructions tab to the left of Settings tab
-    instructionsBtn:SetPoint("RIGHT", settingsTab, "LEFT", -4, 0)
+    instructionsBtn:SetPoint("RIGHT", aboutBtn, "LEFT", -4, 0)
     
     tabs["instructions"] = instructionsBtn
     tabPanels["instructions"] = instructionsPanel
@@ -581,6 +1325,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
         frame = tabFrame,
         scalesPanel = scalesPanel,
         instructionsPanel = instructionsPanel,
+        aboutPanel = aboutPanel,
+        changelogPanel = changelogPanel,
         settingsPanel = settingsPanel,
         selectTab = SelectTab
     }
@@ -770,6 +1516,7 @@ local function UpdateScaleList()
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine("Delete Scale", 1, 1, 1)
             GameTooltip:AddLine("Click to delete this scale.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Shift-click to skip confirmation.", 0.6, 0.6, 0.6, true)
             GameTooltip:Show()
         end)
         deleteBtn:SetScript("OnLeave", function(self)
@@ -779,26 +1526,41 @@ local function UpdateScaleList()
         end)
         deleteBtn:SetScript("OnClick", function(self)
             local scaleName = scaleData.name
-            StaticPopupDialogs["VALUATE_DELETE_SCALE"] = {
-                text = "Are you sure you want to delete the scale \"" .. (scaleData.scale.DisplayName or scaleName) .. "\"?",
-                button1 = "Delete",
-                button2 = "Cancel",
-                OnAccept = function()
-                    ValuateScales[scaleName] = nil
-                    if CurrentSelectedScale == scaleName then
-                        CurrentSelectedScale = nil
-                        EditingScaleName = nil
-                        if ScaleEditorFrame and ScaleEditorFrame.container then
-                            ScaleEditorFrame.container:Hide()
-                        end
+            
+            -- If Shift key is held down, delete immediately without confirmation
+            if IsShiftKeyDown() then
+                ValuateScales[scaleName] = nil
+                if CurrentSelectedScale == scaleName then
+                    CurrentSelectedScale = nil
+                    EditingScaleName = nil
+                    if ScaleEditorFrame and ScaleEditorFrame.container then
+                        ScaleEditorFrame.container:Hide()
                     end
-                    UpdateScaleList()
-                end,
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-            }
-            StaticPopup_Show("VALUATE_DELETE_SCALE")
+                end
+                UpdateScaleList()
+            else
+                -- Show confirmation dialog
+                StaticPopupDialogs["VALUATE_DELETE_SCALE"] = {
+                    text = "Are you sure you want to delete the scale \"" .. (scaleData.scale.DisplayName or scaleName) .. "\"?",
+                    button1 = "Delete",
+                    button2 = "Cancel",
+                    OnAccept = function()
+                        ValuateScales[scaleName] = nil
+                        if CurrentSelectedScale == scaleName then
+                            CurrentSelectedScale = nil
+                            EditingScaleName = nil
+                            if ScaleEditorFrame and ScaleEditorFrame.container then
+                                ScaleEditorFrame.container:Hide()
+                            end
+                        end
+                        UpdateScaleList()
+                    end,
+                    timeout = 0,
+                    whileDead = true,
+                    hideOnEscape = true,
+                }
+                StaticPopup_Show("VALUATE_DELETE_SCALE")
+            end
         end)
         
         -- Scale name
@@ -919,16 +1681,77 @@ local function UpdateScaleList()
         local contentHeight = #scales * (ENTRY_HEIGHT + 2)
         ScaleListFrame:SetHeight(math.max(contentHeight, 100))
         
-        -- Update scrollbar range
+        -- Update scrollbar range and visibility
         local scrollFrame = ScaleListFrame:GetParent()
         if scrollFrame and scrollFrame.scrollBar then
             local scrollBar = scrollFrame.scrollBar
+            local scrollBarBg = scrollFrame.scrollBarBg
             local scrollFrameHeight = scrollFrame:GetHeight()
             local maxScroll = math.max(0, contentHeight - scrollFrameHeight)
+            
+            -- Check if scrolling is needed
+            local needsScrollbar = contentHeight > scrollFrameHeight
+            
+            if needsScrollbar then
+                -- Show scrollbar
+                scrollBar:Show()
+                if scrollBarBg then scrollBarBg:Show() end
+                
+                -- Position scrollFrame with scrollbar space reserved
+                scrollFrame:ClearAllPoints()
+                scrollFrame:SetPoint("TOPLEFT", scrollFrame.buttonContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+                scrollFrame:SetPoint("BOTTOMLEFT", scrollFrame:GetParent(), "BOTTOMLEFT", 0, PADDING)
+                scrollFrame:SetPoint("TOPRIGHT", scrollFrame.buttonContainer, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -ELEMENT_SPACING)
+                scrollFrame:SetPoint("BOTTOMRIGHT", scrollFrame:GetParent(), "BOTTOMRIGHT", -SCROLLBAR_WIDTH, PADDING)
+            else
+                -- Hide scrollbar
+                scrollBar:Hide()
+                if scrollBarBg then scrollBarBg:Hide() end
+                
+                -- Position scrollFrame to fill full width (no scrollbar space)
+                scrollFrame:ClearAllPoints()
+                scrollFrame:SetPoint("TOPLEFT", scrollFrame.buttonContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+                scrollFrame:SetPoint("BOTTOMLEFT", scrollFrame:GetParent(), "BOTTOMLEFT", 0, PADDING)
+                scrollFrame:SetPoint("TOPRIGHT", scrollFrame.buttonContainer, "BOTTOMRIGHT", 0, -ELEMENT_SPACING)
+                scrollFrame:SetPoint("BOTTOMRIGHT", scrollFrame:GetParent(), "BOTTOMRIGHT", 0, PADDING)
+            end
+            
             scrollBar:SetMinMaxValues(0, maxScroll)
             if scrollBar:GetValue() > maxScroll then
                 scrollBar:SetValue(maxScroll)
             end
+        end
+    end
+end
+
+-- Setup the template overwrite callback now that we have access to UpdateScaleList
+ValuateUI_OnTemplateOverwrite = function(template)
+    if not template then return end
+    
+    local scaleName = template.name
+    local scale = ValuateScales[scaleName]
+    
+    if scale then
+        -- Overwrite existing scale with template data
+        scale.DisplayName = scaleName
+        scale.Color = template.color or "FFFFFF"  -- Use spec's color
+        scale.Icon = template.icon
+        scale.Values = {}
+        
+        -- Copy stat weights from template
+        if template.weights then
+            for statName, value in pairs(template.weights) do
+                scale.Values[statName] = value
+            end
+        end
+        
+        -- Clear any unusable flags
+        scale.Unusable = {}
+        
+        -- Refresh list and select the scale
+        UpdateScaleList()
+        if ScaleListButtons[scaleName] then
+            ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
         end
     end
 end
@@ -939,50 +1762,49 @@ local function CreateScaleList(parent)
     container:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
     container:SetWidth(200)
     
-    -- New Blank Scale button (main button)
-    local newButton = CreateStyledButton(container, "New Blank Scale", nil, BUTTON_HEIGHT)
-    newButton:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    newButton:SetPoint("TOPRIGHT", container, "TOPRIGHT", -28, 0)  -- Leave space for + button
+    -- Button container for New Scale and Template buttons
+    local buttonContainer = CreateFrame("Frame", nil, container)
+    buttonContainer:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
+    buttonContainer:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    buttonContainer:SetHeight(BUTTON_HEIGHT)
+    
+    -- New Blank Scale button (80% width)
+    local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.8)
+    local newButton = CreateStyledButton(buttonContainer, "New Blank Scale", newButtonWidth, BUTTON_HEIGHT)
+    newButton:SetPoint("TOPLEFT", buttonContainer, "TOPLEFT", 0, 0)
     newButton:SetScript("OnClick", function()
         ValuateUI_NewScale()
     end)
     
-    -- "+" button for default scale templates
-    local plusButton = CreateFrame("Button", nil, container)
-    plusButton:SetSize(24, 24)
-    plusButton:SetPoint("LEFT", newButton, "RIGHT", 4, 0)
-    plusButton:SetBackdrop(BACKDROP_BUTTON)
-    plusButton:SetBackdropColor(unpack(COLORS.buttonBg))
-    plusButton:SetBackdropBorderColor(unpack(COLORS.border))
+    -- Template button (20% width) - "+" symbol
+    local templateButtonWidth = 200 - newButtonWidth - ELEMENT_SPACING
+    local templateButton = CreateStyledButton(buttonContainer, "+", templateButtonWidth, BUTTON_HEIGHT)
+    templateButton:SetPoint("TOPRIGHT", buttonContainer, "TOPRIGHT", 0, 0)
+    templateButton:SetScript("OnClick", function()
+        ValuateUI_ShowTemplatePicker()
+    end)
     
-    local plusLabel = plusButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    plusLabel:SetPoint("CENTER", plusButton, "CENTER", 0, 0)
-    plusLabel:SetText("+")
-    plusLabel:SetTextColor(unpack(COLORS.textBody))
-    
-    plusButton:SetScript("OnEnter", function(self)
+    -- Tooltip for template button
+    templateButton:SetScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))
-        plusLabel:SetTextColor(unpack(COLORS.textAccent))
+        self:SetBackdropBorderColor(unpack(COLORS.borderLight))
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("New Scale from Template", 1, 1, 1)
-        GameTooltip:AddLine("Create a scale with pre-configured stat weights for your class/spec.", 0.8, 0.8, 0.8, true)
+        GameTooltip:SetText("Create from Template", 1, 1, 1)
+        GameTooltip:AddLine("Select a class/spec template", 0.7, 0.7, 0.7, true)
         GameTooltip:Show()
     end)
-    plusButton:SetScript("OnLeave", function(self)
+    templateButton:SetScript("OnLeave", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonBg))
-        plusLabel:SetTextColor(unpack(COLORS.textBody))
+        self:SetBackdropBorderColor(unpack(COLORS.border))
         GameTooltip:Hide()
     end)
-    plusButton:SetScript("OnClick", function()
-        ValuateUI_ShowDefaultScalePicker()
-    end)
     
-    -- Scroll frame for scale list (reserves space for scrollbar on right)
+    -- Scroll frame for scale list (initially takes full width, scrollbar space reserved only when needed)
     local scrollFrame = CreateFrame("ScrollFrame", nil, container)
-    scrollFrame:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    scrollFrame:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, 0)
-    scrollFrame:SetPoint("TOPRIGHT", newButton, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, -ELEMENT_SPACING)
-    scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
+    scrollFrame:SetPoint("TOPLEFT", buttonContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    scrollFrame:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, PADDING)
+    scrollFrame:SetPoint("TOPRIGHT", buttonContainer, "BOTTOMRIGHT", 0, -ELEMENT_SPACING)
+    scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
     scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
     scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
@@ -1005,10 +1827,11 @@ local function CreateScaleList(parent)
     -- Scrollbar backdrop for visibility
     local scrollBarBg = CreateFrame("Frame", nil, container)
     scrollBarBg:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 0, 0)
-    scrollBarBg:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+    scrollBarBg:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
     scrollBarBg:SetBackdrop(BACKDROP_PANEL)
     scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
     scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
+    scrollBarBg:Hide()  -- Start hidden, will be shown if needed
     
     -- Scrollbar (positioned to the right of clip frame, inside container)
     local scrollBar = CreateFrame("Slider", nil, scrollBarBg, "UIPanelScrollBarTemplate")
@@ -1023,7 +1846,10 @@ local function CreateScaleList(parent)
         end
     end)
     scrollBar:SetValue(0)
+    scrollBar:Hide()  -- Start hidden, will be shown if needed
     scrollFrame.scrollBar = scrollBar
+    scrollFrame.scrollBarBg = scrollBarBg
+    scrollFrame.buttonContainer = buttonContainer
     
     ScaleListFrame = contentFrame
     
@@ -1051,19 +1877,22 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     label:SetJustifyH("RIGHT")
     label:SetText((ValuateStatNames[statName] or statName) .. ":")
     
-    -- Value input (compact)
+    -- Value input (compact, with validation)
     local editBox = CreateFrame("EditBox", nil, row)
     editBox:SetHeight(14)
-    editBox:SetWidth(38)
+    editBox:SetWidth(52)  -- Width for comfortable display of 5 digits + minus + decimal
     editBox:SetPoint("LEFT", label, "RIGHT", 2, 0)
     editBox:SetAutoFocus(false)
-    editBox:SetFontObject(_G[FONT_SMALL])
+    editBox:SetFontObject("GameFontHighlightSmall")  -- Using smaller font for compact display
     editBox:SetJustifyH("CENTER")
     editBox:SetBackdrop(BACKDROP_INPUT)
     editBox:SetBackdropColor(unpack(COLORS.inputBg))
     editBox:SetBackdropBorderColor(unpack(COLORS.border))
     editBox:SetTextInsets(2, 2, 0, 0)
     editBox.statName = statName
+    
+    -- Apply input validation (max 5 digits, one decimal, minus at start only)
+    ApplyStatValueValidation(editBox)
     
     -- Focus handling
     editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
@@ -1076,6 +1905,11 @@ local function CreateStatRow(parent, statName, scale, yOffset)
                 scale.Values[self.statName] = value
             else
                 scale.Values[self.statName] = nil
+            end
+            
+            -- If normalize is enabled, refresh character window display
+            if scale.Normalize and Valuate.RefreshCharacterWindowDisplay then
+                Valuate:RefreshCharacterWindowDisplay()
             end
         end
         self:ClearFocus()
@@ -1279,7 +2113,19 @@ local function UpdateStatWeightsList(scaleName, scale)
         
         local equipStartY = equipmentStartY + HEADER_HEIGHT + ELEMENT_SPACING
         
-        -- Create equipment column frames
+        -- Separate categories by row
+        local row1Categories = {}
+        local row2Categories = {}
+        
+        for _, category in ipairs(ValuateEquipmentCategories) do
+            if category.row == 2 then
+                tinsert(row2Categories, category)
+            else
+                tinsert(row1Categories, category)
+            end
+        end
+        
+        -- Create equipment column frames for row 1
         local equipColumnFrames = {}
         local equipColumnHeights = {0, 0, 0, 0}
         
@@ -1291,8 +2137,8 @@ local function UpdateStatWeightsList(scaleName, scale)
             tinsert(StatWeightRows, colFrame)
         end
         
-        -- Populate equipment categories
-        for _, category in ipairs(ValuateEquipmentCategories) do
+        -- Populate row 1 equipment categories
+        for _, category in ipairs(row1Categories) do
             local col = category.column
             if col and col >= 1 and col <= 4 and equipColumnFrames[col] then
                 local colFrame = equipColumnFrames[col]
@@ -1326,7 +2172,7 @@ local function UpdateStatWeightsList(scaleName, scale)
             end
         end
         
-        -- Find tallest equipment column
+        -- Find tallest equipment column in row 1
         local equipMaxHeight = 0
         for i = 1, 4 do
             if equipColumnHeights[i] > equipMaxHeight then
@@ -1334,26 +2180,96 @@ local function UpdateStatWeightsList(scaleName, scale)
             end
         end
         
-        -- Set equipment column heights
+        -- Set equipment column heights for row 1
         for i = 1, 4 do
             equipColumnFrames[i]:SetHeight(equipMaxHeight)
         end
         
-        -- Total height includes equipment section
-        coreMaxHeight = equipStartY + equipMaxHeight
+        local row1Height = equipMaxHeight
+        
+        -- Handle row 2 categories (Relics)
+        if #row2Categories > 0 then
+            local row2StartY = equipStartY + row1Height + HEADER_SPACING
+            
+            -- Create column frames for row 2
+            local row2ColumnFrames = {}
+            local row2ColumnHeights = {0, 0, 0, 0}
+            
+            for i = 1, 4 do
+                local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
+                colFrame:SetWidth(COLUMN_WIDTH)
+                colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), -row2StartY)
+                row2ColumnFrames[i] = colFrame
+                tinsert(StatWeightRows, colFrame)
+            end
+            
+            -- Populate row 2 equipment categories
+            for _, category in ipairs(row2Categories) do
+                local col = category.column
+                if col and col >= 1 and col <= 4 and row2ColumnFrames[col] then
+                    local colFrame = row2ColumnFrames[col]
+                    local yOffset = -row2ColumnHeights[col]
+                    
+                    -- Create category header
+                    local headerFrame = CreateFrame("Frame", nil, colFrame)
+                    headerFrame:SetHeight(HEADER_HEIGHT)
+                    headerFrame:SetWidth(COLUMN_WIDTH)
+                    headerFrame:SetPoint("TOPLEFT", colFrame, "TOPLEFT", 0, yOffset)
+                    
+                    local headerLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H3)
+                    headerLabel:SetPoint("LEFT", headerFrame, "LEFT", 0, 0)
+                    headerLabel:SetText(category.header)
+                    headerLabel:SetTextColor(unpack(COLORS.textAccent))
+                    
+                    tinsert(StatWeightRows, headerFrame)
+                    row2ColumnHeights[col] = row2ColumnHeights[col] + HEADER_HEIGHT
+                    
+                    -- Create stat rows for equipment types
+                    for _, statName in ipairs(category.stats) do
+                        if ValuateStatNames[statName] then
+                            local rowYOffset = -row2ColumnHeights[col] - ROW_SPACING
+                            local row = CreateStatRow(colFrame, statName, scale, rowYOffset)
+                            
+                            StatWeightRows[statName] = row
+                            tinsert(StatWeightRows, row)
+                            row2ColumnHeights[col] = row2ColumnHeights[col] + ROW_HEIGHT + ROW_SPACING
+                        end
+                    end
+                end
+            end
+            
+            -- Find tallest column in row 2
+            local row2MaxHeight = 0
+            for i = 1, 4 do
+                if row2ColumnHeights[i] > row2MaxHeight then
+                    row2MaxHeight = row2ColumnHeights[i]
+                end
+            end
+            
+            -- Set row 2 column heights
+            for i = 1, 4 do
+                row2ColumnFrames[i]:SetHeight(row2MaxHeight)
+            end
+            
+            -- Total height includes both rows
+            coreMaxHeight = row2StartY + row2MaxHeight
+        else
+            -- Total height includes only row 1
+            coreMaxHeight = equipStartY + equipMaxHeight
+        end
     end
     
-    -- Update content frame height for scrolling
-    if ScaleEditorFrame and ScaleEditorFrame.scrollFrame then
+    -- Update content frame height (no scrolling needed)
+    if ScaleEditorFrame then
         ScaleEditorFrame:SetHeight(math.max(coreMaxHeight, 100))
         
-        local scrollFrame = ScaleEditorFrame.scrollFrame
-        local scrollBar = scrollFrame.scrollBar
-        if scrollBar then
-            local scrollFrameHeight = scrollFrame:GetHeight()
-            local maxScroll = math.max(0, coreMaxHeight - scrollFrameHeight)
-            scrollBar:SetMinMaxValues(0, maxScroll)
-            scrollBar:SetValue(0)
+        -- Resize main window to fit content
+        if ValuateUIFrame then
+            -- Calculate needed window height:
+            -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content (coreMaxHeight) + Bottom padding (PADDING)
+            local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + coreMaxHeight + PADDING
+            local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
+            ValuateUIFrame:SetHeight(windowHeight)
         end
     end
 end
@@ -1373,8 +2289,70 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
         ScaleEditorFrame.nameEditBox:SetText(scale.DisplayName or scaleName)
     end
     
+    -- Update normalize checkbox state
+    if ScaleEditorFrame.normalizeCheckbox then
+        ScaleEditorFrame.normalizeCheckbox:SetChecked(scale.Normalize == true)
+    end
+    
     -- Update stat weights
     UpdateStatWeightsList(scaleName, scale)
+end
+
+-- ========================================
+-- Template Scale Creation
+-- ========================================
+
+-- Creates a scale from a template
+-- template: The template data (from CLASS_SPEC_TEMPLATES)
+-- Returns: scaleName if successful, nil if cancelled
+function ValuateUI_CreateScaleFromTemplate(template)
+    local scaleName = template.name
+    
+    -- Check if scale already exists
+    if ValuateScales[scaleName] then
+        -- Define the overwrite dialog dynamically with access to local scope
+        StaticPopupDialogs["VALUATE_TEMPLATE_OVERWRITE"] = {
+            text = "A scale named \"" .. scaleName .. "\" already exists.\n\nOverwrite it?",
+            button1 = "Overwrite",
+            button2 = "Cancel",
+            OnAccept = function()
+                if ValuateUI_OnTemplateOverwrite then
+                    ValuateUI_OnTemplateOverwrite(template)
+                end
+            end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+        }
+        StaticPopup_Show("VALUATE_TEMPLATE_OVERWRITE")
+        return nil
+    end
+    
+    -- Create the scale
+    local newScale = {
+        DisplayName = scaleName,
+        Color = template.color or "FFFFFF",  -- Use spec's color
+        Visible = true,
+        Icon = template.icon,
+        Values = {}
+    }
+    
+    -- Copy stat weights from template
+    if template.weights then
+        for statName, value in pairs(template.weights) do
+            newScale.Values[statName] = value
+        end
+    end
+    
+    ValuateScales[scaleName] = newScale
+    
+    -- Refresh list and select new scale
+    UpdateScaleList()
+    if ScaleListButtons[scaleName] then
+        ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+    end
+    
+    return scaleName
 end
 
 function ValuateUI_NewScale()
@@ -1419,8 +2397,7 @@ local function CreateImportExportDialog()
     dialog:SetWidth(600)
     dialog:SetHeight(300)
     dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    dialog:SetFrameStrata("FULLSCREEN_DIALOG")
-    dialog:SetFrameLevel(100)
+    dialog:SetFrameStrata("DIALOG")
     dialog:SetBackdrop(BACKDROP_WINDOW)
     dialog:SetBackdropColor(unpack(COLORS.windowBg))
     dialog:SetBackdropBorderColor(unpack(COLORS.border))
@@ -1476,17 +2453,6 @@ local function CreateImportExportDialog()
         local height = math.max(150, numLines * 14)
         self:SetHeight(height)
     end)
-    -- Keyboard handling for Ctrl+C and Ctrl+A
-    editBox:SetScript("OnKeyDown", function(self, key)
-        if key == "C" and IsControlKeyDown() then
-            -- Ctrl+C: Highlight all text for easy copying
-            self:HighlightText()
-            self:SetFocus()
-        elseif key == "A" and IsControlKeyDown() then
-            -- Ctrl+A: Select all text
-            self:HighlightText()
-        end
-    end)
     
     scrollFrame:SetScrollChild(editBox)
     dialog.editBox = editBox
@@ -1527,7 +2493,7 @@ function Valuate:ShowExportDialog(scaleName)
     end
     
     local dialog = CreateImportExportDialog()
-    local scale = self.db.profile.Scales[scaleName]
+    local scale = ValuateScales[scaleName]
     local displayName = scale and scale.DisplayName or scaleName
     
     dialog.title:SetText("Export Scale")
@@ -1553,7 +2519,7 @@ function Valuate:ShowImportDialog()
     local dialog = CreateImportExportDialog()
     
     dialog.title:SetText("Import Scale")
-    dialog.prompt:SetText("Press Ctrl+V to paste a scale tag (supports multiple scales):")
+    dialog.prompt:SetText("Press Ctrl+V to paste a scale tag:")
     dialog.editBox:SetText("")
     dialog.editBox:SetFocus()
     
@@ -1564,91 +2530,34 @@ function Valuate:ShowImportDialog()
     dialog.cancelButton:SetPoint("BOTTOM", dialog, "BOTTOM", 55, 15)
     
     dialog.okCallback = function(text)
-        -- Check if multiple scales
-        local parsedScales, errors = self:ParseMultipleScaleTags(text)
+        local status, scaleName = self:ImportScale(text, true)  -- Allow overwrite
         
-        if #parsedScales == 0 and #errors > 0 then
-            -- No valid scales, show error
-            local errorMsg = errors[1].error or "Invalid scale tag format"
-            print("|cFFFF0000Valuate|r: Import failed: " .. errorMsg)
-            return
-        end
-        
-        if #parsedScales == 0 then
-            print("|cFFFF0000Valuate|r: Import failed: No valid scale tags found")
-            return
-        end
-        
-        -- Check for existing scales
-        local successCount, failCount, existingScales = self:ImportMultipleScales(text, false)
-        
-        if #existingScales > 0 then
-            -- Show confirmation dialog
-            if #existingScales == 1 then
-                -- Single scale conflict
-                StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE_SINGLE"] = {
-                    text = "A scale named \"" .. existingScales[1] .. "\" already exists.\n\nOverwrite it?",
-                    button1 = "Overwrite",
-                    button2 = "Cancel",
-                    OnAccept = function()
-                        local success, fail, _ = self:ImportMultipleScales(text, true)
-                        if success > 0 then
-                            print("|cFF00FF00Valuate|r: Imported " .. success .. " scale(s)")
-                            if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                                UpdateScaleList()
-                            end
-                        end
-                        if fail > 0 then
-                            print("|cFFFF0000Valuate|r: Failed to import " .. fail .. " scale(s)")
-                        end
-                    end,
-                    timeout = 0,
-                    whileDead = true,
-                    hideOnEscape = true,
-                }
-                StaticPopup_Show("VALUATE_IMPORT_OVERWRITE_SINGLE")
-            else
-                -- Multiple scale conflicts
-                local scaleList = table.concat(existingScales, ", ")
-                StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE"] = {
-                    text = "The following scales already exist:\n" .. scaleList .. "\n\nOverwrite them?",
-                    button1 = "Overwrite",
-                    button2 = "Skip",
-                    OnAccept = function()
-                        local success, fail, _ = self:ImportMultipleScales(text, true)
-                        if success > 0 then
-                            print("|cFF00FF00Valuate|r: Imported " .. success .. " scale(s)")
-                            if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                                UpdateScaleList()
-                            end
-                        end
-                        if fail > 0 then
-                            print("|cFFFF0000Valuate|r: Failed to import " .. fail .. " scale(s)")
-                        end
-                    end,
-                    timeout = 0,
-                    whileDead = true,
-                    hideOnEscape = true,
-                }
-                StaticPopup_Show("VALUATE_IMPORT_OVERWRITE")
-            end
-        else
-            -- No conflicts, import directly
-            if successCount > 0 then
-                if successCount == 1 then
-                    print("|cFF00FF00Valuate|r: Successfully imported scale")
-                else
-                    print("|cFF00FF00Valuate|r: Imported " .. successCount .. " scale(s)")
-                end
-                
-                if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                    UpdateScaleList()
-                end
-            end
+        if status == Valuate.ImportResult.SUCCESS then
+            print("|cFF00FF00Valuate|r: Successfully imported scale |cFFFFFFFF" .. scaleName .. "|r")
             
-            if failCount > 0 then
-                print("|cFFFF0000Valuate|r: Failed to import " .. failCount .. " scale(s)")
+            -- Refresh the UI if it's open
+            if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                UpdateScaleList()
+                -- Select the imported scale
+                if ScaleListButtons[scaleName] then
+                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+                end
             end
+        elseif status == Valuate.ImportResult.ALREADY_EXISTS then
+            print("|cFF00FF00Valuate|r: Overwrote existing scale |cFFFFFFFF" .. scaleName .. "|r")
+            
+            -- Refresh the UI
+            if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                UpdateScaleList()
+                if ScaleListButtons[scaleName] then
+                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+                end
+
+            end
+        elseif status == Valuate.ImportResult.VERSION_ERROR then
+            print("|cFFFF0000Valuate|r: Import failed: Scale tag is from a newer version of Valuate. Please update the addon.")
+        else
+            print("|cFFFF0000Valuate|r: Import failed: Invalid scale tag format. Please check that you copied the entire tag.")
         end
     end
     
@@ -1772,61 +2681,57 @@ local function CreateScaleEditor(parent)
         StaticPopup_Show("VALUATE_RESET_SCALE")
     end)
     
-    -- Scroll frame for stat weights (below header, reserves space for scrollbar on right)
-    local scrollFrame = CreateFrame("ScrollFrame", nil, container)
-    scrollFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 40)
-    scrollFrame:SetBackdrop(BACKDROP_PANEL)
-    scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
-    scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
-    scrollFrame:EnableMouseWheel(true)
-    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
-        local current = self:GetVerticalScroll()
-        local maxScroll = self:GetVerticalScrollRange()
-        local newValue = current - (delta * 30)
-        newValue = math.max(0, math.min(maxScroll, newValue))
-        self:SetVerticalScroll(newValue)
-        if scrollFrame.scrollBar then
-            scrollFrame.scrollBar:SetValue(newValue)
+    -- Normalize checkbox (to the right of Reset Values button)
+    local normalizeCheckbox = CreateFrame("CheckButton", nil, headerFrame, "UICheckButtonTemplate")
+    normalizeCheckbox:SetSize(20, 20)
+    normalizeCheckbox:SetPoint("LEFT", resetButton, "RIGHT", ELEMENT_SPACING + 5, 0)
+    
+    local normalizeLabel = normalizeCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    normalizeLabel:SetPoint("LEFT", normalizeCheckbox, "RIGHT", 5, 0)
+    normalizeLabel:SetText("Normalize")
+    normalizeLabel:SetTextColor(unpack(COLORS.textBody))
+    
+    normalizeCheckbox:SetScript("OnClick", function(self)
+        if not EditingScaleName or not ValuateScales[EditingScaleName] then
+            return
+        end
+        
+        local scaleName = EditingScaleName
+        local scale = ValuateScales[scaleName]
+        local isChecked = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Store normalize preference in scale
+        scale.Normalize = isChecked
+        
+        -- Refresh the character window display if it exists
+        if Valuate.RefreshCharacterWindowDisplay then
+            Valuate:RefreshCharacterWindowDisplay()
         end
     end)
     
-    local contentFrame = CreateFrame("Frame", nil, scrollFrame)
-    -- Width for 4 columns: 4 * COLUMN_WIDTH + 3 * COLUMN_GAP
-    contentFrame:SetWidth(4 * COLUMN_WIDTH + 3 * COLUMN_GAP)
-    contentFrame:SetHeight(600)  -- Initial height, updated dynamically
-    scrollFrame:SetScrollChild(contentFrame)
-    
-    -- Scrollbar backdrop for visibility
-    local scrollBarBg = CreateFrame("Frame", nil, container)
-    scrollBarBg:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 0, 0)
-    scrollBarBg:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 0, 0)
-    scrollBarBg:SetWidth(SCROLLBAR_WIDTH)
-    scrollBarBg:SetBackdrop(BACKDROP_PANEL)
-    scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
-    scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
-    
-    -- Scrollbar (inside the backdrop)
-    local scrollBar = CreateFrame("Slider", nil, scrollBarBg, "UIPanelScrollBarTemplate")
-    scrollBar:SetPoint("TOPLEFT", scrollBarBg, "TOPLEFT", 2, -16)
-    scrollBar:SetPoint("BOTTOMRIGHT", scrollBarBg, "BOTTOMRIGHT", -2, 16)
-    scrollBar:SetMinMaxValues(0, 1)
-    scrollBar:SetValueStep(20)
-    scrollBar.scrollFrame = scrollFrame
-    scrollBar:SetScript("OnValueChanged", function(self, value)
-        if self.scrollFrame and self.scrollFrame.SetVerticalScroll then
-            self.scrollFrame:SetVerticalScroll(value)
-        end
+    normalizeCheckbox:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Normalize Scale", 1, 1, 1)
+        GameTooltip:AddLine("When enabled, item scores are calculated with normalized stat weights (highest stat weight = 1.0). Your original stat weights are preserved. This makes scores easier to interpret and compare between different scales.", nil, nil, nil, true)
+        GameTooltip:Show()
     end)
-    scrollBar:SetValue(0)
-    scrollFrame.scrollBar = scrollBar
+    normalizeCheckbox:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+    
+    -- Content frame for stat weights (below header) - no scrollbar needed as everything fits
+    local contentFrame = CreateFrame("Frame", nil, container)
+    contentFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    contentFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
+    contentFrame:SetBackdrop(BACKDROP_PANEL)
+    contentFrame:SetBackdropColor(unpack(COLORS.panelBg))
+    contentFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
     
     -- Store references
     ScaleEditorFrame = contentFrame
-    ScaleEditorFrame.scrollFrame = scrollFrame
     ScaleEditorFrame.container = container
     ScaleEditorFrame.nameEditBox = nameEditBox
-    ScaleEditorFrame.statsHeader = statsHeader
+    ScaleEditorFrame.normalizeCheckbox = normalizeCheckbox
     
     
     container:Hide()
@@ -2009,6 +2914,262 @@ local function CreateInstructionsPanel(parent)
 end
 
 -- ========================================
+-- About Panel
+-- ========================================
+
+local function CreateAboutPanel(parent)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+    
+    -- Main content frame (non-scrollable, centered content)
+    local contentFrame = CreateFrame("Frame", nil, container)
+    contentFrame:SetPoint("CENTER", container, "CENTER", 0, 0)
+    contentFrame:SetWidth(500)
+    contentFrame:SetHeight(400)
+    
+    -- Helper function to create text elements
+    local function CreateText(text, font, color, yOffset, justifyH)
+        local fontString = contentFrame:CreateFontString(nil, "OVERLAY", font or FONT_BODY)
+        fontString:SetPoint("TOP", contentFrame, "TOP", 0, yOffset)
+        fontString:SetWidth(contentFrame:GetWidth() - 40)
+        fontString:SetJustifyH(justifyH or "CENTER")
+        fontString:SetJustifyV("TOP")
+        fontString:SetText(text)
+        if color then
+            fontString:SetTextColor(unpack(color))
+        else
+            fontString:SetTextColor(unpack(COLORS.textBody))
+        end
+        return fontString
+    end
+    
+    local currentY = -20
+    local lineHeight = 20
+    local sectionSpacing = 25
+    local paragraphSpacing = 15
+    
+    -- Main header
+    local header = CreateText("About Valuate", FONT_H1, COLORS.textAccent, currentY, "CENTER")
+    currentY = currentY - header:GetStringHeight() - paragraphSpacing
+    
+    -- Description
+    local description = CreateText(
+        "Valuate is a stat weight calculator addon for World of Warcraft that helps you make informed gear decisions. " ..
+        "By assigning custom weights to stats based on your character and playstyle, Valuate calculates item scores and " ..
+        "displays them directly in tooltips, making it easy to compare gear at a glance.",
+        FONT_BODY, COLORS.textBody, currentY, "LEFT"
+    )
+    currentY = currentY - description:GetStringHeight() - sectionSpacing
+    
+    -- Key Features header
+    local featuresHeader = CreateText("Key Features", FONT_H1, COLORS.textAccent, currentY, "LEFT")
+    currentY = currentY - featuresHeader:GetStringHeight() - paragraphSpacing
+    
+    -- Features list
+    local features = CreateText(
+        "• Customizable stat weight scales for different builds and roles\n" ..
+        "• Real-time tooltip integration showing item scores\n" ..
+        "• Multiple scale support with individual visibility toggles\n" ..
+        "• Color-coded scale identification for quick recognition\n" ..
+        "• Stat banning system for hybrid builds and class restrictions\n" ..
+        "• Import/Export functionality for sharing scales\n" ..
+        "• Support for Ascension-specific stats (PvE Power, PvP Power, etc.)\n" ..
+        "• Character window integration for at-a-glance gear evaluation\n" ..
+        "• Minimap button for quick access",
+        FONT_BODY, COLORS.textBody, currentY, "LEFT"
+    )
+    currentY = currentY - features:GetStringHeight() - sectionSpacing
+    
+    -- Contact section
+    local contactHeader = CreateText("Contact & Support", FONT_H1, COLORS.textAccent, currentY, "LEFT")
+    currentY = currentY - contactHeader:GetStringHeight() - paragraphSpacing
+    
+    -- Discord contact with symbol
+    local discordText = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    discordText:SetPoint("TOP", contentFrame, "TOP", 0, currentY)
+    discordText:SetWidth(contentFrame:GetWidth() - 40)
+    discordText:SetJustifyH("LEFT")
+    discordText:SetText("◆ Discord: |cFF7289DAjessecallaghan|r")
+    discordText:SetTextColor(unpack(COLORS.textBody))
+    
+    return container
+end
+
+-- ========================================
+-- Changelog Panel
+-- ========================================
+
+local function CreateChangelogPanel(parent)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
+    
+    -- Scroll frame for changelog content
+    local scrollFrame = CreateFrame("ScrollFrame", nil, container)
+    scrollFrame:SetPoint("TOPLEFT", container, "TOPLEFT", PADDING, -PADDING)
+    scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -SCROLLBAR_WIDTH - PADDING, PADDING)
+    scrollFrame:SetBackdrop(BACKDROP_PANEL)
+    scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
+    scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local current = self:GetVerticalScroll()
+        local maxScroll = self:GetVerticalScrollRange()
+        local newValue = current - (delta * 30)
+        newValue = math.max(0, math.min(maxScroll, newValue))
+        self:SetVerticalScroll(newValue)
+        if scrollFrame.scrollBar then
+            scrollFrame.scrollBar:SetValue(newValue)
+        end
+    end)
+    
+    -- Content frame for text
+    local contentFrame = CreateFrame("Frame", nil, scrollFrame)
+    contentFrame:SetWidth(scrollFrame:GetWidth() - PADDING * 2)
+    scrollFrame:SetScrollChild(contentFrame)
+    
+    -- Scrollbar backdrop
+    local scrollBarBg = CreateFrame("Frame", nil, container)
+    scrollBarBg:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 0, 0)
+    scrollBarBg:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -PADDING, PADDING)
+    scrollBarBg:SetBackdrop(BACKDROP_PANEL)
+    scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
+    scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
+    
+    -- Scrollbar
+    local scrollBar = CreateFrame("Slider", nil, scrollBarBg, "UIPanelScrollBarTemplate")
+    scrollBar:SetPoint("TOPLEFT", scrollBarBg, "TOPLEFT", 2, -16)
+    scrollBar:SetPoint("BOTTOMRIGHT", scrollBarBg, "BOTTOMRIGHT", -2, 16)
+    scrollBar:SetMinMaxValues(0, 1)
+    scrollBar:SetValueStep(20)
+    scrollBar.scrollFrame = scrollFrame
+    scrollBar:SetScript("OnValueChanged", function(self, value)
+        if self.scrollFrame and self.scrollFrame.SetVerticalScroll then
+            self.scrollFrame:SetVerticalScroll(value)
+        end
+    end)
+    scrollBar:SetValue(0)
+    scrollFrame.scrollBar = scrollBar
+    
+    -- Helper function to create a version header
+    local function CreateVersionHeader(text, yOffset)
+        local header = contentFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
+        header:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, yOffset)
+        header:SetPoint("RIGHT", contentFrame, "RIGHT", -PADDING, 0)
+        header:SetJustifyH("LEFT")
+        header:SetText(text)
+        header:SetTextColor(unpack(COLORS.textAccent))
+        return header
+    end
+    
+    -- Helper function to create changelog text
+    local function CreateChangeText(text, yOffset, width)
+        local body = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        body:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, yOffset)
+        body:SetWidth(width or (contentFrame:GetWidth() - PADDING * 2))
+        body:SetJustifyH("LEFT")
+        body:SetJustifyV("TOP")
+        body:SetText(text)
+        body:SetTextColor(unpack(COLORS.textBody))
+        return body
+    end
+    
+    -- Build changelog content
+    local currentY = -PADDING
+    local lineHeight = 16
+    local versionSpacing = 30
+    local paragraphSpacing = 10
+    
+    -- Version 0.5.0 (Current)
+    local v050Header = CreateVersionHeader("Version 0.5.0 (Current)", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local v050Text = CreateChangeText(
+        "• Added Import/Export functionality for sharing scales between characters and users\n" ..
+        "• Implemented character window integration showing scores for equipped items\n" ..
+        "• Added minimap button for quick addon access\n" ..
+        "• Enhanced UI with tabbed interface for better organization\n" ..
+        "• Added About and Changelog tabs\n" ..
+        "• Improved stat definitions and parsing system\n" ..
+        "• Added support for additional Ascension-specific stats\n" ..
+        "• Various UI improvements and bug fixes",
+        currentY
+    )
+    local v050Height = v050Text:GetStringHeight()
+    currentY = currentY - v050Height - versionSpacing
+    
+    -- Version 0.3.0
+    local v030Header = CreateVersionHeader("Version 0.3.0", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local v030Text = CreateChangeText(
+        "• Removed vestigial cache system (was never actually used)\n" ..
+        "• Removed /valuate cache and /valuate clearcache commands\n" ..
+        "• Removed cache size setting from UI\n" ..
+        "• Code cleanup to remove dead code paths",
+        currentY
+    )
+    local v030Height = v030Text:GetStringHeight()
+    currentY = currentY - v030Height - versionSpacing
+    
+    -- Version 0.2.0
+    local v020Header = CreateVersionHeader("Version 0.2.0", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local v020Text = CreateChangeText(
+        "• Added comprehensive stat parsing system with regex patterns\n" ..
+        "• Implemented tooltip integration for displaying item scores\n" ..
+        "• Created scale system for customizable stat weights\n" ..
+        "• Built configuration UI with scale editor\n" ..
+        "• Added color picker for scale customization\n" ..
+        "• Implemented stat banning functionality\n" ..
+        "• Added visibility toggles for scales\n" ..
+        "• Improved slash command help menu",
+        currentY
+    )
+    local v020Height = v020Text:GetStringHeight()
+    currentY = currentY - v020Height - versionSpacing
+    
+    -- Version 0.1.0
+    local v010Header = CreateVersionHeader("Version 0.1.0 (Initial Release)", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local v010Text = CreateChangeText(
+        "• Initial addon structure and framework\n" ..
+        "• Basic loading and initialization system\n" ..
+        "• Slash command handler (/valuate, /val)\n" ..
+        "• Version info command\n" ..
+        "• Documentation structure (README, CHANGELOG, DEVELOPER, ASCENSION_DEV)\n" ..
+        "• SavedVariables setup for persistent data storage",
+        currentY
+    )
+    local v010Height = v010Text:GetStringHeight()
+    currentY = currentY - v010Height - PADDING
+    
+    -- Set content frame height based on total content
+    local totalHeight = math.abs(currentY) + PADDING
+    contentFrame:SetHeight(math.max(totalHeight, scrollFrame:GetHeight()))
+    
+    -- Update scrollbar range
+    local function UpdateScrollRange()
+        local scrollFrameHeight = scrollFrame:GetHeight()
+        local contentHeight = contentFrame:GetHeight()
+        local maxScroll = math.max(0, contentHeight - scrollFrameHeight)
+        scrollBar:SetMinMaxValues(0, maxScroll)
+        if scrollBar:GetValue() > maxScroll then
+            scrollBar:SetValue(maxScroll)
+        end
+    end
+    
+    -- Update on frame size changes
+    container:SetScript("OnSizeChanged", UpdateScrollRange)
+    UpdateScrollRange()
+    
+    return container
+end
+
+-- ========================================
 -- Settings Panel
 -- ========================================
 
@@ -2073,7 +3234,7 @@ local function CreateSettingsPanel(parent)
     
     local decimalEditBox = CreateFrame("EditBox", nil, col1)
     decimalEditBox:SetHeight(14)
-    decimalEditBox:SetWidth(38)
+    decimalEditBox:SetWidth(45)
     decimalEditBox:SetPoint("LEFT", decimalLabel, "RIGHT", 2, 0)
     decimalEditBox:SetAutoFocus(false)
     decimalEditBox:SetFontObject(_G[FONT_SMALL])
@@ -2082,18 +3243,22 @@ local function CreateSettingsPanel(parent)
     decimalEditBox:SetBackdropColor(unpack(COLORS.inputBg))
     decimalEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     decimalEditBox:SetTextInsets(2, 2, 0, 0)
-    decimalEditBox:SetNumeric(true)
-    decimalEditBox:SetNumber(ValuateOptions.decimalPlaces or 1)
+    decimalEditBox:SetText(tostring(ValuateOptions.decimalPlaces or 1))
+    
+    -- Apply whole number validation (digits only, no decimals or signs)
+    ApplyWholeNumberValidation(decimalEditBox)
+    
     decimalEditBox:SetScript("OnEnterPressed", function(self)
-        local value = self:GetNumber()
+        local text = self:GetText()
+        local value = tonumber(text) or 1
         value = math.max(0, math.min(4, value))
         ValuateOptions.decimalPlaces = value
-        self:SetNumber(value)
+        self:SetText(tostring(value))
         self:ClearFocus()
         Valuate:RefreshCharacterWindowDisplay()
     end)
     decimalEditBox:SetScript("OnEscapePressed", function(self)
-        self:SetNumber(ValuateOptions.decimalPlaces or 1)
+        self:SetText(tostring(ValuateOptions.decimalPlaces or 1))
         self:ClearFocus()
     end)
     
@@ -2153,8 +3318,8 @@ local function CreateSettingsPanel(parent)
     
     local comparisonModes = {
         { value = "number", text = "Number (+15.2)" },
-        { value = "percent", text = "Percentage (+13.8%)" },
-        { value = "both", text = "Both (+15.2, +13.8%)" },
+        { value = "percent", text = "Percentage (+13.8% or +HUGE!)" },
+        { value = "both", text = "Both (+15.2, +13.8% or +HUGE!)" },
         { value = "off", text = "Off" },
     }
     
@@ -2201,6 +3366,9 @@ local function CreateSettingsPanel(parent)
         GameTooltip:AddLine("Percentage: Shows the percent change (+13.8%)", 0.7, 0.7, 0.7)
         GameTooltip:AddLine("Both: Shows both number and percentage", 0.7, 0.7, 0.7)
         GameTooltip:AddLine("Off: Disables upgrade comparison", 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Note: Percentages of 1000% or greater are displayed as", 0.6, 0.6, 0.6)
+        GameTooltip:AddLine("'HUGE!' to keep tooltips clean and readable.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
     compModeDropdown:SetScript("OnLeave", function()
@@ -2359,15 +3527,25 @@ local function CreateSettingsPanel(parent)
     
     columnHeights[3] = columnHeights[3] + 32 + ELEMENT_SPACING
     
-    local function GetCharScaleDisplayText(scaleName)
+    local function GetCharScaleDisplayText(scaleName, includeIcon)
         if not scaleName or not ValuateScales or not ValuateScales[scaleName] then
             return "Select Scale"
         end
         local scale = ValuateScales[scaleName]
-        return scale.DisplayName or scaleName
+        local displayName = scale.DisplayName or scaleName
+        local color = scale.Color or "FFFFFF"
+        
+        -- Build display text with optional icon
+        local text = ""
+        if includeIcon and scale.Icon and scale.Icon ~= "" then
+            text = "|T" .. scale.Icon .. ":14:14:0:0|t "
+        end
+        text = text .. "|cFF" .. color .. displayName .. "|r"
+        
+        return text
     end
     
-    UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(ValuateOptions.characterWindowScale))
+    UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(ValuateOptions.characterWindowScale, true))
     
     UIDropDownMenu_Initialize(charScaleDropdown, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
@@ -2383,12 +3561,12 @@ local function CreateSettingsPanel(parent)
             return (a.scale.DisplayName or a.name) < (b.scale.DisplayName or b.name)
         end)
         for _, scaleData in ipairs(scales) do
-            info.text = GetCharScaleDisplayText(scaleData.name)
+            info.text = GetCharScaleDisplayText(scaleData.name, true)
             info.value = scaleData.name
             info.checked = (ValuateOptions.characterWindowScale == scaleData.name)
             info.func = function(self)
                 ValuateOptions.characterWindowScale = self.value
-                UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(self.value))
+                UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(self.value, true))
                 Valuate:RefreshCharacterWindowDisplay()
             end
             UIDropDownMenu_AddButton(info, level)
@@ -2796,6 +3974,13 @@ local function UpdateCharacterWindowDisplay()
     
     CharacterWindowUpdating = true
     
+    -- Standardized padding values (must match frame creation)
+    local PADDING_EDGE = 6
+    local PADDING_ICON_TO_NAME = 4
+    local PADDING_NAME_TO_VALUE = 8
+    local ICON_SIZE = 14
+    local MIN_WIDTH = 120
+    
     -- Get selected scale from options
     local selectedScaleName = ValuateOptions.characterWindowScale
     if not selectedScaleName or not ValuateScales or not ValuateScales[selectedScaleName] then
@@ -2824,6 +4009,7 @@ local function UpdateCharacterWindowDisplay()
     end
     
     local color = scale.Color or "FFFFFF"
+    local hasIcon = false
     
     -- Update icon
     if CharacterWindowIconTexture then
@@ -2831,15 +4017,17 @@ local function UpdateCharacterWindowDisplay()
         if icon and icon ~= "" then
             CharacterWindowIconTexture:SetTexture(icon)
             CharacterWindowIconTexture:Show()
-            -- Reposition name text next to icon
+            hasIcon = true
+            -- Reposition name text next to icon with standardized padding
             if CharacterWindowNameText then
-                CharacterWindowNameText:SetPoint("LEFT", CharacterWindowIconTexture:GetParent(), "RIGHT", 4, 0)
+                CharacterWindowNameText:SetPoint("LEFT", CharacterWindowIconTexture:GetParent(), "RIGHT", PADDING_ICON_TO_NAME, 0)
             end
         else
             CharacterWindowIconTexture:Hide()
-            -- Reposition name text to start of container
+            hasIcon = false
+            -- Reposition name text to start of container with standardized padding
             if CharacterWindowNameText then
-                CharacterWindowNameText:SetPoint("LEFT", CharacterWindowFrame, "LEFT", 6, 0)
+                CharacterWindowNameText:SetPoint("LEFT", CharacterWindowFrame, "LEFT", PADDING_EDGE, 0)
             end
         end
     end
@@ -2869,6 +4057,24 @@ local function UpdateCharacterWindowDisplay()
         CharacterWindowScoreText:SetText("|cFF" .. color .. scoreText .. "|r")
     end
     
+    -- Calculate dynamic width based on content
+    if CharacterWindowFrame and CharacterWindowNameText and CharacterWindowScoreText then
+        local nameWidth = CharacterWindowNameText:GetStringWidth()
+        local scoreWidth = CharacterWindowScoreText:GetStringWidth()
+        
+        -- Calculate total width: edge padding + optional icon + padding + name + padding + score + edge padding
+        local totalWidth = PADDING_EDGE  -- Left edge
+        if hasIcon then
+            totalWidth = totalWidth + ICON_SIZE + PADDING_ICON_TO_NAME
+        end
+        totalWidth = totalWidth + nameWidth + PADDING_NAME_TO_VALUE + scoreWidth + PADDING_EDGE  -- Right edge
+        
+        -- Ensure minimum width and round up
+        totalWidth = math.max(MIN_WIDTH, math.ceil(totalWidth))
+        
+        CharacterWindowFrame:SetWidth(totalWidth)
+    end
+    
     CharacterWindowUpdating = false
 end
 
@@ -2890,6 +4096,44 @@ end
 function Valuate:RefreshCharacterWindowDisplay()
     if CharacterWindowFrame then
         UpdateCharacterWindowDisplay()
+    end
+end
+
+-- Public API to refresh character window scale dropdown in settings
+function Valuate:RefreshCharacterWindowScaleDropdown()
+    local dropdown = _G["ValuateCharWindowScaleDropdown"]
+    if dropdown and ValuateOptions and ValuateOptions.characterWindowScale then
+        -- Helper function to format display text (matches the one in settings creation)
+        local function GetCharScaleDisplayText(scaleName, includeIcon)
+            if not scaleName or not ValuateScales or not ValuateScales[scaleName] then
+                return "Select Scale"
+            end
+            local scale = ValuateScales[scaleName]
+            local displayName = scale.DisplayName or scaleName
+            local color = scale.Color or "FFFFFF"
+            
+            -- Build display text with optional icon
+            local text = ""
+            if includeIcon and scale.Icon and scale.Icon ~= "" then
+                text = "|T" .. scale.Icon .. ":14:14:0:0|t "
+            end
+            text = text .. "|cFF" .. color .. displayName .. "|r"
+            
+            return text
+        end
+        
+        -- Update the dropdown text
+        local newText = GetCharScaleDisplayText(ValuateOptions.characterWindowScale, true)
+        UIDropDownMenu_SetText(dropdown, newText)
+        
+        -- Force update the button text (direct access to ensure visual update)
+        local button = _G[dropdown:GetName() .. "Button"]
+        if button then
+            local buttonText = _G[dropdown:GetName() .. "Text"]
+            if buttonText then
+                buttonText:SetText(newText)
+            end
+        end
     end
 end
 
@@ -2929,7 +4173,7 @@ local function CreateCharacterWindowUI()
     
     -- Create sleek container button - compact size (Button so it's clickable)
     local container = CreateFrame("Button", "ValuateCharacterWindowFrame", charFrame)
-    container:SetWidth(140)
+    container:SetWidth(200)  -- Initial width, will be adjusted dynamically
     container:SetHeight(22)
     container:SetFrameLevel(charFrame:GetFrameLevel() + 10)
     container:SetFrameStrata("HIGH")
@@ -2996,6 +4240,49 @@ local function CreateCharacterWindowUI()
             if Valuate.RefreshCharacterWindowDisplay then
                 Valuate:RefreshCharacterWindowDisplay()
             end
+            
+            -- Refresh the dropdown in settings if it exists
+            if Valuate.RefreshCharacterWindowScaleDropdown then
+                Valuate:RefreshCharacterWindowScaleDropdown()
+            end
+            
+            -- Refresh the tooltip if currently shown
+            if GameTooltip:IsOwned(self) and GameTooltip:IsVisible() then
+                ShowBreakdownTooltip(self)
+                -- Re-add click hints
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Left-click to open Valuate UI", 0.7, 0.7, 0.7)
+                
+                -- Show next scale in cycle hint
+                local nextScaleText = "Right-click to cycle scales"
+                if Valuate and Valuate.GetActiveScales and ValuateOptions and ValuateScales then
+                    local activeScales = Valuate:GetActiveScales()
+                    if #activeScales > 0 then
+                        local currentScale = ValuateOptions.characterWindowScale
+                        local currentIndex = 1
+                        for i, scaleName in ipairs(activeScales) do
+                            if scaleName == currentScale then
+                                currentIndex = i
+                                break
+                            end
+                        end
+                        local nextIndex = (currentIndex % #activeScales) + 1
+                        local nextScaleName = activeScales[nextIndex]
+                        local nextScale = ValuateScales[nextScaleName]
+                        if nextScale then
+                            local color = nextScale.Color or "FFFFFF"
+                            local displayName = nextScale.DisplayName or nextScaleName
+                            local icon = ""
+                            if nextScale.Icon and nextScale.Icon ~= "" then
+                                icon = "|T" .. nextScale.Icon .. ":14:14:0:0|t "
+                            end
+                            nextScaleText = nextScaleText .. ": " .. icon .. "|cFF" .. color .. displayName .. "|r"
+                        end
+                    end
+                end
+                GameTooltip:AddLine(nextScaleText, 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end
         end
     end)
     
@@ -3006,7 +4293,35 @@ local function CreateCharacterWindowUI()
         -- Add click hints to tooltip (it's already shown by ShowBreakdownTooltip)
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("Left-click to open Valuate UI", 0.7, 0.7, 0.7)
-        GameTooltip:AddLine("Right-click to cycle scales", 0.7, 0.7, 0.7)
+        
+        -- Show next scale in cycle hint
+        local nextScaleText = "Right-click to cycle scales"
+        if Valuate and Valuate.GetActiveScales and ValuateOptions and ValuateScales then
+            local activeScales = Valuate:GetActiveScales()
+            if #activeScales > 0 then
+                local currentScale = ValuateOptions.characterWindowScale
+                local currentIndex = 1
+                for i, scaleName in ipairs(activeScales) do
+                    if scaleName == currentScale then
+                        currentIndex = i
+                        break
+                    end
+                end
+                local nextIndex = (currentIndex % #activeScales) + 1
+                local nextScaleName = activeScales[nextIndex]
+                local nextScale = ValuateScales[nextScaleName]
+                if nextScale then
+                    local color = nextScale.Color or "FFFFFF"
+                    local displayName = nextScale.DisplayName or nextScaleName
+                    local icon = ""
+                    if nextScale.Icon and nextScale.Icon ~= "" then
+                        icon = "|T" .. nextScale.Icon .. ":14:14:0:0|t "
+                    end
+                    nextScaleText = nextScaleText .. ": " .. icon .. "|cFF" .. color .. displayName .. "|r"
+                end
+            end
+        end
+        GameTooltip:AddLine(nextScaleText, 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
     container:SetScript("OnLeave", function(self)
@@ -3025,10 +4340,15 @@ local function CreateCharacterWindowUI()
     
     container:Show()
     
+    -- Standardized padding values
+    local PADDING_EDGE = 6           -- Padding from container edges
+    local PADDING_ICON_TO_NAME = 4   -- Spacing between icon and name
+    local PADDING_NAME_TO_VALUE = 8  -- Spacing between name and value
+    
     -- Scale icon (small, left side)
     local iconFrame = CreateFrame("Frame", nil, container)
     iconFrame:SetSize(14, 14)
-    iconFrame:SetPoint("LEFT", container, "LEFT", 5, 0)
+    iconFrame:SetPoint("LEFT", container, "LEFT", PADDING_EDGE, 0)
     
     local iconTexture = iconFrame:CreateTexture(nil, "OVERLAY")
     iconTexture:SetAllPoints(iconFrame)
@@ -3037,12 +4357,12 @@ local function CreateCharacterWindowUI()
     
     -- Scale name (small, colored)
     local nameText = container:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    nameText:SetPoint("LEFT", container, "LEFT", 6, 0)
+    nameText:SetPoint("LEFT", container, "LEFT", PADDING_EDGE, 0)
     nameText:SetJustifyH("LEFT")
     
     -- Score display (right side)
     local scoreText = container:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    scoreText:SetPoint("RIGHT", container, "RIGHT", -6, 0)
+    scoreText:SetPoint("RIGHT", container, "RIGHT", -PADDING_EDGE, 0)
     scoreText:SetJustifyH("RIGHT")
     scoreText:SetText("--")
     
@@ -3175,290 +4495,6 @@ local function InitializeCharacterWindowUI()
     end
 end
 
--- ========================================
--- Default Scale Picker Dialog
--- ========================================
-
-local DefaultScalePickerFrame = nil
-
--- Create a new scale from a default template
-function ValuateUI_NewScaleFromDefault(scaleData)
-    if not scaleData or not scaleData.displayName then
-        return
-    end
-    
-    -- Generate unique scale name
-    local baseName = scaleData.displayName
-    local scaleName = baseName
-    local counter = 1
-    while ValuateScales[scaleName] do
-        counter = counter + 1
-        scaleName = baseName .. " " .. counter
-    end
-    
-    -- Create the new scale
-    ValuateScales[scaleName] = {
-        DisplayName = scaleName,
-        Color = scaleData.color or "FFFFFF",
-        Icon = scaleData.icon or "",
-        Values = {},
-        Unusable = {},
-        Visible = true
-    }
-    
-    -- Copy stat values
-    if scaleData.values then
-        for stat, value in pairs(scaleData.values) do
-            ValuateScales[scaleName].Values[stat] = value
-        end
-    end
-    
-    -- Copy unusable item types
-    if scaleData.unusable then
-        for flag, value in pairs(scaleData.unusable) do
-            ValuateScales[scaleName].Unusable[flag] = value
-        end
-    end
-    
-    -- Update UI
-    UpdateScaleList()
-    
-    -- Select the new scale
-    CurrentSelectedScale = scaleName
-    EditingScaleName = scaleName
-    ValuateUI_UpdateScaleEditor(scaleName, ValuateScales[scaleName])
-    
-    -- Show success message
-    print("|cFF00FF00[Valuate]|r Created scale: " .. scaleName)
-end
-
--- Show the Default Scale Picker dialog
-function ValuateUI_ShowDefaultScalePicker()
-    if not Valuate or not Valuate.GetAllDefaultScales then
-        print("|cFFFF0000[Valuate]|r Error: Default scales not loaded")
-        return
-    end
-    
-    -- Create dialog if it doesn't exist
-    if not DefaultScalePickerFrame then
-        local frame = CreateFrame("Frame", "ValuateDefaultScalePickerFrame", UIParent)
-        frame:SetSize(400, 500)
-        frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-        frame:SetFrameStrata("FULLSCREEN_DIALOG")
-        frame:SetFrameLevel(100)
-        frame:SetMovable(true)
-        frame:EnableMouse(true)
-        frame:SetClampedToScreen(true)
-        frame:RegisterForDrag("LeftButton")
-        frame:SetBackdrop(BACKDROP_WINDOW)
-        frame:SetBackdropColor(unpack(COLORS.windowBg))
-        frame:SetBackdropBorderColor(unpack(COLORS.border))
-        
-        frame:SetScript("OnDragStart", function(self)
-            self:StartMoving()
-        end)
-        frame:SetScript("OnDragStop", function(self)
-            self:StopMovingOrSizing()
-        end)
-        
-        -- Make Escape close the dialog
-        frame:SetScript("OnKeyDown", function(self, key)
-            if key == "ESCAPE" then
-                self:Hide()
-            end
-        end)
-        
-        -- Title
-        local title = frame:CreateFontString(nil, "OVERLAY", FONT_TITLE)
-        title:SetPoint("TOP", frame, "TOP", 0, -16)
-        title:SetText("Choose a Class/Spec Template")
-        title:SetTextColor(unpack(COLORS.textTitle))
-        
-        -- Close button
-        local closeButton = CreateFrame("Button", nil, frame)
-        closeButton:SetSize(18, 18)
-        closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
-        closeButton:SetBackdrop(BACKDROP_BUTTON)
-        closeButton:SetBackdropColor(unpack(COLORS.buttonBg))
-        closeButton:SetBackdropBorderColor(unpack(COLORS.border))
-        
-        local closeLabel = closeButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
-        closeLabel:SetPoint("CENTER", closeButton, "CENTER", 0, 0)
-        closeLabel:SetText("×")
-        closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
-        
-        closeButton:SetScript("OnEnter", function(self)
-            self:SetBackdropColor(0.5, 0.2, 0.2, 1)
-            closeLabel:SetTextColor(1, 1, 1, 1)
-        end)
-        closeButton:SetScript("OnLeave", function(self)
-            self:SetBackdropColor(unpack(COLORS.buttonBg))
-            closeLabel:SetTextColor(0.7, 0.7, 0.7, 1)
-        end)
-        closeButton:SetScript("OnClick", function()
-            frame:Hide()
-        end)
-        
-        -- Scroll frame
-        local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
-        scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -50)
-        scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, 12)
-        scrollFrame:SetBackdrop(BACKDROP_PANEL)
-        scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
-        scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
-        
-        -- Scroll child
-        local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-        scrollFrame:SetScrollChild(scrollChild)
-        scrollChild:SetWidth(scrollFrame:GetWidth() - 20)
-        
-        -- Scrollbar
-        local scrollBar = CreateFrame("Slider", nil, scrollFrame)
-        scrollBar:SetPoint("TOPRIGHT", scrollFrame, "TOPRIGHT", 20, -4)
-        scrollBar:SetPoint("BOTTOMRIGHT", scrollFrame, "BOTTOMRIGHT", 20, 4)
-        scrollBar:SetWidth(16)
-        scrollBar:SetOrientation("VERTICAL")
-        scrollBar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
-        scrollBar:SetBackdrop({
-            bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
-            edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
-            tile = true, tileSize = 8, edgeSize = 8,
-            insets = { left = 3, right = 3, top = 3, bottom = 3 }
-        })
-        scrollBar:SetBackdropColor(0.1, 0.1, 0.1, 0.8)
-        scrollBar:SetMinMaxValues(0, 100)
-        scrollBar:SetValue(0)
-        scrollBar:SetValueStep(1)
-        scrollBar:SetScript("OnValueChanged", function(self, value)
-            scrollFrame:SetVerticalScroll(value)
-        end)
-        
-        scrollFrame:EnableMouseWheel(true)
-        scrollFrame:SetScript("OnMouseWheel", function(self, delta)
-            local current = scrollBar:GetValue()
-            local minVal, maxVal = scrollBar:GetMinMaxValues()
-            local newValue = current - (delta * 30)
-            newValue = math.max(minVal, math.min(maxVal, newValue))
-            scrollBar:SetValue(newValue)
-        end)
-        
-        scrollFrame.scrollBar = scrollBar
-        frame.scrollFrame = scrollFrame
-        frame.scrollChild = scrollChild
-        
-        DefaultScalePickerFrame = frame
-    end
-    
-    -- Populate with default scales
-    local scrollChild = DefaultScalePickerFrame.scrollChild
-    
-    -- Clear existing children
-    local children = {scrollChild:GetChildren()}
-    for _, child in ipairs(children) do
-        child:Hide()
-        child:SetParent(nil)
-    end
-    
-    -- Get all default scales organized by class
-    local defaultScales = Valuate:GetAllDefaultScales()
-    
-    -- Group by class
-    local classesByOrder = {"Warrior", "Paladin", "Hunter", "Rogue", "Priest", "Shaman", "Mage", "Warlock", "Druid"}
-    local scalesByClass = {}
-    for _, scaleData in ipairs(defaultScales) do
-        -- Extract class name from key (e.g., "WarriorArms" -> "Warrior")
-        local className = scaleData.key:match("^(%a+)")
-        if not scalesByClass[className] then
-            scalesByClass[className] = {}
-        end
-        table.insert(scalesByClass[className], scaleData)
-    end
-    
-    local yOffset = 0
-    local lastFrame = nil
-    
-    -- Create entries for each class
-    for _, className in ipairs(classesByOrder) do
-        local classScales = scalesByClass[className]
-        if classScales and #classScales > 0 then
-            -- Class header
-            local headerFrame = CreateFrame("Frame", nil, scrollChild)
-            headerFrame:SetSize(scrollChild:GetWidth(), 20)
-            if lastFrame then
-                headerFrame:SetPoint("TOPLEFT", lastFrame, "BOTTOMLEFT", 0, -4)
-            else
-                headerFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
-            end
-            
-            local headerText = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H2)
-            headerText:SetPoint("LEFT", headerFrame, "LEFT", 4, 0)
-            headerText:SetText(className)
-            -- Use class color
-            local r, g, b = HexToRGB(classScales[1].color)
-            headerText:SetTextColor(r, g, b, 1)
-            
-            lastFrame = headerFrame
-            yOffset = yOffset + 24
-            
-            -- Spec entries
-            for _, scaleData in ipairs(classScales) do
-                local entryButton = CreateFrame("Button", nil, scrollChild)
-                entryButton:SetSize(scrollChild:GetWidth(), 24)
-                entryButton:SetPoint("TOPLEFT", lastFrame, "BOTTOMLEFT", 0, -2)
-                entryButton:SetBackdrop(BACKDROP_BUTTON)
-                entryButton:SetBackdropColor(unpack(COLORS.buttonBg))
-                entryButton:SetBackdropBorderColor(unpack(COLORS.border))
-                
-                -- Icon
-                if scaleData.icon and scaleData.icon ~= "" then
-                    local icon = entryButton:CreateTexture(nil, "OVERLAY")
-                    icon:SetSize(18, 18)
-                    icon:SetPoint("LEFT", entryButton, "LEFT", 4, 0)
-                    icon:SetTexture(scaleData.icon)
-                end
-                
-                -- Name
-                local nameText = entryButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
-                nameText:SetPoint("LEFT", entryButton, "LEFT", 28, 0)
-                nameText:SetText(scaleData.displayName)
-                nameText:SetTextColor(unpack(COLORS.textBody))
-                
-                -- Hover effect
-                entryButton:SetScript("OnEnter", function(self)
-                    self:SetBackdropColor(unpack(COLORS.buttonHover))
-                    nameText:SetTextColor(unpack(COLORS.textAccent))
-                end)
-                entryButton:SetScript("OnLeave", function(self)
-                    self:SetBackdropColor(unpack(COLORS.buttonBg))
-                    nameText:SetTextColor(unpack(COLORS.textBody))
-                end)
-                
-                -- Click to create scale
-                entryButton:SetScript("OnClick", function()
-                    ValuateUI_NewScaleFromDefault(scaleData)
-                    DefaultScalePickerFrame:Hide()
-                end)
-                
-                lastFrame = entryButton
-                yOffset = yOffset + 26
-            end
-        end
-    end
-    
-    -- Update scroll child height
-    scrollChild:SetHeight(math.max(yOffset, DefaultScalePickerFrame.scrollFrame:GetHeight()))
-    
-    -- Update scrollbar
-    local scrollFrame = DefaultScalePickerFrame.scrollFrame
-    local scrollBar = scrollFrame.scrollBar
-    local maxScroll = math.max(0, yOffset - scrollFrame:GetHeight())
-    scrollBar:SetMinMaxValues(0, maxScroll)
-    scrollBar:SetValue(0)
-    
-    -- Show the dialog
-    DefaultScalePickerFrame:Show()
-end
-
 -- Create a simple initialization function that can be called from Valuate:Initialize
 function Valuate:InitializeCharacterWindowUI()
     if ValuateOptions and ValuateOptions.debug then
@@ -3538,6 +4574,14 @@ function Valuate:ShowUI()
             -- Create instructions panel
             local instructionsPanel = CreateInstructionsPanel(tabs.instructionsPanel)
             ValuateUIFrame.instructionsPanel = instructionsPanel
+            
+            -- Create about panel
+            local aboutPanel = CreateAboutPanel(tabs.aboutPanel)
+            ValuateUIFrame.aboutPanel = aboutPanel
+            
+            -- Create changelog panel
+            local changelogPanel = CreateChangelogPanel(tabs.changelogPanel)
+            ValuateUIFrame.changelogPanel = changelogPanel
             
             -- Create settings panel
             local settingsPanel = CreateSettingsPanel(tabs.settingsPanel)

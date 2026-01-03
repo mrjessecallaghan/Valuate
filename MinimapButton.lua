@@ -191,13 +191,9 @@ end
 -- Initialize the button when the addon loads
 local initFrame = CreateFrame("Frame")
 local function InitializeMinimapButton()
-    -- Ensure ValuateOptions exists
-    if not ValuateOptions then
-        ValuateOptions = {}
-    end
-    
-    -- Create the button if it should be shown
-    if not ValuateOptions.minimapButtonHidden then
+    -- ValuateOptions should already be initialized by Valuate:Initialize()
+    -- Just check that it exists before trying to use it
+    if ValuateOptions and not ValuateOptions.minimapButtonHidden then
         CreateMinimapButton()
     end
 end
