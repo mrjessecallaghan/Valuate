@@ -113,3 +113,4 @@ Existing users will automatically migrate because:
 ## Version
 This fix was implemented in version 0.5.0+ (after the SavedVariables issue was discovered).
 
+

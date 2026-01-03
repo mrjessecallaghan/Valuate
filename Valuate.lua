@@ -37,6 +37,53 @@ local EquipSlotToInvNumber = {
     ["INVTYPE_RELIC"] = { 18 },
 }
 
+-- Slot ID to friendly name mapping
+local SlotIdToName = {
+    [11] = "Ring 1",
+    [12] = "Ring 2",
+    [13] = "Trinket 1",
+    [14] = "Trinket 2",
+    [16] = "Main Hand",
+    [17] = "Off Hand",
+}
+
+-- Helper function to check if two weapon types are comparable
+local function AreWeaponTypesComparable(hoverType, equippedType)
+    -- Shields never compare to weapons
+    if (hoverType == "INVTYPE_SHIELD" or hoverType == "INVTYPE_HOLDABLE") then
+        return (equippedType == "INVTYPE_SHIELD" or equippedType == "INVTYPE_HOLDABLE")
+    end
+    if (equippedType == "INVTYPE_SHIELD" or equippedType == "INVTYPE_HOLDABLE") then
+        return false
+    end
+    
+    -- 2H weapons only compare to other 2H weapons
+    if hoverType == "INVTYPE_2HWEAPON" then
+        return equippedType == "INVTYPE_2HWEAPON"
+    end
+    if equippedType == "INVTYPE_2HWEAPON" then
+        return false
+    end
+    
+    -- 1H generic weapons (INVTYPE_WEAPON) compare to other 1H generic weapons
+    if hoverType == "INVTYPE_WEAPON" then
+        return equippedType == "INVTYPE_WEAPON"
+    end
+    
+    -- Mainhand-only weapons compare to mainhand-only and 1H generic in mainhand slot
+    if hoverType == "INVTYPE_WEAPONMAINHAND" then
+        return equippedType == "INVTYPE_WEAPONMAINHAND" or equippedType == "INVTYPE_WEAPON"
+    end
+    
+    -- Offhand-only weapons compare to offhand-only and 1H generic in offhand slot
+    if hoverType == "INVTYPE_WEAPONOFFHAND" then
+        return equippedType == "INVTYPE_WEAPONOFFHAND" or equippedType == "INVTYPE_WEAPON"
+    end
+    
+    -- For all other cases, types should match
+    return hoverType == equippedType
+end
+
 -- Frame for event handling
 local frame = CreateFrame("Frame")
 
@@ -66,7 +113,13 @@ function Valuate:Initialize()
             minimapButtonHidden = false,
             characterWindowDisplayMode = "total",
             uiPosition = {},
+            normalizeDisplay = false,  -- Global normalize toggle for all displays
         }
+    end
+    
+    -- Add normalizeDisplay option if it doesn't exist (for existing users)
+    if ValuateOptions.normalizeDisplay == nil then
+        ValuateOptions.normalizeDisplay = false
     end
     
     if not ValuateScales then
@@ -443,7 +496,8 @@ local function GetTooltipBorderColor(stats, itemLink)
         local equippedItemLink = ShoppingTooltip1:GetItem()
         if equippedItemLink then
             local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
-            if shoppingEquipLoc == equipSlot then
+            -- Check if items are comparable (uses smart weapon comparison logic)
+            if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
                 local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
                 if equippedStats then
                     equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
@@ -542,8 +596,102 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     local compMode = ValuateOptions.comparisonMode or "number"
                     local comparisonText = ""
                     
+                    -- Build icon prefix based on scale's Icon setting
+                    local prefix = VALUATE_MARKER_FULL
+                    local icon = scale.Icon
+                    if icon and icon ~= "" then
+                        prefix = prefix .. "|T" .. icon .. ":0|t "
+                    end
+                    
+                    -- Check if this is a multi-slot item type (rings, trinkets, 1H weapons)
+                    local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
+                    
                     -- Calculate comparison if enabled and item is equippable
-                    if compMode ~= "off" and equipSlot and equipSlot ~= "" then
+                    if compMode ~= "off" and equipSlot and equipSlot ~= "" and isMultiSlot then
+                        -- For multi-slot items, show individual comparisons
+                        local equippedScores = Valuate:GetEquippedItemScores(equipSlot, scale)
+                        
+                        if equippedScores and next(equippedScores) then
+                            -- Add main line with item score
+                            if showValue then
+                                if ValuateOptions.rightAlign then
+                                    tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                                else
+                                    tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                                end
+                            end
+                            
+                            -- Add individual comparison lines for each equipped item
+                            for slotId, equippedScore in pairs(equippedScores) do
+                                local slotName = SlotIdToName[slotId] or ("Slot " .. slotId)
+                                local diff = score - equippedScore
+                                local diffColor = ""
+                                local diffSign = ""
+                                
+                                if diff > 0 then
+                                    diffColor = "|cFF00FF00"
+                                    diffSign = "+"
+                                elseif diff < 0 then
+                                    diffColor = "|cFFFF0000"
+                                    diffSign = ""
+                                else
+                                    diffColor = "|cFFFFFF00"
+                                    diffSign = ""
+                                end
+                                
+                                local diffText = string.format(formatStr, diff)
+                                local slotComparisonText = ""
+                                
+                                if compMode == "number" then
+                                    slotComparisonText = diffColor .. diffSign .. diffText .. "|r"
+                                elseif compMode == "percent" then
+                                    if equippedScore > 0 then
+                                        local percent = (diff / equippedScore) * 100
+                                        local percentText
+                                        if math.abs(percent) >= 1000 then
+                                            percentText = "HUGE!"
+                                            slotComparisonText = diffColor .. diffSign .. percentText .. "|r"
+                                        else
+                                            percentText = string.format("%.1f", percent)
+                                            slotComparisonText = diffColor .. diffSign .. percentText .. "%|r"
+                                        end
+                                    else
+                                        slotComparisonText = diffColor .. "new|r"
+                                    end
+                                elseif compMode == "both" then
+                                    if equippedScore > 0 then
+                                        local percent = (diff / equippedScore) * 100
+                                        local percentText
+                                        if math.abs(percent) >= 1000 then
+                                            percentText = "HUGE!"
+                                            slotComparisonText = diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "|r"
+                                        else
+                                            percentText = string.format("%.1f", percent)
+                                            slotComparisonText = diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%|r"
+                                        end
+                                    else
+                                        slotComparisonText = diffColor .. diffSign .. diffText .. ", new|r"
+                                    end
+                                end
+                                
+                                -- Add indented comparison line
+                                if ValuateOptions.rightAlign then
+                                    tooltip:AddDoubleLine("  " .. prefix .. "|cFF" .. color .. slotName .. "|r", slotComparisonText)
+                                else
+                                    tooltip:AddLine("  " .. prefix .. "|cFF" .. color .. slotName .. ": " .. slotComparisonText .. "|r")
+                                end
+                            end
+                        else
+                            -- No equipped items in these slots
+                            if showValue then
+                                if ValuateOptions.rightAlign then
+                                    tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                                else
+                                    tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                                end
+                            end
+                        end
+                    elseif compMode ~= "off" and equipSlot and equipSlot ~= "" then
                         -- Try to get equipped score from shopping tooltip first (if comparing items)
                         -- This ensures both items use the same scaled stats context
                         local equippedScore = nil
@@ -552,7 +700,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             if equippedItemLink then
                                 -- Check if this shopping tooltip shows the equipped item for this slot
                                 local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
-                                if shoppingEquipLoc == equipSlot then
+                                -- Check if items are comparable (uses smart weapon comparison logic)
+                                if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
                                     local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
                                     if equippedStats then
                                         equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
@@ -619,40 +768,40 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 end
                             end
                         end
-                    end
-                    
-                    -- Build icon prefix based on scale's Icon setting
-                    local prefix = VALUATE_MARKER_FULL
-                    local icon = scale.Icon
-                    if icon and icon ~= "" then
-                        prefix = prefix .. "|T" .. icon .. ":0|t "
-                    end
-                    
-                    -- Build final display text
-                    local displayText
-                    if showValue then
-                        displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
-                    else
-                        -- Show only comparison (no base score)
-                        if comparisonText ~= "" then
-                            -- Remove the leading space and parentheses from comparison text for cleaner display
-                            local cleanComp = comparisonText:gsub("^ ", ""):gsub("%(", ""):gsub("%)", "")
-                            displayText = prefix .. "|cFF" .. color .. displayName .. ":|r " .. cleanComp
+                        
+                        -- Build final display text for single-slot items
+                        local displayText
+                        if showValue then
+                            displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
                         else
-                            -- No comparison available, show score anyway
-                            displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r"
+                            -- Show only comparison (no base score)
+                            if comparisonText ~= "" then
+                                -- Remove the leading space and parentheses from comparison text for cleaner display
+                                local cleanComp = comparisonText:gsub("^ ", ""):gsub("%(", ""):gsub("%)", "")
+                                displayText = prefix .. "|cFF" .. color .. displayName .. ":|r " .. cleanComp
+                            else
+                                -- No comparison available, show score anyway
+                                displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r"
+                            end
                         end
-                    end
-                    
-                    if ValuateOptions.rightAlign then
-                        -- Use AddDoubleLine for right-aligned scores
-                        local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
-                        if not showValue and comparisonText ~= "" then
-                            rightText = comparisonText:gsub("^ ", "")
+                        
+                        if ValuateOptions.rightAlign then
+                            -- Use AddDoubleLine for right-aligned scores
+                            local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
+                            if not showValue and comparisonText ~= "" then
+                                rightText = comparisonText:gsub("^ ", "")
+                            end
+                            tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", rightText)
+                        else
+                            tooltip:AddLine(displayText)
                         end
-                        tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", rightText)
                     else
-                        tooltip:AddLine(displayText)
+                        -- No comparison mode or not equippable - just show the score
+                        if ValuateOptions.rightAlign then
+                            tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                        else
+                            tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                        end
                     end
                 end
             end
@@ -845,6 +994,109 @@ function Valuate:HookTooltips()
             UpdateShoppingTooltip("ShoppingTooltip2")
         end)
     end
+    
+    -- Hook EquipCompare's ComparisonTooltip frames (if EquipCompare addon is loaded)
+    if ComparisonTooltip1 and ComparisonTooltip1.SetHyperlinkCompareItem then
+        hooksecurefunc(ComparisonTooltip1, "SetHyperlinkCompareItem", function(self, ...)
+            UpdateShoppingTooltip("ComparisonTooltip1")
+        end)
+    end
+    if ComparisonTooltip2 and ComparisonTooltip2.SetHyperlinkCompareItem then
+        hooksecurefunc(ComparisonTooltip2, "SetHyperlinkCompareItem", function(self, ...)
+            UpdateShoppingTooltip("ComparisonTooltip2")
+        end)
+    end
+    
+    if ComparisonTooltip1 then
+        hooksecurefunc(ComparisonTooltip1, "SetInventoryItem", function(self, ...)
+            UpdateShoppingTooltip("ComparisonTooltip1")
+        end)
+    end
+    if ComparisonTooltip2 then
+        hooksecurefunc(ComparisonTooltip2, "SetInventoryItem", function(self, ...)
+            UpdateShoppingTooltip("ComparisonTooltip2")
+        end)
+    end
+end
+
+-- ========================================
+-- Tooltip Reset System
+-- ========================================
+
+--- Attempts to reset a single tooltip, causing Valuate scores to be recalculated
+--- Similar to Pawn's PawnResetTooltip function, but handles Ascension's scaled stats
+--- tooltipName: Name of the tooltip frame to reset (string)
+--- Returns: true if successful, false/nil otherwise
+local function ResetTooltip(tooltipName)
+    local tooltip = getglobal(tooltipName)
+    if not tooltip or not tooltip.IsShown or not tooltip:IsShown() or not tooltip.GetItem then 
+        return false 
+    end
+    
+    local _, itemLink = tooltip:GetItem()
+    if not itemLink then 
+        return false 
+    end
+    
+    -- For GameTooltip and ShoppingTooltips, check if this is showing an equipped item
+    -- If so, we need to use SetInventoryItem to preserve scaled stats
+    local isEquippedItem = false
+    local slotId = nil
+    
+    if tooltipName == "GameTooltip" or tooltipName == "ShoppingTooltip1" or tooltipName == "ShoppingTooltip2" then
+        -- Check all equipment slots to see if this item is equipped
+        for i = 1, 18 do
+            if i ~= 4 then -- Skip shirt slot
+                local equippedLink = GetInventoryItemLink("player", i)
+                if equippedLink == itemLink then
+                    isEquippedItem = true
+                    slotId = i
+                    break
+                end
+            end
+        end
+    end
+    
+    -- Force tooltip to refresh
+    tooltip:SetOwner(UIParent, "ANCHOR_PRESERVE")
+    
+    if isEquippedItem and slotId then
+        -- Use SetInventoryItem for equipped items to show SCALED stats
+        tooltip:SetInventoryItem("player", slotId)
+    else
+        -- Use SetHyperlink for non-equipped items (shows base stats)
+        tooltip:SetHyperlink(itemLink)
+    end
+    
+    tooltip:Show()
+    return true
+end
+
+--- Resets all visible tooltips to recalculate Valuate scores
+--- This should be called whenever scale settings change (stat weights, visibility, etc.)
+--- Similar to Pawn's PawnResetTooltips function
+function Valuate:ResetTooltips()
+    -- Reset main tooltip
+    ResetTooltip("GameTooltip")
+    
+    -- Reset item ref tooltips (shift-click item links in chat)
+    ResetTooltip("ItemRefTooltip")
+    
+    -- Reset shopping/comparison tooltips
+    ResetTooltip("ShoppingTooltip1")
+    ResetTooltip("ShoppingTooltip2")
+    
+    -- Reset AtlasLoot tooltip if it exists (addon compatibility)
+    ResetTooltip("AtlasLootTooltip")
+    
+    -- Reset EquipCompare tooltips if they exist (addon compatibility)
+    ResetTooltip("ComparisonTooltip1")
+    ResetTooltip("ComparisonTooltip2")
+    
+    -- Refresh character window display if it exists
+    if Valuate.RefreshCharacterWindowDisplay then
+        Valuate:RefreshCharacterWindowDisplay()
+    end
 end
 
 -- ========================================
@@ -863,9 +1115,9 @@ function Valuate:CalculateItemScore(stats, scale)
     local total = 0
     local scaleValues = scale.Values
     
-    -- If normalize is enabled, find the max weight first
+    -- Calculate normalization factor if global normalize display is enabled
     local normalizeFactor = 1
-    if scale.Normalize then
+    if ValuateOptions and ValuateOptions.normalizeDisplay then
         local maxWeight = 0
         for statName, weight in pairs(scaleValues) do
             local absWeight = math.abs(weight)
@@ -878,7 +1130,7 @@ function Valuate:CalculateItemScore(stats, scale)
         end
     end
     
-    -- Multiply each stat value by its weight (normalized if needed) and sum them
+    -- Multiply each stat value by its weight (and normalize if enabled) and sum them
     for statName, statValue in pairs(stats) do
         local weight = scaleValues[statName]
         if weight and weight ~= 0 then
@@ -887,6 +1139,74 @@ function Valuate:CalculateItemScore(stats, scale)
     end
     
     return total
+end
+
+-- Gets individual scores for each equipped item in multi-slot types (rings, trinkets, weapons)
+-- equipSlot: The equipment slot type (e.g., "INVTYPE_FINGER", "INVTYPE_TRINKET", "INVTYPE_WEAPON")
+-- scale: The scale data table to use for scoring
+-- Returns: Table with slot IDs as keys and scores as values, or nil if not a multi-slot type
+function Valuate:GetEquippedItemScores(equipSlot, scale)
+    local invSlots = EquipSlotToInvNumber[equipSlot]
+    if not invSlots or #invSlots <= 1 then return nil end
+    
+    local scores = {}
+    local tooltip = GetPrivateTooltip()
+    
+    for _, slotId in ipairs(invSlots) do
+        local itemLink = GetInventoryItemLink("player", slotId)
+        if itemLink then
+            -- Get the equipped item's type
+            local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
+            
+            -- Check if these item types should be compared
+            local shouldCompare = true
+            if equippedEquipLoc then
+                shouldCompare = AreWeaponTypesComparable(equipSlot, equippedEquipLoc)
+            end
+            
+            if shouldCompare then
+                tooltip:ClearLines()
+                tooltip:SetHyperlink(itemLink)
+                local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                if stats then
+                    local score = Valuate:CalculateItemScore(stats, scale)
+                    if score then
+                        scores[slotId] = score
+                    end
+                end
+            end
+        end
+    end
+    
+    return next(scores) and scores or nil
+end
+
+-- Gets the score of an equipped item in a specific inventory slot using SCALED stats
+-- slotId: The inventory slot ID (1-18)
+-- scale: The scale data table to use for scoring
+-- Returns: The score for the item in that slot, or 0 if no item/no score
+function Valuate:GetEquippedItemScoreBySlotId(slotId, scale)
+    if not slotId or not scale or not scale.Values then
+        return 0
+    end
+    
+    local itemLink = GetInventoryItemLink("player", slotId)
+    if not itemLink then
+        return 0
+    end
+    
+    local tooltip = GetPrivateTooltip()
+    tooltip:ClearLines()
+    -- Use SetInventoryItem to get SCALED stats (same as what's shown in tooltips)
+    tooltip:SetInventoryItem("player", slotId)
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+    
+    if stats then
+        local score = Valuate:CalculateItemScore(stats, scale)
+        return score or 0
+    end
+    
+    return 0
 end
 
 -- Gets the score of currently equipped item(s) for comparison
@@ -903,15 +1223,26 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
     for _, slotId in ipairs(invSlots) do
         local itemLink = GetInventoryItemLink("player", slotId)
         if itemLink then
-            tooltip:ClearLines()
-            -- Use SetHyperlink instead of SetInventoryItem to get consistent base stats
-            -- This ensures we're comparing the same type of stats (base vs base, not base vs scaled)
-            tooltip:SetHyperlink(itemLink)
-            local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-            if stats then
-                local score = Valuate:CalculateItemScore(stats, scale)
-                if score and (not lowestScore or score < lowestScore) then
-                    lowestScore = score
+            -- Get the equipped item's type
+            local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
+            
+            -- Check if these item types should be compared
+            local shouldCompare = true
+            if equippedEquipLoc then
+                shouldCompare = AreWeaponTypesComparable(equipSlot, equippedEquipLoc)
+            end
+            
+            if shouldCompare then
+                tooltip:ClearLines()
+                -- Use SetHyperlink instead of SetInventoryItem to get consistent base stats
+                -- This ensures we're comparing the same type of stats (base vs base, not base vs scaled)
+                tooltip:SetHyperlink(itemLink)
+                local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                if stats then
+                    local score = Valuate:CalculateItemScore(stats, scale)
+                    if score and (not lowestScore or score < lowestScore) then
+                        lowestScore = score
+                    end
                 end
             end
         end
@@ -1205,4 +1536,5 @@ function ValuateToggleUI()
         print("|cFFFF0000Valuate|r: UI not ready. Please try again or /reload.")
     end
 end
+
 

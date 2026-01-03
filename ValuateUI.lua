@@ -285,6 +285,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
                     Agility = 0.3, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons (class cannot use)
+                    IsWand = true, IsStaff = true,
+                    -- Weapons (spec uses 2H only)
+                    IsAxe = true, IsMace = true, IsSword = true, IsDagger = true, IsFist = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -295,6 +305,14 @@ local CLASS_SPEC_TEMPLATES = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
                     Agility = 0.3, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsWand = true, IsStaff = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -305,6 +323,15 @@ local CLASS_SPEC_TEMPLATES = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
                     Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6
+                },
+                unusable = {
+                    -- Weapons
+                    IsWand = true, IsStaff = true,
+                    IsPolearm = true, Is2HAxe = true, Is2HMace = true, Is2HSword = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -320,6 +347,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.6,
                     Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons (class cannot use)
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Weapons (spec uses 1H + shield, not 2H)
+                    Is2HAxe = true, Is2HMace = true, Is2HSword = true, IsPolearm = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Relics
+                    IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -330,6 +368,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
                     Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6, SpellPower = 0.3
+                },
+                unusable = {
+                    -- Weapons
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    IsPolearm = true, Is2HAxe = true, Is2HMace = true, Is2HSword = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Relics
+                    IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -340,6 +388,17 @@ local CLASS_SPEC_TEMPLATES = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
                     Intellect = 0.3, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons (class cannot use)
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Weapons (spec uses 2H only, not 1H)
+                    IsAxe = true, IsMace = true, IsSword = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Relics
+                    IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -356,6 +415,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.5, ArmorPenetration = 0.7,
                     Intellect = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsMace = true, IsWand = true, IsStaff = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -366,6 +435,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.9,
                     HitRating = 1.0, HasteRating = 0.6, ArmorPenetration = 0.8,
                     Intellect = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsMace = true, IsWand = true, IsStaff = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -376,6 +455,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.7, ArmorPenetration = 0.9,
                     Intellect = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsMace = true, IsWand = true, IsStaff = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -392,6 +481,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
                     Strength = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsStaff = true, IsPolearm = true, Is2HAxe = true, Is2HMace = true, Is2HSword = true, IsWand = true, IsFist = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -402,6 +501,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.7, HitRating = 1.0,
                     HasteRating = 0.8, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
                     Strength = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsStaff = true, IsPolearm = true, Is2HAxe = true, Is2HMace = true, Is2HSword = true, IsWand = true, IsFist = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -412,6 +521,16 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
                     Strength = 0.2, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsStaff = true, IsPolearm = true, Is2HAxe = true, Is2HMace = true, Is2HSword = true, IsWand = true, IsFist = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -427,6 +546,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.8,
                     Mp5 = 0.7, Spirit = 0.6, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HMace = true, IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -436,6 +566,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
                     Mp5 = 0.8, Spirit = 0.7, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HMace = true, IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -445,6 +586,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HMace = true, IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -460,6 +612,18 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Mp5 = 0.5, Spirit = 0.4, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsPolearm = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    Is2HAxe = true, Is2HMace = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -470,6 +634,17 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, AttackPower = 0.6, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
                     Intellect = 0.4, Strength = 0.5, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsPolearm = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true, IsStaff = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -479,6 +654,18 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
                     Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsPolearm = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    Is2HAxe = true, Is2HMace = true,
+                    -- Offhands
+                    IsFrill = true,
+                    -- Armor
+                    IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -494,6 +681,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
                     HasteRating = 0.9, Spirit = 0.4, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -503,6 +701,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
                     HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -512,6 +721,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.3, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -527,6 +747,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
                     HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -536,6 +767,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.8, Spirit = 0.4, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             },
             {
@@ -545,6 +787,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
                     HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    Is2HSword = true, IsAxe = true, Is2HAxe = true, IsMace = true, Is2HMace = true,
+                    IsPolearm = true, IsFist = true, IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsShield = true,
+                    -- Armor
+                    IsLeather = true, IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
                 }
             }
         }
@@ -560,6 +813,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.6, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true
                 }
             },
             {
@@ -570,6 +834,17 @@ local CLASS_SPEC_TEMPLATES = {
                     Agility = 1.0, Strength = 0.5, FeralAP = 0.8, AttackPower = 0.5,
                     CritRating = 0.8, HitRating = 1.0, HasteRating = 0.7,
                     ExpertiseRating = 0.9, ArmorPenetration = 0.8, Stamina = 0.1
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true
                 }
             },
             {
@@ -580,6 +855,17 @@ local CLASS_SPEC_TEMPLATES = {
                     Stamina = 1.0, Agility = 0.8, Armor = 0.7, DodgeRating = 0.8,
                     FeralAP = 0.5, Strength = 0.4, HitRating = 0.5,
                     ExpertiseRating = 0.6, DefenseRating = 0.3
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true
                 }
             },
             {
@@ -589,6 +875,17 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.8,
                     Mp5 = 0.7, Spirit = 0.7, Stamina = 0.2
+                },
+                unusable = {
+                    -- Weapons
+                    IsSword = true, Is2HSword = true, IsAxe = true, Is2HAxe = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands
+                    IsFrill = true, IsShield = true,
+                    -- Armor
+                    IsMail = true, IsPlate = true,
+                    -- Relics
+                    IsLibram = true, IsTotem = true, IsSigil = true
                 }
             }
         }
@@ -1167,8 +1464,11 @@ local function CreateTabSystem(mainFrame, contentFrame)
         -- Adjust window height based on tab
         if ValuateUIFrame then
             if tabName == "scales" then
-                -- Scales tab: Keep dynamic height (will be updated by UpdateStatWeightsList)
-                -- Don't change height here, let the scale editor manage it
+                -- Scales tab: Restore dynamic height if a scale is already selected
+                if EditingScaleName and ValuateScales[EditingScaleName] then
+                    -- Trigger resize by refreshing the scale editor
+                    ValuateUI_UpdateScaleEditor(EditingScaleName, ValuateScales[EditingScaleName])
+                end
             else
                 -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
                 ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
@@ -1427,6 +1727,11 @@ local function UpdateScaleList()
                 colorPreview:SetVertexColor(newR, newG, newB, 1)
                 -- Update the scale list to reflect new color
                 UpdateScaleList()
+                
+                -- Reset tooltips to show new color immediately
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
             end
             
             ColorPickerFrame.cancelFunc = function()
@@ -1435,6 +1740,11 @@ local function UpdateScaleList()
                     ValuateScales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
                 end
                 UpdateScaleList()
+                
+                -- Reset tooltips to restore original color
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
             end
             
             ColorPickerFrame.opacityFunc = nil
@@ -1554,6 +1864,11 @@ local function UpdateScaleList()
                             end
                         end
                         UpdateScaleList()
+                        
+                        -- Reset all tooltips to reflect the deletion immediately
+                        if Valuate.ResetTooltips then
+                            Valuate:ResetTooltips()
+                        end
                     end,
                     timeout = 0,
                     whileDead = true,
@@ -1606,6 +1921,11 @@ local function UpdateScaleList()
             local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
             if ValuateScales[scaleData.name] then
                 ValuateScales[scaleData.name].Visible = checked
+                
+                -- Reset all tooltips to reflect the visibility change immediately
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
             end
             UpdateVisualState(checked)
         end)
@@ -1752,6 +2072,11 @@ ValuateUI_OnTemplateOverwrite = function(template)
         UpdateScaleList()
         if ScaleListButtons[scaleName] then
             ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+        end
+        
+        -- Reset all tooltips to show the updated scale immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
         end
     end
 end
@@ -1907,9 +2232,9 @@ local function CreateStatRow(parent, statName, scale, yOffset)
                 scale.Values[self.statName] = nil
             end
             
-            -- If normalize is enabled, refresh character window display
-            if scale.Normalize and Valuate.RefreshCharacterWindowDisplay then
-                Valuate:RefreshCharacterWindowDisplay()
+            -- Reset all tooltips to reflect the change immediately
+            if Valuate.ResetTooltips then
+                Valuate:ResetTooltips()
             end
         end
         self:ClearFocus()
@@ -1976,6 +2301,11 @@ local function CreateStatRow(parent, statName, scale, yOffset)
                 end
             else
                 currentScale.Unusable[statName] = nil
+            end
+            
+            -- Reset all tooltips to reflect the change immediately
+            if Valuate.ResetTooltips then
+                Valuate:ResetTooltips()
             end
         end
         
@@ -2289,10 +2619,6 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
         ScaleEditorFrame.nameEditBox:SetText(scale.DisplayName or scaleName)
     end
     
-    -- Update normalize checkbox state
-    if ScaleEditorFrame.normalizeCheckbox then
-        ScaleEditorFrame.normalizeCheckbox:SetChecked(scale.Normalize == true)
-    end
     
     -- Update stat weights
     UpdateStatWeightsList(scaleName, scale)
@@ -2334,13 +2660,21 @@ function ValuateUI_CreateScaleFromTemplate(template)
         Color = template.color or "FFFFFF",  -- Use spec's color
         Visible = true,
         Icon = template.icon,
-        Values = {}
+        Values = {},
+        Unusable = {}
     }
     
     -- Copy stat weights from template
     if template.weights then
         for statName, value in pairs(template.weights) do
             newScale.Values[statName] = value
+        end
+    end
+    
+    -- Copy unusable stats from template
+    if template.unusable then
+        for statName, value in pairs(template.unusable) do
+            newScale.Unusable[statName] = value
         end
     end
     
@@ -2397,7 +2731,7 @@ local function CreateImportExportDialog()
     dialog:SetWidth(600)
     dialog:SetHeight(300)
     dialog:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    dialog:SetFrameStrata("DIALOG")
+    dialog:SetFrameStrata("FULLSCREEN_DIALOG")  -- Above main UI
     dialog:SetBackdrop(BACKDROP_WINDOW)
     dialog:SetBackdropColor(unpack(COLORS.windowBg))
     dialog:SetBackdropBorderColor(unpack(COLORS.border))
@@ -2530,7 +2864,38 @@ function Valuate:ShowImportDialog()
     dialog.cancelButton:SetPoint("BOTTOM", dialog, "BOTTOM", 55, 15)
     
     dialog.okCallback = function(text)
-        local status, scaleName = self:ImportScale(text, true)  -- Allow overwrite
+        -- First check if scale exists (without overwriting)
+        local status, scaleName, errorMessage = self:ImportScale(text, false)
+        
+        if status == Valuate.ImportResult.ALREADY_EXISTS then
+            -- Scale already exists, show confirmation dialog
+            StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE"] = {
+                text = "A scale named \"" .. scaleName .. "\" already exists.\n\nOverwrite it?",
+                button1 = "Overwrite",
+                button2 = "Cancel",
+                OnAccept = function()
+                    -- User confirmed, now import with overwrite
+                    local overwriteStatus, overwriteScaleName = self:ImportScale(text, true)
+                    
+                    if overwriteStatus == Valuate.ImportResult.SUCCESS then
+                        print("|cFF00FF00Valuate|r: Successfully overwrote scale |cFFFFFFFF" .. overwriteScaleName .. "|r")
+                        
+                        -- Refresh the UI
+                        if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                            UpdateScaleList()
+                            if ScaleListButtons[overwriteScaleName] then
+                                ScaleListButtons[overwriteScaleName]:GetScript("OnClick")(ScaleListButtons[overwriteScaleName])
+                            end
+                        end
+                    end
+                end,
+                timeout = 0,
+                whileDead = true,
+                hideOnEscape = true,
+            }
+            StaticPopup_Show("VALUATE_IMPORT_OVERWRITE")
+            return
+        end
         
         if status == Valuate.ImportResult.SUCCESS then
             print("|cFF00FF00Valuate|r: Successfully imported scale |cFFFFFFFF" .. scaleName .. "|r")
@@ -2542,17 +2907,6 @@ function Valuate:ShowImportDialog()
                 if ScaleListButtons[scaleName] then
                     ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
                 end
-            end
-        elseif status == Valuate.ImportResult.ALREADY_EXISTS then
-            print("|cFF00FF00Valuate|r: Overwrote existing scale |cFFFFFFFF" .. scaleName .. "|r")
-            
-            -- Refresh the UI
-            if ValuateUIFrame and ValuateUIFrame:IsShown() then
-                UpdateScaleList()
-                if ScaleListButtons[scaleName] then
-                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
-                end
-
             end
         elseif status == Valuate.ImportResult.VERSION_ERROR then
             print("|cFFFF0000Valuate|r: Import failed: Scale tag is from a newer version of Valuate. Please update the addon.")
@@ -2673,50 +3027,17 @@ local function CreateScaleEditor(parent)
                 
                 -- Refresh the editor display
                 ValuateUI_UpdateScaleEditor(scaleName, scale)
+                
+                -- Reset all tooltips to reflect the change immediately
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
             end,
             timeout = 0,
             whileDead = true,
             hideOnEscape = true,
         }
         StaticPopup_Show("VALUATE_RESET_SCALE")
-    end)
-    
-    -- Normalize checkbox (to the right of Reset Values button)
-    local normalizeCheckbox = CreateFrame("CheckButton", nil, headerFrame, "UICheckButtonTemplate")
-    normalizeCheckbox:SetSize(20, 20)
-    normalizeCheckbox:SetPoint("LEFT", resetButton, "RIGHT", ELEMENT_SPACING + 5, 0)
-    
-    local normalizeLabel = normalizeCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    normalizeLabel:SetPoint("LEFT", normalizeCheckbox, "RIGHT", 5, 0)
-    normalizeLabel:SetText("Normalize")
-    normalizeLabel:SetTextColor(unpack(COLORS.textBody))
-    
-    normalizeCheckbox:SetScript("OnClick", function(self)
-        if not EditingScaleName or not ValuateScales[EditingScaleName] then
-            return
-        end
-        
-        local scaleName = EditingScaleName
-        local scale = ValuateScales[scaleName]
-        local isChecked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        
-        -- Store normalize preference in scale
-        scale.Normalize = isChecked
-        
-        -- Refresh the character window display if it exists
-        if Valuate.RefreshCharacterWindowDisplay then
-            Valuate:RefreshCharacterWindowDisplay()
-        end
-    end)
-    
-    normalizeCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Normalize Scale", 1, 1, 1)
-        GameTooltip:AddLine("When enabled, item scores are calculated with normalized stat weights (highest stat weight = 1.0). Your original stat weights are preserved. This makes scores easier to interpret and compare between different scales.", nil, nil, nil, true)
-        GameTooltip:Show()
-    end)
-    normalizeCheckbox:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
     end)
     
     -- Content frame for stat weights (below header) - no scrollbar needed as everything fits
@@ -2731,7 +3052,6 @@ local function CreateScaleEditor(parent)
     ScaleEditorFrame = contentFrame
     ScaleEditorFrame.container = container
     ScaleEditorFrame.nameEditBox = nameEditBox
-    ScaleEditorFrame.normalizeCheckbox = normalizeCheckbox
     
     
     container:Hide()
@@ -2879,7 +3199,7 @@ local function CreateInstructionsPanel(parent)
     local header7 = CreateSectionHeader("Settings Options", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local text7 = CreateBodyText("• Decimal Places: Control how many decimal places are shown in scores (0-4).\n• Right-Align Scores: When enabled, scores align to the right in tooltips for easier comparison.\n• Show Scale Value: Toggle whether the item's calculated score appears on tooltips.\n• Comparison Mode: Choose how upgrade/downgrade differences are displayed (Number, Percentage, Both, or Off).", currentY)
+    local text7 = CreateBodyText("• Decimal Places: Control how many decimal places are shown in scores (0-4).\n• Right-Align Scores: When enabled, scores align to the right in tooltips for easier comparison.\n• Show Scale Value: Toggle whether the item's calculated score appears on tooltips.\n• Normalize Display: When enabled, all scores are normalized (highest stat weight = 1.0) for easier comparison across scales.\n• Comparison Mode: Choose how upgrade/downgrade differences are displayed (Number, Percentage, Both, or Off).", currentY)
     local text7Height = text7:GetStringHeight()
     currentY = currentY - text7Height - sectionSpacing
     
@@ -3255,7 +3575,11 @@ local function CreateSettingsPanel(parent)
         ValuateOptions.decimalPlaces = value
         self:SetText(tostring(value))
         self:ClearFocus()
-        Valuate:RefreshCharacterWindowDisplay()
+        
+        -- Reset all tooltips to show new decimal places immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
     end)
     decimalEditBox:SetScript("OnEscapePressed", function(self)
         self:SetText(tostring(ValuateOptions.decimalPlaces or 1))
@@ -3273,6 +3597,11 @@ local function CreateSettingsPanel(parent)
     alignCheckbox:SetChecked(ValuateOptions.rightAlign == true)
     alignCheckbox:SetScript("OnClick", function(self)
         ValuateOptions.rightAlign = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Reset all tooltips to show new alignment immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
     
@@ -3287,6 +3616,11 @@ local function CreateSettingsPanel(parent)
     showScaleCheckbox:SetChecked(ValuateOptions.showScaleValue ~= false)
     showScaleCheckbox:SetScript("OnClick", function(self)
         ValuateOptions.showScaleValue = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Reset all tooltips to show/hide scale values immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
     end)
     showScaleCheckbox:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -3295,6 +3629,34 @@ local function CreateSettingsPanel(parent)
         GameTooltip:Show()
     end)
     showScaleCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+    
+    -- Normalize Display checkbox (Column 1)
+    local normalizeCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    normalizeCheckbox:SetSize(24, 24)
+    normalizeCheckbox:SetPoint("TOPLEFT", showScaleCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    
+    local normalizeLabel = normalizeCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    normalizeLabel:SetPoint("LEFT", normalizeCheckbox, "RIGHT", 5, 0)
+    normalizeLabel:SetText("Normalize Display")
+    normalizeCheckbox:SetChecked(ValuateOptions.normalizeDisplay == true)
+    normalizeCheckbox:SetScript("OnClick", function(self)
+        ValuateOptions.normalizeDisplay = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Reset all tooltips to show normalized/non-normalized values immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
+    end)
+    normalizeCheckbox:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Normalize Display", 1, 1, 1)
+        GameTooltip:AddLine("When enabled, all scores are normalized so the highest stat weight = 1.0. This makes it easier to compare items across different scales. Your original stat weights are never changed.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    normalizeCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
@@ -3351,6 +3713,11 @@ local function CreateSettingsPanel(parent)
             info.func = function(self)
                 ValuateOptions.comparisonMode = self.value
                 UIDropDownMenu_SetText(compModeDropdown, GetCompModeText(self.value))
+                
+                -- Reset all tooltips to show new comparison mode immediately
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
             end
             UIDropDownMenu_AddButton(info, level)
         end
@@ -3778,6 +4145,53 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
     
+    -- ========================================
+    -- Delete Saved Variables Button (Bottom Right)
+    -- ========================================
+    local deleteButton = CreateStyledButton(parent, "Delete Saved Variables", 180, 30)
+    deleteButton:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -PADDING, PADDING)
+    
+    -- Override border color to red
+    deleteButton:SetBackdropBorderColor(0.8, 0, 0, 1)
+    
+    -- Custom hover effects for red border
+    deleteButton:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonHover))
+        self:SetBackdropBorderColor(1, 0.2, 0.2, 1)  -- Brighter red on hover
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Delete Saved Variables", 1, 0.2, 0.2)
+        GameTooltip:AddLine("Deletes all addon data including scales and settings.", 0.8, 0.8, 0.8, true)
+        GameTooltip:AddLine("This action requires a UI reload.", 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    deleteButton:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(unpack(COLORS.buttonBg))
+        self:SetBackdropBorderColor(0.8, 0, 0, 1)  -- Back to red
+        GameTooltip:Hide()
+    end)
+    
+    -- Click handler with confirmation dialog
+    deleteButton:SetScript("OnClick", function(self)
+        StaticPopupDialogs["VALUATE_DELETE_SAVEDVARS"] = {
+            text = "Are you sure you want to delete ALL Valuate saved data?\n\nThis will delete:\n- All scales\n- All settings\n- All options\n\nThis action cannot be undone!\n\nThe UI will reload after deletion.",
+            button1 = "Delete Everything",
+            button2 = "Cancel",
+            OnAccept = function()
+                -- Clear all saved variables
+                ValuateOptions = nil
+                ValuateScales = nil
+                
+                -- Reload UI to reinitialize with defaults
+                ReloadUI()
+            end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            preferredIndex = 3,
+        }
+        StaticPopup_Show("VALUATE_DELETE_SAVEDVARS")
+    end)
+    
     -- Store references for updating
     parent.charScaleDropdown = charScaleDropdown
     parent.GetCharScaleDisplayText = GetCharScaleDisplayText
@@ -3847,12 +4261,9 @@ local function GetEquippedItemsBreakdown(scale)
             local itemName, _, itemRarity = GetItemInfo(itemLink)
             local itemTexture = GetInventoryItemTexture("player", slotId)
             
-            -- Get item score using the main addon's function
-            local stats = Valuate:GetStatsForItemLink(itemLink)
-            local score = 0
-            if stats then
-                score = Valuate:CalculateItemScore(stats, scale) or 0
-            end
+            -- Get item score using SCALED stats (same as tooltips)
+            -- This ensures character window breakdown matches tooltip values
+            local score = Valuate:GetEquippedItemScoreBySlotId(slotId, scale)
             
             -- Get item quality color
             local r, g, b = 1, 1, 1

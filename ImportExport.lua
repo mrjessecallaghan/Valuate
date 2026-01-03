@@ -47,10 +47,6 @@ function Valuate:GetScaleTag(scaleName)
     local visible = (scale.Visible ~= false) and 1 or 0
     table.insert(parts, string.format("Visible=%d", visible))
     
-    -- Add Normalize flag (0 or 1)
-    local normalize = (scale.Normalize == true) and 1 or 0
-    table.insert(parts, string.format("Normalize=%d", normalize))
-    
     -- Add Icon path if present
     if scale.Icon and scale.Icon ~= "" then
         table.insert(parts, string.format("Icon=%s", scale.Icon))
@@ -222,8 +218,6 @@ function Valuate:ParseScaleTag(scaleTag)
                 scaleData.Color = value
             elseif key == "Visible" then
                 scaleData.Visible = (tonumber(value) == 1)
-            elseif key == "Normalize" then
-                scaleData.Normalize = (tonumber(value) == 1)
             elseif key == "Icon" then
                 scaleData.Icon = value
             elseif string.match(key, "^Unusable%.(.+)$") then
@@ -297,6 +291,11 @@ function Valuate:ImportScale(scaleTag, overwrite)
     
     if Valuate.RefreshStatEditor then
         Valuate:RefreshStatEditor()
+    end
+    
+    -- Reset all tooltips to show the new/updated scale immediately
+    if Valuate.ResetTooltips then
+        Valuate:ResetTooltips()
     end
     
     return Valuate.ImportResult.SUCCESS, scaleName, nil
@@ -374,6 +373,11 @@ function Valuate:ImportMultipleScales(text, overwrite)
         
         if Valuate.RefreshStatEditor then
             Valuate:RefreshStatEditor()
+        end
+        
+        -- Reset all tooltips to show the new/updated scales immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
         end
     end
     
