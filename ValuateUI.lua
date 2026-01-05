@@ -229,7 +229,8 @@ local IconPickerFrame = nil
 local IconPickerCallback = nil
 
 -- Template Picker state
-local TemplatePickerFrame = nil
+local TemplatePickerFrame = nil  -- Full picker (all classes)
+local ClassSpecificPickerFrame = nil  -- Class-specific picker
 
 -- Forward declaration for overwrite callback
 local ValuateUI_OnTemplateOverwrite = nil
@@ -925,11 +926,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Warrior",
         color = "C79C6E",
+        description = "Masters of melee combat, warriors charge into battle with unyielding strength and indomitable will.",
         specs = {
             {
                 name = "Arms",
                 icon = "Interface\\Icons\\Ability_Warrior_SavageBlow",
                 color = "FF4444",  -- Red - aggressive DPS
+                role = "DAMAGER",
+                description = "Master of two-handed weapons, delivering devastating strikes and mortal wounds.",
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
@@ -965,6 +969,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Fury",
                 icon = "Interface\\Icons\\Ability_Warrior_InnerRage",
                 color = "FF8800",  -- Orange - berserker fury
+                role = "DAMAGER",
+                description = "Berserker wielding dual weapons, striking with reckless fury and brutal speed.",
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
@@ -996,6 +1002,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Protection",
                 icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance",
                 color = "4488FF",  -- Blue - defensive steel
+                role = "TANK",
+                description = "Stalwart defender using shield and heavy armor to protect allies from harm.",
                 weights = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
@@ -1029,11 +1037,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Paladin",
         color = "F58CBA",
+        description = "Holy champions wielding the Light to protect the innocent and smite the wicked with righteous fury.",
         specs = {
             {
                 name = "Holy",
                 icon = "Interface\\Icons\\Spell_Holy_HolyBolt",
                 color = "FFD700",  -- Gold - holy light
+                role = "HEALER",
+                description = "Channel divine light to heal wounds and protect allies with holy shields.",
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.6,
                     Mp5 = 0.8, Spirit = 0.5, Stamina = 0.3, Armor = 0.05,
@@ -1066,6 +1077,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Protection",
                 icon = "Interface\\Icons\\Ability_Paladin_ShieldoftheTemplar",
                 color = "AAAAAA",  -- Silver - protective shield
+                role = "TANK",
+                description = "Righteous guardian combining holy magic with shield mastery to defend the weak.",
                 weights = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
@@ -1099,6 +1112,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Retribution",
                 icon = "Interface\\Icons\\Spell_Holy_AuraOfLight",
                 color = "CC0000",  -- Crimson - righteous vengeance
+                role = "SUPPORT",
+                description = "Holy warrior bringing righteous vengeance with two-handed strikes and sacred buffs.",
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
@@ -1137,11 +1152,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Hunter",
         color = "ABD473",
+        description = "Survivalists of the wild, tracking prey with precision and fighting alongside loyal beasts.",
         specs = {
             {
                 name = "Beast Mastery",
                 icon = "Interface\\Icons\\Ability_Hunter_BeastTaming",
                 color = "44CC44",  -- Green - beast nature
+                role = "DAMAGER",
+                description = "Bond with your pet to unleash primal fury and coordinated attacks together.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.5, ArmorPenetration = 0.7,
@@ -1172,6 +1190,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Marksmanship",
                 icon = "Interface\\Icons\\Ability_Marksmanship",
                 color = "4488DD",  -- Blue - precision aim
+                role = "DAMAGER",
+                description = "Sniper specializing in precise, powerful ranged attacks from a safe distance.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.9,
                     HitRating = 1.0, HasteRating = 0.6, ArmorPenetration = 0.8,
@@ -1202,6 +1222,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Survival",
                 icon = "Interface\\Icons\\Ability_Hunter_SwiftStrike",
                 color = "AA6633",  -- Brown - wilderness survival
+                role = "DAMAGER",
+                description = "Wilderness expert using traps, poisons, and tactical strikes to bring down prey.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.7, ArmorPenetration = 0.9,
@@ -1233,11 +1255,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Rogue",
         color = "FFF569",
+        description = "Shadowy assassins striking from the darkness with deadly precision and cunning guile.",
         specs = {
             {
                 name = "Assassination",
                 icon = "Interface\\Icons\\Ability_Rogue_Eviscerate",
                 color = "00DD00",  -- Bright green - poison/venom
+                role = "DAMAGER",
+                description = "Silent killer using deadly poisons and precise strikes from the shadows.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
@@ -1269,6 +1294,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Combat",
                 icon = "Interface\\Icons\\Ability_BackStab",
                 color = "DD0000",  -- Red - bloodthirsty combat
+                role = "DAMAGER",
+                description = "Swashbuckler delivering lightning-fast blade strikes in close combat.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.7, HitRating = 1.0,
                     HasteRating = 0.8, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
@@ -1300,6 +1327,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Subtlety",
                 icon = "Interface\\Icons\\Ability_Stealth",
                 color = "6600AA",  -- Purple - shadowy stealth
+                role = "DAMAGER",
+                description = "Master of shadows, striking from stealth with calculated precision and trickery.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
@@ -1332,11 +1361,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Priest",
         color = "FFFFFF",
+        description = "Devoted servants of faith, channeling divine power to heal allies or embrace shadow to destroy enemies.",
         specs = {
             {
                 name = "Discipline",
                 icon = "Interface\\Icons\\Spell_Holy_PowerWordShield",
                 color = "DDDDDD",  -- Light gray - discipline/balance
+                role = "HEALER",
+                description = "Balance light and shadow, preventing damage with shields and healing wounds.",
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.8,
                     Mp5 = 0.7, Spirit = 0.6, Stamina = 0.3, Armor = 0.05,
@@ -1367,6 +1399,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Holy",
                 icon = "Interface\\Icons\\Spell_Holy_GuardianSpirit",
                 color = "FFEE66",  -- Bright yellow - holy radiance
+                role = "HEALER",
+                description = "Devoted healer wielding divine power to restore health and grant salvation.",
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
                     Mp5 = 0.8, Spirit = 0.7, Stamina = 0.3, Armor = 0.05,
@@ -1397,6 +1431,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Shadow",
                 icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
                 color = "8800CC",  -- Purple - shadow magic
+                role = "DAMAGER",
+                description = "Embrace the darkness to drain life and inflict torment with shadow magic.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.5, Stamina = 0.25, Armor = 0.03,
@@ -1427,11 +1463,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Shaman",
         color = "0070DE",
+        description = "Spiritual guides communing with the elements to call upon nature's raw power and ancestral wisdom.",
         specs = {
             {
                 name = "Elemental",
                 icon = "Interface\\Icons\\Spell_Nature_Lightning",
                 color = "3399FF",  -- Bright blue - lightning storm
+                role = "DAMAGER",
+                description = "Harness lightning, fire, and earth to devastate foes with elemental fury.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Mp5 = 0.5, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
@@ -1463,6 +1502,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Enhancement",
                 icon = "Interface\\Icons\\Spell_Nature_LightningShield",
                 color = "FF6622",  -- Orange - fiery enhancement
+                role = "DAMAGER",
+                description = "Infuse weapons with elemental power for devastating melee strikes.",
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
@@ -1494,6 +1535,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Restoration",
                 icon = "Interface\\Icons\\Spell_Nature_MagicImmunity",
                 color = "22DD77",  -- Teal green - healing waters
+                role = "HEALER",
+                description = "Channel healing waters and ancestral spirits to restore and cleanse allies.",
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
                     Mp5 = 0.8, Spirit = 0.5, Stamina = 0.3, Armor = 0.05,
@@ -1526,11 +1569,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Mage",
         color = "69CCF0",
+        description = "Scholars of arcane magic, wielding raw mystical energy to reshape reality and devastate foes.",
         specs = {
             {
                 name = "Arcane",
                 icon = "Interface\\Icons\\Spell_Holy_MagicalSentry",
                 color = "AA44FF",  -- Purple - arcane magic
+                role = "DAMAGER",
+                description = "Manipulate raw arcane energy for devastating magical bombardments.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
                     HasteRating = 0.9, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
@@ -1561,6 +1607,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Fire",
                 icon = "Interface\\Icons\\Spell_Fire_FlameBolt",
                 color = "FF4400",  -- Red-orange - burning flames
+                role = "DAMAGER",
+                description = "Pyromancer igniting enemies with explosive fire spells and burning damage.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
                     HasteRating = 0.8, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
@@ -1591,6 +1639,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Frost",
                 icon = "Interface\\Icons\\Spell_Frost_FrostBolt02",
                 color = "00DDFF",  -- Cyan - ice cold
+                role = "DAMAGER",
+                description = "Freeze and shatter foes with ice spells, slowing and controlling the battlefield.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
@@ -1622,11 +1672,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Warlock",
         color = "9482C9",
+        description = "Dark practitioners of fel magic, commanding demons and wielding destructive forces from the Twisting Nether.",
         specs = {
             {
                 name = "Affliction",
                 icon = "Interface\\Icons\\Spell_Shadow_DeathCoil",
                 color = "00BB44",  -- Green - disease/decay
+                role = "DAMAGER",
+                description = "Spread disease and corruption, watching enemies wither from curses over time.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
                     HasteRating = 0.9, Spirit = 0.5, Stamina = 0.25, Armor = 0.03,
@@ -1657,6 +1710,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Demonology",
                 icon = "Interface\\Icons\\Spell_Shadow_Metamorphosis",
                 color = "AA22AA",  -- Purple - demonic power
+                role = "DAMAGER",
+                description = "Command powerful demons and transform with demonic energy for destruction.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.8, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
@@ -1687,6 +1742,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Destruction",
                 icon = "Interface\\Icons\\Spell_Shadow_RainOfFire",
                 color = "EE3300",  -- Red - destructive fire
+                role = "DAMAGER",
+                description = "Rain hellfire and chaos upon enemies with destructive fel magic.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
                     HasteRating = 0.8, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
@@ -1718,11 +1775,14 @@ local CLASS_SPEC_TEMPLATES = {
     {
         class = "Druid",
         color = "FF7D0A",
+        description = "Guardians of nature, shapeshifting between forms to protect the wilds and maintain the balance of life.",
         specs = {
             {
                 name = "Balance",
                 icon = "Interface\\Icons\\Spell_Nature_StarFall",
                 color = "4488FF",  -- Blue - celestial balance
+                role = "DAMAGER",
+                description = "Balance lunar and solar energies to call down cosmic wrath from the heavens.",
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
                     HasteRating = 0.9, Spirit = 0.6, Stamina = 0.25, Armor = 0.03,
@@ -1754,6 +1814,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Feral DPS",
                 icon = "Interface\\Icons\\Ability_Druid_CatForm",
                 color = "FFAA00",  -- Orange - cat ferocity
+                role = "DAMAGER",
+                description = "Transform into a savage cat, ripping and tearing foes with primal fury.",
                 weights = {
                     Agility = 1.0, Strength = 0.5, FeralAP = 0.8, AttackPower = 0.5,
                     CritRating = 0.8, HitRating = 1.0, HasteRating = 0.7,
@@ -1786,6 +1848,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Feral Tank",
                 icon = "Interface\\Icons\\Ability_Racial_BearForm",
                 color = "996633",  -- Brown - bear strength
+                role = "TANK",
+                description = "Become a mighty bear with thick hide and crushing strength to protect allies.",
                 weights = {
                     Stamina = 1.0, Agility = 0.8, Armor = 0.7, DodgeRating = 0.8,
                     FeralAP = 0.5, Strength = 0.4, HitRating = 0.5,
@@ -1816,6 +1880,8 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Restoration",
                 icon = "Interface\\Icons\\Spell_Nature_HealingTouch",
                 color = "11DD55",  -- Green - nature's healing
+                role = "HEALER",
+                description = "Nurture allies with nature's gift, healing wounds with rejuvenation over time.",
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.8,
                     Mp5 = 0.7, Spirit = 0.7, Stamina = 0.3, Armor = 0.05,
@@ -1847,6 +1913,39 @@ local CLASS_SPEC_TEMPLATES = {
         }
     }
 }
+
+-- ========================================
+-- Role Icon Configuration
+-- ========================================
+
+-- Role Icon Configuration
+local ROLE_ICON_TEXTURE = "Interface\\LFGFRAME\\UI-LFG-ICON-ROLES"
+local ROLE_ICON_COORDS = {
+    DAMAGER = {72/256, 130/256, 69/256, 127/256},
+    HEALER = {72/256, 130/256, 2/256, 60/256},
+    TANK = {5/256, 63/256, 69/256, 127/256},
+    SUPPORT = {72/256, 130/256, 69/256, 127/256}, -- Same as DAMAGER
+}
+
+-- Helper function to get role icon texture and coordinates
+local function GetRoleIconAndCoords(role)
+    if not role then
+        role = "DAMAGER"
+    end
+    local coords = ROLE_ICON_COORDS[role] or ROLE_ICON_COORDS["DAMAGER"]
+    return ROLE_ICON_TEXTURE, coords[1], coords[2], coords[3], coords[4]
+end
+
+-- Helper function to get role display name
+local function GetRoleName(role)
+    local roleNames = {
+        TANK = "Tank",
+        HEALER = "Healer",
+        DAMAGER = "Damage",
+        SUPPORT = "Support"
+    }
+    return roleNames[role] or "Damage"
+end
 
 -- ========================================
 -- Utility Functions
@@ -2138,7 +2237,257 @@ local function ShowIconPicker(callback)
 end
 
 -- ========================================
--- Template Picker Frame
+-- Class-Specific Template Picker Frame
+-- ========================================
+
+local function CreateClassSpecificPickerFrame()
+    local frame = CreateFrame("Frame", "ValuateClassSpecificPickerFrame", UIParent)
+    frame:SetPoint("CENTER")
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(100)
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetBackdrop(BACKDROP_WINDOW)
+    frame:SetBackdropColor(unpack(COLORS.windowBg))
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+    
+    -- Make draggable
+    frame:SetScript("OnDragStart", function(self)
+        IsDraggingFrame = true
+        GameTooltip:Hide()
+        self:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        IsDraggingFrame = false
+    end)
+    
+    -- ESC key to close
+    frame:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:Hide()
+        end
+    end)
+    
+    -- Get player's class
+    local _, playerClass = UnitClass("player")
+    
+    -- Find the class data
+    local classData = nil
+    for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+        if data.class:upper() == playerClass then
+            classData = data
+            break
+        end
+    end
+    
+    if not classData then
+        -- Fallback to showing all classes if player class not found
+        classData = CLASS_SPEC_TEMPLATES[1]
+    end
+    
+    -- Title
+    local title = frame:CreateFontString(nil, "OVERLAY", FONT_H1)
+    title:SetPoint("TOP", frame, "TOP", 0, -16)
+    title:SetText("Select Your Spec")
+    title:SetTextColor(unpack(COLORS.textTitle))
+    
+    -- "Show All Classes" button
+    local showAllButton = CreateStyledButton(frame, "Show All Classes", 150, BUTTON_HEIGHT)
+    showAllButton:SetPoint("TOP", title, "BOTTOM", 0, -8)
+    showAllButton:SetScript("OnClick", function()
+        frame:Hide()
+        ValuateUI_ShowFullTemplatePicker()
+    end)
+    
+    -- Close button
+    local closeButton = CreateFrame("Button", nil, frame)
+    closeButton:SetSize(18, 18)
+    closeButton:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -10)
+    
+    local closeX = closeButton:CreateFontString(nil, "OVERLAY", FONT_H1)
+    closeX:SetPoint("CENTER")
+    closeX:SetText("×")
+    closeX:SetTextColor(0.7, 0.7, 0.7, 1)
+    
+    closeButton:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+    closeButton:SetScript("OnEnter", function()
+        closeX:SetTextColor(1, 1, 1, 1)
+    end)
+    closeButton:SetScript("OnLeave", function()
+        closeX:SetTextColor(0.7, 0.7, 0.7, 1)
+    end)
+    
+    -- Content area
+    local contentTop = -85  -- Below title and "Show All Classes" button
+    
+    -- Temporary font string for measuring text widths
+    local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    
+    -- Calculate column width - need to check description width too
+    local maxWidth = 300  -- Minimum width for larger layout
+    measureString:SetFont(FONT_BODY, 10)  -- Use smaller font for description
+    for _, spec in ipairs(classData.specs) do
+        -- Check description width (allowing for icon space)
+        if spec.description then
+            measureString:SetText(spec.description)
+            local descWidth = measureString:GetStringWidth()
+            -- Add icon space (36) + gap (8) + description + padding (12)
+            local totalWidth = 36 + 8 + descWidth + 12
+            if totalWidth > maxWidth then
+                maxWidth = totalWidth
+            end
+        end
+    end
+    maxWidth = math.min(math.ceil(maxWidth), 400)  -- Cap at 400px
+    
+    -- Create content frame
+    local contentFrame = CreateFrame("Frame", nil, frame)
+    contentFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop)
+    contentFrame:SetWidth(maxWidth)
+    
+    -- Class header
+    local classHeader = contentFrame:CreateFontString(nil, "OVERLAY", FONT_H2)
+    classHeader:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    classHeader:SetText(classData.class)
+    local r, g, b = HexToRGB(classData.color)
+    classHeader:SetTextColor(r, g, b, 1)
+    
+    -- Class description blurb
+    local classDesc = nil
+    local descHeight = 0
+    if classData.description then
+        classDesc = contentFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        classDesc:SetPoint("TOPLEFT", classHeader, "BOTTOMLEFT", 0, -4)
+        classDesc:SetWidth(maxWidth)  -- Explicitly set width for wrapping
+        classDesc:SetJustifyH("LEFT")
+        classDesc:SetJustifyV("TOP")
+        classDesc:SetWordWrap(true)
+        classDesc:SetText(classData.description)
+        classDesc:SetTextColor(0.8, 0.8, 0.8, 1)  -- Slightly lighter than spec descriptions
+        
+        -- Get actual description height after text is set
+        -- Need to wait a frame for text to render, so estimate for now
+        measureString:SetFont("GameFontNormalSmall", 10)
+        measureString:SetWidth(maxWidth)
+        measureString:SetWordWrap(true)
+        measureString:SetText(classData.description)
+        -- Try to get height, fallback to estimated height
+        local measuredHeight = measureString:GetStringHeight()
+        if measuredHeight and measuredHeight > 0 then
+            descHeight = measuredHeight
+        else
+            -- Estimate: ~12px per line, assume 2-3 lines
+            descHeight = 30
+        end
+    end
+    
+    local yOffset = -18  -- Header height + spacing
+    if classDesc then
+        yOffset = yOffset - descHeight - 6  -- Header + description + spacing
+    end
+    
+    -- Function to create a large spec button with description
+    local buttonHeight = 80  -- Taller buttons to accommodate 2+ lines of description
+    local function CreateSpecButtonWithRole(parent, template, yOffset, buttonWidth)
+        local btn = CreateFrame("Button", nil, parent)
+        btn:SetSize(buttonWidth, buttonHeight)
+        btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
+        btn:SetBackdrop(BACKDROP_BUTTON)
+        btn:SetBackdropColor(unpack(COLORS.buttonBg))
+        btn:SetBackdropBorderColor(unpack(COLORS.border))
+        
+        -- Larger Spec Icon
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(36, 36)
+        icon:SetPoint("LEFT", btn, "LEFT", 8, 0)
+        icon:SetPoint("TOP", btn, "TOP", 0, -8)  -- Align to top with padding
+        icon:SetTexture(template.icon)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        
+        -- Role Icon (overlaid on bottom-right of spec icon)
+        local roleIcon = btn:CreateTexture(nil, "OVERLAY")
+        roleIcon:SetSize(18, 18)
+        roleIcon:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -2)
+        local roleTexture, l, r, t, b = GetRoleIconAndCoords(template.role)
+        roleIcon:SetTexture(roleTexture)
+        roleIcon:SetTexCoord(l, r, t, b)
+        
+        -- Name Label (larger font)
+        local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_H2)
+        nameLabel:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -4)
+        nameLabel:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+        nameLabel:SetJustifyH("LEFT")
+        nameLabel:SetText(template.name)
+        nameLabel:SetTextColor(unpack(COLORS.textTitle))
+        
+        -- Description Label (smaller, wrapped, with proper height for 2+ lines)
+        local descLabel = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        descLabel:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -4)
+        descLabel:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+        descLabel:SetPoint("BOTTOM", btn, "BOTTOM", 0, 8)  -- Give it bottom padding
+        descLabel:SetJustifyH("LEFT")
+        descLabel:SetJustifyV("TOP")
+        descLabel:SetWordWrap(true)
+        descLabel:SetText(template.description or "")
+        descLabel:SetTextColor(0.7, 0.7, 0.7, 1)
+        
+        -- Hover effects
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(unpack(COLORS.buttonHover))
+            self:SetBackdropBorderColor(unpack(COLORS.borderLight))
+            nameLabel:SetTextColor(1, 1, 1, 1)
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(unpack(COLORS.buttonBg))
+            self:SetBackdropBorderColor(unpack(COLORS.border))
+            nameLabel:SetTextColor(unpack(COLORS.textTitle))
+        end)
+        
+        -- Click handler
+        btn.template = template
+        btn:SetScript("OnClick", function(self, button)
+            local created = ValuateUI_CreateScaleFromTemplate(self.template)
+            
+            -- Close window on normal click, keep open on shift-click
+            if created and not IsShiftKeyDown() then
+                frame:Hide()
+            end
+        end)
+        
+        return btn
+    end
+    
+    -- Create spec buttons
+    for _, spec in ipairs(classData.specs) do
+        CreateSpecButtonWithRole(contentFrame, spec, yOffset, maxWidth)
+        yOffset = yOffset - (buttonHeight + 4)  -- Button height + spacing
+    end
+    
+    local contentHeight = math.abs(yOffset) + INNER_SPACING
+    contentFrame:SetHeight(contentHeight)
+    
+    -- Calculate and set window size
+    local windowWidth = PADDING + maxWidth + PADDING
+    local windowHeight = 85 + contentHeight + PADDING  -- Title + show all button + content + padding
+    
+    -- Cap window height to prevent it from being too tall
+    windowHeight = math.min(windowHeight, 600)
+    
+    frame:SetSize(windowWidth, windowHeight)
+    
+    -- Clean up temporary measurement string
+    measureString:Hide()
+    
+    return frame
+end
+
+-- ========================================
+-- Template Picker Frame (Full - All Classes)
 -- ========================================
 
 local function CreateTemplatePickerFrame()
@@ -2178,6 +2527,27 @@ local function CreateTemplatePickerFrame()
     title:SetText("Select Class Spec Template")
     title:SetTextColor(unpack(COLORS.textTitle))
     
+    -- Get player's class for the back button
+    local _, playerClass = UnitClass("player")
+    local playerClassName = nil
+    for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+        if data.class:upper() == playerClass then
+            playerClassName = data.class
+            break
+        end
+    end
+    
+    -- "Back to My Class" button (only show if player class is found)
+    local backButton = nil
+    if playerClassName then
+        backButton = CreateStyledButton(frame, "Back to " .. playerClassName, 150, BUTTON_HEIGHT)
+        backButton:SetPoint("TOP", title, "BOTTOM", 0, -8)
+        backButton:SetScript("OnClick", function()
+            frame:Hide()
+            ValuateUI_ShowTemplatePicker()
+        end)
+    end
+    
     -- Close button
     local closeButton = CreateFrame("Button", nil, frame)
     closeButton:SetSize(18, 18)
@@ -2198,8 +2568,11 @@ local function CreateTemplatePickerFrame()
         closeX:SetTextColor(0.7, 0.7, 0.7, 1)
     end)
     
-    -- Content area
+    -- Content area (adjust for back button if present)
     local contentTop = -45
+    if backButton then
+        contentTop = -45 - BUTTON_HEIGHT - 8  -- Title + button + spacing
+    end
     
     -- Temporary font string for measuring text widths
     local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
@@ -2212,7 +2585,7 @@ local function CreateTemplatePickerFrame()
     
     local column3 = CreateFrame("Frame", nil, frame)
     
-    -- Function to create a spec button with dynamic width
+    -- Function to create a spec button with dynamic width and role icon
     local function CreateSpecButton(parent, template, classColor, yOffset, columnWidth)
         local btn = CreateFrame("Button", nil, parent)
         btn:SetSize(columnWidth, BUTTON_HEIGHT)
@@ -2221,16 +2594,24 @@ local function CreateTemplatePickerFrame()
         btn:SetBackdropColor(unpack(COLORS.buttonBg))
         btn:SetBackdropBorderColor(unpack(COLORS.border))
         
-        -- Icon
+        -- Spec Icon
         local icon = btn:CreateTexture(nil, "ARTWORK")
         icon:SetSize(16, 16)
         icon:SetPoint("LEFT", btn, "LEFT", 4, 0)
         icon:SetTexture(template.icon)
         icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         
-        -- Name
+        -- Role Icon
+        local roleIcon = btn:CreateTexture(nil, "ARTWORK")
+        roleIcon:SetSize(14, 14)
+        roleIcon:SetPoint("LEFT", icon, "RIGHT", 4, 0)
+        local roleTexture, l, r, t, b = GetRoleIconAndCoords(template.role)
+        roleIcon:SetTexture(roleTexture)
+        roleIcon:SetTexCoord(l, r, t, b)
+        
+        -- Name Label
         local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-        nameLabel:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+        nameLabel:SetPoint("LEFT", roleIcon, "RIGHT", 6, 0)
         nameLabel:SetText(template.name)
         nameLabel:SetTextColor(unpack(COLORS.textBody))
         
@@ -2238,10 +2619,17 @@ local function CreateTemplatePickerFrame()
         btn:SetScript("OnEnter", function(self)
             self:SetBackdropColor(unpack(COLORS.buttonHover))
             self:SetBackdropBorderColor(unpack(COLORS.borderLight))
+            
+            -- Show tooltip with role
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(template.name, 1, 1, 1)
+            GameTooltip:AddLine(GetRoleName(template.role), 0.7, 0.7, 0.7)
+            GameTooltip:Show()
         end)
         btn:SetScript("OnLeave", function(self)
             self:SetBackdropColor(unpack(COLORS.buttonBg))
             self:SetBackdropBorderColor(unpack(COLORS.border))
+            GameTooltip:Hide()
         end)
         
         -- Click handler (will be set by the picker)
@@ -2274,8 +2662,8 @@ local function CreateTemplatePickerFrame()
                 for _, spec in ipairs(classData.specs) do
                     measureString:SetText(spec.name)
                     local textWidth = measureString:GetStringWidth()
-                    -- Add icon (16) + left padding (4) + icon-to-text gap (6) + text + right padding (8)
-                    local buttonWidth = 16 + 4 + 6 + textWidth + 8
+                    -- Add icon (16) + gap (4) + roleIcon (14) + gap (6) + text + padding (8)
+                    local buttonWidth = 16 + 4 + 14 + 6 + textWidth + 8
                     if buttonWidth > maxWidth then
                         maxWidth = buttonWidth
                     end
@@ -2348,7 +2736,11 @@ local function CreateTemplatePickerFrame()
     
     -- Calculate and set window size
     local windowWidth = PADDING + width1 + ELEMENT_SPACING + width2 + ELEMENT_SPACING + width3 + PADDING
-    local windowHeight = 45 + maxHeight + PADDING  -- Title area (45) + content + bottom padding
+    local titleAreaHeight = 45  -- Title area
+    if backButton then
+        titleAreaHeight = 45 + BUTTON_HEIGHT + 8  -- Title + button + spacing
+    end
+    local windowHeight = titleAreaHeight + maxHeight + PADDING  -- Title area + content + bottom padding
     
     frame:SetSize(windowWidth, windowHeight)
     
@@ -2358,7 +2750,8 @@ local function CreateTemplatePickerFrame()
     return frame
 end
 
-function ValuateUI_ShowTemplatePicker()
+-- Show the full template picker (all classes)
+function ValuateUI_ShowFullTemplatePicker()
     if not TemplatePickerFrame then
         TemplatePickerFrame = CreateTemplatePickerFrame()
         
@@ -2386,6 +2779,14 @@ function ValuateUI_ShowTemplatePicker()
     end
     
     TemplatePickerFrame:Show()
+end
+
+-- Show the template picker (class-specific first)
+function ValuateUI_ShowTemplatePicker()
+    if not ClassSpecificPickerFrame then
+        ClassSpecificPickerFrame = CreateClassSpecificPickerFrame()
+    end
+    ClassSpecificPickerFrame:Show()
 end
 
 -- ========================================
