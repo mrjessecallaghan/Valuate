@@ -4875,11 +4875,11 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.5.0 (Current)
-    local v050Header = CreateVersionHeader("Version 0.5.0 (Current)", currentY)
+    -- Version 0.6.2 (Current)
+    local v062Header = CreateVersionHeader("Version 0.6.2 (Current)", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local v050Text = CreateChangeText(
+    local v062Text = CreateChangeText(
         "• Added Import/Export functionality for sharing scales between characters and users\n" ..
         "• Implemented character window integration showing scores for equipped items\n" ..
         "• Added minimap button for quick addon access\n" ..
@@ -4890,8 +4890,8 @@ local function CreateChangelogPanel(parent)
         "• Various UI improvements and bug fixes",
         currentY
     )
-    local v050Height = v050Text:GetStringHeight()
-    currentY = currentY - v050Height - versionSpacing
+    local v062Height = v062Text:GetStringHeight()
+    currentY = currentY - v062Height - versionSpacing
     
     -- Version 0.3.0
     local v030Header = CreateVersionHeader("Version 0.3.0", currentY)

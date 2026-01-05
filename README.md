@@ -14,9 +14,9 @@ Valuate calculates item scores based on customizable stat weights, helping you d
 
 ## Current Status
 
-**Version 0.1.0** - Initial release (basic loading only)
+**Version 0.6.2** - Current version
 
-This is an early development version. Core functionality is being implemented incrementally.
+Valuate is now feature-complete with full stat weight calculation, tooltip integration, import/export functionality, and comprehensive UI.
 
 ## Usage
 

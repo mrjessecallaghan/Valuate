@@ -1,6 +1,6 @@
 ## Interface: 30300
 ## Title: Valuate
-## Version: 0.6.0
+## Version: 0.6.2
 ## Notes: Stat weight calculator for gear evaluation. Calculates item scores based on customizable stat weights.
 ## SavedVariables: ValuateOptions, ValuateScales
 
