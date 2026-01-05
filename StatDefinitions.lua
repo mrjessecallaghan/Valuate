@@ -124,12 +124,16 @@ ValuateStatPatterns = {
     {"^%+?(%d+) Spirit%.?$", "Spirit"},
     
     -- ======== HYBRID RATINGS ========
+    {"^%+?(%d+) Hit Rating%.?$", "HitRating"},
     {"^Equip: Increases your hit rating by (%d+)%.?$", "HitRating"},
     {"^Equip: Improves your hit rating by (%d+)%.?$", "HitRating"},
+    {"^%+?(%d+) Critical Strike Rating%.?$", "CritRating"},
+    {"^%+?(%d+) Crit Rating%.?$", "CritRating"},
     {"^Equip: Increases your critical strike rating by (%d+)%.?$", "CritRating"},
     {"^Equip: Improves your critical strike rating by (%d+)%.?$", "CritRating"},
     {"^Equip: Increases your crit rating by (%d+)%.?$", "CritRating"},
     {"^Equip: Improves your crit rating by (%d+)%.?$", "CritRating"},
+    {"^%+?(%d+) Haste Rating%.?$", "HasteRating"},
     {"^Equip: Increases your haste rating by (%d+)%.?$", "HasteRating"},
     {"^Equip: Improves your haste rating by (%d+)%.?$", "HasteRating"},
     
@@ -141,13 +145,17 @@ ValuateStatPatterns = {
     -- Item level is parsed specially, not from a pattern
     
     -- ======== PHYSICAL OFFENSE ========
+    {"^%+?(%d+) Attack Power%.?$", "AttackPower"},
     {"^Equip: Increases attack power by (%d+)%.?$", "AttackPower"},
     {"^Equip: %+(%d+) Attack Power%.?$", "AttackPower"},
+    {"^%+?(%d+) Ranged Attack Power%.?$", "RangedAP"},
     {"^Equip: Increases ranged attack power by (%d+)%.?$", "RangedAP"},
     {"^Equip: %+(%d+) Ranged Attack Power%.?$", "RangedAP"},
     -- Feral AP is calculated from weapon DPS for druids (handled in code)
+    {"^%+?(%d+) Expertise Rating%.?$", "ExpertiseRating"},
     {"^Equip: Increases your expertise rating by (%d+)%.?$", "ExpertiseRating"},
     {"^Equip: Improves your expertise rating by (%d+)%.?$", "ExpertiseRating"},
+    {"^%+?(%d+) Armor Penetration%.?$", "ArmorPenetration"},
     {"^Equip: Increases your armor penetration rating by (%d+)%.?$", "ArmorPenetration"},
     {"^Equip: Improves your armor penetration rating by (%d+)%.?$", "ArmorPenetration"},
     
@@ -158,8 +166,11 @@ ValuateStatPatterns = {
     {"^Speed ([%d%.]+)$", "Speed"},
     
     -- ======== SPELL STATS ========
+    {"^%+?(%d+) Spell Power%.?$", "SpellPower"},
     {"^Equip: Increases spell power by (%d+)%.?$", "SpellPower"},
+    {"^%+?(%d+) [Mm]ana per 5 [Ss]ec%.?$", "Mp5"},
     {"^Equip: Restores (%d+) mana per 5 sec%.?$", "Mp5"},
+    {"^%+?(%d+) Spell Penetration%.?$", "SpellPenetration"},
     {"^Equip: Increases your spell penetration by (%d+)%.?$", "SpellPenetration"},
     
     -- ======== SCHOOL-SPECIFIC SPELL POWER ========
@@ -176,17 +187,23 @@ ValuateStatPatterns = {
     
     -- ======== DEFENSIVE STATS ========
     {"^(%d+) Armor$", "Armor"},
+    {"^%+?(%d+) Defense Rating%.?$", "DefenseRating"},
     {"^Equip: Increases your defense rating by (%d+)%.?$", "DefenseRating"},
     {"^Equip: Improves your defense rating by (%d+)%.?$", "DefenseRating"},
+    {"^%+?(%d+) Dodge Rating%.?$", "DodgeRating"},
     {"^Equip: Increases your dodge rating by (%d+)%.?$", "DodgeRating"},
     {"^Equip: Improves your dodge rating by (%d+)%.?$", "DodgeRating"},
+    {"^%+?(%d+) Parry Rating%.?$", "ParryRating"},
     {"^Equip: Increases your parry rating by (%d+)%.?$", "ParryRating"},
     {"^Equip: Improves your parry rating by (%d+)%.?$", "ParryRating"},
+    {"^%+?(%d+) Block Rating%.?$", "BlockRating"},
     {"^Equip: Increases your block rating by (%d+)%.?$", "BlockRating"},
     {"^Equip: Improves your block rating by (%d+)%.?$", "BlockRating"},
+    {"^%+?(%d+) Block Value%.?$", "BlockValue"},
     {"^Equip: Increases the block value of your shield by (%d+)%.?$", "BlockValue"},
     
     -- ======== RESISTANCES ========
+    {"^%+?(%d+) Resilience Rating%.?$", "ResilienceRating"},
     {"^Equip: Increases your resilience rating by (%d+)%.?$", "ResilienceRating"},
     {"^Equip: Improves your resilience rating by (%d+)%.?$", "ResilienceRating"},
     {"^%+(%d+) All Resistances$", "AllResist"},
@@ -199,6 +216,7 @@ ValuateStatPatterns = {
     -- ======== VITALITY ========
     {"^Equip: Increases maximum health by (%d+)%.?$", "Health"},
     {"^%+(%d+) Health$", "Health"},
+    {"^%+?(%d+) [Hh]ealth per 5 [Ss]ec%.?$", "Hp5"},
     {"^Equip: Restores (%d+) health per 5 sec%.?$", "Hp5"},
 }
 

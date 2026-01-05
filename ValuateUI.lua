@@ -208,11 +208,21 @@ local FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
 local FONT_BODY = "GameFontHighlight"          -- ~12pt, white
 local FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
 
+-- Helper function: Safe tooltip display (checks if dragging)
+local function ShowTooltipSafe(frame, anchorType)
+    if not IsDraggingFrame then
+        GameTooltip:SetOwner(frame, anchorType or "ANCHOR_RIGHT")
+        return true
+    end
+    return false
+end
+
 -- Main UI Frame
 local ValuateUIFrame = nil
 local CurrentSelectedScale = nil
 local EditingScaleName = nil
 local OriginalScaleData = nil
+local IsDraggingFrame = false  -- Track if any frame is being dragged
 
 -- Icon Picker state
 local IconPickerFrame = nil
@@ -226,6 +236,9 @@ local ValuateUI_OnTemplateOverwrite = nil
 
 -- Curated icon list (safe, common icons that exist in WotLK 3.3.5a)
 local SCALE_ICON_LIST = {
+    -- No Icon Option (always first)
+    "",  -- Empty = no icon (clear selection)
+    
     -- Classes
     "Interface\\Icons\\ClassIcon_Warrior",
     "Interface\\Icons\\ClassIcon_Paladin",
@@ -238,30 +251,666 @@ local SCALE_ICON_LIST = {
     "Interface\\Icons\\ClassIcon_Warlock",
     "Interface\\Icons\\ClassIcon_Druid",
     
-    -- Stats/Combat
-    "Interface\\Icons\\Ability_Warrior_OffensiveStance",  -- Melee DPS
-    "Interface\\Icons\\Spell_Holy_HolyBolt",              -- Healer
-    "Interface\\Icons\\Ability_Defend",                    -- Tank
-    "Interface\\Icons\\Spell_Fire_FireBolt02",            -- Caster
-    "Interface\\Icons\\INV_Sword_04",                      -- Physical
-    "Interface\\Icons\\Spell_Nature_StarFall",            -- Balance
-    "Interface\\Icons\\Ability_DualWield",                 -- Dual Wield
-    "Interface\\Icons\\INV_Shield_06",                     -- Shield
-    "Interface\\Icons\\Spell_Shadow_ShadowBolt",          -- Shadow
-    "Interface\\Icons\\Spell_Nature_Lightning",           -- Nature
-    "Interface\\Icons\\Spell_Frost_FrostBolt02",          -- Frost
-    "Interface\\Icons\\Spell_Holy_HolySmite",             -- Holy
+    -- Warrior Abilities
+    "Interface\\Icons\\Ability_Warrior_OffensiveStance",
+    "Interface\\Icons\\Ability_Warrior_DefensiveStance",
+    "Interface\\Icons\\Ability_Warrior_BattleShout",
+    "Interface\\Icons\\Ability_Warrior_InnerRage",
+    "Interface\\Icons\\Ability_Warrior_SavageBlow",
+    "Interface\\Icons\\Ability_Warrior_Charge",
+    "Interface\\Icons\\Ability_Warrior_BattleShout",
+    "Interface\\Icons\\Ability_Warrior_Revenge",
+    "Interface\\Icons\\Ability_Warrior_Sunder",
+    "Interface\\Icons\\Ability_Warrior_ShieldBash",
     
-    -- Generic/Misc
-    "Interface\\Icons\\INV_Misc_Gear_01",
-    "Interface\\Icons\\Trade_Engineering",
+    -- Paladin Abilities
+    "Interface\\Icons\\Spell_Holy_HolyBolt",
+    "Interface\\Icons\\Spell_Holy_HolySmite",
+    "Interface\\Icons\\Spell_Holy_SealOfMight",
+    "Interface\\Icons\\Spell_Holy_SealOfWrath",
+    "Interface\\Icons\\Spell_Holy_DivineIntervention",
+    "Interface\\Icons\\Spell_Holy_LayOnHands",
+    "Interface\\Icons\\Ability_Paladin_ShieldoftheTemplar",
+    "Interface\\Icons\\Spell_Holy_RighteousFury",
+    "Interface\\Icons\\Spell_Holy_SealOfSacrifice",
+    "Interface\\Icons\\Spell_Holy_AuraOfLight",
+    
+    -- Hunter Abilities
+    "Interface\\Icons\\Ability_Hunter_AimedShot",
+    "Interface\\Icons\\Ability_Hunter_MarkedForDeath",
+    "Interface\\Icons\\Ability_Hunter_BeastCall",
+    "Interface\\Icons\\Ability_Hunter_SilencingShot",
+    "Interface\\Icons\\Ability_Hunter_RunningShot",
+    "Interface\\Icons\\Ability_Hunter_RapidFire",
+    "Interface\\Icons\\Ability_Hunter_SteadyShot",
+    "Interface\\Icons\\Ability_Hunter_Pet_Bear",
+    "Interface\\Icons\\Ability_Hunter_Pet_Cat",
+    "Interface\\Icons\\Ability_Hunter_Pet_Wolf",
+    
+    -- Rogue Abilities
+    "Interface\\Icons\\Ability_Rogue_Eviscerate",
+    "Interface\\Icons\\Ability_Rogue_ShadowDance",
+    "Interface\\Icons\\Ability_Rogue_Ambush",
+    "Interface\\Icons\\Ability_Rogue_Feint",
+    "Interface\\Icons\\Ability_Rogue_SliceDice",
+    "Interface\\Icons\\Ability_Rogue_Sprint",
+    "Interface\\Icons\\Ability_Rogue_Garrote",
+    "Interface\\Icons\\Ability_Rogue_KidneyShot",
+    "Interface\\Icons\\Ability_Rogue_RuptureFemaleBloodElf",
+    "Interface\\Icons\\Ability_Rogue_Dismantle",
+    
+    -- Priest Abilities
+    "Interface\\Icons\\Spell_Holy_PowerWordShield",
+    "Interface\\Icons\\Spell_Holy_FlashHeal",
+    "Interface\\Icons\\Spell_Holy_GuardianSpirit",
+    "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
+    "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+    "Interface\\Icons\\Spell_Shadow_VampiricEmbrace",
+    "Interface\\Icons\\Spell_Shadow_Shadowform",
+    "Interface\\Icons\\Spell_Holy_Renew",
+    "Interface\\Icons\\Spell_Holy_DivineSpirit",
+    "Interface\\Icons\\Spell_Holy_Resurrection",
+    
+    -- Death Knight Abilities
+    "Interface\\Icons\\Spell_Deathknight_IceTouch",
+    "Interface\\Icons\\Spell_Deathknight_Strangulate",
+    "Interface\\Icons\\Spell_Shadow_DeathScream",
+    "Interface\\Icons\\Spell_Deathknight_FrostPresence",
+    "Interface\\Icons\\Spell_Deathknight_BloodPresence",
+    "Interface\\Icons\\Spell_Deathknight_UnholyPresence",
+    "Interface\\Icons\\Spell_Deathknight_DeathStrike",
+    "Interface\\Icons\\Spell_Shadow_SoulLeech_2",
+    "Interface\\Icons\\Spell_Shadow_RaiseDead",
+    "Interface\\Icons\\Spell_Shadow_AnimateDead",
+    
+    -- Shaman Abilities
+    "Interface\\Icons\\Spell_Nature_Lightning",
+    "Interface\\Icons\\Spell_Nature_LightningShield",
+    "Interface\\Icons\\Spell_Nature_MagicImmunity",
+    "Interface\\Icons\\Spell_Nature_ChainLightning",
+    "Interface\\Icons\\Spell_Shaman_LavaLash",
+    "Interface\\Icons\\Spell_Fire_Elemental_Totem",
+    "Interface\\Icons\\Spell_Nature_HealingWaveGreater",
+    "Interface\\Icons\\Spell_Nature_MagicImmunity",
+    "Interface\\Icons\\Spell_Shaman_Hex",
+    "Interface\\Icons\\Ability_Shaman_Stormstrike",
+    
+    -- Mage Abilities
+    "Interface\\Icons\\Spell_Fire_FireBolt02",
+    "Interface\\Icons\\Spell_Frost_FrostBolt02",
+    "Interface\\Icons\\Spell_Arcane_Blast",
+    "Interface\\Icons\\Spell_Fire_Flamebolt",
+    "Interface\\Icons\\Spell_Frost_IceStorm",
+    "Interface\\Icons\\Spell_Arcane_Blink",
+    "Interface\\Icons\\Spell_Fire_MeteorStorm",
+    "Interface\\Icons\\Spell_Frost_FrostNova",
+    "Interface\\Icons\\Spell_Arcane_MassDispel",
+    "Interface\\Icons\\Spell_Arcane_PortalDalaran",
+    
+    -- Warlock Abilities
+    "Interface\\Icons\\Spell_Shadow_ShadowBolt",
+    "Interface\\Icons\\Spell_Shadow_AbominationExplosion",
+    "Interface\\Icons\\Spell_Shadow_CurseOfTounges",
+    "Interface\\Icons\\Spell_Shadow_DeathCoil",
+    "Interface\\Icons\\Spell_Shadow_MetamorphosisStun",
+    "Interface\\Icons\\Spell_Shadow_RainOfFire",
+    "Interface\\Icons\\Spell_Shadow_SiphonMana",
+    "Interface\\Icons\\Spell_Shadow_SummonFelHunter",
+    "Interface\\Icons\\Spell_Shadow_SummonImp",
+    "Interface\\Icons\\Spell_Shadow_UnstableAffliction_3",
+    
+    -- Druid Abilities
+    "Interface\\Icons\\Spell_Nature_StarFall",
+    "Interface\\Icons\\Spell_Nature_HealingTouch",
+    "Interface\\Icons\\Ability_Racial_BearForm",
+    "Interface\\Icons\\Ability_Druid_CatForm",
+    "Interface\\Icons\\Spell_Nature_ForceOfNature",
+    "Interface\\Icons\\Ability_Druid_TreeofLife",
+    "Interface\\Icons\\Spell_Nature_Rejuvenation",
+    "Interface\\Icons\\Spell_Nature_ThornAura",
+    "Interface\\Icons\\Ability_Druid_Enrage",
+    "Interface\\Icons\\Ability_Druid_Swipe",
+    
+    -- Weapon Icons
+    "Interface\\Icons\\INV_Sword_04",
+    "Interface\\Icons\\INV_Sword_27",
+    "Interface\\Icons\\INV_Axe_09",
+    "Interface\\Icons\\INV_Mace_01MD",
+    "Interface\\Icons\\INV_Staff_13",
+    "Interface\\Icons\\INV_Weapon_Bow_07",
+    "Interface\\Icons\\INV_Weapon_Crossbow_06",
+    "Interface\\Icons\\INV_Weapon_Rifle_01",
+    "Interface\\Icons\\INV_ThrowingKnife_04",
+    "Interface\\Icons\\INV_Wand_07",
+    
+    -- Shield/Offhand
+    "Interface\\Icons\\INV_Shield_06",
+    "Interface\\Icons\\INV_Shield_17",
+    "Interface\\Icons\\INV_Offhand_Hyjal_D_01",
+    "Interface\\Icons\\Ability_Defend",
+    
+    -- Dual Wield & Combat Styles
+    "Interface\\Icons\\Ability_DualWield",
+    "Interface\\Icons\\Ability_Warrior_DecisiveStrike",
+    "Interface\\Icons\\Ability_Backstab",
+    "Interface\\Icons\\Ability_MeleeDamage",
+    
+    -- Armor Types
     "Interface\\Icons\\INV_Helmet_25",
+    "Interface\\Icons\\INV_Chest_Leather_08",
+    "Interface\\Icons\\INV_Chest_Chain_03",
+    "Interface\\Icons\\INV_Chest_Plate01",
+    "Interface\\Icons\\INV_Shoulder_23",
+    "Interface\\Icons\\INV_Gauntlets_19",
+    "Interface\\Icons\\INV_Belt_20",
+    "Interface\\Icons\\INV_Pants_06",
+    "Interface\\Icons\\INV_Boots_Plate_01",
+    
+    -- Jewelry
+    "Interface\\Icons\\INV_Jewelry_Ring_03",
+    "Interface\\Icons\\INV_Jewelry_Ring_08",
+    "Interface\\Icons\\INV_Jewelry_Necklace_05",
+    "Interface\\Icons\\INV_Jewelry_Talisman_03",
+    
+    -- Spell Schools
+    "Interface\\Icons\\Spell_Fire_FlameShock",
+    "Interface\\Icons\\Spell_Frost_FrostShock",
+    "Interface\\Icons\\Spell_Nature_NatureTouchGrow",
+    "Interface\\Icons\\Spell_Arcane_StarFire",
+    "Interface\\Icons\\Spell_Shadow_ChillTouch",
+    "Interface\\Icons\\Spell_Holy_InnerFire",
+    
+    -- Stats & Attributes
+    "Interface\\Icons\\Spell_ChargePositive",
+    "Interface\\Icons\\Spell_ChargeNegative",
+    "Interface\\Icons\\Spell_Misc_Drink",
+    "Interface\\Icons\\Spell_Holy_MindVision",
+    "Interface\\Icons\\Ability_Racial_Avatar",
+    "Interface\\Icons\\Ability_Stealth",
+    
+    -- Gems & Crafting
+    "Interface\\Icons\\INV_Misc_Gem_02",
+    "Interface\\Icons\\INV_Misc_Gem_Ruby_01",
+    "Interface\\Icons\\INV_Misc_Gem_Sapphire_01",
+    "Interface\\Icons\\INV_Misc_Gem_Emerald_01",
+    "Interface\\Icons\\INV_Misc_Gem_Diamond_01",
+    "Interface\\Icons\\Trade_Engineering",
+    "Interface\\Icons\\Trade_Blacksmithing",
+    "Interface\\Icons\\Trade_Engraving",
+    "Interface\\Icons\\Trade_Alchemy",
+    
+    -- PvP Icons
     "Interface\\Icons\\Achievement_PVP_A_01",
     "Interface\\Icons\\Achievement_PVP_H_01",
-    "Interface\\Icons\\INV_Jewelry_Ring_03",
+    "Interface\\Icons\\Achievement_Arena_2v2_1",
+    "Interface\\Icons\\Achievement_Arena_3v3_1",
+    "Interface\\Icons\\Achievement_Arena_5v5_1",
+    "Interface\\Icons\\Achievement_BG_killXenemies_generalsroom",
+    
+    -- Raid & Dungeon
+    "Interface\\Icons\\Achievement_Boss_Archimonde",
+    "Interface\\Icons\\Achievement_Boss_Illidan",
+    "Interface\\Icons\\Achievement_Boss_LichKing",
+    "Interface\\Icons\\INV_Misc_Head_Dragon_01",
+    "Interface\\Icons\\Achievement_Dungeon_UlduarRaid_Misc_05",
+    
+    -- Misc Useful Icons
+    "Interface\\Icons\\INV_Misc_Gear_01",
     "Interface\\Icons\\INV_Misc_Book_09",
     "Interface\\Icons\\Spell_Holy_GreaterBlessingofKings",
-    "",  -- Empty = no icon (clear selection)
+    "Interface\\Icons\\INV_Misc_MonsterClaw_04",
+    "Interface\\Icons\\INV_Misc_MonsterFang_01",
+    "Interface\\Icons\\Ability_Hunter_BeastTaming",
+    "Interface\\Icons\\INV_Misc_QuestionMark",
+    "Interface\\Icons\\Spell_Misc_EmotionHappy",
+    "Interface\\Icons\\Spell_Misc_EmotionAfraid",
+    "Interface\\Icons\\Spell_Shadow_Skull",
+    "Interface\\Icons\\INV_Misc_Bone_HumanSkull_01",
+    "Interface\\Icons\\Achievement_General",
+    "Interface\\Icons\\Achievement_Reputation_01",
+    "Interface\\Icons\\Achievement_Quests_Completed_08",
+    "Interface\\Icons\\Trade_Engineering",
+    "Interface\\Icons\\INV_Misc_Coin_01",
+    "Interface\\Icons\\INV_Misc_Trophy_Gold",
+    "Interface\\Icons\\INV_Misc_Trophy_Silver",
+    "Interface\\Icons\\INV_Misc_Trophy_Bronze",
+    "Interface\\Icons\\Spell_Holy_MindSooth",
+    "Interface\\Icons\\Ability_Tracking",
+    
+    -- Special Effects
+    "Interface\\Icons\\Spell_Nature_ShamanRage",
+    "Interface\\Icons\\Spell_Shadow_MindSteal",
+    "Interface\\Icons\\Spell_Holy_Dizzy",
+    "Interface\\Icons\\Spell_Nature_Polymorph",
+    "Interface\\Icons\\Spell_Ice_Lament",
+    "Interface\\Icons\\Spell_Fire_SoulBurn",
+    "Interface\\Icons\\Ability_Rogue_MasterOfSubtlety",
+    "Interface\\Icons\\Spell_Nature_WispSplode",
+    
+    -- More Weapons - Swords
+    "Interface\\Icons\\INV_Sword_01",
+    "Interface\\Icons\\INV_Sword_02",
+    "Interface\\Icons\\INV_Sword_05",
+    "Interface\\Icons\\INV_Sword_06",
+    "Interface\\Icons\\INV_Sword_09",
+    "Interface\\Icons\\INV_Sword_11",
+    "Interface\\Icons\\INV_Sword_15",
+    "Interface\\Icons\\INV_Sword_18",
+    "Interface\\Icons\\INV_Sword_20",
+    "Interface\\Icons\\INV_Sword_27",
+    "Interface\\Icons\\INV_Sword_39",
+    "Interface\\Icons\\INV_Sword_48",
+    "Interface\\Icons\\INV_Sword_62",
+    
+    -- More Weapons - Axes
+    "Interface\\Icons\\INV_Axe_01",
+    "Interface\\Icons\\INV_Axe_02",
+    "Interface\\Icons\\INV_Axe_03",
+    "Interface\\Icons\\INV_Axe_06",
+    "Interface\\Icons\\INV_Axe_11",
+    "Interface\\Icons\\INV_Axe_23",
+    "Interface\\Icons\\INV_Axe_68",
+    "Interface\\Icons\\INV_Axe_80",
+    "Interface\\Icons\\INV_Axe_113",
+    
+    -- More Weapons - Maces
+    "Interface\\Icons\\INV_Mace_01",
+    "Interface\\Icons\\INV_Mace_02",
+    "Interface\\Icons\\INV_Mace_03",
+    "Interface\\Icons\\INV_Mace_04",
+    "Interface\\Icons\\INV_Mace_07",
+    "Interface\\Icons\\INV_Mace_11",
+    "Interface\\Icons\\INV_Mace_15",
+    "Interface\\Icons\\INV_Hammer_01",
+    "Interface\\Icons\\INV_Hammer_02",
+    "Interface\\Icons\\INV_Hammer_09",
+    "Interface\\Icons\\INV_Hammer_15",
+    "Interface\\Icons\\INV_Hammer_20",
+    
+    -- More Weapons - Daggers
+    "Interface\\Icons\\INV_Weapon_ShortBlade_05",
+    "Interface\\Icons\\INV_Weapon_ShortBlade_12",
+    "Interface\\Icons\\INV_Weapon_ShortBlade_15",
+    "Interface\\Icons\\INV_Weapon_ShortBlade_25",
+    "Interface\\Icons\\INV_Weapon_ShortBlade_78",
+    
+    -- More Weapons - Staves
+    "Interface\\Icons\\INV_Staff_01",
+    "Interface\\Icons\\INV_Staff_02",
+    "Interface\\Icons\\INV_Staff_05",
+    "Interface\\Icons\\INV_Staff_08",
+    "Interface\\Icons\\INV_Staff_13",
+    "Interface\\Icons\\INV_Staff_30",
+    "Interface\\Icons\\INV_Staff_56",
+    
+    -- More Weapons - Polearms
+    "Interface\\Icons\\INV_Spear_01",
+    "Interface\\Icons\\INV_Spear_02",
+    "Interface\\Icons\\INV_Spear_03",
+    "Interface\\Icons\\INV_Spear_05",
+    "Interface\\Icons\\INV_Spear_07",
+    
+    -- More Weapons - Fist Weapons
+    "Interface\\Icons\\INV_Gauntlets_05",
+    "Interface\\Icons\\INV_Gauntlets_04",
+    "Interface\\Icons\\INV_Weapon_Hand_01",
+    
+    -- More Ranged Weapons
+    "Interface\\Icons\\INV_Weapon_Bow_01",
+    "Interface\\Icons\\INV_Weapon_Bow_08",
+    "Interface\\Icons\\INV_Weapon_Bow_13",
+    "Interface\\Icons\\INV_Weapon_Crossbow_02",
+    "Interface\\Icons\\INV_Weapon_Crossbow_07",
+    "Interface\\Icons\\INV_Weapon_Rifle_07",
+    "Interface\\Icons\\INV_Weapon_Rifle_08",
+    
+    -- More Shields
+    "Interface\\Icons\\INV_Shield_01",
+    "Interface\\Icons\\INV_Shield_02",
+    "Interface\\Icons\\INV_Shield_04",
+    "Interface\\Icons\\INV_Shield_05",
+    "Interface\\Icons\\INV_Shield_09",
+    "Interface\\Icons\\INV_Shield_19",
+    "Interface\\Icons\\INV_Shield_20",
+    "Interface\\Icons\\INV_Shield_27",
+    
+    -- Totems & Relics
+    "Interface\\Icons\\INV_Misc_MonsterClaw_03",
+    "Interface\\Icons\\Spell_Frost_SummonWaterElemental_2",
+    "Interface\\Icons\\Spell_Fire_TotemOfWrath",
+    "Interface\\Icons\\Spell_Nature_EarthBindTotem",
+    "Interface\\Icons\\Spell_Fire_SearingTotem",
+    "Interface\\Icons\\INV_Relics_IdolofFerocity",
+    "Interface\\Icons\\INV_Relics_LibramofHope",
+    "Interface\\Icons\\INV_Relics_TotemofRage",
+    "Interface\\Icons\\INV_Jewelry_Talisman_07",
+    
+    -- More Armor - Helmets
+    "Interface\\Icons\\INV_Helmet_01",
+    "Interface\\Icons\\INV_Helmet_03",
+    "Interface\\Icons\\INV_Helmet_08",
+    "Interface\\Icons\\INV_Helmet_09",
+    "Interface\\Icons\\INV_Helmet_15",
+    "Interface\\Icons\\INV_Helmet_23",
+    "Interface\\Icons\\INV_Helmet_31",
+    "Interface\\Icons\\INV_Helmet_62",
+    "Interface\\Icons\\INV_Helmet_74",
+    "Interface\\Icons\\INV_Helmet_96",
+    
+    -- More Armor - Chest
+    "Interface\\Icons\\INV_Chest_Cloth_07",
+    "Interface\\Icons\\INV_Chest_Cloth_25",
+    "Interface\\Icons\\INV_Chest_Cloth_45",
+    "Interface\\Icons\\INV_Chest_Leather_01",
+    "Interface\\Icons\\INV_Chest_Leather_03",
+    "Interface\\Icons\\INV_Chest_Leather_06",
+    "Interface\\Icons\\INV_Chest_Chain_11",
+    "Interface\\Icons\\INV_Chest_Chain_16",
+    "Interface\\Icons\\INV_Chest_Plate03",
+    "Interface\\Icons\\INV_Chest_Plate06",
+    "Interface\\Icons\\INV_Chest_Plate16",
+    
+    -- More Armor - Shoulders
+    "Interface\\Icons\\INV_Shoulder_01",
+    "Interface\\Icons\\INV_Shoulder_02",
+    "Interface\\Icons\\INV_Shoulder_05",
+    "Interface\\Icons\\INV_Shoulder_10",
+    "Interface\\Icons\\INV_Shoulder_14",
+    "Interface\\Icons\\INV_Shoulder_22",
+    "Interface\\Icons\\INV_Shoulder_25",
+    "Interface\\Icons\\INV_Shoulder_36",
+    
+    -- More Armor - Gloves
+    "Interface\\Icons\\INV_Gauntlets_03",
+    "Interface\\Icons\\INV_Gauntlets_09",
+    "Interface\\Icons\\INV_Gauntlets_17",
+    "Interface\\Icons\\INV_Gauntlets_27",
+    "Interface\\Icons\\INV_Gauntlets_32",
+    "Interface\\Icons\\INV_Gauntlets_62",
+    
+    -- More Armor - Legs
+    "Interface\\Icons\\INV_Pants_01",
+    "Interface\\Icons\\INV_Pants_02",
+    "Interface\\Icons\\INV_Pants_03",
+    "Interface\\Icons\\INV_Pants_04",
+    "Interface\\Icons\\INV_Pants_08",
+    "Interface\\Icons\\INV_Pants_14",
+    
+    -- More Armor - Boots
+    "Interface\\Icons\\INV_Boots_01",
+    "Interface\\Icons\\INV_Boots_02",
+    "Interface\\Icons\\INV_Boots_05",
+    "Interface\\Icons\\INV_Boots_08",
+    "Interface\\Icons\\INV_Boots_Chain_04",
+    "Interface\\Icons\\INV_Boots_Plate_03",
+    
+    -- More Armor - Belts
+    "Interface\\Icons\\INV_Belt_01",
+    "Interface\\Icons\\INV_Belt_03",
+    "Interface\\Icons\\INV_Belt_07",
+    "Interface\\Icons\\INV_Belt_09",
+    "Interface\\Icons\\INV_Belt_13",
+    "Interface\\Icons\\INV_Belt_16",
+    "Interface\\Icons\\INV_Belt_23",
+    
+    -- More Armor - Cloaks
+    "Interface\\Icons\\INV_Misc_Cape_02",
+    "Interface\\Icons\\INV_Misc_Cape_07",
+    "Interface\\Icons\\INV_Misc_Cape_11",
+    "Interface\\Icons\\INV_Misc_Cape_18",
+    "Interface\\Icons\\INV_Misc_Cape_20",
+    
+    -- More Jewelry - Rings
+    "Interface\\Icons\\INV_Jewelry_Ring_01",
+    "Interface\\Icons\\INV_Jewelry_Ring_02",
+    "Interface\\Icons\\INV_Jewelry_Ring_04",
+    "Interface\\Icons\\INV_Jewelry_Ring_05",
+    "Interface\\Icons\\INV_Jewelry_Ring_07",
+    "Interface\\Icons\\INV_Jewelry_Ring_11",
+    "Interface\\Icons\\INV_Jewelry_Ring_15",
+    "Interface\\Icons\\INV_Jewelry_Ring_36",
+    "Interface\\Icons\\INV_Jewelry_Ring_51",
+    
+    -- More Jewelry - Necklaces
+    "Interface\\Icons\\INV_Jewelry_Necklace_01",
+    "Interface\\Icons\\INV_Jewelry_Necklace_03",
+    "Interface\\Icons\\INV_Jewelry_Necklace_07",
+    "Interface\\Icons\\INV_Jewelry_Necklace_08",
+    "Interface\\Icons\\INV_Jewelry_Necklace_12",
+    "Interface\\Icons\\INV_Jewelry_Necklace_16",
+    
+    -- Trinkets
+    "Interface\\Icons\\INV_Jewelry_Talisman_01",
+    "Interface\\Icons\\INV_Jewelry_Talisman_04",
+    "Interface\\Icons\\INV_Jewelry_Talisman_06",
+    "Interface\\Icons\\INV_Jewelry_Talisman_08",
+    "Interface\\Icons\\INV_Jewelry_Talisman_11",
+    "Interface\\Icons\\INV_Misc_PocketWatch_01",
+    "Interface\\Icons\\INV_Misc_PocketWatch_02",
+    "Interface\\Icons\\INV_Misc_Rune_01",
+    "Interface\\Icons\\INV_Misc_Rune_06",
+    
+    -- More Gems
+    "Interface\\Icons\\INV_Misc_Gem_01",
+    "Interface\\Icons\\INV_Misc_Gem_03",
+    "Interface\\Icons\\INV_Misc_Gem_04",
+    "Interface\\Icons\\INV_Misc_Gem_05",
+    "Interface\\Icons\\INV_Misc_Gem_Stone_01",
+    "Interface\\Icons\\INV_Misc_Gem_Bloodstone_01",
+    "Interface\\Icons\\INV_Misc_Gem_Topaz_01",
+    "Interface\\Icons\\INV_Misc_Gem_Amethyst_01",
+    "Interface\\Icons\\INV_Misc_Gem_Pearl_01",
+    "Interface\\Icons\\INV_Misc_Gem_Pearl_03",
+    "Interface\\Icons\\INV_Misc_Gem_Opal_01",
+    "Interface\\Icons\\INV_Misc_Gem_Variety_01",
+    
+    -- More Spell Effects - Fire
+    "Interface\\Icons\\Spell_Fire_Immolation",
+    "Interface\\Icons\\Spell_Fire_Fire",
+    "Interface\\Icons\\Spell_Fire_FelFlameRing",
+    "Interface\\Icons\\Spell_Fire_FelFlameStrike",
+    "Interface\\Icons\\Spell_Fire_FelfireGreen",
+    "Interface\\Icons\\Spell_Fire_Burnout",
+    "Interface\\Icons\\Spell_Fire_BlueFlameRing",
+    "Interface\\Icons\\Spell_Fire_BlueHellfire",
+    "Interface\\Icons\\Spell_Fire_Volcano",
+    "Interface\\Icons\\Spell_Fire_Twilightimmolation",
+    
+    -- More Spell Effects - Frost
+    "Interface\\Icons\\Spell_Frost_IceFloes",
+    "Interface\\Icons\\Spell_Frost_Frost",
+    "Interface\\Icons\\Spell_Frost_FreezingBreath",
+    "Interface\\Icons\\Spell_Frost_FrostArmor02",
+    "Interface\\Icons\\Spell_Frost_FrostBlast",
+    "Interface\\Icons\\Spell_Frost_ChillingBlast",
+    "Interface\\Icons\\Spell_Frost_ArcticWinds",
+    "Interface\\Icons\\Spell_Frost_Glacier",
+    "Interface\\Icons\\Spell_Ice_MagicDamage",
+    
+    -- More Spell Effects - Nature
+    "Interface\\Icons\\Spell_Nature_Thorns",
+    "Interface\\Icons\\Spell_Nature_NatureTouched",
+    "Interface\\Icons\\Spell_Nature_NatureWrath",
+    "Interface\\Icons\\Spell_Nature_Regeneration",
+    "Interface\\Icons\\Spell_Nature_Earthquake",
+    "Interface\\Icons\\Spell_Nature_Cyclone",
+    "Interface\\Icons\\Spell_Nature_StormReach",
+    "Interface\\Icons\\Spell_Nature_RavenForm",
+    "Interface\\Icons\\Spell_Nature_Tranquility",
+    "Interface\\Icons\\Spell_Nature_ResistNature",
+    
+    -- More Spell Effects - Shadow
+    "Interface\\Icons\\Spell_Shadow_DarkRitual",
+    "Interface\\Icons\\Spell_Shadow_DemonicFortitude",
+    "Interface\\Icons\\Spell_Shadow_DemonicEmpathy",
+    "Interface\\Icons\\Spell_Shadow_DemonBreath",
+    "Interface\\Icons\\Spell_Shadow_NightOfTheDead",
+    "Interface\\Icons\\Spell_Shadow_Shadowfiend",
+    "Interface\\Icons\\Spell_Shadow_Shades",
+    "Interface\\Icons\\Spell_Shadow_ShadowEmbrace",
+    "Interface\\Icons\\Spell_Shadow_Twilight",
+    "Interface\\Icons\\Spell_Shadow_Possession",
+    
+    -- More Spell Effects - Holy/Light
+    "Interface\\Icons\\Spell_Holy_Heal",
+    "Interface\\Icons\\Spell_Holy_HolyProtection",
+    "Interface\\Icons\\Spell_Holy_Silence",
+    "Interface\\Icons\\Spell_Holy_SealOfWisdom",
+    "Interface\\Icons\\Spell_Holy_Purify",
+    "Interface\\Icons\\Spell_Holy_PrayerOfMentalAgility",
+    "Interface\\Icons\\Spell_Holy_PrayerOfSpirit",
+    "Interface\\Icons\\Spell_Holy_SummonChampion",
+    "Interface\\Icons\\Spell_Holy_AshesToAshes",
+    "Interface\\Icons\\Spell_Holy_BlessedRecovery",
+    
+    -- More Spell Effects - Arcane
+    "Interface\\Icons\\Spell_Arcane_ArcanePotency",
+    "Interface\\Icons\\Spell_Arcane_ArcaneResilience",
+    "Interface\\Icons\\Spell_Arcane_ArcaneTorrent",
+    "Interface\\Icons\\Spell_Arcane_MindMastery",
+    "Interface\\Icons\\Spell_Arcane_PrismaticCloak",
+    "Interface\\Icons\\Spell_Arcane_StudentOfMagic",
+    "Interface\\Icons\\Spell_Arcane_Arcane01",
+    "Interface\\Icons\\Spell_Arcane_Arcane02",
+    "Interface\\Icons\\Spell_Arcane_Arcane03",
+    
+    -- Stat Icons
+    "Interface\\Icons\\Ability_Warrior_StrengthOfArmsMortal",
+    "Interface\\Icons\\Ability_Hunter_Pet_Dragonhawk",
+    "Interface\\Icons\\Spell_Nature_AstralRecalGroup",
+    "Interface\\Icons\\Ability_Warrior_Trauma",
+    "Interface\\Icons\\Ability_Warrior_Vigilance",
+    "Interface\\Icons\\Ability_Warrior_VictoryRush",
+    "Interface\\Icons\\Ability_Warrior_WarCry",
+    "Interface\\Icons\\Spell_Holy_ElunesGrace",
+    "Interface\\Icons\\Spell_Holy_MindSooth",
+    
+    -- Profession Icons - More Detailed
+    "Interface\\Icons\\Trade_Alchemy",
+    "Interface\\Icons\\Trade_BlackSmithing",
+    "Interface\\Icons\\Trade_BrewPoison",
+    "Interface\\Icons\\Trade_Engineering",
+    "Interface\\Icons\\Trade_Engraving",
+    "Interface\\Icons\\Trade_Fishing",
+    "Interface\\Icons\\Trade_Herbalism",
+    "Interface\\Icons\\Trade_LeatherWorking",
+    "Interface\\Icons\\Trade_Mining",
+    "Interface\\Icons\\Trade_Tailoring",
+    "Interface\\Icons\\INV_Inscription_Tradeskill01",
+    "Interface\\Icons\\INV_Misc_Food_15",
+    "Interface\\Icons\\INV_Misc_Food_95_Tacodish",
+    "Interface\\Icons\\INV_Drink_05",
+    
+    -- Consumables
+    "Interface\\Icons\\INV_Potion_01",
+    "Interface\\Icons\\INV_Potion_02",
+    "Interface\\Icons\\INV_Potion_03",
+    "Interface\\Icons\\INV_Potion_52",
+    "Interface\\Icons\\INV_Potion_54",
+    "Interface\\Icons\\INV_Potion_61",
+    "Interface\\Icons\\INV_Alchemy_Elixir_01",
+    "Interface\\Icons\\INV_Alchemy_Elixir_02",
+    "Interface\\Icons\\INV_Alchemy_Elixir_04",
+    "Interface\\Icons\\Spell_Shadow_ImpPhaseShift",
+    
+    -- More Achievements
+    "Interface\\Icons\\Achievement_General_StayClassy",
+    "Interface\\Icons\\Achievement_Character_Human_Female",
+    "Interface\\Icons\\Achievement_Character_Human_Male",
+    "Interface\\Icons\\Achievement_Character_Orc_Female",
+    "Interface\\Icons\\Achievement_Character_Orc_Male",
+    "Interface\\Icons\\Achievement_Feats_of_strength_01",
+    "Interface\\Icons\\Achievement_Feats_of_strength_02",
+    "Interface\\Icons\\Achievement_BG_winWSG",
+    "Interface\\Icons\\Achievement_BG_winAB",
+    "Interface\\Icons\\Achievement_BG_winAV",
+    "Interface\\Icons\\Achievement_BG_winEOTS",
+    
+    -- Boss & Creature Icons
+    "Interface\\Icons\\INV_Misc_Head_Dragon_Black",
+    "Interface\\Icons\\INV_Misc_Head_Dragon_Blue",
+    "Interface\\Icons\\INV_Misc_Head_Dragon_Bronze",
+    "Interface\\Icons\\INV_Misc_Head_Dragon_Green",
+    "Interface\\Icons\\INV_Misc_Head_Dragon_Red",
+    "Interface\\Icons\\INV_Misc_MonsterHead_01",
+    "Interface\\Icons\\INV_Misc_MonsterHead_02",
+    "Interface\\Icons\\INV_Misc_MonsterHead_03",
+    "Interface\\Icons\\Ability_Mount_Drake_Proto",
+    "Interface\\Icons\\Ability_Mount_Drake_Twilight",
+    
+    -- Elements & Nature
+    "Interface\\Icons\\Spell_Fire_ElementalDevastation",
+    "Interface\\Icons\\Spell_Frost_SummonWaterElemental",
+    "Interface\\Icons\\Spell_Nature_ElementalShields",
+    "Interface\\Icons\\Spell_Shadow_SummonVoidWalker",
+    "Interface\\Icons\\Spell_Arcane_TeleportStormwind",
+    "Interface\\Icons\\Spell_Arcane_TeleportIronForge",
+    
+    -- Money & Rewards
+    "Interface\\Icons\\INV_Misc_Coin_02",
+    "Interface\\Icons\\INV_Misc_Coin_16",
+    "Interface\\Icons\\INV_Misc_Coin_17",
+    "Interface\\Icons\\INV_Misc_Bag_10",
+    "Interface\\Icons\\INV_Misc_Bag_16",
+    "Interface\\Icons\\INV_Misc_Bag_26",
+    "Interface\\Icons\\INV_Box_01",
+    "Interface\\Icons\\INV_Box_02",
+    "Interface\\Icons\\INV_Box_04",
+    "Interface\\Icons\\INV_Chest_Cloth_04",
+    
+    -- Misc Useful
+    "Interface\\Icons\\INV_Misc_ArmorKit_03",
+    "Interface\\Icons\\INV_Misc_ArmorKit_17",
+    "Interface\\Icons\\INV_Misc_Note_01",
+    "Interface\\Icons\\INV_Scroll_02",
+    "Interface\\Icons\\INV_Scroll_05",
+    "Interface\\Icons\\INV_Banner_02",
+    "Interface\\Icons\\INV_Misc_Map02",
+    "Interface\\Icons\\INV_Misc_Orb_01",
+    "Interface\\Icons\\INV_Misc_Orb_02",
+    "Interface\\Icons\\INV_Misc_Orb_03",
+    "Interface\\Icons\\INV_Misc_Orb_04",
+    "Interface\\Icons\\INV_Misc_Orb_05",
+    "Interface\\Icons\\Spell_Nature_InvisibilityTotem",
+    "Interface\\Icons\\Ability_Ambush",
+    "Interface\\Icons\\Ability_Kick",
+    "Interface\\Icons\\Ability_Vanish",
+    
+    -- Buffs & Debuffs
+    "Interface\\Icons\\Spell_Magic_MageArmor",
+    "Interface\\Icons\\Spell_Magic_LesserInvisibilty",
+    "Interface\\Icons\\Spell_Magic_GreaterInvisibilty",
+    "Interface\\Icons\\Spell_Holy_BlessingOfStrength",
+    "Interface\\Icons\\Spell_Holy_BlessingOfStamina",
+    "Interface\\Icons\\Spell_Holy_GreaterBlessingofWisdom",
+    "Interface\\Icons\\Spell_Holy_GreaterBlessingofSalvation",
+    "Interface\\Icons\\Spell_Holy_GreaterHeal",
+    "Interface\\Icons\\Ability_Warrior_CommandingShout",
+    "Interface\\Icons\\Ability_Warrior_BattleShout",
+    
+    -- Racial Abilities
+    "Interface\\Icons\\Ability_Racial_BloodRage",
+    "Interface\\Icons\\Ability_Racial_BerserkerRage",
+    "Interface\\Icons\\Ability_Racial_Cannibalize",
+    "Interface\\Icons\\Ability_Racial_ForgedInFlames",
+    "Interface\\Icons\\Spell_Shadow_RaceUndead",
+    "Interface\\Icons\\Spell_Nature_TimeStop",
+    
+    -- Mounts & Pets
+    "Interface\\Icons\\Ability_Mount_RidingHorse",
+    "Interface\\Icons\\Ability_Mount_Dreadsteed",
+    "Interface\\Icons\\Ability_Mount_ChargedDeathcharger",
+    "Interface\\Icons\\Ability_Mount_GriffonGold",
+    "Interface\\Icons\\Ability_Mount_WhiteTiger",
+    "Interface\\Icons\\INV_Misc_Fish_02",
+    "Interface\\Icons\\Ability_Hunter_Pet_Bat",
+    "Interface\\Icons\\Ability_Hunter_Pet_Boar",
+    "Interface\\Icons\\Ability_Hunter_Pet_Crab",
+    "Interface\\Icons\\Ability_Hunter_Pet_Gorilla",
+    "Interface\\Icons\\Ability_Hunter_Pet_Owl",
+    "Interface\\Icons\\Ability_Hunter_Pet_Raptor",
+    "Interface\\Icons\\Ability_Hunter_Pet_Spider",
+    "Interface\\Icons\\Ability_Hunter_Pet_WindSerpent",
 }
 
 -- ValuateOptions and ValuateScales are initialized by Valuate:Initialize() in Valuate.lua
@@ -284,7 +933,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
-                    Agility = 0.3, Stamina = 0.1
+                    Agility = 0.3, Stamina = 0.2, Armor = 0.05, Spirit = 0.005,
+                    Hp5 = 0.01, Health = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, FireResist = 0.01, FrostResist = 0.01,
+                    ShadowResist = 0.01, NatureResist = 0.01, ArcaneResist = 0.01,
+                    AllResist = 0.01, TwoHandDps = 0.75
                 },
                 unusable = {
                     -- Weapons (class cannot use)
@@ -294,7 +947,18 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true, IsShield = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (2H only spec)
+                    OffHandDPS = true, MainHandDPS = true, OneHandDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Caster Stats (non-caster class)
+                    Intellect = true, Mana = true, Mp5 = true, SpellPower = true,
+                    SpellPenetration = true, HolySpellPower = true, FireSpellPower = true,
+                    FrostSpellPower = true, ShadowSpellPower = true, NatureSpellPower = true,
+                    ArcaneSpellPower = true
                 }
             },
             {
@@ -304,7 +968,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
-                    Agility = 0.3, Stamina = 0.1
+                    Agility = 0.3, Stamina = 0.2, Armor = 0.05, Spirit = 0.005,
+                    Hp5 = 0.01, Health = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, FireResist = 0.01, FrostResist = 0.01,
+                    ShadowResist = 0.01, NatureResist = 0.01, ArcaneResist = 0.01,
+                    AllResist = 0.01, MainHandDps = 0.7, OffHandDps = 0.5, OneHandDps = 0.6
                 },
                 unusable = {
                     -- Weapons
@@ -312,7 +980,16 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true, IsShield = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Caster Stats (non-caster class)
+                    Intellect = true, Mana = true, Mp5 = true, SpellPower = true,
+                    SpellPenetration = true, HolySpellPower = true, FireSpellPower = true,
+                    FrostSpellPower = true, ShadowSpellPower = true, NatureSpellPower = true,
+                    ArcaneSpellPower = true
                 }
             },
             {
@@ -322,7 +999,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
-                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6
+                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6,
+                    Agility = 0.3, AttackPower = 0.3, CritRating = 0.4, HasteRating = 0.3,
+                    ArmorPenetration = 0.35, Health = 0.3, Hp5 = 0.1, Spirit = 0.01,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, OneHandDps = 0.5, MainHandDps = 0.5
                 },
                 unusable = {
                     -- Weapons
@@ -331,7 +1012,16 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (uses shield in offhand)
+                    OffHandDPS = true, TwoHandDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Caster Stats (non-caster class)
+                    Intellect = true, Mana = true, Mp5 = true, SpellPower = true,
+                    SpellPenetration = true, HolySpellPower = true, FireSpellPower = true,
+                    FrostSpellPower = true, ShadowSpellPower = true, NatureSpellPower = true,
+                    ArcaneSpellPower = true
                 }
             }
         }
@@ -346,7 +1036,12 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "FFD700",  -- Gold - holy light
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.6,
-                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.3, Armor = 0.05,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.15, Health = 0.01, Hp5 = 0.03,
+                    AttackPower = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, BlockRating = 0.005, BlockValue = 0.4, SpellPenetration = 0.4,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, HolySpellPower = 0.8, OneHandDps = 0.1, IsLibram = 0.3
                 },
                 unusable = {
                     -- Weapons (class cannot use)
@@ -357,7 +1052,14 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true,
                     -- Relics
-                    IsTotem = true, IsSigil = true, IsIdol = true
+                    IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (uses shield, bans all 2H, can't use ranged)
+                    OffHandDPS = true, TwoHandDPS = true, RangedDPS = true, RangedAP = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Off-school Spell Power
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true
                 }
             },
             {
@@ -367,7 +1069,13 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Stamina = 1.0, Armor = 0.5, DefenseRating = 0.8, DodgeRating = 0.7,
                     ParryRating = 0.7, BlockRating = 0.6, BlockValue = 0.5,
-                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6, SpellPower = 0.3
+                    Strength = 0.4, HitRating = 0.5, ExpertiseRating = 0.6, SpellPower = 0.3,
+                    Agility = 0.3, Intellect = 0.25, AttackPower = 0.3, CritRating = 0.4,
+                    HasteRating = 0.3, ArmorPenetration = 0.35,
+                    Health = 0.3, Hp5 = 0.1, Mana = 0.07, Mp5 = 0.05, Spirit = 0.01,
+                    SpellPenetration = 0.3, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01, HolySpellPower = 0.4,
+                    OneHandDps = 0.4, MainHandDps = 0.4, IsLibram = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -377,7 +1085,14 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true,
                     -- Relics
-                    IsTotem = true, IsSigil = true, IsIdol = true
+                    IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (uses shield, bans all 2H, can't use ranged)
+                    OffHandDPS = true, TwoHandDPS = true, RangedDPS = true, RangedAP = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Off-school Spell Power
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true
                 }
             },
             {
@@ -387,7 +1102,13 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
-                    Intellect = 0.3, Stamina = 0.1
+                    Agility = 0.3, SpellPower = 0.3, Intellect = 0.3, Stamina = 0.2,
+                    Armor = 0.05, Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02,
+                    Health = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, SpellPenetration = 0.2, FireResist = 0.01,
+                    FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, HolySpellPower = 0.3,
+                    TwoHandDps = 0.75, IsLibram = 0.3
                 },
                 unusable = {
                     -- Weapons (class cannot use)
@@ -398,7 +1119,17 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Offhands
                     IsFrill = true, IsShield = true,
                     -- Relics
-                    IsTotem = true, IsSigil = true, IsIdol = true
+                    IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (2H only spec, can't use ranged)
+                    OffHandDPS = true, MainHandDPS = true, OneHandDPS = true, RangedDPS = true,
+                    RangedAP = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Off-school Spell Power
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true
                 }
             }
         }
@@ -414,7 +1145,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.5, ArmorPenetration = 0.7,
-                    Intellect = 0.2, Stamina = 0.1
+                    Intellect = 0.2, Stamina = 0.2, Armor = 0.05, Strength = 0.005,
+                    Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005, RangedDps = 0.65
                 },
                 unusable = {
                     -- Weapons
@@ -424,7 +1159,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Spell School Power
+                    ShadowSpellPower = true, HolySpellPower = true
                 }
             },
             {
@@ -434,7 +1175,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.9,
                     HitRating = 1.0, HasteRating = 0.6, ArmorPenetration = 0.8,
-                    Intellect = 0.2, Stamina = 0.1
+                    Intellect = 0.2, Stamina = 0.2, Armor = 0.05, Strength = 0.005,
+                    Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005, RangedDps = 0.7
                 },
                 unusable = {
                     -- Weapons
@@ -444,7 +1189,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Spell School Power
+                    ShadowSpellPower = true, HolySpellPower = true
                 }
             },
             {
@@ -454,7 +1205,11 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, RangedAP = 0.6, CritRating = 0.8,
                     HitRating = 1.0, HasteRating = 0.7, ArmorPenetration = 0.9,
-                    Intellect = 0.2, Stamina = 0.1
+                    Intellect = 0.2, Stamina = 0.2, Armor = 0.05, Strength = 0.005,
+                    Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005, RangedDps = 0.7
                 },
                 unusable = {
                     -- Weapons
@@ -464,7 +1219,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Spell School Power
+                    ShadowSpellPower = true, HolySpellPower = true
                 }
             }
         }
@@ -480,7 +1241,12 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
-                    Strength = 0.2, Stamina = 0.1
+                    Strength = 0.2, Stamina = 0.2, Armor = 0.05, Intellect = 0.005,
+                    Spirit = 0.005, Mp5 = 0.005, Hp5 = 0.01, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005,
+                    MainHandDps = 0.7, OffHandDps = 0.5, OneHandDps = 0.6
                 },
                 unusable = {
                     -- Weapons
@@ -490,7 +1256,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (all 2H weapons banned)
+                    TwoHandDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -500,7 +1272,12 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.7, HitRating = 1.0,
                     HasteRating = 0.8, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
-                    Strength = 0.2, Stamina = 0.1
+                    Strength = 0.2, Stamina = 0.2, Armor = 0.05, Intellect = 0.005,
+                    Spirit = 0.005, Mp5 = 0.005, Hp5 = 0.01, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005,
+                    MainHandDps = 0.7, OffHandDps = 0.5, OneHandDps = 0.6
                 },
                 unusable = {
                     -- Weapons
@@ -510,7 +1287,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (all 2H weapons banned)
+                    TwoHandDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -520,7 +1303,12 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.5, CritRating = 0.9, HitRating = 1.0,
                     HasteRating = 0.6, ExpertiseRating = 0.9, ArmorPenetration = 0.8,
-                    Strength = 0.2, Stamina = 0.1
+                    Strength = 0.2, Stamina = 0.2, Armor = 0.05, Intellect = 0.005,
+                    Spirit = 0.005, Mp5 = 0.005, Hp5 = 0.01, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005,
+                    MainHandDps = 0.7, OffHandDps = 0.5, OneHandDps = 0.6
                 },
                 unusable = {
                     -- Weapons
@@ -530,7 +1318,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (all 2H weapons banned)
+                    TwoHandDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             }
         }
@@ -545,7 +1339,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "DDDDDD",  -- Light gray - discipline/balance
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.7, HasteRating = 0.8,
-                    Mp5 = 0.7, Spirit = 0.6, Stamina = 0.2
+                    Mp5 = 0.7, Spirit = 0.6, Stamina = 0.3, Armor = 0.05,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.15, Health = 0.01, Hp5 = 0.03,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.4, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    ShadowSpellPower = 0.02, HolySpellPower = 0.8, Dps = 0.08
                 },
                 unusable = {
                     -- Weapons
@@ -556,7 +1356,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -565,7 +1369,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "FFEE66",  -- Bright yellow - holy radiance
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
-                    Mp5 = 0.8, Spirit = 0.7, Stamina = 0.2
+                    Mp5 = 0.8, Spirit = 0.7, Stamina = 0.3, Armor = 0.05,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.15, Health = 0.01, Hp5 = 0.03,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.4, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    ShadowSpellPower = 0.02, HolySpellPower = 0.9, Dps = 0.08
                 },
                 unusable = {
                     -- Weapons
@@ -576,7 +1386,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -585,7 +1399,12 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "8800CC",  -- Purple - shadow magic
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
-                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01,
+                    ShadowResist = 0.01, NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    ShadowSpellPower = 1.0, HolySpellPower = 0.02, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -596,7 +1415,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             }
         }
@@ -611,7 +1434,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "3399FF",  -- Bright blue - lightning storm
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
-                    HasteRating = 0.9, Mp5 = 0.5, Spirit = 0.4, Stamina = 0.2
+                    HasteRating = 0.9, Mp5 = 0.5, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    NatureSpellPower = 1.0, FireSpellPower = 0.03, Dps = 0.1, IsTotem = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -623,7 +1452,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true
                 }
             },
             {
@@ -633,7 +1466,13 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, AttackPower = 0.6, CritRating = 0.8, HitRating = 1.0,
                     HasteRating = 0.7, ExpertiseRating = 0.9, ArmorPenetration = 0.7,
-                    Intellect = 0.4, Strength = 0.5, Stamina = 0.1
+                    Intellect = 0.4, Strength = 0.5, Stamina = 0.2, Armor = 0.05,
+                    Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02, Health = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    SpellPenetration = 0.2, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    NatureSpellPower = 0.3, FireSpellPower = 0.3,
+                    MainHandDps = 0.7, OffHandDps = 0.5, OneHandDps = 0.6, IsTotem = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -644,7 +1483,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true
                 }
             },
             {
@@ -653,7 +1496,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "22DD77",  -- Teal green - healing waters
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.7,
-                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.2
+                    Mp5 = 0.8, Spirit = 0.5, Stamina = 0.3, Armor = 0.05,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.15, Health = 0.01, Hp5 = 0.03,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.4, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    NatureSpellPower = 0.8, FireSpellPower = 0.3, Dps = 0.08, IsTotem = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -665,7 +1514,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsSigil = true, IsIdol = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true
                 }
             }
         }
@@ -680,7 +1533,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "AA44FF",  -- Purple - arcane magic
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
-                    HasteRating = 0.9, Spirit = 0.4, Stamina = 0.2
+                    HasteRating = 0.9, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    ArcaneSpellPower = 1.0, FireSpellPower = 0.02, FrostSpellPower = 0.02, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -691,7 +1550,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -700,7 +1563,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "FF4400",  -- Red-orange - burning flames
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
-                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    FireSpellPower = 1.0, ArcaneSpellPower = 0.02, FrostSpellPower = 0.02, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -711,7 +1580,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -720,7 +1593,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "00DDFF",  -- Cyan - ice cold
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
-                    HasteRating = 0.9, Spirit = 0.3, Stamina = 0.2
+                    HasteRating = 0.9, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    FrostSpellPower = 1.0, FireSpellPower = 0.02, ArcaneSpellPower = 0.02, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -731,7 +1610,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             }
         }
@@ -746,7 +1629,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "00BB44",  -- Green - disease/decay
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.7,
-                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.2
+                    HasteRating = 0.9, Spirit = 0.5, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    FireSpellPower = 0.5, ShadowSpellPower = 1.0, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -757,7 +1646,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -766,7 +1659,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "AA22AA",  -- Purple - demonic power
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
-                    HasteRating = 0.8, Spirit = 0.4, Stamina = 0.2
+                    HasteRating = 0.8, Spirit = 0.4, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    FireSpellPower = 0.5, ShadowSpellPower = 1.0, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -777,7 +1676,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -786,7 +1689,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "EE3300",  -- Red - destructive fire
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.9,
-                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.2
+                    HasteRating = 0.8, Spirit = 0.3, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    FireSpellPower = 1.0, ShadowSpellPower = 0.5, Dps = 0.1
                 },
                 unusable = {
                     -- Weapons
@@ -797,7 +1706,11 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsLeather = true, IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true
+                    IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             }
         }
@@ -812,7 +1725,12 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "4488FF",  -- Blue - celestial balance
                 weights = {
                     Intellect = 1.0, SpellPower = 1.0, HitRating = 1.0, CritRating = 0.8,
-                    HasteRating = 0.9, Spirit = 0.6, Stamina = 0.2
+                    HasteRating = 0.9, Spirit = 0.6, Stamina = 0.25, Armor = 0.03,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.12, Health = 0.005, Hp5 = 0.005,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, SpellPenetration = 0.5, FireResist = 0.01, FrostResist = 0.01,
+                    ShadowResist = 0.01, NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    ArcaneSpellPower = 1.0, NatureSpellPower = 0.8, Dps = 0.1, IsIdol = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -823,7 +1741,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true
+                    IsLibram = true, IsTotem = true, IsSigil = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -833,7 +1757,12 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Agility = 1.0, Strength = 0.5, FeralAP = 0.8, AttackPower = 0.5,
                     CritRating = 0.8, HitRating = 1.0, HasteRating = 0.7,
-                    ExpertiseRating = 0.9, ArmorPenetration = 0.8, Stamina = 0.1
+                    ExpertiseRating = 0.9, ArmorPenetration = 0.8, Stamina = 0.2, Armor = 0.05,
+                    Spirit = 0.005, Mp5 = 0.02, Hp5 = 0.01, Mana = 0.02, Health = 0.005,
+                    Intellect = 0.03, DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, SpellPower = 0.005,
+                    TwoHandDps = 0.75, IsIdol = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -844,7 +1773,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true
+                    IsLibram = true, IsTotem = true, IsSigil = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -854,7 +1789,10 @@ local CLASS_SPEC_TEMPLATES = {
                 weights = {
                     Stamina = 1.0, Agility = 0.8, Armor = 0.7, DodgeRating = 0.8,
                     FeralAP = 0.5, Strength = 0.4, HitRating = 0.5,
-                    ExpertiseRating = 0.6, DefenseRating = 0.3
+                    ExpertiseRating = 0.6, DefenseRating = 0.3,
+                    Health = 0.35, Hp5 = 0.1, Mp5 = 0.05, Mana = 0.06, Spirit = 0.01, Intellect = 0.05,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01, NatureResist = 0.01,
+                    ArcaneResist = 0.01, AllResist = 0.01, TwoHandDps = 0.45, IsIdol = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -865,7 +1803,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true
+                    IsLibram = true, IsTotem = true, IsSigil = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             },
             {
@@ -874,7 +1818,13 @@ local CLASS_SPEC_TEMPLATES = {
                 color = "11DD55",  -- Green - nature's healing
                 weights = {
                     Intellect = 1.0, SpellPower = 0.9, CritRating = 0.6, HasteRating = 0.8,
-                    Mp5 = 0.7, Spirit = 0.7, Stamina = 0.2
+                    Mp5 = 0.7, Spirit = 0.7, Stamina = 0.3, Armor = 0.05,
+                    Strength = 0.005, Agility = 0.005, Mana = 0.15, Health = 0.01, Hp5 = 0.03,
+                    AttackPower = 0.005, RangedAP = 0.005, DefenseRating = 0.005, DodgeRating = 0.005,
+                    ParryRating = 0.005, ExpertiseRating = 0.005, ArmorPenetration = 0.005,
+                    SpellPenetration = 0.4, FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01,
+                    NatureSpellPower = 0.9, Dps = 0.08, IsIdol = 0.3
                 },
                 unusable = {
                     -- Weapons
@@ -885,7 +1835,13 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Armor
                     IsMail = true, IsPlate = true,
                     -- Relics
-                    IsLibram = true, IsTotem = true, IsSigil = true
+                    IsLibram = true, IsTotem = true, IsSigil = true,
+                    -- DPS Stats (can't use ranged)
+                    RangedDPS = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true
                 }
             }
         }
@@ -953,7 +1909,7 @@ end
 
 local function CreateIconPickerFrame()
     local frame = CreateFrame("Frame", "ValuateIconPickerFrame", UIParent)
-    frame:SetSize(296, 220)
+    frame:SetSize(306, 440)  -- Increased height for more icons visible
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetFrameLevel(100)
@@ -967,10 +1923,13 @@ local function CreateIconPickerFrame()
     
     -- Make draggable
     frame:SetScript("OnDragStart", function(self)
+        IsDraggingFrame = true
+        GameTooltip:Hide()
         self:StartMoving()
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        IsDraggingFrame = false
     end)
     
     -- Title
@@ -1004,21 +1963,46 @@ local function CreateIconPickerFrame()
         frame:Hide()
     end)
     
-    -- Icon grid (8 columns x 4 rows = 32 icons visible)
+    -- Create scrollable content area
+    local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
+    scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -40)
+    scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -30, 16)
+    scrollFrame:EnableMouseWheel(true)
+    
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollFrame:SetScrollChild(scrollChild)
+    scrollChild:SetWidth(scrollFrame:GetWidth())
+    
+    -- Scrollbar
+    local scrollbar = CreateFrame("Slider", nil, scrollFrame, "UIPanelScrollBarTemplate")
+    scrollbar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 4, -16)
+    scrollbar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
+    scrollbar:SetMinMaxValues(0, 1)
+    scrollbar:SetValueStep(1)
+    scrollbar:SetValue(0)
+    scrollbar:SetWidth(16)
+    
+    -- Icon grid (8 columns, scrollable rows with virtual scrolling)
     local ICONS_PER_ROW = 8
     local ICON_SIZE = 28
     local ICON_SPACING = 4
+    local ROW_HEIGHT = ICON_SIZE + ICON_SPACING
     
-    frame.iconButtons = {}
-    for i, iconPath in ipairs(SCALE_ICON_LIST) do
-        local row = math.floor((i - 1) / ICONS_PER_ROW)
-        local col = (i - 1) % ICONS_PER_ROW
-        
-        local iconBtn = CreateFrame("Button", nil, frame)
+    local totalIcons = #SCALE_ICON_LIST
+    local totalRows = math.ceil(totalIcons / ICONS_PER_ROW)
+    local contentHeight = totalRows * ROW_HEIGHT + ICON_SPACING
+    scrollChild:SetHeight(contentHeight)
+    
+    -- Virtual scrolling: only create buttons for visible + buffer rows
+    local visibleRows = math.ceil(scrollFrame:GetHeight() / ROW_HEIGHT) + 2  -- +2 for buffer
+    local maxButtons = visibleRows * ICONS_PER_ROW
+    local buttonPool = {}
+    
+    -- Create a pool of reusable buttons
+    for i = 1, maxButtons do
+        local iconBtn = CreateFrame("Button", nil, scrollChild)
         iconBtn:SetSize(ICON_SIZE, ICON_SIZE)
-        iconBtn:SetPoint("TOPLEFT", frame, "TOPLEFT", 
-            16 + col * (ICON_SIZE + ICON_SPACING),
-            -40 - row * (ICON_SIZE + ICON_SPACING))
+        iconBtn:Hide()
         
         -- Border/background for icon
         iconBtn:SetBackdrop({
@@ -1033,17 +2017,10 @@ local function CreateIconPickerFrame()
         local tex = iconBtn:CreateTexture(nil, "OVERLAY")
         tex:SetPoint("TOPLEFT", iconBtn, "TOPLEFT", 2, -2)
         tex:SetPoint("BOTTOMRIGHT", iconBtn, "BOTTOMRIGHT", -2, 2)
-        if iconPath == "" then
-            -- "None" icon - show an X or clear indicator
-            tex:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
-        else
-            tex:SetTexture(iconPath)
-        end
-        iconBtn.iconPath = iconPath
         iconBtn.tex = tex
         
         iconBtn:SetScript("OnClick", function(self)
-            if IconPickerCallback then
+            if IconPickerCallback and self.iconPath then
                 IconPickerCallback(self.iconPath)
             end
             frame:Hide()
@@ -1053,8 +2030,7 @@ local function CreateIconPickerFrame()
             self:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
             self:SetBackdropColor(unpack(COLORS.buttonHover))
             -- Show tooltip for "None" option
-            if self.iconPath == "" then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if self.iconPath == "" and ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                 GameTooltip:AddLine("No Icon", 1, 1, 1)
                 GameTooltip:AddLine("Clear the icon for this scale.", 0.8, 0.8, 0.8, true)
                 GameTooltip:Show()
@@ -1066,8 +2042,84 @@ local function CreateIconPickerFrame()
             GameTooltip:Hide()
         end)
         
-        frame.iconButtons[i] = iconBtn
+        buttonPool[i] = iconBtn
     end
+    
+    -- Function to update visible buttons based on scroll position
+    local function UpdateVisibleIcons()
+        local scrollOffset = scrollFrame:GetVerticalScroll()
+        local firstVisibleRow = math.floor(scrollOffset / ROW_HEIGHT)
+        local lastVisibleRow = math.min(totalRows - 1, firstVisibleRow + visibleRows)
+        
+        local buttonIndex = 1
+        for row = firstVisibleRow, lastVisibleRow do
+            for col = 0, ICONS_PER_ROW - 1 do
+                local iconIndex = row * ICONS_PER_ROW + col + 1
+                if iconIndex <= totalIcons then
+                    local iconBtn = buttonPool[buttonIndex]
+                    if iconBtn then
+                        local iconPath = SCALE_ICON_LIST[iconIndex]
+                        iconBtn.iconPath = iconPath
+                        
+                        -- Update texture
+                        if iconPath == "" then
+                            iconBtn.tex:SetTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+                        else
+                            iconBtn.tex:SetTexture(iconPath)
+                        end
+                        
+                        -- Update position
+                        iconBtn:ClearAllPoints()
+                        iconBtn:SetPoint("TOPLEFT", scrollChild, "TOPLEFT",
+                            col * (ICON_SIZE + ICON_SPACING),
+                            -row * ROW_HEIGHT)
+                        iconBtn:Show()
+                        
+                        buttonIndex = buttonIndex + 1
+                    end
+                end
+            end
+        end
+        
+        -- Hide unused buttons
+        for i = buttonIndex, maxButtons do
+            buttonPool[i]:Hide()
+        end
+    end
+    
+    -- Update scrollbar with new callback
+    scrollbar:SetScript("OnValueChanged", function(self, value)
+        scrollFrame:SetVerticalScroll(value)
+        UpdateVisibleIcons()
+    end)
+    
+    -- Update mouse wheel to scroll by rows
+    local function OnMouseWheel(self, delta)
+        local current = scrollbar:GetValue()
+        local minVal, maxVal = scrollbar:GetMinMaxValues()
+        if delta < 0 and current < maxVal then
+            scrollbar:SetValue(math.min(maxVal, current + ROW_HEIGHT * 2))
+        elseif delta > 0 and current > minVal then
+            scrollbar:SetValue(math.max(minVal, current - ROW_HEIGHT * 2))
+        end
+    end
+    scrollFrame:SetScript("OnMouseWheel", OnMouseWheel)
+    scrollChild:SetScript("OnMouseWheel", OnMouseWheel)
+    
+    -- Update scrollbar range and show icons
+    scrollFrame:SetScript("OnShow", function()
+        local maxScroll = math.max(0, contentHeight - scrollFrame:GetHeight())
+        scrollbar:SetMinMaxValues(0, maxScroll)
+        scrollbar:SetValue(0)
+        if maxScroll == 0 then
+            scrollbar:Hide()
+        else
+            scrollbar:Show()
+        end
+        UpdateVisibleIcons()
+    end)
+    
+    frame.UpdateVisibleIcons = UpdateVisibleIcons
     
     -- Hide when clicking outside or pressing Escape
     frame:SetScript("OnHide", function()
@@ -1104,10 +2156,13 @@ local function CreateTemplatePickerFrame()
     
     -- Make draggable
     frame:SetScript("OnDragStart", function(self)
+        IsDraggingFrame = true
+        GameTooltip:Hide()
         self:StartMoving()
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        IsDraggingFrame = false
     end)
     
     -- ESC key to close
@@ -1366,11 +2421,14 @@ local function CreateMainWindow()
     
     -- Save position on move
     frame:SetScript("OnDragStart", function(self)
+        IsDraggingFrame = true
+        GameTooltip:Hide()  -- Hide any visible tooltips
         self:StartMoving()
     end)
     
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        IsDraggingFrame = false
         if ValuateOptions then
             if not ValuateOptions.uiPosition then
                 ValuateOptions.uiPosition = {}
@@ -1754,10 +2812,11 @@ local function UpdateScaleList()
         end)
         
         colorBtn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Change Color", 1, 1, 1)
             GameTooltip:AddLine("Click to change this scale's display color.", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
+            end
         end)
         colorBtn:SetScript("OnLeave", function()
             GameTooltip:Hide()
@@ -1798,10 +2857,11 @@ local function UpdateScaleList()
         end)
         
         iconBtn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Change Icon", 1, 1, 1)
             GameTooltip:AddLine("Click to select an icon for this scale's tooltip display.", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
+            end
         end)
         iconBtn:SetScript("OnLeave", function()
             GameTooltip:Hide()
@@ -1823,11 +2883,12 @@ local function UpdateScaleList()
         deleteBtn:SetScript("OnEnter", function(self)
             self:SetBackdropColor(0.5, 0.2, 0.2, 1)
             deleteLabel:SetTextColor(1, 1, 1, 1)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Delete Scale", 1, 1, 1)
             GameTooltip:AddLine("Click to delete this scale.", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine("Shift-click to skip confirmation.", 0.6, 0.6, 0.6, true)
             GameTooltip:Show()
+            end
         end)
         deleteBtn:SetScript("OnLeave", function(self)
             self:SetBackdropColor(0.2, 0.2, 0.2, 1)
@@ -1932,10 +2993,11 @@ local function UpdateScaleList()
         
         -- Tooltip for visibility checkbox
         visCheckbox:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Show in Tooltip", 1, 1, 1)
             GameTooltip:AddLine("Toggle whether this scale appears in item tooltips.", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
+            end
         end)
         visCheckbox:SetScript("OnLeave", function()
             GameTooltip:Hide()
@@ -2113,10 +3175,11 @@ local function CreateScaleList(parent)
     templateButton:SetScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))
         self:SetBackdropBorderColor(unpack(COLORS.borderLight))
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:SetText("Create from Template", 1, 1, 1)
         GameTooltip:AddLine("Select a class/spec template", 0.7, 0.7, 0.7, true)
         GameTooltip:Show()
+        end
     end)
     templateButton:SetScript("OnLeave", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonBg))
@@ -2314,10 +3377,11 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     
     -- Tooltip for unusable checkbox
     unusableCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Ban Stat", 1, 1, 1)
         GameTooltip:AddLine("Items with this stat won't show a score for this scale.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     unusableCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -2738,8 +3802,15 @@ local function CreateImportExportDialog()
     dialog:EnableMouse(true)
     dialog:SetMovable(true)
     dialog:RegisterForDrag("LeftButton")
-    dialog:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    dialog:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    dialog:SetScript("OnDragStart", function(self)
+        IsDraggingFrame = true
+        GameTooltip:Hide()
+        self:StartMoving()
+    end)
+    dialog:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        IsDraggingFrame = false
+    end)
     dialog:Hide()
     
     -- Close on Escape
@@ -2977,10 +4048,11 @@ local function CreateScaleEditor(parent)
         Valuate:ShowImportDialog()
     end)
     importButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        if ShowTooltipSafe(self, "ANCHOR_TOP") then
         GameTooltip:SetText("Import Scale", 1, 1, 1)
         GameTooltip:AddLine("Import a scale from a scale tag.", nil, nil, nil, true)
         GameTooltip:Show()
+        end
     end)
     importButton:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
@@ -2996,10 +4068,11 @@ local function CreateScaleEditor(parent)
         Valuate:ShowExportDialog(EditingScaleName)
     end)
     exportButton:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        if ShowTooltipSafe(self, "ANCHOR_TOP") then
         GameTooltip:SetText("Export Scale", 1, 1, 1)
         GameTooltip:AddLine("Export the current scale as a scale tag to share with others.", nil, nil, nil, true)
         GameTooltip:Show()
+        end
     end)
     exportButton:SetScript("OnLeave", function(self)
         GameTooltip:Hide()
@@ -3623,10 +4696,11 @@ local function CreateSettingsPanel(parent)
         end
     end)
     showScaleCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Show Scale Value", 1, 1, 1)
         GameTooltip:AddLine("Display the item's calculated scale score on tooltips.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     showScaleCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3651,10 +4725,11 @@ local function CreateSettingsPanel(parent)
         end
     end)
     normalizeCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:AddLine("Normalize Display", 1, 1, 1)
-        GameTooltip:AddLine("When enabled, all scores are normalized so the highest stat weight = 1.0. This makes it easier to compare items across different scales. Your original stat weights are never changed.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Normalize Display", 1, 1, 1)
+            GameTooltip:AddLine("When enabled, all scores are normalized so the highest stat weight = 1.0. This makes it easier to compare items across different scales. Your original stat weights are never changed.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
     end)
     normalizeCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3725,7 +4800,7 @@ local function CreateSettingsPanel(parent)
     
     -- Tooltip for dropdown
     compModeDropdown:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Comparison Mode", 1, 1, 1)
         GameTooltip:AddLine("Choose how upgrade/downgrade differences are displayed.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine(" ")
@@ -3737,6 +4812,7 @@ local function CreateSettingsPanel(parent)
         GameTooltip:AddLine("Note: Percentages of 1000% or greater are displayed as", 0.6, 0.6, 0.6)
         GameTooltip:AddLine("'HUGE!' to keep tooltips clean and readable.", 0.6, 0.6, 0.6)
         GameTooltip:Show()
+        end
     end)
     compModeDropdown:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3775,10 +4851,11 @@ local function CreateSettingsPanel(parent)
         end
     end)
     minimapButtonCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Show Minimap Button", 1, 1, 1)
         GameTooltip:AddLine("Toggle the Valuate minimap button.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     minimapButtonCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3817,10 +4894,11 @@ local function CreateSettingsPanel(parent)
         Valuate:RefreshCharacterWindowVisibility()
     end)
     charWindowCheckbox:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Show Scale Display", 1, 1, 1)
         GameTooltip:AddLine("Toggle the scale value display on the character window.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     charWindowCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3873,11 +4951,12 @@ local function CreateSettingsPanel(parent)
     end)
     
     charModeDropdown:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Display Mode", 1, 1, 1)
         GameTooltip:AddLine("Total: Sum of all equipped item scores", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Average: Average score per slot", 0.8, 0.8, 0.8)
         GameTooltip:Show()
+        end
     end)
     charModeDropdown:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -3941,10 +5020,11 @@ local function CreateSettingsPanel(parent)
     end)
     
     charScaleDropdown:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Character Window Scale", 1, 1, 1)
         GameTooltip:AddLine("Select which scale to display on the character window.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     charScaleDropdown:SetScript("OnLeave", function()
         GameTooltip:Hide()
@@ -4105,11 +5185,12 @@ local function CreateSettingsPanel(parent)
             self:SetBackdropColor(unpack(COLORS.buttonHover))
             self:SetBackdropBorderColor(unpack(COLORS.borderLight))
         end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
         GameTooltip:AddLine("Toggle UI Keybind", 1, 1, 1)
         GameTooltip:AddLine("Left-click to set a new keybind.", 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine("Right-click to clear the keybind.", 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
+        end
     end)
     
     keybindButton:SetScript("OnLeave", function(self)
@@ -4158,11 +5239,12 @@ local function CreateSettingsPanel(parent)
     deleteButton:SetScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))
         self:SetBackdropBorderColor(1, 0.2, 0.2, 1)  -- Brighter red on hover
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Delete Saved Variables", 1, 0.2, 0.2)
-        GameTooltip:AddLine("Deletes all addon data including scales and settings.", 0.8, 0.8, 0.8, true)
-        GameTooltip:AddLine("This action requires a UI reload.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
+        if ShowTooltipSafe(self, "ANCHOR_TOP") then
+            GameTooltip:AddLine("Delete Saved Variables", 1, 0.2, 0.2)
+            GameTooltip:AddLine("Deletes all addon data including scales and settings.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("This action requires a UI reload.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
     end)
     deleteButton:SetScript("OnLeave", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonBg))
@@ -4299,6 +5381,8 @@ end
 
 -- Show breakdown tooltip
 local function ShowBreakdownTooltip(self)
+    if IsDraggingFrame then return end  -- Skip if dragging
+    
     local selectedScaleName = ValuateOptions.characterWindowScale
     if not selectedScaleName or not ValuateScales or not ValuateScales[selectedScaleName] then
         return

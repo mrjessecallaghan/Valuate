@@ -311,26 +311,41 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
             
             -- Try to match against each stat pattern
             if lineText and lineText ~= "" then
-                local matched = false
-                for _, patternData in ipairs(ValuateStatPatterns) do
-                    local pattern = patternData[1]
-                    local statName = patternData[2]
-                    
-                    local matches = {string.match(lineText, pattern)}
-                    if matches[1] then
-                        local value = tonumber(matches[1])
-                        if value then
-                            stats[statName] = (stats[statName] or 0) + value
-                            if debug then
-                                print("|cFF00FF00[DEBUG]|r Matched " .. statName .. " = " .. value .. " (pattern: " .. pattern .. ")")
+                -- Split by newlines in case multiple stats are in one GetText() result
+                -- Some tooltips return multi-line strings from a single GetText() call
+                local lines = {}
+                for line in string.gmatch(lineText, "[^\r\n]+") do
+                    table.insert(lines, line)
+                end
+                
+                -- If no newlines found, process the original line
+                if #lines == 0 then
+                    table.insert(lines, lineText)
+                end
+                
+                -- Process each line separately
+                for _, line in ipairs(lines) do
+                    local matched = false
+                    for _, patternData in ipairs(ValuateStatPatterns) do
+                        local pattern = patternData[1]
+                        local statName = patternData[2]
+                        
+                        local matches = {string.match(line, pattern)}
+                        if matches[1] then
+                            local value = tonumber(matches[1])
+                            if value then
+                                stats[statName] = (stats[statName] or 0) + value
+                                if debug then
+                                    print("|cFF00FF00[DEBUG]|r Matched " .. statName .. " = " .. value .. " (pattern: " .. pattern .. ")")
+                                end
+                                matched = true
+                                break  -- Found a match, move to next line
                             end
-                            matched = true
-                            break  -- Found a match, move to next line
                         end
                     end
-                end
-                if debug and not matched then
-                    print("|cFFFF8800[DEBUG]|r No pattern matched for: '" .. lineText .. "'")
+                    if debug and not matched then
+                        print("|cFFFF8800[DEBUG]|r No pattern matched for: '" .. line .. "'")
+                    end
                 end
             end
         end
