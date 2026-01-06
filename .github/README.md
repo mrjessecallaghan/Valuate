@@ -1,115 +1,108 @@
 # Valuate
 Stat weight item scoring for World of Warcraft: Ascension Bronzebeard (WotLK 3.3.5a).
-<img src="assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
-
 
 <p align="center">
-  <img src="/assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
+  <img src="assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
 </p>
 
 ## What it does
-Valuate calculates an item score from your stat weights and shows it in tooltips and UI so you can quickly judge upgrades for your character and playstyle.
+Valuate evaluates gear using stat weights you define, then surfaces that score directly in tooltips and the UI. The aim is clarity. You can see at a glance how an item fits your build, without guessing or mentally juggling stats.
 
 ## Highlights
-- Custom stat weight scales for your build
-- Clear item scoring in tooltips
-- Import and export scales to share setups
-- Per-character profiles (v0.7.0+) so each character keeps independent settings and scales
-- Lightweight and built for fast decisions while looting and comparing gear
+- Custom stat weight scales tailored to your build
+- Clean, readable scoring directly in tooltips
+- Import and export scales to share or reuse setups
+- Per-character profiles (v0.7.0+) so each character keeps independent scales and settings
+- Lightweight and fast, designed to stay out of your way while you play
 
 ## Screenshots
 <p align="center">
-  <img src="/assets/screenshots/IMG_4235.png" width="430" alt="Valuate UI">
-  <img src="/assets/screenshots/IMG_4236.png" width="430" alt="Valuate tooltip scoring">
+  <img src="assets/screenshots/IMG_4235.png" width="430" alt="Valuate UI">
+  <img src="assets/screenshots/IMG_4236.png" width="430" alt="Valuate tooltip scoring">
 </p>
 
 <p align="center">
-  <img src="/assets/screenshots/IMG_4237.png" width="430" alt="Valuate options and settings">
-  <img src="/assets/screenshots/IMG_4238.png" width="430" alt="Valuate scales and profiles">
+  <img src="assets/screenshots/IMG_4237.png" width="430" alt="Valuate options and settings">
+  <img src="assets/screenshots/IMG_4238.png" width="430" alt="Valuate scales and profiles">
 </p>
 
 <p align="center">
-  <img src="/assets/screenshots/IMG_4239.png" width="430" alt="Example scoring and display">
-  <img src="/assets/screenshots/IMG_4240.png" width="430" alt="Example tooltip display">
+  <img src="assets/screenshots/IMG_4239.png" width="430" alt="Example scoring and display">
+  <img src="assets/screenshots/IMG_4240.png" width="430" alt="Example tooltip display">
 </p>
 
 <p align="center">
-  <img src="/assets/screenshots/IMG_4241.png" width="430" alt="Example UI display">
-  <img src="/assets/screenshots/IMG_4242.png" width="430" alt="Example tooltip display">
+  <img src="assets/screenshots/IMG_4241.png" width="430" alt="Example UI display">
+  <img src="assets/screenshots/IMG_4242.png" width="430" alt="Example tooltip display">
 </p>
 
 ## Install
 1. Download the latest release:
    - https://github.com/mrjessecallaghan/Valuate/releases
-2. Extract the folder into your AddOns directory.
+2. Extract the folder into your AddOns directory:
    - For most WotLK clients: `World of Warcraft/Interface/AddOns/`
-3. Confirm the final path looks like:
-   - `.../Interface/AddOns/Valuate/Valuate.toc`
-4. Launch the game and enable **Valuate** in the AddOns list.
+3. Confirm the folder structure:
+   - `.../Interface/AddOns/Valuate/`
+   - and that it contains `Valuate.toc`
+4. Launch the game and enable Valuate in the AddOns list.
 
 ## Quick start
-- Open Valuate: `/valuate`
-- Create or edit a scale in the UI
-- Hover an item to see the score in the tooltip
+- Open the options with `/valuate`
+- Create or adjust a stat weight scale
+- Hover over items to see their score
 
 ### Import and export
 - Export a scale:
   - `/valuate export ScaleName`
 - Import a scale:
   - `/valuate import`
-  - Paste the scale tag you were given
+  - Paste the scale tag when prompted
 
 ## Profiles (v0.7.0+)
-Valuate uses per-character saved variables so each character has their own scales and settings.
+Valuate stores settings per character, which makes managing multiple builds far simpler.
 
-What this means:
-- Changes on one character do not affect your other characters
-- UI position and preferences are saved per character
-- Use Import/Export if you want to share a scale between characters
+This means:
+- Changing a scale on one character won’t affect others
+- UI preferences are saved per character
+- Reusing a scale is as simple as exporting and importing it
 
 ### Upgrade note for existing users
-If you upgraded to v0.7.0 or later and want to clean up old account-wide data, you can delete the old file after confirming everything works:
-- Old account-wide:
+If you upgraded to v0.7.0 or later and want to clean up older data, you can remove the old account-wide file after confirming everything works as expected:
+
+- Old account-wide file:
   - `WTF-Account/[account]/SavedVariables/Valuate.lua`
-- New per-character:
+- New per-character file:
   - `WTF-Account/[account]/[realm]/[character]/SavedVariables/Valuate.lua`
 
 ## How scoring works
-- Valuate takes each stat on the item and multiplies it by your weight for that stat.
-- The sum becomes the item score.
-- A score is only as good as your weights.
-  - If your weights are wrong, your upgrade decisions will be wrong.
+Valuate multiplies each stat on an item by the weight you assign to that stat, then sums the results into a single score.
+
+The accuracy of the result depends entirely on your weights. Well-tuned weights produce clear upgrade decisions. Poor weights will not.
 
 ## Troubleshooting
 - Scores not showing:
-  - Confirm the addon is enabled at character select.
-  - Confirm the folder is `Valuate` and contains `Valuate.toc`.
-  - Disable other tooltip addons temporarily to check for conflicts.
+  - Make sure the addon is enabled at character select
+  - Confirm the folder is named `Valuate` and contains `Valuate.toc`
+  - Temporarily disable other tooltip addons to check for conflicts
 - Import not working:
-  - Make sure you copied the full scale tag.
-  - Try pasting into a plain text editor first to remove formatting.
+  - Confirm the full scale string was copied
+  - Try pasting it into a plain text editor first to remove formatting
 
 ## Roadmap
-- Better defaults and example scales
-- More tooltip display options and clarity
+- Improved default and example scales
+- Expanded tooltip display options
 - Continued polish and performance improvements
 
-## Report a bug or request a feature
-Open an issue here:
+## Bugs and feature requests
+If you run into issues or have ideas, open an issue here:
 - https://github.com/mrjessecallaghan/Valuate/issues
 
-Include:
-- What you expected vs what happened
-- A screenshot if relevant
-- Your scale export string if the issue is scoring related
-- The exact item link and where it dropped or was viewed
+Helpful details to include:
+- What you expected versus what happened
+- Screenshots for visual issues
+- Your scale export string if scoring is involved
+- The item link and where it appeared
 
-## Development
-Docs and notes live in the repo:
-- `ASCENSION_DEV.md`
-- `DEVELOPER.md`
-- `CHANGELOG.md`
-
-## License
-Add a LICENSE file if you want formal licensing.
-Until then, treat this repository as All Rights Reserved by default.
+## Contact
+- Discord: jessecallaghan  
+- Ko-fi: https://ko-fi.com/jessecallaghan
