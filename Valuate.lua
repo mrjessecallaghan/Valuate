@@ -98,9 +98,19 @@ local function OnEvent(self, event, addonName)
     end
 end
 
--- Initialize function
-function Valuate:Initialize()
-    -- Initialize SavedVariables with defaults if they don't exist
+-- ========================================
+-- Per-Character Profile System
+-- ========================================
+
+-- Get unique character identifier (realm + character name)
+function Valuate:GetCharacterKey()
+    local name = UnitName("player")
+    local realm = GetRealmName()
+    return realm .. "_" .. name
+end
+
+-- Get character-specific options table
+function Valuate:GetOptions()
     if not ValuateOptions then
         ValuateOptions = {
             debug = false,
@@ -113,24 +123,68 @@ function Valuate:Initialize()
             minimapButtonHidden = false,
             characterWindowDisplayMode = "total",
             uiPosition = {},
-            normalizeDisplay = false,  -- Global normalize toggle for all displays
-            showStatBreakdown = false,  -- Show detailed stat breakdown in tooltips
+            normalizeDisplay = false,
+            showStatBreakdown = false,
         }
     end
-    
-    -- Add normalizeDisplay option if it doesn't exist (for existing users)
-    if ValuateOptions.normalizeDisplay == nil then
-        ValuateOptions.normalizeDisplay = false
+    return ValuateOptions
+end
+
+-- Get character-specific scales table
+function Valuate:GetScales()
+    if not ValuateScales then
+        ValuateScales = {}
     end
+    return ValuateScales
+end
+
+-- Migrate from account-wide to per-character SavedVariables
+function Valuate:MigrateToPerCharacter()
+    -- Check if we need to migrate from account-wide to per-character
+    -- The SavedVariablesPerCharacter are now the main storage, but we may have
+    -- old account-wide data that needs to be copied to this character
     
-    -- Add showStatBreakdown option if it doesn't exist (for existing users)
-    if ValuateOptions.showStatBreakdown == nil then
-        ValuateOptions.showStatBreakdown = false
+    -- Migration is automatic: WoW will create per-character versions of ValuateOptions
+    -- and ValuateScales when we use SavedVariablesPerCharacter in the .toc file
+    -- If this character doesn't have data yet, it will start with empty tables
+    
+    -- For backwards compatibility, we don't need explicit migration code since
+    -- each character will get a fresh copy when logging in after the update
+    
+    -- Just ensure the per-character data is initialized
+    if not ValuateOptions then
+        ValuateOptions = {}
     end
     
     if not ValuateScales then
         ValuateScales = {}
     end
+end
+
+-- Initialize function
+function Valuate:Initialize()
+    -- Run migration first (if needed)
+    Valuate:MigrateToPerCharacter()
+    
+    -- Get per-character options and initialize defaults if they don't exist
+    local options = Valuate:GetOptions()
+    
+    -- Initialize default values for any missing options
+    if options.debug == nil then options.debug = false end
+    if options.decimalPlaces == nil then options.decimalPlaces = 1 end
+    if options.rightAlign == nil then options.rightAlign = false end
+    if options.showScaleValue == nil then options.showScaleValue = true end
+    if options.comparisonMode == nil then options.comparisonMode = "number" end
+    if options.characterWindowScale == nil then options.characterWindowScale = nil end
+    if options.showCharacterWindowDisplay == nil then options.showCharacterWindowDisplay = true end
+    if options.minimapButtonHidden == nil then options.minimapButtonHidden = false end
+    if options.characterWindowDisplayMode == nil then options.characterWindowDisplayMode = "total" end
+    if options.uiPosition == nil then options.uiPosition = {} end
+    if options.normalizeDisplay == nil then options.normalizeDisplay = false end
+    if options.showStatBreakdown == nil then options.showStatBreakdown = false end
+    
+    -- Get per-character scales
+    local scales = Valuate:GetScales()
     
     -- Basic initialization
     print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
@@ -144,7 +198,7 @@ function Valuate:Initialize()
     Valuate:HookTooltips()
     
     -- Create a default scale if none exist
-    if not next(ValuateScales) then
+    if not next(scales) then
         Valuate:CreateDefaultScale()
     end
     
@@ -163,7 +217,8 @@ function Valuate:CreateDefaultScale()
         Values = {}
     }
     
-    ValuateScales["Default"] = defaultScale
+    local scales = Valuate:GetScales()
+    scales["Default"] = defaultScale
 end
 
 -- ========================================
@@ -204,7 +259,7 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         return nil
     end
     
-    debug = debug or (ValuateOptions.debug == true)
+    debug = debug or (Valuate:GetOptions().debug == true)
     
     -- Track weapon slot type for assigning type-specific DPS/Speed
     local weaponSlotType = nil  -- IsMainHand, IsOffHand, IsOneHand, IsTwoHand, IsRanged
@@ -435,7 +490,7 @@ function Valuate:GetStatsForItemLink(itemLink)
     tooltip:SetHyperlink(itemLink)
     
     -- Parse the tooltip (note: this will show base stats, not scaled stats)
-    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", ValuateOptions.debug)
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", Valuate:GetOptions().debug)
     
     return stats
 end
@@ -472,13 +527,13 @@ local VALUATE_MARKER_FULL = "|cFF000001|r"
 -- Returns r, g, b values (0-1 range) or nil if no coloring should be applied
 local function GetTooltipBorderColor(stats, itemLink)
     -- Check if a character window scale is selected
-    local scaleName = ValuateOptions.characterWindowScale
+    local scaleName = Valuate:GetOptions().characterWindowScale
     if not scaleName or scaleName == "" then
         return nil  -- No scale selected, use default border
     end
     
     -- Get the scale data
-    local scale = ValuateScales[scaleName]
+    local scale = Valuate:GetScales()[scaleName]
     if not scale or not scale.Values then
         return nil  -- Invalid scale
     end
@@ -593,8 +648,10 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
     
     -- Calculate and display scores
     local hasScores = false
+    local options = Valuate:GetOptions()
+    local scales = Valuate:GetScales()
     for _, scaleName in ipairs(activeScales) do
-        local scale = ValuateScales[scaleName]
+        local scale = scales[scaleName]
         if scale then
             -- Check if item has any stats marked as unusable (banned) for this scale
             local hasUnusableStat = false
@@ -603,7 +660,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 for statName, statValue in pairs(stats) do
                     if scale.Unusable[statName] and statValue and statValue > 0 then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
                         end
                         break
@@ -614,17 +671,17 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 if not hasUnusableStat and equipSlot then
                     if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
                         end
                     elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is offhand weapon (banned by OffHandDps)")
                         end
                     elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is ranged weapon (banned by RangedDps)")
                         end
                     end
@@ -641,13 +698,13 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     end
                     local color = scale.Color or "FFFFFF"
                     local displayName = scale.DisplayName or scaleName
-                    local decimals = ValuateOptions.decimalPlaces or 1
+                    local decimals = options.decimalPlaces or 1
                     local formatStr = "%." .. decimals .. "f"
                     local scoreText = string.format(formatStr, score)
                     
                     -- Build the display text based on options
-                    local showValue = ValuateOptions.showScaleValue ~= false
-                    local compMode = ValuateOptions.comparisonMode or "number"
+                    local showValue = options.showScaleValue ~= false
+                    local compMode = options.comparisonMode or "number"
                     local comparisonText = ""
                     
                     -- Build icon prefix based on scale's Icon setting
@@ -658,7 +715,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     end
                     
                     -- Show detailed stat breakdown if enabled
-                    if ValuateOptions.showStatBreakdown then
+                    if options.showStatBreakdown then
                         -- Check if this is a multi-slot item for per-slot breakdown
                         local isMultiSlotBreakdown = isMultiSlot and compMode ~= "off"
                         
@@ -759,7 +816,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     
                                     -- Format: "  Stat: hoverValue × weight = hoverContrib (comparison)"
                                     -- Only show the hover item's value, not the equipped item's value
-                                    if ValuateOptions.rightAlign then
+                                    if options.rightAlign then
                                         -- Right-aligned: split into left and right parts
                                         local leftPart = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                             hoverValueText .. " × " .. weightText .. "|r"
@@ -781,7 +838,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     -- Add to total (no comparison)
                                     totalHoverContrib = totalHoverContrib + (entry.contribution or entry.hoverContribution)
                                     
-                                    if ValuateOptions.rightAlign then
+                                    if options.rightAlign then
                                         -- Right-aligned: split into left and right parts
                                         local leftPart = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                             statValueText .. " × " .. weightText .. "|r"
@@ -835,7 +892,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                 end
                                 
-                                if ValuateOptions.rightAlign then
+                                if options.rightAlign then
                                     local leftPart = "  " .. prefix .. "|cFF" .. color .. "Total:|r"
                                     local rightPart = "|cFF" .. color .. totalHoverText .. totalComparisonPart .. "|r"
                                     tooltip:AddDoubleLine(leftPart, rightPart)
@@ -847,7 +904,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             else
                                 -- Without comparison
                                 local totalText = string.format(formatStr, totalHoverContrib)
-                                if ValuateOptions.rightAlign then
+                                if options.rightAlign then
                                     local leftPart = "  " .. prefix .. "|cFF" .. color .. "Total:|r"
                                     local rightPart = "|cFF" .. color .. totalText .. "|r"
                                     tooltip:AddDoubleLine(leftPart, rightPart)
@@ -871,11 +928,11 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         
                         if equippedScores and next(equippedScores) then
                             -- Add scale name header (only once at the top)
-                            if ValuateOptions.showStatBreakdown then
+                            if options.showStatBreakdown then
                                 tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ":|r")
                             elseif showValue then
                                 -- Show main line with item score (old behavior when breakdown is off)
-                                if ValuateOptions.rightAlign then
+                                if options.rightAlign then
                                     tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
                                 else
                                     tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
@@ -936,14 +993,14 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 end
                                 
                                 -- Add slot comparison line
-                                if ValuateOptions.rightAlign then
+                                if options.rightAlign then
                                     tooltip:AddDoubleLine("  " .. prefix .. "|cFF" .. color .. slotName .. "|r", slotComparisonText)
                                 else
                                     tooltip:AddLine("  " .. prefix .. "|cFF" .. color .. slotName .. ": " .. slotComparisonText .. "|r")
                                 end
                                 
                                 -- Add stat breakdown for this specific equipped item if enabled
-                                if ValuateOptions.showStatBreakdown then
+                                if options.showStatBreakdown then
                                     -- Get stats for this specific equipped item
                                     local itemLink = GetInventoryItemLink("player", slotId)
                                     if itemLink then
@@ -996,7 +1053,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                     end
                                                     
                                                     -- Display stat line (indented more) - only show hover item's value
-                                                    if ValuateOptions.rightAlign then
+                                                    if options.rightAlign then
                                                         local leftPart = "    " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                                             hoverValueText .. " × " .. weightText .. "|r"
                                                         local rightPart = "|cFF" .. color .. hoverContribText .. comparisonPart .. "|r"
@@ -1043,7 +1100,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                     totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                                 end
                                                 
-                                                if ValuateOptions.rightAlign then
+                                                if options.rightAlign then
                                                     local leftPart = "    " .. prefix .. "|cFF" .. color .. "Total:|r"
                                                     local rightPart = "|cFF" .. color .. totalHoverText .. totalComparisonPart .. "|r"
                                                     tooltip:AddDoubleLine(leftPart, rightPart)
@@ -1062,8 +1119,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             end
                         else
                             -- No equipped items in these slots (skip if stat breakdown already shown)
-                            if showValue and not ValuateOptions.showStatBreakdown then
-                                if ValuateOptions.rightAlign then
+                            if showValue and not options.showStatBreakdown then
+                                if options.rightAlign then
                                     tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
                                 else
                                     tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
@@ -1149,7 +1206,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         end
                         
                         -- Build final display text for single-slot items (skip if stat breakdown already shown)
-                        if not ValuateOptions.showStatBreakdown then
+                        if not options.showStatBreakdown then
                             local displayText
                             if showValue then
                                 displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
@@ -1165,7 +1222,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 end
                             end
                             
-                            if ValuateOptions.rightAlign then
+                            if options.rightAlign then
                                 -- Use AddDoubleLine for right-aligned scores
                                 local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
                                 if not showValue and comparisonText ~= "" then
@@ -1178,8 +1235,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         end
                     else
                         -- No comparison mode or not equippable - just show the score (skip if stat breakdown already shown)
-                        if not ValuateOptions.showStatBreakdown then
-                            if ValuateOptions.rightAlign then
+                        if not options.showStatBreakdown then
+                            if options.rightAlign then
                                 tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
                             else
                                 tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
@@ -1500,7 +1557,8 @@ function Valuate:CalculateItemScore(stats, scale)
     
     -- Calculate normalization factor if global normalize display is enabled
     local normalizeFactor = 1
-    if ValuateOptions and ValuateOptions.normalizeDisplay then
+    local options = Valuate:GetOptions()
+    if options and options.normalizeDisplay then
         local maxWeight = 0
         for statName, weight in pairs(scaleValues) do
             local absWeight = math.abs(weight)
@@ -1539,7 +1597,8 @@ function Valuate:CalculateStatBreakdown(stats, scale)
     
     -- Calculate normalization factor if global normalize display is enabled
     local normalizeFactor = 1
-    if ValuateOptions and ValuateOptions.normalizeDisplay then
+    local options = Valuate:GetOptions()
+    if options and options.normalizeDisplay then
         local maxWeight = 0
         for statName, weight in pairs(scaleValues) do
             local absWeight = math.abs(weight)
@@ -1591,7 +1650,8 @@ function Valuate:CalculateStatBreakdownWithComparison(hoverStats, equippedStats,
     
     -- Calculate normalization factor if global normalize display is enabled
     local normalizeFactor = 1
-    if ValuateOptions and ValuateOptions.normalizeDisplay then
+    local options = Valuate:GetOptions()
+    if options and options.normalizeDisplay then
         local maxWeight = 0
         for statName, weight in pairs(scaleValues) do
             local absWeight = math.abs(weight)
@@ -1808,12 +1868,13 @@ end
 -- Returns: Table of scale names that are active
 function Valuate:GetActiveScales()
     local active = {}
+    local scales = Valuate:GetScales()
     
-    if not ValuateScales then
+    if not scales then
         return active
     end
     
-    for scaleName, scaleData in pairs(ValuateScales) do
+    for scaleName, scaleData in pairs(scales) do
         -- Check if scale has values and is visible
         if scaleData.Values and (scaleData.Visible ~= false) then  -- Default to visible if not set
             tinsert(active, scaleName)
@@ -1826,8 +1887,9 @@ end
 
 -- Displays calculated scores on the tooltip
 function Valuate:DisplayScoresOnTooltip(tooltip, stats)
+    local options = Valuate:GetOptions()
     if not tooltip or not stats then
-        if ValuateOptions.debug then
+        if options.debug then
             print("|cFFFF8800[Valuate Debug]|r DisplayScoresOnTooltip: missing tooltip or stats")
         end
         return
@@ -1836,13 +1898,13 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
     -- Get active scales
     local activeScales = Valuate:GetActiveScales()
     
-    if ValuateOptions.debug then
+    if options.debug then
         print("|cFFFF8800[Valuate Debug]|r Found " .. #activeScales .. " active scale(s)")
     end
     
     -- If no active scales, don't display anything
     if #activeScales == 0 then
-        if ValuateOptions.debug then
+        if options.debug then
             print("|cFFFF8800[Valuate Debug]|r No active scales - cannot display scores")
         end
         return
@@ -1860,8 +1922,9 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
     
     -- Calculate scores for each active scale
     local scores = {}
+    local scales = Valuate:GetScales()
     for _, scaleName in ipairs(activeScales) do
-        local scale = ValuateScales[scaleName]
+        local scale = scales[scaleName]
         if scale then
             -- Check if item has any stats marked as unusable for this scale
             local hasUnusableStat = false
@@ -1870,7 +1933,7 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
                 for statName, statValue in pairs(stats) do
                     if scale.Unusable[statName] and statValue and statValue > 0 then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
                         end
                         break
@@ -1881,17 +1944,17 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
                 if not hasUnusableStat and equipSlot then
                     if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
                         end
                     elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is offhand weapon (banned by OffHandDps)")
                         end
                     elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
                         hasUnusableStat = true
-                        if ValuateOptions.debug then
+                        if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is ranged weapon (banned by RangedDps)")
                         end
                     end
@@ -1902,7 +1965,7 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
                 local score = Valuate:CalculateItemScore(stats, scale)
                 if score and score ~= 0 then
                     scores[scaleName] = score
-                    if ValuateOptions.debug then
+                    if options.debug then
                         print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' score: " .. score)
                     end
                 end
@@ -1917,13 +1980,13 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
         
         -- Display each scale's score
         for scaleName, score in pairs(scores) do
-            local scale = ValuateScales[scaleName]
+            local scale = scales[scaleName]
             local color = scale.Color or "FFFFFF"
             local displayName = scale.DisplayName or scaleName
             local lineText = "|cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r"
             tooltip:AddLine(lineText)
             
-            if ValuateOptions.debug then
+            if options.debug then
                 print("|cFFFF8800[Valuate Debug]|r Added line to tooltip: " .. lineText)
             end
         end
@@ -1931,7 +1994,7 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
         -- Show the tooltip with updated lines
         tooltip:Show()
     else
-        if ValuateOptions.debug then
+        if options.debug then
             print("|cFFFF8800[Valuate Debug]|r No scores to display (all were 0 or nil)")
         end
     end
@@ -1976,10 +2039,11 @@ SlashCmdList["VALUATE"] = function(msg)
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then
             -- Temporarily enable debug for test command
-            local oldDebug = ValuateOptions.debug
-            ValuateOptions.debug = true
+            local options = Valuate:GetOptions()
+            local oldDebug = options.debug
+            options.debug = true
             local stats = Valuate:GetStatsForItemLink(itemLink)
-            ValuateOptions.debug = oldDebug
+            options.debug = oldDebug
             if stats then
                 print("|cFF00FF00Valuate|r: Parsed stats for item (base values, not scaled):")
                 for statName, value in pairs(stats) do
@@ -1995,14 +2059,16 @@ SlashCmdList["VALUATE"] = function(msg)
             print("  Shift-click an item in chat to get its link, then paste after 'test'")
         end
     elseif command == "debug" then
-        ValuateOptions.debug = not ValuateOptions.debug
-        print("|cFF00FF00Valuate|r: Debug mode " .. (ValuateOptions.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        local options = Valuate:GetOptions()
+        options.debug = not options.debug
+        print("|cFF00FF00Valuate|r: Debug mode " .. (options.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "scales" then
         local activeScales = Valuate:GetActiveScales()
         if #activeScales > 0 then
             print("|cFF00FF00Valuate|r: Active scales:")
+            local scales = Valuate:GetScales()
             for _, scaleName in ipairs(activeScales) do
-                local scale = ValuateScales[scaleName]
+                local scale = scales[scaleName]
                 local color = scale.Color or "FFFFFF"
                 print("  |cFF" .. color .. (scale.DisplayName or scaleName) .. "|r")
             end

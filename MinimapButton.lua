@@ -37,11 +37,12 @@ local function CreateMinimapButton()
     if minimapButton then return minimapButton end
     
     -- Initialize saved variables if needed
-    if not ValuateOptions.minimapButtonAngle then
-        ValuateOptions.minimapButtonAngle = DEFAULT_POSITION
+    local options = Valuate:GetOptions()
+    if not options.minimapButtonAngle then
+        options.minimapButtonAngle = DEFAULT_POSITION
     end
-    if ValuateOptions.minimapButtonHidden == nil then
-        ValuateOptions.minimapButtonHidden = false
+    if options.minimapButtonHidden == nil then
+        options.minimapButtonHidden = false
     end
     
     -- Create the button frame
@@ -114,8 +115,9 @@ local function CreateMinimapButton()
             UpdateButtonPosition(angle)
             
             -- Save position
-            if ValuateOptions then
-                ValuateOptions.minimapButtonAngle = angle
+            local options = Valuate:GetOptions()
+            if options then
+                options.minimapButtonAngle = angle
             end
         end)
     end)
@@ -143,11 +145,12 @@ local function CreateMinimapButton()
     end)
     
     -- Set initial position
-    local savedAngle = ValuateOptions.minimapButtonAngle or DEFAULT_POSITION
+    local options = Valuate:GetOptions()
+    local savedAngle = options.minimapButtonAngle or DEFAULT_POSITION
     UpdateButtonPosition(savedAngle)
     
     -- Show or hide based on saved state
-    if not ValuateOptions.minimapButtonHidden then
+    if not options.minimapButtonHidden then
         minimapButton:Show()
     else
         minimapButton:Hide()
@@ -163,8 +166,9 @@ function Valuate:ShowMinimapButton()
     else
         minimapButton:Show()
     end
-    if ValuateOptions then
-        ValuateOptions.minimapButtonHidden = false
+    local options = Valuate:GetOptions()
+    if options then
+        options.minimapButtonHidden = false
     end
 end
 
@@ -172,8 +176,9 @@ function Valuate:HideMinimapButton()
     if minimapButton then
         minimapButton:Hide()
     end
-    if ValuateOptions then
-        ValuateOptions.minimapButtonHidden = true
+    local options = Valuate:GetOptions()
+    if options then
+        options.minimapButtonHidden = true
     end
 end
 
@@ -191,9 +196,10 @@ end
 -- Initialize the button when the addon loads
 local initFrame = CreateFrame("Frame")
 local function InitializeMinimapButton()
-    -- ValuateOptions should already be initialized by Valuate:Initialize()
+    -- Options should already be initialized by Valuate:Initialize()
     -- Just check that it exists before trying to use it
-    if ValuateOptions and not ValuateOptions.minimapButtonHidden then
+    local options = Valuate.GetOptions and Valuate:GetOptions()
+    if options and not options.minimapButtonHidden then
         CreateMinimapButton()
     end
 end

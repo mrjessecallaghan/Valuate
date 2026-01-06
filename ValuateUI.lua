@@ -914,8 +914,8 @@ local SCALE_ICON_LIST = {
     "Interface\\Icons\\Ability_Hunter_Pet_WindSerpent",
 }
 
--- ValuateOptions and ValuateScales are initialized by Valuate:Initialize() in Valuate.lua
--- as simple SavedVariables tables
+-- ValuateOptions and ValuateScales are per-character SavedVariablesPerCharacter
+-- accessed via Valuate:GetOptions() and Valuate:GetScales()
 
 -- ========================================
 -- Class/Spec Templates
@@ -2814,8 +2814,9 @@ local function CreateMainWindow()
     frame:SetBackdropBorderColor(unpack(COLORS.border))
     
     -- Position (restored from saved settings)
-    if ValuateOptions and ValuateOptions.uiPosition and ValuateOptions.uiPosition.point and ValuateOptions.uiPosition.x and ValuateOptions.uiPosition.y then
-        frame:SetPoint(ValuateOptions.uiPosition.point, UIParent, ValuateOptions.uiPosition.relativePoint or ValuateOptions.uiPosition.point, ValuateOptions.uiPosition.x, ValuateOptions.uiPosition.y)
+    local options = Valuate:GetOptions()
+    if options and options.uiPosition and options.uiPosition.point and options.uiPosition.x and options.uiPosition.y then
+        frame:SetPoint(options.uiPosition.point, UIParent, options.uiPosition.relativePoint or options.uiPosition.point, options.uiPosition.x, options.uiPosition.y)
     else
         frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     end
@@ -2830,15 +2831,16 @@ local function CreateMainWindow()
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
         IsDraggingFrame = false
-        if ValuateOptions then
-            if not ValuateOptions.uiPosition then
-                ValuateOptions.uiPosition = {}
+        local options = Valuate:GetOptions()
+        if options then
+            if not options.uiPosition then
+                options.uiPosition = {}
             end
             local point, _, relativePoint, x, y = self:GetPoint()
-            ValuateOptions.uiPosition.point = point
-            ValuateOptions.uiPosition.relativePoint = relativePoint
-            ValuateOptions.uiPosition.x = x
-            ValuateOptions.uiPosition.y = y
+            options.uiPosition.point = point
+            options.uiPosition.relativePoint = relativePoint
+            options.uiPosition.x = x
+            options.uiPosition.y = y
         end
     end)
     
@@ -2924,9 +2926,10 @@ local function CreateTabSystem(mainFrame, contentFrame)
         if ValuateUIFrame then
             if tabName == "scales" then
                 -- Scales tab: Restore dynamic height if a scale is already selected
-                if EditingScaleName and ValuateScales[EditingScaleName] then
+                local scales = Valuate:GetScales()
+                if EditingScaleName and scales[EditingScaleName] then
                     -- Trigger resize by refreshing the scale editor
-                    ValuateUI_UpdateScaleEditor(EditingScaleName, ValuateScales[EditingScaleName])
+                    ValuateUI_UpdateScaleEditor(EditingScaleName, scales[EditingScaleName])
                 end
             else
                 -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
@@ -3110,8 +3113,9 @@ local function UpdateScaleList()
     
     -- Get all scales
     local scales = {}
-    if ValuateScales then
-        for name, scale in pairs(ValuateScales) do
+    local scalesData = Valuate:GetScales()
+    if scalesData then
+        for name, scale in pairs(scalesData) do
             tinsert(scales, { name = name, scale = scale })
         end
     end
@@ -3166,7 +3170,8 @@ local function UpdateScaleList()
         
         -- Color picker on click
         colorBtn:SetScript("OnClick", function(self)
-            local scale = ValuateScales[scaleData.name]
+            local scalesData = Valuate:GetScales()
+            local scale = scalesData[scaleData.name]
             if not scale then return end
             
             local currentColor = scale.Color or "FFFFFF"
@@ -3180,8 +3185,9 @@ local function UpdateScaleList()
             ColorPickerFrame.func = function()
                 local newR, newG, newB = ColorPickerFrame:GetColorRGB()
                 local newColor = RGBToHex(newR, newG, newB)
-                if ValuateScales[scaleName] then
-                    ValuateScales[scaleName].Color = newColor
+                local scales = Valuate:GetScales()
+                if scales[scaleName] then
+                    scales[scaleName].Color = newColor
                 end
                 colorPreview:SetVertexColor(newR, newG, newB, 1)
                 -- Update the scale list to reflect new color
@@ -3195,8 +3201,9 @@ local function UpdateScaleList()
             
             ColorPickerFrame.cancelFunc = function()
                 local prev = ColorPickerFrame.previousValues
-                if prev and ValuateScales[scaleName] then
-                    ValuateScales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
+                local scales = Valuate:GetScales()
+                if prev and scales[scaleName] then
+                    scales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
                 end
                 UpdateScaleList()
                 
@@ -3244,8 +3251,8 @@ local function UpdateScaleList()
         iconBtn:SetScript("OnClick", function(self)
             local scaleName = scaleData.name
             ShowIconPicker(function(selectedIcon)
-                if ValuateScales[scaleName] then
-                    ValuateScales[scaleName].Icon = selectedIcon
+                if Valuate:GetScales()[scaleName] then
+                    Valuate:GetScales()[scaleName].Icon = selectedIcon
                 end
                 if selectedIcon and selectedIcon ~= "" then
                     iconTexture:SetTexture(selectedIcon)
@@ -3301,7 +3308,7 @@ local function UpdateScaleList()
             
             -- If Shift key is held down, delete immediately without confirmation
             if IsShiftKeyDown() then
-                ValuateScales[scaleName] = nil
+                Valuate:GetScales()[scaleName] = nil
                 if CurrentSelectedScale == scaleName then
                     CurrentSelectedScale = nil
                     EditingScaleName = nil
@@ -3317,7 +3324,7 @@ local function UpdateScaleList()
                     button1 = "Delete",
                     button2 = "Cancel",
                     OnAccept = function()
-                        ValuateScales[scaleName] = nil
+                        Valuate:GetScales()[scaleName] = nil
                         if CurrentSelectedScale == scaleName then
                             CurrentSelectedScale = nil
                             EditingScaleName = nil
@@ -3350,11 +3357,11 @@ local function UpdateScaleList()
         -- Helper to update visual state based on visibility
         local function UpdateVisualState(visible)
             -- Get current color from scale data (may have been updated by color picker)
-            local currentColor = (ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Color) or "FFFFFF"
+            local currentColor = (Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Color) or "FFFFFF"
             local cr, cg, cb = HexToRGB(currentColor)
             
             -- Get current icon from scale data
-            local currentScaleIcon = ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Icon
+            local currentScaleIcon = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Icon
             local hasIcon = currentScaleIcon and currentScaleIcon ~= ""
             
             if visible then
@@ -3381,8 +3388,8 @@ local function UpdateScaleList()
         -- Visibility checkbox click handler
         visCheckbox:SetScript("OnClick", function(self)
             local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-            if ValuateScales[scaleData.name] then
-                ValuateScales[scaleData.name].Visible = checked
+            if Valuate:GetScales()[scaleData.name] then
+                Valuate:GetScales()[scaleData.name].Visible = checked
                 
                 -- Reset all tooltips to reflect the visibility change immediately
                 if Valuate.ResetTooltips then
@@ -3414,7 +3421,7 @@ local function UpdateScaleList()
         -- Highlight on mouseover (only if visible)
         btn:SetScript("OnEnter", function(self)
             if CurrentSelectedScale ~= scaleData.name then
-                local vis = ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Visible ~= false
+                local vis = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Visible ~= false
                 if vis then
                     self:SetBackdropColor(unpack(COLORS.buttonHover))
                 end
@@ -3422,7 +3429,7 @@ local function UpdateScaleList()
         end)
         btn:SetScript("OnLeave", function(self)
             if CurrentSelectedScale ~= scaleData.name then
-                local vis = ValuateScales[scaleData.name] and ValuateScales[scaleData.name].Visible ~= false
+                local vis = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Visible ~= false
                 if vis then
                     self:SetBackdropColor(unpack(COLORS.buttonBg))
                 else
@@ -3436,7 +3443,7 @@ local function UpdateScaleList()
             -- Deselect previous
             if CurrentSelectedScale and ScaleListButtons[CurrentSelectedScale] then
                 local prevBtn = ScaleListButtons[CurrentSelectedScale]
-                local prevVis = ValuateScales[CurrentSelectedScale] and ValuateScales[CurrentSelectedScale].Visible ~= false
+                local prevVis = Valuate:GetScales()[CurrentSelectedScale] and Valuate:GetScales()[CurrentSelectedScale].Visible ~= false
                 if prevVis then
                     prevBtn:SetBackdropColor(unpack(COLORS.buttonBg))
                     prevBtn:SetBackdropBorderColor(unpack(COLORS.border))
@@ -3452,7 +3459,7 @@ local function UpdateScaleList()
             self:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
             
             -- Update editor with current scale data from ValuateScales
-            ValuateUI_UpdateScaleEditor(scaleData.name, ValuateScales[scaleData.name])
+            ValuateUI_UpdateScaleEditor(scaleData.name, Valuate:GetScales()[scaleData.name])
         end)
         
         ScaleListButtons[scaleData.name] = btn
@@ -3512,7 +3519,7 @@ ValuateUI_OnTemplateOverwrite = function(template)
     if not template then return end
     
     local scaleName = template.name
-    local scale = ValuateScales[scaleName]
+    local scale = Valuate:GetScales()[scaleName]
     
     if scale then
         -- Overwrite existing scale with template data
@@ -3687,8 +3694,8 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     editBox:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText()) or 0
-        if EditingScaleName and ValuateScales[EditingScaleName] then
-            local scale = ValuateScales[EditingScaleName]
+        if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
+            local scale = Valuate:GetScales()[EditingScaleName]
             if not scale.Values then scale.Values = {} end
             if value ~= 0 then
                 scale.Values[self.statName] = value
@@ -3752,8 +3759,8 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     unusableCheckbox:SetScript("OnClick", function(self)
         local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
-        if EditingScaleName and ValuateScales[EditingScaleName] then
-            local currentScale = ValuateScales[EditingScaleName]
+        if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
+            local currentScale = Valuate:GetScales()[EditingScaleName]
             if not currentScale.Unusable then
                 currentScale.Unusable = {}
             end
@@ -4100,7 +4107,7 @@ function ValuateUI_CreateScaleFromTemplate(template)
     local scaleName = template.name
     
     -- Check if scale already exists
-    if ValuateScales[scaleName] then
+    if Valuate:GetScales()[scaleName] then
         -- Define the overwrite dialog dynamically with access to local scope
         StaticPopupDialogs["VALUATE_TEMPLATE_OVERWRITE"] = {
             text = "A scale named \"" .. scaleName .. "\" already exists.\n\nOverwrite it?",
@@ -4143,7 +4150,7 @@ function ValuateUI_CreateScaleFromTemplate(template)
         end
     end
     
-    ValuateScales[scaleName] = newScale
+    Valuate:GetScales()[scaleName] = newScale
     
     -- Refresh list and select new scale
     UpdateScaleList()
@@ -4158,7 +4165,7 @@ function ValuateUI_NewScale()
     local baseName = "New Scale"
     local name = baseName
     local counter = 1
-    while ValuateScales[name] do
+    while Valuate:GetScales()[name] do
         name = baseName .. " " .. counter
         counter = counter + 1
     end
@@ -4170,7 +4177,7 @@ function ValuateUI_NewScale()
         Values = {}
     }
     
-    ValuateScales[name] = newScale
+    Valuate:GetScales()[name] = newScale
     
     -- Refresh list and select new scale
     UpdateScaleList()
@@ -4299,7 +4306,7 @@ function Valuate:ShowExportDialog(scaleName)
     end
     
     local dialog = CreateImportExportDialog()
-    local scale = ValuateScales[scaleName]
+    local scale = Valuate:GetScales()[scaleName]
     local displayName = scale and scale.DisplayName or scaleName
     
     dialog.title:SetText("Export Scale")
@@ -4420,20 +4427,20 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetTextInsets(6, 6, 0, 0)
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self)
-        if not EditingScaleName or not ValuateScales[EditingScaleName] then
+        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
             self:ClearFocus()
             return
         end
         
         local newName = self:GetText()
         if newName and newName ~= "" then
-            local scale = ValuateScales[EditingScaleName]
+            local scale = Valuate:GetScales()[EditingScaleName]
             scale.DisplayName = newName
             
             -- If the name changed, update the scale key
             if newName ~= EditingScaleName then
-                ValuateScales[newName] = scale
-                ValuateScales[EditingScaleName] = nil
+                Valuate:GetScales()[newName] = scale
+                Valuate:GetScales()[EditingScaleName] = nil
                 EditingScaleName = newName
                 CurrentSelectedScale = newName
                 UpdateScaleList()
@@ -4463,7 +4470,7 @@ local function CreateScaleEditor(parent)
     local exportButton = CreateStyledButton(headerFrame, "Export", 80, 22)
     exportButton:SetPoint("LEFT", importButton, "RIGHT", ELEMENT_SPACING, 0)
     exportButton:SetScript("OnClick", function(self)
-        if not EditingScaleName or not ValuateScales[EditingScaleName] then
+        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
             return
         end
         Valuate:ShowExportDialog(EditingScaleName)
@@ -4483,12 +4490,12 @@ local function CreateScaleEditor(parent)
     local resetButton = CreateStyledButton(headerFrame, "Reset Values", 90, 22)
     resetButton:SetPoint("LEFT", exportButton, "RIGHT", ELEMENT_SPACING, 0)
     resetButton:SetScript("OnClick", function(self)
-        if not EditingScaleName or not ValuateScales[EditingScaleName] then
+        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
             return
         end
         
         local scaleName = EditingScaleName
-        local scale = ValuateScales[scaleName]
+        local scale = Valuate:GetScales()[scaleName]
         
         StaticPopupDialogs["VALUATE_RESET_SCALE"] = {
             text = "Are you sure you want to reset all values in the scale \"" .. (scale.DisplayName or scaleName) .. "\" to blank?",
@@ -4970,7 +4977,7 @@ end
 local function CreateSettingsPanel(parent)
     
     -- Safety check: ensure SavedVariables are initialized
-    if not Valuate or not ValuateOptions or not ValuateScales then
+    if not Valuate or not Valuate.GetOptions or not Valuate.GetScales then
         
         local errorText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
         errorText:SetPoint("CENTER", parent, "CENTER", 0, 0)
@@ -5037,7 +5044,7 @@ local function CreateSettingsPanel(parent)
     decimalEditBox:SetBackdropColor(unpack(COLORS.inputBg))
     decimalEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     decimalEditBox:SetTextInsets(2, 2, 0, 0)
-    decimalEditBox:SetText(tostring(ValuateOptions.decimalPlaces or 1))
+    decimalEditBox:SetText(tostring(Valuate:GetOptions().decimalPlaces or 1))
     
     -- Apply whole number validation (digits only, no decimals or signs)
     ApplyWholeNumberValidation(decimalEditBox)
@@ -5046,7 +5053,7 @@ local function CreateSettingsPanel(parent)
         local text = self:GetText()
         local value = tonumber(text) or 1
         value = math.max(0, math.min(4, value))
-        ValuateOptions.decimalPlaces = value
+        Valuate:GetOptions().decimalPlaces = value
         self:SetText(tostring(value))
         self:ClearFocus()
         
@@ -5056,7 +5063,7 @@ local function CreateSettingsPanel(parent)
         end
     end)
     decimalEditBox:SetScript("OnEscapePressed", function(self)
-        self:SetText(tostring(ValuateOptions.decimalPlaces or 1))
+        self:SetText(tostring(Valuate:GetOptions().decimalPlaces or 1))
         self:ClearFocus()
     end)
     
@@ -5068,9 +5075,9 @@ local function CreateSettingsPanel(parent)
     local alignLabel = alignCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     alignLabel:SetPoint("LEFT", alignCheckbox, "RIGHT", 5, 0)
     alignLabel:SetText("Right-Align Scores")
-    alignCheckbox:SetChecked(ValuateOptions.rightAlign == true)
+    alignCheckbox:SetChecked(Valuate:GetOptions().rightAlign == true)
     alignCheckbox:SetScript("OnClick", function(self)
-        ValuateOptions.rightAlign = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().rightAlign = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
         -- Reset all tooltips to show new alignment immediately
         if Valuate.ResetTooltips then
@@ -5087,9 +5094,9 @@ local function CreateSettingsPanel(parent)
     local showScaleLabel = showScaleCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     showScaleLabel:SetPoint("LEFT", showScaleCheckbox, "RIGHT", 5, 0)
     showScaleLabel:SetText("Show Scale Value")
-    showScaleCheckbox:SetChecked(ValuateOptions.showScaleValue ~= false)
+    showScaleCheckbox:SetChecked(Valuate:GetOptions().showScaleValue ~= false)
     showScaleCheckbox:SetScript("OnClick", function(self)
-        ValuateOptions.showScaleValue = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().showScaleValue = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
         -- Reset all tooltips to show/hide scale values immediately
         if Valuate.ResetTooltips then
@@ -5116,9 +5123,9 @@ local function CreateSettingsPanel(parent)
     local normalizeLabel = normalizeCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     normalizeLabel:SetPoint("LEFT", normalizeCheckbox, "RIGHT", 5, 0)
     normalizeLabel:SetText("Normalize Display")
-    normalizeCheckbox:SetChecked(ValuateOptions.normalizeDisplay == true)
+    normalizeCheckbox:SetChecked(Valuate:GetOptions().normalizeDisplay == true)
     normalizeCheckbox:SetScript("OnClick", function(self)
-        ValuateOptions.normalizeDisplay = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().normalizeDisplay = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
         -- Reset all tooltips to show normalized/non-normalized values immediately
         if Valuate.ResetTooltips then
@@ -5145,9 +5152,9 @@ local function CreateSettingsPanel(parent)
     local breakdownLabel = breakdownCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     breakdownLabel:SetPoint("LEFT", breakdownCheckbox, "RIGHT", 5, 0)
     breakdownLabel:SetText("Show Stat Breakdown")
-    breakdownCheckbox:SetChecked(ValuateOptions.showStatBreakdown == true)
+    breakdownCheckbox:SetChecked(Valuate:GetOptions().showStatBreakdown == true)
     breakdownCheckbox:SetScript("OnClick", function(self)
-        ValuateOptions.showStatBreakdown = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().showStatBreakdown = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
         -- Reset all tooltips to show/hide breakdown immediately
         if Valuate.ResetTooltips then
@@ -5206,7 +5213,7 @@ local function CreateSettingsPanel(parent)
     end
     
     -- Set initial text
-    UIDropDownMenu_SetText(compModeDropdown, GetCompModeText(ValuateOptions.comparisonMode or "number"))
+    UIDropDownMenu_SetText(compModeDropdown, GetCompModeText(Valuate:GetOptions().comparisonMode or "number"))
     
     -- Dropdown initialization function
     UIDropDownMenu_Initialize(compModeDropdown, function(self, level)
@@ -5214,9 +5221,9 @@ local function CreateSettingsPanel(parent)
         for _, mode in ipairs(comparisonModes) do
             info.text = mode.text
             info.value = mode.value
-            info.checked = (ValuateOptions.comparisonMode or "number") == mode.value
+            info.checked = (Valuate:GetOptions().comparisonMode or "number") == mode.value
             info.func = function(self)
-                ValuateOptions.comparisonMode = self.value
+                Valuate:GetOptions().comparisonMode = self.value
                 UIDropDownMenu_SetText(compModeDropdown, GetCompModeText(self.value))
                 
                 -- Reset all tooltips to show new comparison mode immediately
@@ -5265,13 +5272,13 @@ local function CreateSettingsPanel(parent)
     minimapButtonLabel:SetText("Show Minimap Button")
     
     -- Default to enabled if not set
-    if ValuateOptions.minimapButtonHidden == nil then
-        ValuateOptions.minimapButtonHidden = false
+    if Valuate:GetOptions().minimapButtonHidden == nil then
+        Valuate:GetOptions().minimapButtonHidden = false
     end
-    minimapButtonCheckbox:SetChecked(not ValuateOptions.minimapButtonHidden)
+    minimapButtonCheckbox:SetChecked(not Valuate:GetOptions().minimapButtonHidden)
     minimapButtonCheckbox:SetScript("OnClick", function(self)
         local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        ValuateOptions.minimapButtonHidden = not checked
+        Valuate:GetOptions().minimapButtonHidden = not checked
         if Valuate.ToggleMinimapButton then
             if checked then
                 Valuate:ShowMinimapButton()
@@ -5314,13 +5321,13 @@ local function CreateSettingsPanel(parent)
     charWindowLabel:SetText("Show Scale Display")
     
     -- Default to enabled if not set
-    if ValuateOptions.showCharacterWindowDisplay == nil then
-        ValuateOptions.showCharacterWindowDisplay = true
+    if Valuate:GetOptions().showCharacterWindowDisplay == nil then
+        Valuate:GetOptions().showCharacterWindowDisplay = true
     end
-    charWindowCheckbox:SetChecked(ValuateOptions.showCharacterWindowDisplay)
+    charWindowCheckbox:SetChecked(Valuate:GetOptions().showCharacterWindowDisplay)
     charWindowCheckbox:SetScript("OnClick", function(self)
         local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        ValuateOptions.showCharacterWindowDisplay = checked
+        Valuate:GetOptions().showCharacterWindowDisplay = checked
         Valuate:RefreshCharacterWindowVisibility()
     end)
     charWindowCheckbox:SetScript("OnEnter", function(self)
@@ -5360,19 +5367,19 @@ local function CreateSettingsPanel(parent)
         return "Total"
     end
     
-    if not ValuateOptions.characterWindowDisplayMode then
-        ValuateOptions.characterWindowDisplayMode = "total"
+    if not Valuate:GetOptions().characterWindowDisplayMode then
+        Valuate:GetOptions().characterWindowDisplayMode = "total"
     end
-    UIDropDownMenu_SetText(charModeDropdown, GetDisplayModeText(ValuateOptions.characterWindowDisplayMode))
+    UIDropDownMenu_SetText(charModeDropdown, GetDisplayModeText(Valuate:GetOptions().characterWindowDisplayMode))
     
     UIDropDownMenu_Initialize(charModeDropdown, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
         for _, mode in ipairs(displayModes) do
             info.text = mode.text
             info.value = mode.value
-            info.checked = (ValuateOptions.characterWindowDisplayMode == mode.value)
+            info.checked = (Valuate:GetOptions().characterWindowDisplayMode == mode.value)
             info.func = function(self)
-                ValuateOptions.characterWindowDisplayMode = self.value
+                Valuate:GetOptions().characterWindowDisplayMode = self.value
                 UIDropDownMenu_SetText(charModeDropdown, GetDisplayModeText(self.value))
                 Valuate:RefreshCharacterWindowDisplay()
             end
@@ -5404,10 +5411,11 @@ local function CreateSettingsPanel(parent)
     columnHeights[3] = columnHeights[3] + 32 + ELEMENT_SPACING
     
     local function GetCharScaleDisplayText(scaleName, includeIcon)
-        if not scaleName or not ValuateScales or not ValuateScales[scaleName] then
+        local scales = Valuate:GetScales()
+        if not scaleName or not scales or not scales[scaleName] then
             return "Select Scale"
         end
-        local scale = ValuateScales[scaleName]
+        local scale = Valuate:GetScales()[scaleName]
         local displayName = scale.DisplayName or scaleName
         local color = scale.Color or "FFFFFF"
         
@@ -5421,13 +5429,14 @@ local function CreateSettingsPanel(parent)
         return text
     end
     
-    UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(ValuateOptions.characterWindowScale, true))
+    UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(Valuate:GetOptions().characterWindowScale, true))
     
     UIDropDownMenu_Initialize(charScaleDropdown, function(self, level)
         local info = UIDropDownMenu_CreateInfo()
         local scales = {}
-        if ValuateScales then
-            for name, scale in pairs(ValuateScales) do
+        local scalesData = Valuate:GetScales()
+        if scalesData then
+            for name, scale in pairs(scalesData) do
                 if scale.Values and (scale.Visible ~= false) then
                     tinsert(scales, { name = name, scale = scale })
                 end
@@ -5439,9 +5448,9 @@ local function CreateSettingsPanel(parent)
         for _, scaleData in ipairs(scales) do
             info.text = GetCharScaleDisplayText(scaleData.name, true)
             info.value = scaleData.name
-            info.checked = (ValuateOptions.characterWindowScale == scaleData.name)
+            info.checked = (Valuate:GetOptions().characterWindowScale == scaleData.name)
             info.func = function(self)
-                ValuateOptions.characterWindowScale = self.value
+                Valuate:GetOptions().characterWindowScale = self.value
                 UIDropDownMenu_SetText(charScaleDropdown, GetCharScaleDisplayText(self.value, true))
                 Valuate:RefreshCharacterWindowDisplay()
             end
@@ -5650,9 +5659,9 @@ local function CreateSettingsPanel(parent)
     local debugLabel = debugCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     debugLabel:SetPoint("LEFT", debugCheckbox, "RIGHT", 5, 0)
     debugLabel:SetText("Debug Mode")
-    debugCheckbox:SetChecked(ValuateOptions.debug == true)
+    debugCheckbox:SetChecked(Valuate:GetOptions().debug == true)
     debugCheckbox:SetScript("OnClick", function(self)
-        ValuateOptions.debug = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().debug = (self:GetChecked() == 1) or (self:GetChecked() == true)
     end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
     
@@ -5689,7 +5698,7 @@ local function CreateSettingsPanel(parent)
             button1 = "Delete Everything",
             button2 = "Cancel",
             OnAccept = function()
-                -- Clear all saved variables
+                -- Clear all saved variables (per-character)
                 ValuateOptions = nil
                 ValuateScales = nil
                 
@@ -5813,12 +5822,13 @@ end
 local function ShowBreakdownTooltip(self)
     if IsDraggingFrame then return end  -- Skip if dragging
     
-    local selectedScaleName = ValuateOptions.characterWindowScale
-    if not selectedScaleName or not ValuateScales or not ValuateScales[selectedScaleName] then
+    local selectedScaleName = Valuate:GetOptions().characterWindowScale
+    local scales = Valuate:GetScales()
+    if not selectedScaleName or not scales or not scales[selectedScaleName] then
         return
     end
     
-    local scale = ValuateScales[selectedScaleName]
+    local scale = Valuate:GetScales()[selectedScaleName]
     if not scale then return end
     
     local color = scale.Color or "FFFFFF"
@@ -5845,7 +5855,7 @@ local function ShowBreakdownTooltip(self)
     GameTooltip:AddLine(" ")
     
     -- Format settings
-    local decimals = ValuateOptions.decimalPlaces or 1
+    local decimals = Valuate:GetOptions().decimalPlaces or 1
     local formatStr = "%." .. decimals .. "f"
     
     -- Add each item with larger icons
@@ -5907,13 +5917,14 @@ local function UpdateCharacterWindowDisplay()
     local MIN_WIDTH = 120
     
     -- Get selected scale from options
-    local selectedScaleName = ValuateOptions.characterWindowScale
-    if not selectedScaleName or not ValuateScales or not ValuateScales[selectedScaleName] then
+    local selectedScaleName = Valuate:GetOptions().characterWindowScale
+    local scales = Valuate:GetScales()
+    if not selectedScaleName or not scales or not scales[selectedScaleName] then
         -- Try to use first active scale
         local activeScales = Valuate:GetActiveScales()
         if #activeScales > 0 then
             selectedScaleName = activeScales[1]
-            ValuateOptions.characterWindowScale = selectedScaleName
+            Valuate:GetOptions().characterWindowScale = selectedScaleName
         else
             -- No scales available - hide display
             if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
@@ -5924,7 +5935,7 @@ local function UpdateCharacterWindowDisplay()
         end
     end
     
-    local scale = ValuateScales[selectedScaleName]
+    local scale = Valuate:GetScales()[selectedScaleName]
     if not scale then
         if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
         if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
@@ -5966,10 +5977,10 @@ local function UpdateCharacterWindowDisplay()
     -- Calculate and update score
     if CharacterWindowScoreText then
         local totalScore = Valuate:CalculateTotalEquippedScore(scale)
-        local decimals = ValuateOptions.decimalPlaces or 1
+        local decimals = Valuate:GetOptions().decimalPlaces or 1
         local formatStr = "%." .. decimals .. "f"
         
-        local displayMode = ValuateOptions.characterWindowDisplayMode or "total"
+        local displayMode = Valuate:GetOptions().characterWindowDisplayMode or "total"
         local displayValue = totalScore
         
         if displayMode == "average" then
@@ -6013,8 +6024,8 @@ end
 
 -- Export ValuateUI_UpdateScaleEditor for use by ImportExport  
 function Valuate:RefreshStatEditor()
-    if EditingScaleName and ValuateScales[EditingScaleName] then
-        ValuateUI_UpdateScaleEditor(EditingScaleName, ValuateScales[EditingScaleName])
+    if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
+        ValuateUI_UpdateScaleEditor(EditingScaleName, Valuate:GetScales()[EditingScaleName])
     end
 end
 
@@ -6027,13 +6038,14 @@ end
 -- Public API to refresh character window scale dropdown in settings
 function Valuate:RefreshCharacterWindowScaleDropdown()
     local dropdown = _G["ValuateCharWindowScaleDropdown"]
-    if dropdown and ValuateOptions and ValuateOptions.characterWindowScale then
+    if dropdown and Valuate.GetOptions and Valuate:GetOptions().characterWindowScale then
         -- Helper function to format display text (matches the one in settings creation)
         local function GetCharScaleDisplayText(scaleName, includeIcon)
-            if not scaleName or not ValuateScales or not ValuateScales[scaleName] then
+            local scales = Valuate:GetScales()
+            if not scaleName or not scales or not scales[scaleName] then
                 return "Select Scale"
             end
-            local scale = ValuateScales[scaleName]
+            local scale = Valuate:GetScales()[scaleName]
             local displayName = scale.DisplayName or scaleName
             local color = scale.Color or "FFFFFF"
             
@@ -6048,7 +6060,7 @@ function Valuate:RefreshCharacterWindowScaleDropdown()
         end
         
         -- Update the dropdown text
-        local newText = GetCharScaleDisplayText(ValuateOptions.characterWindowScale, true)
+        local newText = GetCharScaleDisplayText(Valuate:GetOptions().characterWindowScale, true)
         UIDropDownMenu_SetText(dropdown, newText)
         
         -- Force update the button text (direct access to ensure visual update)
@@ -6070,7 +6082,7 @@ function Valuate:RefreshCharacterWindowVisibility()
     if not charFrame then return end
     
     -- Check if feature is enabled
-    if ValuateOptions.showCharacterWindowDisplay == false then
+    if Valuate:GetOptions().showCharacterWindowDisplay == false then
         CharacterWindowFrame:Hide()
     elseif charFrame:IsVisible() then
         CharacterWindowFrame:Show()
@@ -6091,7 +6103,7 @@ local function CreateCharacterWindowUI()
     
     CharacterWindowInitialized = true
     
-    if ValuateOptions and ValuateOptions.debug then
+    if Valuate.GetOptions and Valuate:GetOptions().debug then
         local frameName = charFrame:GetName() or "unknown"
         print("|cFF00FF00[Valuate]|r Creating character window UI on " .. frameName)
     end
@@ -6126,7 +6138,7 @@ local function CreateCharacterWindowUI()
             end
         elseif btn == "RightButton" then
             -- Cycle through scales
-            if not Valuate or not Valuate.GetActiveScales or not ValuateOptions or not ValuateScales then
+            if not Valuate or not Valuate.GetActiveScales or not Valuate.GetOptions or not Valuate.GetScales then
                 return
             end
             
@@ -6137,7 +6149,7 @@ local function CreateCharacterWindowUI()
             end
             
             -- Find current scale index
-            local currentScale = ValuateOptions.characterWindowScale
+            local currentScale = Valuate:GetOptions().characterWindowScale
             local currentIndex = 1
             for i, scaleName in ipairs(activeScales) do
                 if scaleName == currentScale then
@@ -6151,10 +6163,10 @@ local function CreateCharacterWindowUI()
             local nextScale = activeScales[nextIndex]
             
             -- Update the selected scale
-            ValuateOptions.characterWindowScale = nextScale
+            Valuate:GetOptions().characterWindowScale = nextScale
             
             -- Show notification
-            local scale = ValuateScales[nextScale]
+            local scale = Valuate:GetScales()[nextScale]
             if scale then
                 local color = scale.Color or "FFFFFF"
                 local displayName = scale.DisplayName or nextScale
@@ -6180,10 +6192,10 @@ local function CreateCharacterWindowUI()
                 
                 -- Show next scale in cycle hint
                 local nextScaleText = "Right-click to cycle scales"
-                if Valuate and Valuate.GetActiveScales and ValuateOptions and ValuateScales then
+                if Valuate and Valuate.GetActiveScales and Valuate.GetOptions and Valuate.GetScales then
                     local activeScales = Valuate:GetActiveScales()
                     if #activeScales > 0 then
-                        local currentScale = ValuateOptions.characterWindowScale
+                        local currentScale = Valuate:GetOptions().characterWindowScale
                         local currentIndex = 1
                         for i, scaleName in ipairs(activeScales) do
                             if scaleName == currentScale then
@@ -6193,7 +6205,7 @@ local function CreateCharacterWindowUI()
                         end
                         local nextIndex = (currentIndex % #activeScales) + 1
                         local nextScaleName = activeScales[nextIndex]
-                        local nextScale = ValuateScales[nextScaleName]
+                        local nextScale = Valuate:GetScales()[nextScaleName]
                         if nextScale then
                             local color = nextScale.Color or "FFFFFF"
                             local displayName = nextScale.DisplayName or nextScaleName
@@ -6221,10 +6233,10 @@ local function CreateCharacterWindowUI()
         
         -- Show next scale in cycle hint
         local nextScaleText = "Right-click to cycle scales"
-        if Valuate and Valuate.GetActiveScales and ValuateOptions and ValuateScales then
+        if Valuate and Valuate.GetActiveScales and Valuate.GetOptions and Valuate.GetScales then
             local activeScales = Valuate:GetActiveScales()
             if #activeScales > 0 then
-                local currentScale = ValuateOptions.characterWindowScale
+                local currentScale = Valuate:GetOptions().characterWindowScale
                 local currentIndex = 1
                 for i, scaleName in ipairs(activeScales) do
                     if scaleName == currentScale then
@@ -6234,7 +6246,7 @@ local function CreateCharacterWindowUI()
                 end
                 local nextIndex = (currentIndex % #activeScales) + 1
                 local nextScaleName = activeScales[nextIndex]
-                local nextScale = ValuateScales[nextScaleName]
+                local nextScale = Valuate:GetScales()[nextScaleName]
                 if nextScale then
                     local color = nextScale.Color or "FFFFFF"
                     local displayName = nextScale.DisplayName or nextScaleName
@@ -6301,9 +6313,9 @@ local function CreateCharacterWindowUI()
     if not charFrame.valuateHooked then
         charFrame.valuateHooked = true
         charFrame:HookScript("OnShow", function()
-            if CharacterWindowFrame and ValuateOptions then
+            if CharacterWindowFrame and Valuate.GetOptions then
                 -- Only show if feature is enabled
-                if ValuateOptions.showCharacterWindowDisplay ~= false then
+                if Valuate:GetOptions().showCharacterWindowDisplay ~= false then
                     CharacterWindowFrame:Show()
                     local updateFrame = CreateFrame("Frame")
                     updateFrame:SetScript("OnUpdate", function(self, elapsed)
@@ -6324,7 +6336,7 @@ local function CreateCharacterWindowUI()
     end
     
     -- Initial update if already visible and feature enabled
-    if ValuateOptions and charFrame:IsVisible() and ValuateOptions.showCharacterWindowDisplay ~= false then
+    if Valuate.GetOptions and charFrame:IsVisible() and Valuate:GetOptions().showCharacterWindowDisplay ~= false then
         local initUpdateFrame = CreateFrame("Frame")
         initUpdateFrame:SetScript("OnUpdate", function(self, elapsed)
             self.elapsed = (self.elapsed or 0) + elapsed
@@ -6333,7 +6345,7 @@ local function CreateCharacterWindowUI()
                 self:SetScript("OnUpdate", nil)
             end
         end)
-    elseif ValuateOptions and ValuateOptions.showCharacterWindowDisplay == false then
+    elseif Valuate.GetOptions and Valuate:GetOptions().showCharacterWindowDisplay == false then
         container:Hide()
     end
 end
@@ -6422,7 +6434,7 @@ end
 
 -- Create a simple initialization function that can be called from Valuate:Initialize
 function Valuate:InitializeCharacterWindowUI()
-    if ValuateOptions and ValuateOptions.debug then
+    if Valuate.GetOptions and Valuate:GetOptions().debug then
         local charFrame = GetCharacterFrame()
         print("|cFF00FF00[Valuate]|r InitializeCharacterWindowUI called, initialized=" .. tostring(CharacterWindowInitialized) .. ", AscensionCharacterFrame=" .. tostring(AscensionCharacterFrame ~= nil) .. ", PaperDollFrame=" .. tostring(PaperDollFrame ~= nil))
     end
@@ -6439,7 +6451,7 @@ local function TryInitialize()
     end
     local charFrame = GetCharacterFrame()
     if charFrame then
-        if ValuateOptions and ValuateOptions.debug then
+        if Valuate.GetOptions and Valuate:GetOptions().debug then
             local frameName = charFrame:GetName() or "unknown"
             print("|cFF00FF00[Valuate]|r Character frame found (" .. frameName .. "), creating character window UI")
         end
@@ -6454,13 +6466,13 @@ local charWindowEventFrame = CreateFrame("Frame")
 charWindowEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 charWindowEventFrame:SetScript("OnEvent", function(self, event)
     local charFrame = GetCharacterFrame()
-    if ValuateOptions and ValuateOptions.debug then
+    if Valuate.GetOptions and Valuate:GetOptions().debug then
         print("|cFF00FF00[Valuate]|r PLAYER_ENTERING_WORLD fired, AscensionCharacterFrame=" .. tostring(AscensionCharacterFrame ~= nil) .. ", PaperDollFrame=" .. tostring(PaperDollFrame ~= nil))
     end
     if not CharacterWindowInitialized then
         if charFrame then
             CreateCharacterWindowUI()
-        elseif ValuateOptions and ValuateOptions.debug then
+        elseif Valuate.GetOptions and Valuate:GetOptions().debug then
             print("|cFFFF0000[Valuate]|r Character frame not found after PLAYER_ENTERING_WORLD!")
         end
     end
@@ -6469,8 +6481,8 @@ end)
 
 -- Also try immediately in case we loaded late (but only if SavedVariables are ready)
 local charFrameInit = GetCharacterFrame()
-if charFrameInit and ValuateOptions then
-    if ValuateOptions.debug then
+if charFrameInit and Valuate.GetOptions then
+    if Valuate:GetOptions().debug then
         local frameName = charFrameInit:GetName() or "unknown"
         print("|cFF00FF00[Valuate]|r Character frame exists on file load (" .. frameName .. "), creating UI immediately")
     end

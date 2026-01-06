@@ -21,14 +21,15 @@ Valuate.ImportResult = {
 -- ========================================
 
 -- Generates an export string (scale tag) for a scale
--- scaleName: Internal scale name (key in ValuateScales)
+-- scaleName: Internal scale name (key in scales table)
 -- Returns: Scale tag string, or nil if scale doesn't exist
 function Valuate:GetScaleTag(scaleName)
     if not scaleName or scaleName == "" then
         return nil
     end
     
-    local scale = ValuateScales[scaleName]
+    local scales = Valuate:GetScales()
+    local scale = scales[scaleName]
     if not scale then
         return nil
     end
@@ -100,7 +101,8 @@ function Valuate:ExportAllScales()
     
     -- Get all scale names and sort them
     local scaleNames = {}
-    for scaleName, _ in pairs(ValuateScales) do
+    local scales = Valuate:GetScales()
+    for scaleName, _ in pairs(scales) do
         table.insert(scaleNames, scaleName)
     end
     table.sort(scaleNames)
@@ -275,14 +277,15 @@ function Valuate:ImportScale(scaleTag, overwrite)
     end
     
     -- Check if scale already exists
-    local alreadyExists = (ValuateScales[scaleName] ~= nil)
+    local scales = Valuate:GetScales()
+    local alreadyExists = (scales[scaleName] ~= nil)
     
     if alreadyExists and not overwrite then
         return Valuate.ImportResult.ALREADY_EXISTS, scaleName, nil
     end
     
     -- Import the scale
-    ValuateScales[scaleName] = scaleData
+    scales[scaleName] = scaleData
     
     -- If the UI is loaded, refresh it
     if Valuate.RefreshScaleList then
@@ -347,8 +350,9 @@ function Valuate:ImportMultipleScales(text, overwrite)
     
     -- First pass: check for existing scales if not overwriting
     if not overwrite then
+        local scales = Valuate:GetScales()
         for _, parsed in ipairs(parsedScales) do
-            if ValuateScales[parsed.name] then
+            if scales[parsed.name] then
                 table.insert(existingScales, parsed.name)
             end
         end
@@ -360,8 +364,9 @@ function Valuate:ImportMultipleScales(text, overwrite)
     end
     
     -- Second pass: import all scales
+    local scales = Valuate:GetScales()
     for _, parsed in ipairs(parsedScales) do
-        ValuateScales[parsed.name] = parsed.data
+        scales[parsed.name] = parsed.data
         successCount = successCount + 1
     end
     
