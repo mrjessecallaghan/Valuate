@@ -4684,13 +4684,21 @@ local function CreateInstructionsPanel(parent)
     local text7Height = text7:GetStringHeight()
     currentY = currentY - text7Height - sectionSpacing
     
-    -- Tips and Tricks
-    local header8 = CreateSectionHeader("Tips and Tricks", currentY)
+    -- Per-Character Profiles
+    local header8 = CreateSectionHeader("Per-Character Profiles", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local text8 = CreateBodyText("• Remember to press Enter after entering stat values - they won't save automatically!\n• Create multiple scales for different roles (e.g., 'DPS', 'Tank', 'Healer').\n• Use the visibility toggle to compare items for different builds without deleting scales.\n• Banned stats are useful for hybrid classes that can't use certain stats.\n• The scale name in the editor can be changed to rename the scale.", currentY)
+    local text8 = CreateBodyText("Starting in version 0.7.0, all settings and scales are saved per-character. This means:\n• Each character has completely independent scales and settings\n• Changes on one character don't affect your other characters\n• You can have different scales for different characters (e.g., DPS scales on your DPS character, tank scales on your tank)\n• Use Import/Export to share scales between your own characters if desired", currentY)
     local text8Height = text8:GetStringHeight()
-    currentY = currentY - text8Height - PADDING
+    currentY = currentY - text8Height - sectionSpacing
+    
+    -- Tips and Tricks
+    local header9 = CreateSectionHeader("Tips and Tricks", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local text9 = CreateBodyText("• Remember to press Enter after entering stat values - they won't save automatically!\n• Create multiple scales for different roles (e.g., 'DPS', 'Tank', 'Healer').\n• Use the visibility toggle to compare items for different builds without deleting scales.\n• Banned stats are useful for hybrid classes that can't use certain stats.\n• The scale name in the editor can be changed to rename the scale.", currentY)
+    local text9Height = text9:GetStringHeight()
+    currentY = currentY - text9Height - PADDING
     
     -- Set content frame height based on total content
     local totalHeight = math.abs(currentY) + PADDING
@@ -4769,6 +4777,7 @@ local function CreateAboutPanel(parent)
     
     -- Features list
     local features = CreateText(
+        "• Per-character profiles - each character has independent scales and settings\n" ..
         "• Customizable stat weight scales for different builds and roles\n" ..
         "• Real-time tooltip integration showing item scores\n" ..
         "• Multiple scale support with individual visibility toggles\n" ..
@@ -4793,6 +4802,15 @@ local function CreateAboutPanel(parent)
     discordText:SetJustifyH("LEFT")
     discordText:SetText("◆ Discord: |cFF7289DAjessecallaghan|r")
     discordText:SetTextColor(unpack(COLORS.textBody))
+    currentY = currentY - discordText:GetStringHeight() - 5
+    
+    -- Ko-fi support link
+    local kofiText = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    kofiText:SetPoint("TOP", contentFrame, "TOP", 0, currentY)
+    kofiText:SetWidth(contentFrame:GetWidth() - 40)
+    kofiText:SetJustifyH("LEFT")
+    kofiText:SetText("◆ Support: |cFFFF5E5Ehttps://ko-fi.com/jessecallaghan|r")
+    kofiText:SetTextColor(unpack(COLORS.textBody))
     
     return container
 end
@@ -4882,8 +4900,26 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.6.2 (Current)
-    local v062Header = CreateVersionHeader("Version 0.6.2 (Current)", currentY)
+    -- Version 0.7.0 (Current)
+    local v070Header = CreateVersionHeader("Version 0.7.0 (Current)", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local v070Text = CreateChangeText(
+        "• Per-Character Profile System - Settings and scales are now saved per-character\n" ..
+        "• Each character maintains completely independent scales and settings\n" ..
+        "• Characters no longer share configurations - full isolation per character\n" ..
+        "• Use Import/Export to share scales between your own characters if desired\n" ..
+        "• Migrated from SavedVariables (account-wide) to SavedVariablesPerCharacter\n" ..
+        "• Added accessor functions for clean per-character data access\n" ..
+        "• UI positions, minimap button location, and all settings now per-character\n" ..
+        "• BREAKING: Existing configs won't auto-transfer to all characters on upgrade",
+        currentY
+    )
+    local v070Height = v070Text:GetStringHeight()
+    currentY = currentY - v070Height - versionSpacing
+    
+    -- Version 0.6.2
+    local v062Header = CreateVersionHeader("Version 0.6.2", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
     local v062Text = CreateChangeText(

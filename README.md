@@ -14,21 +14,40 @@ Valuate calculates item scores based on customizable stat weights, helping you d
 
 ## Current Status
 
-**Version 0.6.2** - Current version
+**Version 0.7.0** - Current version
 
-Valuate is now feature-complete with full stat weight calculation, tooltip integration, import/export functionality, and comprehensive UI.
+Valuate is feature-complete with full stat weight calculation, tooltip integration, import/export functionality, comprehensive UI, and **per-character profile system**.
+
+## Key Features
+
+✅ **Per-Character Profiles** - Each character has their own independent settings and scales  
+✅ **Customizable Stat Weight Scales** - Create unlimited scales with custom stat weights  
+✅ **Tooltip Integration** - Real-time item score display on tooltips  
+✅ **Ascension Support** - Full support for Ascension-specific stats (PvE Power, PvP Power, etc.)  
+✅ **Item Comparison** - Compare equipped items vs. hovered items  
+✅ **Scale Management UI** - Full-featured graphical interface for managing scales and settings  
+✅ **Import/Export** - Share scales between characters or with other players  
+✅ **Character Window Display** - Shows your equipped gear score on the character sheet  
+✅ **Minimap Button** - Quick access to Valuate UI  
 
 ## Usage
 
-Type `/valuate` or `/val` in-game for available commands.
+### Basic Commands
+Type `/valuate` or `/val` in-game for available commands:
 
-## Features (Planned)
+- `/valuate ui` - Open the configuration interface
+- `/valuate scales` - List all active scales
+- `/valuate import` - Import a scale from a scale tag
+- `/valuate export [scalename]` - Export a scale as a scale tag
+- `/valuate debug` - Toggle debug mode
+- `/valuate version` - Show addon version
 
-- Customizable stat weight scales
-- Tooltip integration showing item scores
-- Support for Ascension-specific stats (PvE Power, PvP Power)
-- Item comparison
-- Scale management UI
+### Per-Character Profiles
+Starting with version 0.7.0, **all settings and scales are per-character**:
+- Each character has completely independent configurations
+- Create different scales for different characters (e.g., DPS scales for your DPS character, tank scales for your tank)
+- UI positions, settings, and preferences are saved separately per character
+- Use import/export to share scales between your characters if desired
 
 ## Credits
 
