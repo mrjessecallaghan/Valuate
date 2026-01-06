@@ -2,7 +2,7 @@
 Stat weight item scoring for World of Warcraft: Ascension Bronzebeard (WotLK 3.3.5a).
 
 <p align="center">
-  <img src=".github/assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
+  <img src="/assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
 </p>
 
 ## What it does
@@ -17,23 +17,23 @@ Valuate calculates an item score from your stat weights and shows it in tooltips
 
 ## Screenshots
 <p align="center">
-  <img src=".github/assets/screenshots/IMG_4235.png" width="430" alt="Valuate UI">
-  <img src=".github/assets/screenshots/IMG_4236.png" width="430" alt="Valuate tooltip scoring">
+  <img src="/assets/screenshots/IMG_4235.png" width="430" alt="Valuate UI">
+  <img src="/assets/screenshots/IMG_4236.png" width="430" alt="Valuate tooltip scoring">
 </p>
 
 <p align="center">
-  <img src=".github/assets/screenshots/IMG_4237.png" width="430" alt="Valuate options and settings">
-  <img src=".github/assets/screenshots/IMG_4238.png" width="430" alt="Valuate scales and profiles">
+  <img src="/assets/screenshots/IMG_4237.png" width="430" alt="Valuate options and settings">
+  <img src="/assets/screenshots/IMG_4238.png" width="430" alt="Valuate scales and profiles">
 </p>
 
 <p align="center">
-  <img src=".github/assets/screenshots/IMG_4239.png" width="430" alt="Example scoring and display">
-  <img src=".github/assets/screenshots/IMG_4240.png" width="430" alt="Example tooltip display">
+  <img src="/assets/screenshots/IMG_4239.png" width="430" alt="Example scoring and display">
+  <img src="/assets/screenshots/IMG_4240.png" width="430" alt="Example tooltip display">
 </p>
 
 <p align="center">
-  <img src=".github/assets/screenshots/IMG_4241.png" width="430" alt="Example UI display">
-  <img src=".github/assets/screenshots/IMG_4242.png" width="430" alt="Example tooltip display">
+  <img src="/assets/screenshots/IMG_4241.png" width="430" alt="Example UI display">
+  <img src="/assets/screenshots/IMG_4242.png" width="430" alt="Example tooltip display">
 </p>
 
 ## Install
