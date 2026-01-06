@@ -161,7 +161,9 @@ ValuateStatPatterns = {
     
     -- ======== WEAPON DPS & SPEED ========
     -- Base DPS pattern (will be assigned to type-specific stats based on weapon slot)
-    {"^(%d+%.?%d*) [Dd]amage [Pp]er [Ss]econd$", "Dps"},
+    -- Handles formats like "2.2 damage per second" or "(2.2 damage per second)"
+    {"^%s*%(%s*(%d+%.?%d*)%s+[Dd]amage [Pp]er [Ss]econd%s*%)%s*$", "Dps"},  -- With parentheses: "(2.2 damage per second)"
+    {"^(%d+%.?%d*)%s+[Dd]amage [Pp]er [Ss]econd%s*$", "Dps"},  -- Without parentheses: "2.2 damage per second"
     -- Speed pattern
     {"^Speed ([%d%.]+)$", "Speed"},
     

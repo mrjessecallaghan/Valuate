@@ -953,7 +953,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (2H only spec)
-                    OffHandDPS = true, MainHandDPS = true, OneHandDPS = true,
+                    OffHandDps = true, MainHandDps = true, OneHandDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1022,7 +1022,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (uses shield in offhand)
-                    OffHandDPS = true, TwoHandDPS = true,
+                    OffHandDps = true, TwoHandDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Caster Stats (non-caster class)
@@ -1065,7 +1065,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (uses shield, bans all 2H, can't use ranged)
-                    OffHandDPS = true, TwoHandDPS = true, RangedDPS = true, RangedAP = true,
+                    OffHandDps = true, TwoHandDps = true, RangedDps = true, RangedAP = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Off-school Spell Power
@@ -1100,7 +1100,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (uses shield, bans all 2H, can't use ranged)
-                    OffHandDPS = true, TwoHandDPS = true, RangedDPS = true, RangedAP = true,
+                    OffHandDps = true, TwoHandDps = true, RangedDps = true, RangedAP = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Off-school Spell Power
@@ -1136,7 +1136,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (2H only spec, can't use ranged)
-                    OffHandDPS = true, MainHandDPS = true, OneHandDPS = true, RangedDPS = true,
+                    OffHandDps = true, MainHandDps = true, OneHandDps = true, RangedDps = true,
                     RangedAP = true,
                     -- Feral Stats
                     FeralAP = true,
@@ -1283,7 +1283,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (all 2H weapons banned)
-                    TwoHandDPS = true,
+                    TwoHandDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1316,7 +1316,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (all 2H weapons banned)
-                    TwoHandDPS = true,
+                    TwoHandDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1349,7 +1349,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (all 2H weapons banned)
-                    TwoHandDPS = true,
+                    TwoHandDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1493,7 +1493,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true
                 }
@@ -1526,7 +1526,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true
                 }
@@ -1559,7 +1559,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsSigil = true, IsIdol = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true
                 }
@@ -1803,7 +1803,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1837,7 +1837,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1869,7 +1869,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -1903,7 +1903,7 @@ local CLASS_SPEC_TEMPLATES = {
                     -- Relics
                     IsLibram = true, IsTotem = true, IsSigil = true,
                     -- DPS Stats (can't use ranged)
-                    RangedDPS = true,
+                    RangedDps = true,
                     -- Feral Stats
                     FeralAP = true,
                     -- Block Stats (can't use shields)
@@ -5133,6 +5133,35 @@ local function CreateSettingsPanel(parent)
         end
     end)
     normalizeCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+    
+    -- Show Stat Breakdown checkbox (Column 1)
+    local breakdownCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    breakdownCheckbox:SetSize(24, 24)
+    breakdownCheckbox:SetPoint("TOPLEFT", normalizeCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    
+    local breakdownLabel = breakdownCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    breakdownLabel:SetPoint("LEFT", breakdownCheckbox, "RIGHT", 5, 0)
+    breakdownLabel:SetText("Show Stat Breakdown")
+    breakdownCheckbox:SetChecked(ValuateOptions.showStatBreakdown == true)
+    breakdownCheckbox:SetScript("OnClick", function(self)
+        ValuateOptions.showStatBreakdown = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Reset all tooltips to show/hide breakdown immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
+    end)
+    breakdownCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Show Stat Breakdown", 1, 1, 1)
+            GameTooltip:AddLine("When enabled, shows detailed calculation breakdown for each stat on item tooltips. Each line shows: stat value × weight = contribution, followed by the total.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    breakdownCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING

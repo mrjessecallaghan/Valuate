@@ -114,12 +114,18 @@ function Valuate:Initialize()
             characterWindowDisplayMode = "total",
             uiPosition = {},
             normalizeDisplay = false,  -- Global normalize toggle for all displays
+            showStatBreakdown = false,  -- Show detailed stat breakdown in tooltips
         }
     end
     
     -- Add normalizeDisplay option if it doesn't exist (for existing users)
     if ValuateOptions.normalizeDisplay == nil then
         ValuateOptions.normalizeDisplay = false
+    end
+    
+    -- Add showStatBreakdown option if it doesn't exist (for existing users)
+    if ValuateOptions.showStatBreakdown == nil then
+        ValuateOptions.showStatBreakdown = false
     end
     
     if not ValuateScales then
@@ -490,9 +496,21 @@ local function GetTooltipBorderColor(stats, itemLink)
     
     -- Check if item has any stats marked as unusable (banned) for this scale
     if scale.Unusable then
+        -- First check parsed stats
         for statName, statValue in pairs(stats) do
             if scale.Unusable[statName] and statValue and statValue > 0 then
                 return nil  -- Item has banned stat, use default border
+            end
+        end
+        
+        -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
+        if equipSlot then
+            if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                return nil  -- Item is 2H weapon (banned), use default border
+            elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+                return nil  -- Item is offhand weapon (banned), use default border
+            elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+                return nil  -- Item is ranged weapon (banned), use default border
             end
         end
     end
@@ -581,6 +599,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
             -- Check if item has any stats marked as unusable (banned) for this scale
             local hasUnusableStat = false
             if scale.Unusable then
+                -- First check parsed stats
                 for statName, statValue in pairs(stats) do
                     if scale.Unusable[statName] and statValue and statValue > 0 then
                         hasUnusableStat = true
@@ -588,6 +607,26 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
                         end
                         break
+                    end
+                end
+                
+                -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
+                if not hasUnusableStat and equipSlot then
+                    if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
+                        end
+                    elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is offhand weapon (banned by OffHandDps)")
+                        end
+                    elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is ranged weapon (banned by RangedDps)")
+                        end
                     end
                 end
             end
@@ -618,6 +657,208 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         prefix = prefix .. "|T" .. icon .. ":0|t "
                     end
                     
+                    -- Show detailed stat breakdown if enabled
+                    if ValuateOptions.showStatBreakdown then
+                        -- Check if this is a multi-slot item for per-slot breakdown
+                        local isMultiSlotBreakdown = isMultiSlot and compMode ~= "off"
+                        
+                        -- For non-multi-slot items, show breakdown once
+                        if not isMultiSlotBreakdown then
+                            -- Try to get equipped item stats for comparison
+                            local equippedStats = nil
+                            if equipSlot and equipSlot ~= "" then
+                                -- Try shopping tooltip first for context
+                                if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
+                                    local equippedItemLink = ShoppingTooltip1:GetItem()
+                                    if equippedItemLink then
+                                        local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
+                                        if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
+                                            equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
+                                        end
+                                    end
+                                end
+                                
+                                -- Fall back to getting equipped item stats the normal way
+                                if not equippedStats then
+                                    local invSlots = EquipSlotToInvNumber[equipSlot]
+                                    if invSlots then
+                                        for _, slotId in ipairs(invSlots) do
+                                            local itemLink = GetInventoryItemLink("player", slotId)
+                                            if itemLink then
+                                                local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
+                                                if equippedEquipLoc and AreWeaponTypesComparable(equipSlot, equippedEquipLoc) then
+                                                    local tooltip = GetPrivateTooltip()
+                                                    tooltip:ClearLines()
+                                                    tooltip:SetInventoryItem("player", slotId)
+                                                    equippedStats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                                    break  -- Use first comparable equipped item
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- Use comparison breakdown if we have equipped stats
+                            local breakdown
+                            if equippedStats then
+                                breakdown = Valuate:CalculateStatBreakdownWithComparison(stats, equippedStats, scale)
+                            else
+                                breakdown = Valuate:CalculateStatBreakdown(stats, scale)
+                            end
+                        
+                            if breakdown and #breakdown > 0 then
+                                -- Display scale name as header for the breakdown
+                                tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ":|r")
+                            
+                            -- Track totals for the summary line
+                            local totalHoverContrib = 0
+                            local totalEquippedContrib = 0
+                            
+                            -- Display each stat contribution
+                            for _, entry in ipairs(breakdown) do
+                                local statDisplayName = ValuateStatNames[entry.statName] or entry.statName
+                                
+                                if equippedStats and entry.equippedValue and compMode ~= "off" then
+                                    -- With comparison (only if comparison mode is enabled)
+                                    local hoverValueText = string.format(formatStr, entry.hoverValue)
+                                    local weightText = string.format(formatStr, entry.hoverWeight)
+                                    local hoverContribText = string.format(formatStr, entry.hoverContribution)
+                                    local equippedContribText = string.format(formatStr, entry.equippedContribution)
+                                    local diffText = string.format(formatStr, entry.diff)
+                                    local percentText = string.format("%.1f", entry.percentDiff)
+                                    
+                                    -- Add to totals
+                                    totalHoverContrib = totalHoverContrib + entry.hoverContribution
+                                    totalEquippedContrib = totalEquippedContrib + entry.equippedContribution
+                                    
+                                    -- Determine color for the difference values only
+                                    local diffColor
+                                    local diffSign = ""
+                                    if entry.diff > 0 then
+                                        diffColor = "00FF00"  -- Green for upgrade
+                                        diffSign = "+"
+                                    elseif entry.diff < 0 then
+                                        diffColor = "FF0000"  -- Red for downgrade
+                                        diffSign = ""  -- Negative sign already in number
+                                    else
+                                        diffColor = color  -- Use scale color for no change
+                                        diffSign = ""
+                                    end
+                                    
+                                    -- Build comparison text based on comparison mode
+                                    local comparisonPart = ""
+                                    if compMode == "number" then
+                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. "|r|cFF" .. color .. ")"
+                                    elseif compMode == "percent" then
+                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
+                                    elseif compMode == "both" then
+                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
+                                    end
+                                    
+                                    -- Format: "  Stat: hoverValue × weight = hoverContrib | equippedContrib (comparison)"
+                                    if ValuateOptions.rightAlign then
+                                        -- Right-aligned: split into left and right parts
+                                        local leftPart = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                            hoverValueText .. " × " .. weightText .. "|r"
+                                        local rightPart = "|cFF" .. color .. hoverContribText .. " | " .. 
+                                            equippedContribText .. comparisonPart .. "|r"
+                                        tooltip:AddDoubleLine(leftPart, rightPart)
+                                    else
+                                        -- Normal: single line
+                                        local breakdownLine = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                            hoverValueText .. " × " .. weightText .. " = " .. hoverContribText .. 
+                                            " | " .. equippedContribText .. comparisonPart .. "|r"
+                                        tooltip:AddLine(breakdownLine)
+                                    end
+                                else
+                                    -- Without comparison (no equipped item or comparison mode is "off")
+                                    local statValueText = string.format(formatStr, entry.statValue or entry.hoverValue)
+                                    local weightText = string.format(formatStr, entry.weight or entry.hoverWeight)
+                                    local contributionText = string.format(formatStr, entry.contribution or entry.hoverContribution)
+                                    
+                                    -- Add to total (no comparison)
+                                    totalHoverContrib = totalHoverContrib + (entry.contribution or entry.hoverContribution)
+                                    
+                                    if ValuateOptions.rightAlign then
+                                        -- Right-aligned: split into left and right parts
+                                        local leftPart = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                            statValueText .. " × " .. weightText .. "|r"
+                                        local rightPart = "|cFF" .. color .. contributionText .. "|r"
+                                        tooltip:AddDoubleLine(leftPart, rightPart)
+                                    else
+                                        -- Normal: single line
+                                        local breakdownLine = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                            statValueText .. " × " .. weightText .. " = " .. contributionText .. "|r"
+                                        tooltip:AddLine(breakdownLine)
+                                    end
+                                end
+                            end
+                            
+                            -- Display total line
+                            if equippedStats and compMode ~= "off" then
+                                -- With comparison
+                                local totalHoverText = string.format(formatStr, totalHoverContrib)
+                                local totalEquippedText = string.format(formatStr, totalEquippedContrib)
+                                local totalDiff = totalHoverContrib - totalEquippedContrib
+                                local totalDiffText = string.format(formatStr, totalDiff)
+                                local totalPercentDiff = 0
+                                if totalEquippedContrib ~= 0 then
+                                    totalPercentDiff = (totalDiff / math.abs(totalEquippedContrib)) * 100
+                                elseif totalDiff ~= 0 then
+                                    totalPercentDiff = (totalDiff > 0) and 100 or -100
+                                end
+                                local totalPercentText = string.format("%.1f", totalPercentDiff)
+                                
+                                -- Determine color for total difference
+                                local totalDiffColor
+                                local totalDiffSign = ""
+                                if totalDiff > 0 then
+                                    totalDiffColor = "00FF00"
+                                    totalDiffSign = "+"
+                                elseif totalDiff < 0 then
+                                    totalDiffColor = "FF0000"
+                                    totalDiffSign = ""
+                                else
+                                    totalDiffColor = color
+                                    totalDiffSign = ""
+                                end
+                                
+                                -- Build total comparison text
+                                local totalComparisonPart = ""
+                                if compMode == "number" then
+                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
+                                elseif compMode == "percent" then
+                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                elseif compMode == "both" then
+                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                end
+                                
+                                if ValuateOptions.rightAlign then
+                                    local leftPart = "  " .. prefix .. "|cFF" .. color .. "Total:|r"
+                                    local rightPart = "|cFF" .. color .. totalHoverText .. " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                    tooltip:AddDoubleLine(leftPart, rightPart)
+                                else
+                                    local totalLine = "  " .. prefix .. "|cFF" .. color .. "Total: " .. totalHoverText .. 
+                                        " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                    tooltip:AddLine(totalLine)
+                                end
+                            else
+                                -- Without comparison
+                                local totalText = string.format(formatStr, totalHoverContrib)
+                                if ValuateOptions.rightAlign then
+                                    local leftPart = "  " .. prefix .. "|cFF" .. color .. "Total:|r"
+                                    local rightPart = "|cFF" .. color .. totalText .. "|r"
+                                    tooltip:AddDoubleLine(leftPart, rightPart)
+                                else
+                                    local totalLine = "  " .. prefix .. "|cFF" .. color .. "Total: " .. totalText .. "|r"
+                                    tooltip:AddLine(totalLine)
+                                end
+                            end
+                            end
+                        end
+                    end
+                    
                     -- Check if this is a multi-slot item type (rings, trinkets, 1H weapons)
                     local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
                     
@@ -627,8 +868,11 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         local equippedScores = Valuate:GetEquippedItemScores(equipSlot, scale)
                         
                         if equippedScores and next(equippedScores) then
-                            -- Add main line with item score
-                            if showValue then
+                            -- Add scale name header (only once at the top)
+                            if ValuateOptions.showStatBreakdown then
+                                tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ":|r")
+                            elseif showValue then
+                                -- Show main line with item score (old behavior when breakdown is off)
                                 if ValuateOptions.rightAlign then
                                     tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
                                 else
@@ -689,16 +933,135 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     end
                                 end
                                 
-                                -- Add indented comparison line
+                                -- Add slot comparison line
                                 if ValuateOptions.rightAlign then
                                     tooltip:AddDoubleLine("  " .. prefix .. "|cFF" .. color .. slotName .. "|r", slotComparisonText)
                                 else
                                     tooltip:AddLine("  " .. prefix .. "|cFF" .. color .. slotName .. ": " .. slotComparisonText .. "|r")
                                 end
+                                
+                                -- Add stat breakdown for this specific equipped item if enabled
+                                if ValuateOptions.showStatBreakdown then
+                                    -- Get stats for this specific equipped item
+                                    local itemLink = GetInventoryItemLink("player", slotId)
+                                    if itemLink then
+                                        local equipTooltip = GetPrivateTooltip()
+                                        equipTooltip:ClearLines()
+                                        equipTooltip:SetInventoryItem("player", slotId)
+                                        local slotEquippedStats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                        
+                                        if slotEquippedStats then
+                                            local slotBreakdown = Valuate:CalculateStatBreakdownWithComparison(stats, slotEquippedStats, scale)
+                                            
+                                            if slotBreakdown and #slotBreakdown > 0 then
+                                                local slotTotalHover = 0
+                                                local slotTotalEquipped = 0
+                                                
+                                                -- Display each stat for this slot
+                                                for _, entry in ipairs(slotBreakdown) do
+                                                    local statDisplayName = ValuateStatNames[entry.statName] or entry.statName
+                                                    local hoverValueText = string.format(formatStr, entry.hoverValue)
+                                                    local weightText = string.format(formatStr, entry.hoverWeight)
+                                                    local hoverContribText = string.format(formatStr, entry.hoverContribution)
+                                                    local equippedContribText = string.format(formatStr, entry.equippedContribution)
+                                                    local diffText = string.format(formatStr, entry.diff)
+                                                    local percentText = string.format("%.1f", entry.percentDiff)
+                                                    
+                                                    slotTotalHover = slotTotalHover + entry.hoverContribution
+                                                    slotTotalEquipped = slotTotalEquipped + entry.equippedContribution
+                                                    
+                                                    -- Determine color for difference
+                                                    local diffColor, diffSign = "", ""
+                                                    if entry.diff > 0 then
+                                                        diffColor = "00FF00"
+                                                        diffSign = "+"
+                                                    elseif entry.diff < 0 then
+                                                        diffColor = "FF0000"
+                                                        diffSign = ""
+                                                    else
+                                                        diffColor = color
+                                                        diffSign = ""
+                                                    end
+                                                    
+                                                    -- Build comparison text
+                                                    local comparisonPart = ""
+                                                    if compMode == "number" then
+                                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. "|r|cFF" .. color .. ")"
+                                                    elseif compMode == "percent" then
+                                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
+                                                    elseif compMode == "both" then
+                                                        comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
+                                                    end
+                                                    
+                                                    -- Display stat line (indented more)
+                                                    if ValuateOptions.rightAlign then
+                                                        local leftPart = "    " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                                            hoverValueText .. " × " .. weightText .. "|r"
+                                                        local rightPart = "|cFF" .. color .. hoverContribText .. " | " .. 
+                                                            equippedContribText .. comparisonPart .. "|r"
+                                                        tooltip:AddDoubleLine(leftPart, rightPart)
+                                                    else
+                                                        local breakdownLine = "    " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
+                                                            hoverValueText .. " × " .. weightText .. " = " .. hoverContribText .. 
+                                                            " | " .. equippedContribText .. comparisonPart .. "|r"
+                                                        tooltip:AddLine(breakdownLine)
+                                                    end
+                                                end
+                                                
+                                                -- Display total for this slot
+                                                local totalHoverText = string.format(formatStr, slotTotalHover)
+                                                local totalEquippedText = string.format(formatStr, slotTotalEquipped)
+                                                local totalDiff = slotTotalHover - slotTotalEquipped
+                                                local totalDiffText = string.format(formatStr, totalDiff)
+                                                local totalPercentDiff = 0
+                                                if slotTotalEquipped ~= 0 then
+                                                    totalPercentDiff = (totalDiff / math.abs(slotTotalEquipped)) * 100
+                                                elseif totalDiff ~= 0 then
+                                                    totalPercentDiff = (totalDiff > 0) and 100 or -100
+                                                end
+                                                local totalPercentText = string.format("%.1f", totalPercentDiff)
+                                                
+                                                local totalDiffColor, totalDiffSign = "", ""
+                                                if totalDiff > 0 then
+                                                    totalDiffColor = "00FF00"
+                                                    totalDiffSign = "+"
+                                                elseif totalDiff < 0 then
+                                                    totalDiffColor = "FF0000"
+                                                    totalDiffSign = ""
+                                                else
+                                                    totalDiffColor = color
+                                                    totalDiffSign = ""
+                                                end
+                                                
+                                                local totalComparisonPart = ""
+                                                if compMode == "number" then
+                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
+                                                elseif compMode == "percent" then
+                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                                elseif compMode == "both" then
+                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                                end
+                                                
+                                                if ValuateOptions.rightAlign then
+                                                    local leftPart = "    " .. prefix .. "|cFF" .. color .. "Total:|r"
+                                                    local rightPart = "|cFF" .. color .. totalHoverText .. " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                                    tooltip:AddDoubleLine(leftPart, rightPart)
+                                                else
+                                                    local totalLine = "    " .. prefix .. "|cFF" .. color .. "Total: " .. totalHoverText .. 
+                                                        " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                                    tooltip:AddLine(totalLine)
+                                                end
+                                                
+                                                -- Add blank line between slots for readability
+                                                tooltip:AddLine(" ")
+                                            end
+                                        end
+                                    end
+                                end
                             end
                         else
-                            -- No equipped items in these slots
-                            if showValue then
+                            -- No equipped items in these slots (skip if stat breakdown already shown)
+                            if showValue and not ValuateOptions.showStatBreakdown then
                                 if ValuateOptions.rightAlign then
                                     tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
                                 else
@@ -784,38 +1147,42 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             end
                         end
                         
-                        -- Build final display text for single-slot items
-                        local displayText
-                        if showValue then
-                            displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
-                        else
-                            -- Show only comparison (no base score)
-                            if comparisonText ~= "" then
-                                -- Remove the leading space and parentheses from comparison text for cleaner display
-                                local cleanComp = comparisonText:gsub("^ ", ""):gsub("%(", ""):gsub("%)", "")
-                                displayText = prefix .. "|cFF" .. color .. displayName .. ":|r " .. cleanComp
+                        -- Build final display text for single-slot items (skip if stat breakdown already shown)
+                        if not ValuateOptions.showStatBreakdown then
+                            local displayText
+                            if showValue then
+                                displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r" .. comparisonText
                             else
-                                -- No comparison available, show score anyway
-                                displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r"
+                                -- Show only comparison (no base score)
+                                if comparisonText ~= "" then
+                                    -- Remove the leading space and parentheses from comparison text for cleaner display
+                                    local cleanComp = comparisonText:gsub("^ ", ""):gsub("%(", ""):gsub("%)", "")
+                                    displayText = prefix .. "|cFF" .. color .. displayName .. ":|r " .. cleanComp
+                                else
+                                    -- No comparison available, show score anyway
+                                    displayText = prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r"
+                                end
                             end
-                        end
-                        
-                        if ValuateOptions.rightAlign then
-                            -- Use AddDoubleLine for right-aligned scores
-                            local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
-                            if not showValue and comparisonText ~= "" then
-                                rightText = comparisonText:gsub("^ ", "")
+                            
+                            if ValuateOptions.rightAlign then
+                                -- Use AddDoubleLine for right-aligned scores
+                                local rightText = "|cFF" .. color .. scoreText .. "|r" .. comparisonText
+                                if not showValue and comparisonText ~= "" then
+                                    rightText = comparisonText:gsub("^ ", "")
+                                end
+                                tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", rightText)
+                            else
+                                tooltip:AddLine(displayText)
                             end
-                            tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", rightText)
-                        else
-                            tooltip:AddLine(displayText)
                         end
                     else
-                        -- No comparison mode or not equippable - just show the score
-                        if ValuateOptions.rightAlign then
-                            tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
-                        else
-                            tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                        -- No comparison mode or not equippable - just show the score (skip if stat breakdown already shown)
+                        if not ValuateOptions.showStatBreakdown then
+                            if ValuateOptions.rightAlign then
+                                tooltip:AddDoubleLine(prefix .. "|cFF" .. color .. displayName .. "|r", "|cFF" .. color .. scoreText .. "|r")
+                            else
+                                tooltip:AddLine(prefix .. "|cFF" .. color .. displayName .. ": " .. scoreText .. "|r")
+                            end
                         end
                     end
                 end
@@ -948,6 +1315,7 @@ function Valuate:HookTooltips()
     -- ========================================
     
     -- Update a shopping tooltip with Valuate scores (called from method hooks)
+    -- Shopping tooltips show equipped items but display hover item breakdown for consistency
     local function UpdateShoppingTooltip(tooltipName)
         local tooltip = getglobal(tooltipName)
         if not tooltip then return end
@@ -955,32 +1323,46 @@ function Valuate:HookTooltips()
         -- Skip if our lines are already present
         if HasValuateLines(tooltip) then return end
         
-        -- Parse stats from the displayed tooltip (gets scaled values)
-        local stats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
-        if stats and next(stats) then
-            -- nil itemLink = no upgrade comparison (this IS the equipped item)
-            AddScoreLinesToTooltip(tooltip, stats, nil)
+        -- Get hover item stats from GameTooltip if visible
+        -- Shopping tooltips should show the hover item's breakdown (not equipped item's)
+        local hoverStats = nil
+        local itemLink = nil
+        if GameTooltip and GameTooltip:IsVisible() then
+            hoverStats = Valuate:GetStatsFromDisplayedTooltip("GameTooltip")
+            itemLink = select(2, GameTooltip:GetItem())
+        end
+        
+        -- If we have hover stats, show those with comparison (same as GameTooltip)
+        -- Otherwise fall back to showing equipped item stats without comparison
+        if hoverStats and next(hoverStats) then
+            AddScoreLinesToTooltip(tooltip, hoverStats, itemLink)
             tooltip:Show()  -- Resize tooltip to fit new lines
+        else
+            -- Fallback: show equipped item without comparison
+            local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
+            if equippedStats and next(equippedStats) then
+                AddScoreLinesToTooltip(tooltip, equippedStats, nil)
+                tooltip:Show()
+            end
+        end
+        
+        -- Apply border coloring for shopping tooltips
+        local shoppingItemLink = tooltip:GetItem()
+        if shoppingItemLink and hoverStats then
+            -- Store default border color on first run
+            if not DefaultTooltipBorderColor then
+                local r, g, b, a = tooltip:GetBackdropBorderColor()
+                DefaultTooltipBorderColor = {r, g, b, a}
+            end
             
-            -- Apply border coloring for shopping tooltips as well
-            -- Shopping tooltips show equipped items, so we want to color them too
-            local itemLink = tooltip:GetItem()
-            if itemLink then
-                -- Store default border color on first run
-                if not DefaultTooltipBorderColor then
-                    local r, g, b, a = tooltip:GetBackdropBorderColor()
-                    DefaultTooltipBorderColor = {r, g, b, a}
-                end
-                
-                -- Get border color based on displayed scale
-                local r, g, b = GetTooltipBorderColor(stats, itemLink)
-                if r and g and b then
-                    tooltip:SetBackdropBorderColor(r, g, b, 1)
-                else
-                    -- No coloring needed, use default
-                    if DefaultTooltipBorderColor then
-                        tooltip:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
-                    end
+            -- Get border color based on hover item (for consistency with GameTooltip)
+            local r, g, b = GetTooltipBorderColor(hoverStats, itemLink or shoppingItemLink)
+            if r and g and b then
+                tooltip:SetBackdropBorderColor(r, g, b, 1)
+            else
+                -- No coloring needed, use default
+                if DefaultTooltipBorderColor then
+                    tooltip:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
                 end
             end
         end
@@ -1154,6 +1536,141 @@ function Valuate:CalculateItemScore(stats, scale)
     end
     
     return total
+end
+
+-- Calculate detailed breakdown of stat contributions for an item
+-- stats: Table of stat values {Strength = 10, Stamina = 20, ...}
+-- scale: Table of stat weights {Strength = 1.5, Stamina = 1.0, ...}
+-- Returns: Table of stat contributions sorted by value (descending)
+--   Each entry: {statName, statValue, weight, contribution}
+function Valuate:CalculateStatBreakdown(stats, scale)
+    if not stats or not scale or not scale.Values then
+        return nil
+    end
+    
+    local breakdown = {}
+    local scaleValues = scale.Values
+    
+    -- Calculate normalization factor if global normalize display is enabled
+    local normalizeFactor = 1
+    if ValuateOptions and ValuateOptions.normalizeDisplay then
+        local maxWeight = 0
+        for statName, weight in pairs(scaleValues) do
+            local absWeight = math.abs(weight)
+            if absWeight > maxWeight then
+                maxWeight = absWeight
+            end
+        end
+        if maxWeight > 0 then
+            normalizeFactor = 1 / maxWeight
+        end
+    end
+    
+    -- Calculate contribution for each stat
+    for statName, statValue in pairs(stats) do
+        local weight = scaleValues[statName]
+        if weight and weight ~= 0 and statValue and statValue ~= 0 then
+            local normalizedWeight = weight * normalizeFactor
+            local contribution = statValue * normalizedWeight
+            table.insert(breakdown, {
+                statName = statName,
+                statValue = statValue,
+                weight = normalizedWeight,
+                contribution = contribution
+            })
+        end
+    end
+    
+    -- Sort by contribution (descending)
+    table.sort(breakdown, function(a, b)
+        return math.abs(a.contribution) > math.abs(b.contribution)
+    end)
+    
+    return breakdown
+end
+
+-- Calculate detailed breakdown with comparison between two items
+-- hoverStats: Stats of the item being hovered over
+-- equippedStats: Stats of the equipped item to compare against
+-- scale: Table of stat weights
+-- Returns: Table of stat contributions with comparison data, sorted by hover contribution (descending)
+--   Each entry: {statName, hoverValue, hoverWeight, hoverContribution, equippedValue, equippedContribution, diff, percentDiff}
+function Valuate:CalculateStatBreakdownWithComparison(hoverStats, equippedStats, scale)
+    if not hoverStats or not scale or not scale.Values then
+        return nil
+    end
+    
+    local breakdown = {}
+    local scaleValues = scale.Values
+    
+    -- Calculate normalization factor if global normalize display is enabled
+    local normalizeFactor = 1
+    if ValuateOptions and ValuateOptions.normalizeDisplay then
+        local maxWeight = 0
+        for statName, weight in pairs(scaleValues) do
+            local absWeight = math.abs(weight)
+            if absWeight > maxWeight then
+                maxWeight = absWeight
+            end
+        end
+        if maxWeight > 0 then
+            normalizeFactor = 1 / maxWeight
+        end
+    end
+    
+    -- Build union of all stat names from both items
+    local allStats = {}
+    for statName, _ in pairs(hoverStats) do
+        allStats[statName] = true
+    end
+    if equippedStats then
+        for statName, _ in pairs(equippedStats) do
+            allStats[statName] = true
+        end
+    end
+    
+    -- Calculate contribution for each stat
+    for statName, _ in pairs(allStats) do
+        local weight = scaleValues[statName]
+        if weight and weight ~= 0 then
+            local hoverValue = hoverStats[statName] or 0
+            local equippedValue = (equippedStats and equippedStats[statName]) or 0
+            
+            -- Only include if at least one item has this stat
+            if hoverValue ~= 0 or equippedValue ~= 0 then
+                local normalizedWeight = weight * normalizeFactor
+                local hoverContribution = hoverValue * normalizedWeight
+                local equippedContribution = equippedValue * normalizedWeight
+                local diff = hoverContribution - equippedContribution
+                
+                local percentDiff = 0
+                if equippedContribution ~= 0 then
+                    percentDiff = (diff / math.abs(equippedContribution)) * 100
+                elseif diff ~= 0 then
+                    -- Equipped has 0, hover has something = infinite gain
+                    percentDiff = (diff > 0) and 100 or -100
+                end
+                
+                table.insert(breakdown, {
+                    statName = statName,
+                    hoverValue = hoverValue,
+                    hoverWeight = normalizedWeight,
+                    hoverContribution = hoverContribution,
+                    equippedValue = equippedValue,
+                    equippedContribution = equippedContribution,
+                    diff = diff,
+                    percentDiff = percentDiff
+                })
+            end
+        end
+    end
+    
+    -- Sort by hover contribution (descending)
+    table.sort(breakdown, function(a, b)
+        return math.abs(a.hoverContribution) > math.abs(b.hoverContribution)
+    end)
+    
+    return breakdown
 end
 
 -- Gets individual scores for each equipped item in multi-slot types (rings, trinkets, weapons)
@@ -1345,6 +1862,16 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
         return
     end
     
+    -- Get the item's equipment slot for banned stat checking
+    local equipSlot = nil
+    if tooltip then
+        local itemLink = tooltip:GetItem()
+        if itemLink then
+            local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+            equipSlot = itemEquipLoc
+        end
+    end
+    
     -- Calculate scores for each active scale
     local scores = {}
     for _, scaleName in ipairs(activeScales) do
@@ -1353,6 +1880,7 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
             -- Check if item has any stats marked as unusable for this scale
             local hasUnusableStat = false
             if scale.Unusable then
+                -- First check parsed stats
                 for statName, statValue in pairs(stats) do
                     if scale.Unusable[statName] and statValue and statValue > 0 then
                         hasUnusableStat = true
@@ -1360,6 +1888,26 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
                         end
                         break
+                    end
+                end
+                
+                -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
+                if not hasUnusableStat and equipSlot then
+                    if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
+                        end
+                    elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is offhand weapon (banned by OffHandDps)")
+                        end
+                    elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+                        hasUnusableStat = true
+                        if ValuateOptions.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is ranged weapon (banned by RangedDps)")
+                        end
                     end
                 end
             end
