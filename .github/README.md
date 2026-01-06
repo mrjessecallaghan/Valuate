@@ -1,5 +1,7 @@
 # Valuate
 Stat weight item scoring for World of Warcraft: Ascension Bronzebeard (WotLK 3.3.5a).
+<img src="assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
+
 
 <p align="center">
   <img src="/assets/screenshots/IMG_4234.png" width="900" alt="Valuate banner">
