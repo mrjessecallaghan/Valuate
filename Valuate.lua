@@ -665,8 +665,9 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         -- For non-multi-slot items, show breakdown once
                         if not isMultiSlotBreakdown then
                             -- Try to get equipped item stats for comparison
+                            -- Only compare if itemLink is provided (hover tooltip), not for shopping tooltips (itemLink is nil)
                             local equippedStats = nil
-                            if equipSlot and equipSlot ~= "" then
+                            if itemLink and equipSlot and equipSlot ~= "" then
                                 -- Try shopping tooltip first for context
                                 if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
                                     local equippedItemLink = ShoppingTooltip1:GetItem()
@@ -742,7 +743,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                         diffColor = "FF0000"  -- Red for downgrade
                                         diffSign = ""  -- Negative sign already in number
                                     else
-                                        diffColor = color  -- Use scale color for no change
+                                        diffColor = "FFFF00"  -- Yellow for no change (matches original scale comparison)
                                         diffSign = ""
                                     end
                                     
@@ -756,19 +757,19 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                         comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
                                     end
                                     
-                                    -- Format: "  Stat: hoverValue × weight = hoverContrib | equippedContrib (comparison)"
+                                    -- Format: "  Stat: hoverValue × weight = hoverContrib (comparison)"
+                                    -- Only show the hover item's value, not the equipped item's value
                                     if ValuateOptions.rightAlign then
                                         -- Right-aligned: split into left and right parts
                                         local leftPart = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                             hoverValueText .. " × " .. weightText .. "|r"
-                                        local rightPart = "|cFF" .. color .. hoverContribText .. " | " .. 
-                                            equippedContribText .. comparisonPart .. "|r"
+                                        local rightPart = "|cFF" .. color .. hoverContribText .. comparisonPart .. "|r"
                                         tooltip:AddDoubleLine(leftPart, rightPart)
                                     else
                                         -- Normal: single line
                                         local breakdownLine = "  " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                             hoverValueText .. " × " .. weightText .. " = " .. hoverContribText .. 
-                                            " | " .. equippedContribText .. comparisonPart .. "|r"
+                                            comparisonPart .. "|r"
                                         tooltip:AddLine(breakdownLine)
                                     end
                                 else
@@ -797,7 +798,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             
                             -- Display total line
                             if equippedStats and compMode ~= "off" then
-                                -- With comparison
+                                -- With comparison - only show hover item's total with comparison
                                 local totalHoverText = string.format(formatStr, totalHoverContrib)
                                 local totalEquippedText = string.format(formatStr, totalEquippedContrib)
                                 local totalDiff = totalHoverContrib - totalEquippedContrib
@@ -820,7 +821,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     totalDiffColor = "FF0000"
                                     totalDiffSign = ""
                                 else
-                                    totalDiffColor = color
+                                    totalDiffColor = "FFFF00"  -- Yellow for no change (matches original scale comparison)
                                     totalDiffSign = ""
                                 end
                                 
@@ -836,11 +837,11 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 
                                 if ValuateOptions.rightAlign then
                                     local leftPart = "  " .. prefix .. "|cFF" .. color .. "Total:|r"
-                                    local rightPart = "|cFF" .. color .. totalHoverText .. " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                    local rightPart = "|cFF" .. color .. totalHoverText .. totalComparisonPart .. "|r"
                                     tooltip:AddDoubleLine(leftPart, rightPart)
                                 else
                                     local totalLine = "  " .. prefix .. "|cFF" .. color .. "Total: " .. totalHoverText .. 
-                                        " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                        totalComparisonPart .. "|r"
                                     tooltip:AddLine(totalLine)
                                 end
                             else
@@ -863,7 +864,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
                     
                     -- Calculate comparison if enabled and item is equippable
-                    if compMode ~= "off" and equipSlot and equipSlot ~= "" and isMultiSlot then
+                    -- Only show multi-slot breakdown on hover tooltips (itemLink provided), not shopping tooltips
+                    if compMode ~= "off" and equipSlot and equipSlot ~= "" and isMultiSlot and itemLink then
                         -- For multi-slot items, show individual comparisons
                         local equippedScores = Valuate:GetEquippedItemScores(equipSlot, scale)
                         
@@ -979,7 +981,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                         diffColor = "FF0000"
                                                         diffSign = ""
                                                     else
-                                                        diffColor = color
+                                                        diffColor = "FFFF00"  -- Yellow for no change (matches original scale comparison)
                                                         diffSign = ""
                                                     end
                                                     
@@ -993,17 +995,16 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                         comparisonPart = " (|r|cFF" .. diffColor .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%|r|cFF" .. color .. ")"
                                                     end
                                                     
-                                                    -- Display stat line (indented more)
+                                                    -- Display stat line (indented more) - only show hover item's value
                                                     if ValuateOptions.rightAlign then
                                                         local leftPart = "    " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                                             hoverValueText .. " × " .. weightText .. "|r"
-                                                        local rightPart = "|cFF" .. color .. hoverContribText .. " | " .. 
-                                                            equippedContribText .. comparisonPart .. "|r"
+                                                        local rightPart = "|cFF" .. color .. hoverContribText .. comparisonPart .. "|r"
                                                         tooltip:AddDoubleLine(leftPart, rightPart)
                                                     else
                                                         local breakdownLine = "    " .. prefix .. "|cFF" .. color .. statDisplayName .. ": " .. 
                                                             hoverValueText .. " × " .. weightText .. " = " .. hoverContribText .. 
-                                                            " | " .. equippedContribText .. comparisonPart .. "|r"
+                                                            comparisonPart .. "|r"
                                                         tooltip:AddLine(breakdownLine)
                                                     end
                                                 end
@@ -1029,7 +1030,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                     totalDiffColor = "FF0000"
                                                     totalDiffSign = ""
                                                 else
-                                                    totalDiffColor = color
+                                                    totalDiffColor = "FFFF00"  -- Yellow for no change (matches original scale comparison)
                                                     totalDiffSign = ""
                                                 end
                                                 
@@ -1044,11 +1045,11 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                 
                                                 if ValuateOptions.rightAlign then
                                                     local leftPart = "    " .. prefix .. "|cFF" .. color .. "Total:|r"
-                                                    local rightPart = "|cFF" .. color .. totalHoverText .. " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                                    local rightPart = "|cFF" .. color .. totalHoverText .. totalComparisonPart .. "|r"
                                                     tooltip:AddDoubleLine(leftPart, rightPart)
                                                 else
                                                     local totalLine = "    " .. prefix .. "|cFF" .. color .. "Total: " .. totalHoverText .. 
-                                                        " | " .. totalEquippedText .. totalComparisonPart .. "|r"
+                                                        totalComparisonPart .. "|r"
                                                     tooltip:AddLine(totalLine)
                                                 end
                                                 
@@ -1315,7 +1316,7 @@ function Valuate:HookTooltips()
     -- ========================================
     
     -- Update a shopping tooltip with Valuate scores (called from method hooks)
-    -- Shopping tooltips show equipped items but display hover item breakdown for consistency
+    -- Shopping tooltips show equipped items - display ONLY equipped item's values (no comparison)
     local function UpdateShoppingTooltip(tooltipName)
         local tooltip = getglobal(tooltipName)
         if not tooltip then return end
@@ -1323,40 +1324,25 @@ function Valuate:HookTooltips()
         -- Skip if our lines are already present
         if HasValuateLines(tooltip) then return end
         
-        -- Get hover item stats from GameTooltip if visible
-        -- Shopping tooltips should show the hover item's breakdown (not equipped item's)
-        local hoverStats = nil
-        local itemLink = nil
-        if GameTooltip and GameTooltip:IsVisible() then
-            hoverStats = Valuate:GetStatsFromDisplayedTooltip("GameTooltip")
-            itemLink = select(2, GameTooltip:GetItem())
-        end
-        
-        -- If we have hover stats, show those with comparison (same as GameTooltip)
-        -- Otherwise fall back to showing equipped item stats without comparison
-        if hoverStats and next(hoverStats) then
-            AddScoreLinesToTooltip(tooltip, hoverStats, itemLink)
+        -- Shopping tooltips show equipped items - display only equipped item's stats (no comparison)
+        local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
+        if equippedStats and next(equippedStats) then
+            -- Pass nil for itemLink to prevent comparison (this is the equipped item, not hovered)
+            AddScoreLinesToTooltip(tooltip, equippedStats, nil)
             tooltip:Show()  -- Resize tooltip to fit new lines
-        else
-            -- Fallback: show equipped item without comparison
-            local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
-            if equippedStats and next(equippedStats) then
-                AddScoreLinesToTooltip(tooltip, equippedStats, nil)
-                tooltip:Show()
-            end
         end
         
         -- Apply border coloring for shopping tooltips
         local shoppingItemLink = tooltip:GetItem()
-        if shoppingItemLink and hoverStats then
+        if shoppingItemLink and equippedStats then
             -- Store default border color on first run
             if not DefaultTooltipBorderColor then
                 local r, g, b, a = tooltip:GetBackdropBorderColor()
                 DefaultTooltipBorderColor = {r, g, b, a}
             end
             
-            -- Get border color based on hover item (for consistency with GameTooltip)
-            local r, g, b = GetTooltipBorderColor(hoverStats, itemLink or shoppingItemLink)
+            -- Get border color based on equipped item
+            local r, g, b = GetTooltipBorderColor(equippedStats, shoppingItemLink)
             if r and g and b then
                 tooltip:SetBackdropBorderColor(r, g, b, 1)
             else
