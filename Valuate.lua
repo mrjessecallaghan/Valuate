@@ -646,6 +646,9 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
         equipSlot = itemEquipLoc
     end
     
+    -- Check if this is a multi-slot item type (rings, trinkets, 1H weapons)
+    local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
+    
     -- Calculate and display scores
     local hasScores = false
     local options = Valuate:GetOptions()
@@ -717,7 +720,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     -- Show detailed stat breakdown if enabled
                     if options.showStatBreakdown then
                         -- Check if this is a multi-slot item for per-slot breakdown
-                        local isMultiSlotBreakdown = isMultiSlot and compMode ~= "off"
+                        -- Only show multi-slot breakdown on hover tooltips (itemLink provided), not shopping tooltips
+                        local isMultiSlotBreakdown = isMultiSlot and compMode ~= "off" and itemLink
                         
                         -- For non-multi-slot items, show breakdown once
                         if not isMultiSlotBreakdown then
@@ -916,9 +920,6 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             end
                         end
                     end
-                    
-                    -- Check if this is a multi-slot item type (rings, trinkets, 1H weapons)
-                    local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
                     
                     -- Calculate comparison if enabled and item is equippable
                     -- Only show multi-slot breakdown on hover tooltips (itemLink provided), not shopping tooltips
