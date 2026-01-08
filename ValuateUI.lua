@@ -4624,6 +4624,34 @@ local function CreateInstructionsPanel(parent)
     local sectionSpacing = 20
     local paragraphSpacing = 8
     
+    -- What Are Stat Weights?
+    local header0 = CreateSectionHeader("What Are Stat Weights?", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+    
+    local text0a = CreateBodyText("Stat weights are numerical values that represent how valuable each stat is to your character. They help you objectively compare different pieces of gear by calculating a single score for each item based on its stats.", currentY)
+    local text0aHeight = text0a:GetStringHeight()
+    currentY = currentY - text0aHeight - paragraphSpacing
+    
+    local text0b = CreateBodyText("For example, if Attack Power is twice as valuable to you as Stamina, you might set Attack Power = 2.0 and Stamina = 1.0. The actual numbers don't matter—only the ratios between them. This means Attack Power = 2.0, Stamina = 1.0 is the same as Attack Power = 1.0, Stamina = 0.5.", currentY)
+    local text0bHeight = text0b:GetStringHeight()
+    currentY = currentY - text0bHeight - paragraphSpacing
+    
+    local text0c = CreateBodyText("How Valuate Calculates Scores:\nValuate multiplies each stat on an item by its weight, then adds them all together:\n\nScore = (Stat1 × Weight1) + (Stat2 × Weight2) + (Stat3 × Weight3) + ...\n\nFor example, an item with +10 Strength and +20 Stamina, using weights of Strength = 1.5 and Stamina = 1.0, would get a score of:\n(10 × 1.5) + (20 × 1.0) = 15 + 20 = 35", currentY)
+    local text0cHeight = text0c:GetStringHeight()
+    currentY = currentY - text0cHeight - paragraphSpacing
+    
+    local text0d = CreateBodyText("Higher scores always mean better items for that particular scale. When comparing two items, the one with the higher score is the better choice according to your stat weights.", currentY)
+    local text0dHeight = text0d:GetStringHeight()
+    currentY = currentY - text0dHeight - paragraphSpacing
+    
+    local text0e = CreateBodyText("Best Practices:\n• Set weights based on relative value—if Strength is worth 50% more than Stamina, use Strength = 1.5 and Stamina = 1.0\n• Create separate scales for different roles or builds (e.g., 'Fury DPS', 'Protection Tank', 'PvP')\n• Use the 'ban' checkbox for stats that are completely useless to a build (like Intellect for Warriors)\n• Start with simple weights and refine them as you learn what works for your character\n• Remember that stat weights can change based on your current gear, talents, and playstyle", currentY)
+    local text0eHeight = text0e:GetStringHeight()
+    currentY = currentY - text0eHeight - paragraphSpacing
+    
+    local text0f = CreateBodyText("Using Scores to Make Decisions:\nWhen you hover over an item in-game, Valuate displays scores for each of your active scales in the tooltip. Compare these scores with your currently equipped item to see if the new item is an upgrade. Green borders indicate upgrades, red borders indicate downgrades.", currentY)
+    local text0fHeight = text0f:GetStringHeight()
+    currentY = currentY - text0fHeight - sectionSpacing
+    
     -- Getting Started
     local header1 = CreateSectionHeader("Getting Started", currentY)
     currentY = currentY - lineHeight - paragraphSpacing

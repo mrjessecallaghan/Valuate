@@ -156,6 +156,12 @@ function Valuate:ParseScaleTag(scaleTag)
         return nil, nil, "Scale name cannot be empty"
     end
     
+    -- Validate scale name doesn't contain characters that could break the UI
+    -- Disallow: { } | (used in scale tag format) and control characters
+    if string.match(scaleName, "[{}|]") then
+        return nil, nil, "Scale name cannot contain '{', '}', or '|' characters"
+    end
+    
     -- Check version compatibility
     if version > SCALE_TAG_VERSION then
         -- Future version - we might not be able to parse it correctly
@@ -193,11 +199,12 @@ function Valuate:ParseScaleTag(scaleTag)
         local valueEnd
         
         if key == "Icon" then
-            -- Icon path - look for the next comma followed by a known key pattern
-            -- Try to find ", followed by a capital letter (start of next key)
-            valueEnd = string.find(propsString, ",[A-Z]", valueStart)
-            if valueEnd then
-                valueEnd = valueEnd - 1  -- Don't include the comma
+            -- Icon path - look for the next comma followed by a key=value pattern
+            -- Pattern: ",KeyName=" where KeyName doesn't contain backslashes (stat names don't have them)
+            -- This correctly handles icon paths with capital letters like "Interface\Icons\INV_Sword_04"
+            local nextKeyStart = string.find(propsString, ",([^\\,=]+)=", valueStart)
+            if nextKeyStart then
+                valueEnd = nextKeyStart - 1  -- Don't include the comma
             else
                 valueEnd = #propsString  -- Go to end
             end
@@ -222,23 +229,24 @@ function Valuate:ParseScaleTag(scaleTag)
                 scaleData.Visible = (tonumber(value) == 1)
             elseif key == "Icon" then
                 scaleData.Icon = value
-            elseif string.match(key, "^Unusable%.(.+)$") then
-                -- Unusable stat (e.g., "Unusable.Intellect")
-                local statName = string.match(key, "^Unusable%.(.+)$")
-                if statName then
-                    scaleData.Unusable[statName] = true
-                end
             else
-                -- Regular stat weight
-                local numValue = tonumber(value)
-                if numValue then
-                    scaleData.Values[key] = numValue
+                -- Check if this is an Unusable stat (e.g., "Unusable.Intellect")
+                local statName = string.match(key, "^Unusable%.(.+)$")
+                if statName and statName ~= "" then
+                    scaleData.Unusable[statName] = true
+                else
+                    -- Regular stat weight
+                    local numValue = tonumber(value)
+                    if numValue then
+                        scaleData.Values[key] = numValue
+                    end
                 end
             end
         end
         
         -- Move to next key=value pair
-        currentPos = valueEnd + 2  -- Skip comma
+        -- Skip comma (valueEnd points to the last char of value, so +2 skips comma and space)
+        currentPos = valueEnd + 2
         if currentPos > #propsString then
             break
         end

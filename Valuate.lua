@@ -49,6 +49,11 @@ local SlotIdToName = {
 
 -- Helper function to check if two weapon types are comparable
 local function AreWeaponTypesComparable(hoverType, equippedType)
+    -- Handle nil or empty strings
+    if not hoverType or hoverType == "" or not equippedType or equippedType == "" then
+        return false
+    end
+    
     -- Shields never compare to weapons
     if (hoverType == "INVTYPE_SHIELD" or hoverType == "INVTYPE_HOLDABLE") then
         return (equippedType == "INVTYPE_SHIELD" or equippedType == "INVTYPE_HOLDABLE")
@@ -214,7 +219,15 @@ function Valuate:CreateDefaultScale()
         DisplayName = "Default",
         Color = "00FF00",
         Visible = true,
-        Values = {}
+        Values = {
+            -- Example stat weights (users should customize these)
+            Strength = 1.0,
+            Agility = 1.0,
+            Stamina = 0.5,
+            Intellect = 1.0,
+            AttackPower = 1.0,
+            SpellPower = 1.0,
+        }
     }
     
     local scales = Valuate:GetScales()
@@ -247,7 +260,7 @@ end
 -- Returns a table with stat names as keys and values as numbers
 function Valuate:ParseStatsFromTooltip(tooltipName, debug)
     local stats = {}
-    local tooltip = getglobal(tooltipName)
+    local tooltip = _G[tooltipName]
     
     if not tooltip then
         return nil
@@ -479,15 +492,23 @@ end
 -- Note: For scaled items, this reads the base item stats, not scaled values
 -- Scaled values are only available when reading from the actual displayed tooltip
 function Valuate:GetStatsForItemLink(itemLink)
-    if not itemLink then
+    if not itemLink or type(itemLink) ~= "string" then
         return nil
     end
     
     -- Parse tooltip from the item link
     -- Note: SetHyperlink uses base item data, not scaled values
     local tooltip = GetPrivateTooltip()
+    if not tooltip then
+        return nil
+    end
+    
     tooltip:ClearLines()
-    tooltip:SetHyperlink(itemLink)
+    local success = pcall(function() tooltip:SetHyperlink(itemLink) end)
+    if not success then
+        -- Invalid item link - SetHyperlink failed
+        return nil
+    end
     
     -- Parse the tooltip (note: this will show base stats, not scaled stats)
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", Valuate:GetOptions().debug)
@@ -1376,7 +1397,7 @@ function Valuate:HookTooltips()
     -- Update a shopping tooltip with Valuate scores (called from method hooks)
     -- Shopping tooltips show equipped items - display ONLY equipped item's values (no comparison)
     local function UpdateShoppingTooltip(tooltipName)
-        local tooltip = getglobal(tooltipName)
+        local tooltip = _G[tooltipName]
         if not tooltip then return end
         
         -- Skip if our lines are already present
@@ -1469,7 +1490,7 @@ end
 --- tooltipName: Name of the tooltip frame to reset (string)
 --- Returns: true if successful, false/nil otherwise
 local function ResetTooltip(tooltipName)
-    local tooltip = getglobal(tooltipName)
+    local tooltip = _G[tooltipName]
     if not tooltip or not tooltip.IsShown or not tooltip:IsShown() or not tooltip.GetItem then 
         return false 
     end
