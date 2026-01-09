@@ -8,6 +8,16 @@ Valuate = {}
 Valuate.version = GetAddOnMetadata("Valuate", "Version") or "Unknown"
 Valuate.interface = 30300
 
+-- Keybinding function that WoW calls when the key is pressed
+-- This is registered in Bindings.xml and must be defined early
+function ValuateToggleUI()
+    if Valuate and Valuate.ToggleUI then
+        Valuate:ToggleUI()
+    else
+        print("|cFFFF0000Valuate|r: UI not ready. Please try again or /reload.")
+    end
+end
+
 -- Equipment slot to inventory slot mapping (for upgrade comparison)
 local EquipSlotToInvNumber = {
     ["INVTYPE_AMMO"] = { 0 },
@@ -92,14 +102,30 @@ end
 -- Frame for event handling
 local frame = CreateFrame("Frame")
 
+-- Auto-scan throttle
+local lastAutoScanTime = 0
+local AUTO_SCAN_THROTTLE = 2  -- seconds between auto-scans
+
 -- Event handler
-local function OnEvent(self, event, addonName)
+local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
         -- Addon loaded, initialize
         Valuate:Initialize()
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- Player entered world, can do additional setup here
         frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        -- Equipment changed, auto-scan with throttle
+        local currentTime = GetTime()
+        if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
+            lastAutoScanTime = currentTime
+            -- Scan on next frame to avoid doing it mid-combat or mid-swap
+            C_Timer.After(0.1, function()
+                if Valuate.ScanBestEquipment then
+                    Valuate:ScanBestEquipment()
+                end
+            end)
+        end
     end
 end
 
@@ -122,6 +148,9 @@ function Valuate:GetOptions()
             decimalPlaces = 1,
             rightAlign = false,
             showScaleValue = true,
+            showBestFor = true,
+            chatMessages = true,  -- Show chat messages (verbose mode)
+            showStartupMessage = true,  -- Show "Valuate loaded" message
             comparisonMode = "number",
             characterWindowScale = nil,
             showCharacterWindowDisplay = true,
@@ -141,6 +170,14 @@ function Valuate:GetScales()
         ValuateScales = {}
     end
     return ValuateScales
+end
+
+-- Get character-specific best equipment table
+function Valuate:GetBestEquipment()
+    if not ValuateBestEquipment then
+        ValuateBestEquipment = {}
+    end
+    return ValuateBestEquipment
 end
 
 -- Migrate from account-wide to per-character SavedVariables
@@ -179,6 +216,9 @@ function Valuate:Initialize()
     if options.decimalPlaces == nil then options.decimalPlaces = 1 end
     if options.rightAlign == nil then options.rightAlign = false end
     if options.showScaleValue == nil then options.showScaleValue = true end
+    if options.showBestFor == nil then options.showBestFor = true end
+    if options.chatMessages == nil then options.chatMessages = true end
+    if options.showStartupMessage == nil then options.showStartupMessage = true end
     if options.comparisonMode == nil then options.comparisonMode = "number" end
     if options.characterWindowScale == nil then options.characterWindowScale = nil end
     if options.showCharacterWindowDisplay == nil then options.showCharacterWindowDisplay = true end
@@ -191,8 +231,17 @@ function Valuate:Initialize()
     -- Get per-character scales
     local scales = Valuate:GetScales()
     
+    -- Initialize best equipment storage
+    Valuate:GetBestEquipment()
+    
+    -- Clean up orphaned best equipment data from deleted scales
+    Valuate:CleanupOrphanedBestEquipment()
+    
     -- Basic initialization
-    print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
+    local options = self:GetOptions()
+    if options.showStartupMessage then
+        print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
+    end
     
     -- Verify stat patterns loaded
     if not ValuateStatPatterns then
@@ -254,6 +303,11 @@ local function GetPrivateTooltip()
         ValuatePrivateTooltip:SetOwner(UIParent, "ANCHOR_NONE")
     end
     return ValuatePrivateTooltip
+end
+
+-- Expose GetPrivateTooltip for use in other files
+function Valuate:GetPrivateTooltip()
+    return GetPrivateTooltip()
 end
 
 -- Parses stats from tooltip text using regex patterns
@@ -532,6 +586,13 @@ end
 -- Tooltip Integration (Performance-Optimized)
 -- ========================================
 
+-- Helper function to extract item ID from item link
+local function GetItemIdFromLink(itemLink)
+    if not itemLink then return nil end
+    local itemId = itemLink:match("item:(%d+):")
+    return itemId and tonumber(itemId) or nil
+end
+
 -- Track current item and whether we've added our lines
 local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
@@ -670,10 +731,38 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
     -- Check if this is a multi-slot item type (rings, trinkets, 1H weapons)
     local isMultiSlot = (equipSlot == "INVTYPE_FINGER" or equipSlot == "INVTYPE_TRINKET" or equipSlot == "INVTYPE_WEAPON")
     
-    -- Calculate and display scores
-    local hasScores = false
     local options = Valuate:GetOptions()
     local scales = Valuate:GetScales()
+    
+    -- Add "Best for" line at the TOP if player owns the item and it's best for any scales
+    local hasScores = false
+    if itemLink and options.showBestFor ~= false then
+        local ownsItem = Valuate:PlayerOwnsItem(itemLink)
+        if ownsItem then
+            local bestScales = Valuate:IsBestInSlot(itemLink)
+            if bestScales and #bestScales > 0 then
+                -- Build colored scale names list
+                local scaleNamesList = {}
+                for _, bestScaleName in ipairs(bestScales) do
+                    local scale = scales[bestScaleName]
+                    if scale then
+                        local color = scale.Color or "FFFFFF"
+                        local displayName = scale.DisplayName or bestScaleName
+                        table.insert(scaleNamesList, "|cFF" .. color .. displayName .. "|r")
+                    end
+                end
+                
+                if #scaleNamesList > 0 then
+                    tooltip:AddLine(" ")  -- Blank line before "Best for"
+                    local scaleNamesText = table.concat(scaleNamesList, ", ")
+                    tooltip:AddLine(VALUATE_MARKER_FULL .. " |cFFFFD700★ Best for:|r " .. scaleNamesText, nil, nil, nil, true)
+                    hasScores = true  -- Mark that we've added lines
+                end
+            end
+        end
+    end
+    
+    -- Calculate and display scores
     for _, scaleName in ipairs(activeScales) do
         local scale = scales[scaleName]
         if scale then
@@ -716,20 +805,24 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
             if not hasUnusableStat then
                 local score = Valuate:CalculateItemScore(stats, scale)
                 if score and score > 0 then
-                    if not hasScores then
-                        tooltip:AddLine(" ")
-                        hasScores = true
-                    end
-                    local color = scale.Color or "FFFFFF"
-                    local displayName = scale.DisplayName or scaleName
-                    local decimals = options.decimalPlaces or 1
-                    local formatStr = "%." .. decimals .. "f"
-                    local scoreText = string.format(formatStr, score)
-                    
-                    -- Build the display text based on options
+                    -- Check if user wants to show scale values
                     local showValue = options.showScaleValue ~= false
-                    local compMode = options.comparisonMode or "number"
-                    local comparisonText = ""
+                    
+                    -- Only display scale info if showValue is enabled
+                    if showValue then
+                        if not hasScores then
+                            tooltip:AddLine(" ")
+                            hasScores = true
+                        end
+                        local color = scale.Color or "FFFFFF"
+                        local displayName = scale.DisplayName or scaleName
+                        local decimals = options.decimalPlaces or 1
+                        local formatStr = "%." .. decimals .. "f"
+                        local scoreText = string.format(formatStr, score)
+                        
+                        -- Build the display text based on options
+                        local compMode = options.comparisonMode or "number"
+                        local comparisonText = ""
                     
                     -- Build icon prefix based on scale's Icon setting
                     local prefix = VALUATE_MARKER_FULL
@@ -944,7 +1037,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     
                     -- Calculate comparison if enabled and item is equippable
                     -- Only show multi-slot breakdown on hover tooltips (itemLink provided), not shopping tooltips
-                    if compMode ~= "off" and equipSlot and equipSlot ~= "" and isMultiSlot and itemLink then
+                    if compMode ~= "off" and equipSlot and equipSlot ~= "" and isMultiSlot and itemLink and showValue then
                         -- For multi-slot items, show individual comparisons
                         local equippedScores = Valuate:GetEquippedItemScores(equipSlot, scale)
                         
@@ -1014,11 +1107,13 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     end
                                 end
                                 
-                                -- Add slot comparison line
-                                if options.rightAlign then
-                                    tooltip:AddDoubleLine("  " .. prefix .. "|cFF" .. color .. slotName .. "|r", slotComparisonText)
-                                else
-                                    tooltip:AddLine("  " .. prefix .. "|cFF" .. color .. slotName .. ": " .. slotComparisonText .. "|r")
+                                -- Add slot comparison line (only if showValue is true)
+                                if showValue then
+                                    if options.rightAlign then
+                                        tooltip:AddDoubleLine("  " .. prefix .. "|cFF" .. color .. slotName .. "|r", slotComparisonText)
+                                    else
+                                        tooltip:AddLine("  " .. prefix .. "|cFF" .. color .. slotName .. ": " .. slotComparisonText .. "|r")
+                                    end
                                 end
                                 
                                 -- Add stat breakdown for this specific equipped item if enabled
@@ -1194,7 +1289,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             if compMode == "number" then
                                 comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
                             elseif compMode == "percent" then
-                                if equippedScore > 0 then
+                                -- Check if equippedScore exists and is not 0 (can't divide by 0)
+                                if equippedScore and equippedScore ~= 0 then
                                     local percent = (diff / equippedScore) * 100
                                     local percentText
                                     -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
@@ -1205,12 +1301,16 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                         percentText = string.format("%.1f", percent)
                                         comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
                                     end
+                                elseif equippedScore == 0 then
+                                    -- Equipped item has score of 0, can't calculate percentage, show number only
+                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
                                 else
-                                    -- No equipped item, show as new
+                                    -- No equipped item (nil), show as new
                                     comparisonText = " " .. diffColor .. "(new)|r"
                                 end
                             elseif compMode == "both" then
-                                if equippedScore > 0 then
+                                -- Check if equippedScore exists and is not 0 (can't divide by 0)
+                                if equippedScore and equippedScore ~= 0 then
                                     local percent = (diff / equippedScore) * 100
                                     local percentText
                                     -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
@@ -1221,7 +1321,11 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                         percentText = string.format("%.1f", percent)
                                         comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
                                     end
+                                elseif equippedScore == 0 then
+                                    -- Equipped item has score of 0, can't calculate percentage, show number only
+                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
                                 else
+                                    -- No equipped item (nil), show as new
                                     comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", new)|r"
                                 end
                             end
@@ -1265,6 +1369,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             end
                         end
                     end
+                    end  -- Close "if showValue then" block
                 end
             end
         end
@@ -1290,8 +1395,22 @@ function Valuate:HookTooltips()
         end
     end
     
-    hooksecurefunc(GameTooltip, "SetBagItem", OnTooltipSet)
-    hooksecurefunc(GameTooltip, "SetInventoryItem", OnTooltipSet)
+    -- Special hooks to capture item source for proper item link retrieval
+    local LastInventorySlot = nil
+    local LastBagSlot = nil
+    
+    hooksecurefunc(GameTooltip, "SetBagItem", function(self, bag, slot)
+        OnTooltipSet(self)
+        LastBagSlot = {bag = bag, slot = slot}
+        LastInventorySlot = nil  -- Clear inventory slot when showing bag item
+    end)
+    
+    hooksecurefunc(GameTooltip, "SetInventoryItem", function(self, unit, slot)
+        OnTooltipSet(self)
+        LastInventorySlot = {unit = unit, slot = slot}
+        LastBagSlot = nil  -- Clear bag slot when showing inventory item
+    end)
+    
     hooksecurefunc(GameTooltip, "SetHyperlink", OnTooltipSet)
     hooksecurefunc(GameTooltip, "SetLootItem", OnTooltipSet)
     hooksecurefunc(GameTooltip, "SetAuctionItem", OnTooltipSet)
@@ -1312,6 +1431,25 @@ function Valuate:HookTooltips()
             return
         end
         
+        -- Fix for malformed item links: GetItem() sometimes returns incomplete links
+        -- If we have a captured source (inventory or bag), use it to get proper link
+        local itemId = GetItemIdFromLink(itemLink)
+        if not itemId then
+            if LastInventorySlot then
+                -- Character sheet item
+                local properLink = GetInventoryItemLink(LastInventorySlot.unit, LastInventorySlot.slot)
+                if properLink then
+                    itemLink = properLink
+                end
+            elseif LastBagSlot then
+                -- Bag item
+                local properLink = GetContainerItemLink(LastBagSlot.bag, LastBagSlot.slot)
+                if properLink then
+                    itemLink = properLink
+                end
+            end
+        end
+        
         -- Check if our lines are already present
         if HasValuateLines(self) then
             ValuateLinesAdded = true
@@ -1327,9 +1465,42 @@ function Valuate:HookTooltips()
         end
         
         -- Add our lines if we have stats
+        local statsAdded = false
         if CurrentTooltipStats and next(CurrentTooltipStats) and not ValuateLinesAdded then
             AddScoreLinesToTooltip(self, CurrentTooltipStats, itemLink)
             ValuateLinesAdded = true
+            statsAdded = true
+        end
+        
+        -- Add "Best for" line independently (even if no stats were parsed)
+        -- This ensures the "Best for" line shows on character sheet and bags
+        -- Only add if stats weren't added (AddScoreLinesToTooltip already adds it)
+        local options = Valuate:GetOptions()
+        if itemLink and not statsAdded and not ValuateLinesAdded and options.showBestFor ~= false then
+            local ownsItem = Valuate:PlayerOwnsItem(itemLink)
+            if ownsItem then
+                local bestScales = Valuate:IsBestInSlot(itemLink)
+                if bestScales and #bestScales > 0 then
+                    local scaleNamesList = {}
+                    local scales = Valuate:GetScales()
+                    for _, bestScaleName in ipairs(bestScales) do
+                        local scale = scales[bestScaleName]
+                        if scale then
+                            local color = scale.Color or "FFFFFF"
+                            local displayName = scale.DisplayName or bestScaleName
+                            table.insert(scaleNamesList, "|cFF" .. color .. displayName .. "|r")
+                        end
+                    end
+                    
+                    if #scaleNamesList > 0 then
+                        self:AddLine(" ")
+                        local scaleNamesText = table.concat(scaleNamesList, ", ")
+                        self:AddLine(VALUATE_MARKER_FULL .. " |cFFFFD700★ Best for:|r " .. scaleNamesText, nil, nil, nil, true)
+                        self:Show()
+                        ValuateLinesAdded = true
+                    end
+                end
+            end
         end
         
         -- Apply border coloring based on displayed scale
@@ -1358,6 +1529,8 @@ function Valuate:HookTooltips()
         CurrentTooltipItem = nil
         CurrentTooltipStats = nil
         ValuateLinesAdded = false
+        LastInventorySlot = nil
+        LastBagSlot = nil
         
         -- Reset border color to default
         if DefaultTooltipBorderColor then
@@ -1406,8 +1579,32 @@ function Valuate:HookTooltips()
         -- Shopping tooltips show equipped items - display only equipped item's stats (no comparison)
         local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
         if equippedStats and next(equippedStats) then
-            -- Pass nil for itemLink to prevent comparison (this is the equipped item, not hovered)
-            AddScoreLinesToTooltip(tooltip, equippedStats, nil)
+            -- Get the item link for "Best for" checking
+            local shoppingItemLink = tooltip:GetItem()
+            
+            -- Fix malformed item links from shopping tooltips
+            local itemId = GetItemIdFromLink(shoppingItemLink)
+            
+            if not itemId and shoppingItemLink then
+                -- Shopping tooltips often just return item name, not full link
+                -- Search equipped items to find matching slot and get proper link
+                for slotId = 1, 18 do
+                    if slotId ~= 4 then  -- Skip shirt slot
+                        local equippedLink = GetInventoryItemLink("player", slotId)
+                        if equippedLink then
+                            local itemName = GetItemInfo(equippedLink)
+                            if itemName and itemName == shoppingItemLink then
+                                -- Found matching item!
+                                shoppingItemLink = equippedLink
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            
+            -- Pass the item link so "Best for" line can be added
+            AddScoreLinesToTooltip(tooltip, equippedStats, shoppingItemLink)
             tooltip:Show()  -- Resize tooltip to fit new lines
         end
         
@@ -1445,14 +1642,20 @@ function Valuate:HookTooltips()
         end)
     end
     
+    -- Shopping tooltip item source tracking
+    local ShoppingTooltip1Slot = nil
+    local ShoppingTooltip2Slot = nil
+    
     -- Hook SetInventoryItem - used by EquipCompare addon for comparison tooltips
     if ShoppingTooltip1 then
-        hooksecurefunc(ShoppingTooltip1, "SetInventoryItem", function(self, ...)
+        hooksecurefunc(ShoppingTooltip1, "SetInventoryItem", function(self, unit, slot)
+            ShoppingTooltip1Slot = {unit = unit, slot = slot}
             UpdateShoppingTooltip("ShoppingTooltip1")
         end)
     end
     if ShoppingTooltip2 then
-        hooksecurefunc(ShoppingTooltip2, "SetInventoryItem", function(self, ...)
+        hooksecurefunc(ShoppingTooltip2, "SetInventoryItem", function(self, unit, slot)
+            ShoppingTooltip2Slot = {unit = unit, slot = slot}
             UpdateShoppingTooltip("ShoppingTooltip2")
         end)
     end
@@ -1848,7 +2051,7 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
         end
     end
     
-    return lowestScore or 0
+    return lowestScore  -- Return nil if no equipped item found, not 0
 end
 
 -- Calculates the total score for all currently equipped gear
@@ -1904,6 +2107,494 @@ function Valuate:GetActiveScales()
     end
     
     return active
+end
+
+-- ========================================
+-- Best Equipment Tracking
+-- ========================================
+
+-- Scans all equipped items and items in bags to find the best item for each slot per scale
+-- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
+function Valuate:ScanBestEquipment()
+    local bestEquipment = Valuate:GetBestEquipment()
+    local activeScales = Valuate:GetActiveScales()
+    local scales = Valuate:GetScales()
+    local tooltip = GetPrivateTooltip()
+    
+    if #activeScales == 0 then
+        print("|cFFFF8800[Valuate]|r No active scales - cannot scan best equipment")
+        return
+    end
+    
+    -- Initialize/clear storage for each scale (reset previous scan data, but preserve locks)
+    for _, scaleName in ipairs(activeScales) do
+        -- Save locks before clearing
+        local locks = bestEquipment[scaleName] and bestEquipment[scaleName].locks
+        bestEquipment[scaleName] = {}  -- Always reset to clear previous scan results
+        -- Restore locks
+        if locks then
+            bestEquipment[scaleName].locks = locks
+        end
+    end
+    
+    -- First pass: Count all items by item ID (equipped + bags)
+    local itemCounts = {}  -- itemId -> count
+    local itemData = {}    -- itemId -> {itemLink, itemName, itemEquipLoc, stats, itemTexture, itemQuality}
+    
+    local itemsScanned = 0
+    local itemsProcessed = 0
+    
+    -- First pass: Count all items and collect their data
+    -- Scan equipped items (slots 1-18, skip 4=shirt)
+    for slotId = 1, 18 do
+        if slotId ~= 4 then
+            local itemLink = GetInventoryItemLink("player", slotId)
+            if itemLink then
+                itemsScanned = itemsScanned + 1
+                local itemId = GetItemIdFromLink(itemLink)
+                if itemId then
+                    itemCounts[itemId] = (itemCounts[itemId] or 0) + 1
+                    
+                    -- Store item data if not already stored
+                    if not itemData[itemId] then
+                        local _, itemName, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        tooltip:ClearLines()
+                        -- Use SetInventoryItem for equipped items to get actual scaled stats
+                        tooltip:SetInventoryItem("player", slotId)
+                        local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                        
+                        if stats and itemEquipLoc and itemEquipLoc ~= "" then
+                            local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
+                            itemData[itemId] = {
+                                itemLink = itemLink,
+                                itemName = itemName or "Unknown",
+                                itemEquipLoc = itemEquipLoc,
+                                stats = stats,
+                                itemTexture = itemTexture,
+                                itemQuality = itemQuality or 0
+                            }
+                            itemsProcessed = itemsProcessed + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Scan bag items (bags 0-4)
+    for bagId = 0, 4 do
+        local numSlots = GetContainerNumSlots(bagId)
+        for slotId = 1, numSlots do
+            local itemLink = GetContainerItemLink(bagId, slotId)
+            if itemLink then
+                itemsScanned = itemsScanned + 1
+                local itemId = GetItemIdFromLink(itemLink)
+                if itemId then
+                    itemCounts[itemId] = (itemCounts[itemId] or 0) + 1
+                    
+                    -- Store item data if not already stored
+                    if not itemData[itemId] then
+                        local _, itemName, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        
+                        -- Only process equippable items
+                        if itemEquipLoc and itemEquipLoc ~= "" then
+                            -- Get item stats
+                            tooltip:ClearLines()
+                            -- Use SetBagItem for bag items to get actual scaled stats
+                            tooltip:SetBagItem(bagId, slotId)
+                            local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                            
+                            if stats then
+                                local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
+                                itemData[itemId] = {
+                                    itemLink = itemLink,
+                                    itemName = itemName or "Unknown",
+                                    itemEquipLoc = itemEquipLoc,
+                                    stats = stats,
+                                    itemTexture = itemTexture,
+                                    itemQuality = itemQuality or 0
+                                }
+                                itemsProcessed = itemsProcessed + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Second pass: For each scale, assign items to slots, tracking usage
+    for _, scaleName in ipairs(activeScales) do
+        local scale = scales[scaleName]
+        if scale then
+            -- Track how many times each item ID has been used for this scale
+            local itemUsage = {}  -- itemId -> count of times used
+            
+            -- Check for locked slots
+            local locks = bestEquipment[scaleName].locks or {}
+            
+            -- Collect all items with their scores for this scale
+            local itemsWithScores = {}  -- {itemId, score, itemData}
+            
+            for itemId, data in pairs(itemData) do
+                -- Check if item has unusable stats
+                local hasUnusableStat = false
+                if scale.Unusable then
+                    for statName, statValue in pairs(data.stats) do
+                        if scale.Unusable[statName] and statValue and statValue > 0 then
+                            hasUnusableStat = true
+                            break
+                        end
+                    end
+                    
+                    if not hasUnusableStat and data.itemEquipLoc then
+                        if data.itemEquipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                            hasUnusableStat = true
+                        elseif data.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+                            hasUnusableStat = true
+                        elseif (data.itemEquipLoc == "INVTYPE_RANGED" or data.itemEquipLoc == "INVTYPE_RANGEDRIGHT" or data.itemEquipLoc == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+                            hasUnusableStat = true
+                        end
+                    end
+                end
+                
+                if not hasUnusableStat then
+                    local score = Valuate:CalculateItemScore(data.stats, scale)
+                    if score and score > 0 then
+                        table.insert(itemsWithScores, {
+                            itemId = itemId,
+                            score = score,
+                            data = data
+                        })
+                    end
+                end
+            end
+            
+            -- Sort by score (descending) so we assign best items first
+            table.sort(itemsWithScores, function(a, b) return a.score > b.score end)
+            
+            -- Assign items to slots
+            for _, itemInfo in ipairs(itemsWithScores) do
+                local itemId = itemInfo.itemId
+                local score = itemInfo.score
+                local data = itemInfo.data
+                local targetSlots = EquipSlotToInvNumber[data.itemEquipLoc]
+                
+                if targetSlots then
+                    for _, targetSlotId in ipairs(targetSlots) do
+                        -- Skip locked slots
+                        if not locks[targetSlotId] then
+                            -- Calculate available copies each time
+                            local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
+                            
+                            -- Only assign if we have copies available
+                            if availableCopies > 0 then
+                                -- Check if this is better than current best for this slot
+                                local currentBest = bestEquipment[scaleName][targetSlotId]
+                                if not currentBest or score > currentBest.score then
+                                    bestEquipment[scaleName][targetSlotId] = {
+                                        itemLink = data.itemLink,
+                                        score = score,
+                                        itemName = data.itemName,
+                                        itemTexture = data.itemTexture,
+                                        itemQuality = data.itemQuality
+                                    }
+                                    -- Mark this item as used for this slot
+                                    itemUsage[itemId] = (itemUsage[itemId] or 0) + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    local options = Valuate:GetOptions()
+    if options.chatMessages then
+        print("|cFF00FF00[Valuate]|r Best equipment scan complete: " .. itemsProcessed .. " items processed from " .. itemsScanned .. " items scanned")
+    end
+    
+    -- Notify UI to update if needed
+    if Valuate.RefreshBestEquipmentDisplay then
+        Valuate:RefreshBestEquipmentDisplay()
+    end
+end
+
+-- Checks if an item is the best-in-slot for any active scale
+-- itemLink: The item link to check
+-- Returns: Table of scale names for which this item is best-in-slot, or nil
+function Valuate:IsBestInSlot(itemLink)
+    if not itemLink then return nil end
+    
+    local bestEquipment = Valuate:GetBestEquipment()
+    local activeScales = Valuate:GetActiveScales()
+    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+    
+    if not itemEquipLoc or itemEquipLoc == "" then
+        return nil
+    end
+    
+    local bestScales = {}
+    local targetSlots = EquipSlotToInvNumber[itemEquipLoc]
+    
+    if not targetSlots then
+        return nil
+    end
+    
+    -- Get item ID for comparison (handles unique item link suffixes)
+    local itemId = GetItemIdFromLink(itemLink)
+    if not itemId then
+        return nil
+    end
+    
+    for _, scaleName in ipairs(activeScales) do
+        if bestEquipment[scaleName] then
+            for _, targetSlotId in ipairs(targetSlots) do
+                local bestItem = bestEquipment[scaleName][targetSlotId]
+                if bestItem and bestItem.itemLink then
+                    local bestItemId = GetItemIdFromLink(bestItem.itemLink)
+                    -- Compare by item ID instead of full link
+                    if bestItemId == itemId then
+                        tinsert(bestScales, scaleName)
+                        break  -- Found it for this scale, move to next scale
+                    end
+                end
+            end
+        end
+    end
+    
+    return #bestScales > 0 and bestScales or nil
+end
+
+-- Checks if the player owns an item (equipped or in bags)
+-- itemLink: The item link to check
+-- Returns: true if player owns the item, false otherwise
+function Valuate:PlayerOwnsItem(itemLink)
+    if not itemLink then return false end
+    
+    -- Get item ID for comparison (handles unique suffixes)
+    local itemId = GetItemIdFromLink(itemLink)
+    if not itemId then return false end
+    
+    -- Check equipped slots (1-18, skip 4=shirt)
+    for slotId = 1, 18 do
+        if slotId ~= 4 then
+            local equippedLink = GetInventoryItemLink("player", slotId)
+            if equippedLink then
+                local equippedId = GetItemIdFromLink(equippedLink)
+                if equippedId == itemId then
+                    return true
+                end
+            end
+        end
+    end
+    
+    -- Check bags (0-4)
+    for bagId = 0, 4 do
+        local numSlots = GetContainerNumSlots(bagId)
+        for slotId = 1, numSlots do
+            local bagItemLink = GetContainerItemLink(bagId, slotId)
+            if bagItemLink then
+                local bagItemId = GetItemIdFromLink(bagItemLink)
+                if bagItemId == itemId then
+                    return true
+                end
+            end
+        end
+    end
+    
+    -- Note: Bank checking is not included as it requires the bank to be open
+    -- and would add significant overhead
+    
+    return false
+end
+
+-- Clears best equipment data for a specific scale
+-- scaleName: Name of the scale to clear data for
+-- Clears best equipment data for a specific scale (respects locked slots)
+function Valuate:ClearBestEquipmentForScale(scaleName)
+    if not scaleName then return false end
+    
+    local bestEquipment = Valuate:GetBestEquipment()
+    if bestEquipment[scaleName] then
+        -- Store locked slots before clearing
+        local locks = bestEquipment[scaleName].locks
+        local lockedItems = {}
+        
+        if locks then
+            -- Save items from locked slots
+            for slotId, isLocked in pairs(locks) do
+                if isLocked and bestEquipment[scaleName][slotId] then
+                    lockedItems[slotId] = bestEquipment[scaleName][slotId]
+                end
+            end
+        end
+        
+        -- Clear all data
+        bestEquipment[scaleName] = {}
+        
+        -- Restore locks and locked items
+        if locks then
+            bestEquipment[scaleName].locks = locks
+            for slotId, itemData in pairs(lockedItems) do
+                bestEquipment[scaleName][slotId] = itemData
+            end
+        end
+        
+        local lockedCount = 0
+        for _ in pairs(lockedItems) do lockedCount = lockedCount + 1 end
+        
+        local options = Valuate:GetOptions()
+        if options.chatMessages then
+            if lockedCount > 0 then
+                print("|cFF00FF00[Valuate]|r Cleared best equipment for scale: " .. scaleName .. " (kept " .. lockedCount .. " locked slots)")
+            else
+                print("|cFF00FF00[Valuate]|r Cleared best equipment for scale: " .. scaleName)
+            end
+        end
+        
+        -- Refresh display if needed
+        if Valuate.RefreshBestEquipmentDisplay then
+            Valuate:RefreshBestEquipmentDisplay()
+        end
+        
+        return true
+    end
+    
+    return false
+end
+
+-- Converts an icon texture path to an icon index for SaveEquipmentSet
+-- iconPath: Full icon path (e.g., "Interface\\Icons\\Spell_Holy_HolyBolt")
+-- Returns: Icon index (number) or 1 if not found
+function Valuate:GetIconIndexFromPath(iconPath)
+    if not iconPath or iconPath == "" then
+        return nil  -- Return nil instead of 1 to indicate "not found"
+    end
+    
+    -- Extract just the filename from the path
+    local iconName = iconPath:match("([^\\]+)$")
+    if not iconName then
+        return nil
+    end
+    
+    -- First check macro icons (positive indices, equipment sets prefer these)
+    local numMacroIcons = GetNumMacroIcons()
+    if numMacroIcons and numMacroIcons > 0 then
+        for i = 1, numMacroIcons do
+            local macroIcon = GetMacroIconInfo(i)
+            if macroIcon then
+                local macroIconName = macroIcon:match("([^\\]+)$")
+                if macroIconName == iconName then
+                    return i
+                end
+            end
+        end
+    end
+    
+    -- Then check item icons (negative indices)
+    local numItemIcons = GetNumMacroItemIcons()
+    if numItemIcons and numItemIcons > 0 then
+        for i = 1, numItemIcons do
+            local itemIcon = GetMacroItemIconInfo(i)
+            if itemIcon then
+                local itemIconName = itemIcon:match("([^\\]+)$")
+                if itemIconName == iconName then
+                    return -i  -- Negative index for item icons
+                end
+            end
+        end
+    end
+    
+    -- Not found, return nil to indicate caller should use texture path
+    return nil
+end
+
+-- Creates an equipment set from the best items for a given scale
+-- scaleName: Name of the scale to create gearset for
+-- setName: Name for the equipment set (defaults to scale display name)
+-- override: If true, will delete existing set with same name first
+-- Returns: true if successful, false otherwise
+-- SAFE VERSION: Creates a gear set from CURRENTLY equipped items (no auto-equipping)
+-- User must manually equip items before calling this
+function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override)
+    if not scaleName then return false end
+    
+    local bestEquipment = Valuate:GetBestEquipment()
+    local scales = Valuate:GetScales()
+    local scale = scales[scaleName]
+    
+    if not scale or not bestEquipment[scaleName] then
+        print("|cFFFF0000[Valuate]|r No best equipment data found for scale: " .. (scaleName or "nil"))
+        return false
+    end
+    
+    -- Check if set name already exists and delete it (always override)
+    local finalSetName = setName or (scale.DisplayName or scaleName)
+    for i = 1, GetNumEquipmentSets() do
+        local existingName = GetEquipmentSetInfo(i)
+        if existingName == finalSetName then
+            DeleteEquipmentSet(i)
+            break
+        end
+    end
+    
+    -- Check if we're at the limit
+    if GetNumEquipmentSets() >= 10 then
+        print("|cFFFF0000[Valuate]|r Maximum number of equipment sets (10) reached. Please delete one first.")
+        return false
+    end
+    
+    -- SAFE: Just save whatever is currently equipped, no auto-equipping
+    -- Get icon index for the set
+    local iconIndex = 1  -- Default icon index
+    if scale.Icon and scale.Icon ~= "" then
+        local foundIndex = Valuate:GetIconIndexFromPath(scale.Icon)
+        if foundIndex then
+            iconIndex = foundIndex
+        end
+    end
+    
+    -- Save the equipment set (saves current equipment)
+    SaveEquipmentSet(finalSetName, iconIndex)
+    
+    local options = Valuate:GetOptions()
+    if options.chatMessages then
+        print("|cFF00FF00[Valuate]|r Created equipment set '" .. finalSetName .. "' from currently equipped items.")
+        print("|cFFFFAA00[Valuate]|r IMPORTANT: The set saves what you're WEARING, not what's shown in Best Equipment.")
+        print("|cFFFFAA00[Valuate]|r Manually equip your best items BEFORE clicking 'Create Set'.")
+    end
+    
+    return true
+end
+
+-- OLD FUNCTION REMOVED - Use Blizzard's equipment manager directly to switch sets
+-- This prevents potential issues with programmatic equipment changes
+
+-- Cleans up orphaned best equipment data for scales that no longer exist
+function Valuate:CleanupOrphanedBestEquipment()
+    local bestEquipment = Valuate:GetBestEquipment()
+    local scales = Valuate:GetScales()
+    local removed = 0
+    
+    -- Iterate through all best equipment data
+    for scaleName, _ in pairs(bestEquipment) do
+        -- If the scale no longer exists, remove its best equipment data
+        if not scales[scaleName] then
+            bestEquipment[scaleName] = nil
+            removed = removed + 1
+        end
+    end
+    
+    if removed > 0 then
+        local options = Valuate:GetOptions()
+        if options.chatMessages then
+            print("|cFF00FF00[Valuate]|r Cleaned up best equipment data for " .. removed .. " removed scale(s)")
+        end
+    end
+    
+    return removed
 end
 
 
@@ -2025,6 +2716,7 @@ end
 -- Register events
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
@@ -2163,15 +2855,7 @@ end
 -- ========================================
 -- Keybinding System
 -- ========================================
-
--- Keybinding function that WoW calls when the key is pressed
--- This is registered in Bindings.xml
-function ValuateToggleUI()
-    if Valuate and Valuate.ToggleUI then
-        Valuate:ToggleUI()
-    else
-        print("|cFFFF0000Valuate|r: UI not ready. Please try again or /reload.")
-    end
-end
+-- Note: ValuateToggleUI() is defined at the top of the file to ensure
+-- it's available when Bindings.xml is processed
 
 

@@ -1,15 +1,16 @@
 -- ValuateUI.lua
 -- UI Window for Valuate stat weight calculator
 
+-- Ensure Valuate namespace exists (defensive check)
+if not Valuate then
+    Valuate = {}
+end
+
 -- ========================================
 -- UI Constants
 -- ========================================
 
 -- Window dimensions
-local WINDOW_WIDTH = 950
-local MIN_WINDOW_HEIGHT = 600
-local MAX_WINDOW_HEIGHT = 900
-
 -- Standardized spacing
 local PADDING = 12              -- Outer padding from window edges
 local ELEMENT_SPACING = 8       -- Between major UI sections
@@ -21,7 +22,8 @@ local BUTTON_HEIGHT = 24
 local ENTRY_HEIGHT = 24
 local SCROLLBAR_WIDTH = 20      -- Width reserved for scrollbars (18px bar + 2px gap)
 
--- Stat editor sizing (4-column layout)
+-- Stat editor sizing (5-column layout)
+local NUM_COLUMNS = 5           -- Number of stat columns
 local COLUMN_WIDTH = 160        -- Each stat column width
 local ROW_HEIGHT = 16           -- Stat row height
 local ROW_SPACING = 1           -- Spacing between stat rows
@@ -30,6 +32,15 @@ local HEADER_SPACING = 6        -- Spacing above headers
 
 -- Scale list sizing
 local SCALE_LIST_WIDTH = 200    -- Left panel width for scale list
+
+-- Dynamic window sizing based on layout requirements
+-- Window width calculation: Content padding + Scale list + Gap + Editor content (columns + gaps) + Content padding
+local EDITOR_CONTENT_WIDTH = NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP
+local WINDOW_WIDTH = PADDING + SCALE_LIST_WIDTH + PADDING + EDITOR_CONTENT_WIDTH + PADDING
+-- Result: 12 + 200 + 12 + (5*160 + 4*6) + 12 = 12 + 200 + 12 + 824 + 12 = 1060
+
+local MIN_WINDOW_HEIGHT = 600
+local MAX_WINDOW_HEIGHT = 900
 
 -- ========================================
 -- Color Palette (Modern, clean look)
@@ -2991,6 +3002,28 @@ local function CreateTabSystem(mainFrame, contentFrame)
     scalesPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     scalesPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     
+    -- Create container hierarchy for scales panel (consistent with best equipment UI)
+    -- Main content container (fills scalesPanel)
+    local scalesContentContainer = CreateFrame("Frame", nil, scalesPanel)
+    scalesContentContainer:SetPoint("TOPLEFT", scalesPanel, "TOPLEFT", 0, 0)
+    scalesContentContainer:SetPoint("BOTTOMRIGHT", scalesPanel, "BOTTOMRIGHT", 0, 0)
+    
+    -- Left side: Scale list container
+    local scaleListContainer = CreateFrame("Frame", nil, scalesContentContainer)
+    scaleListContainer:SetPoint("TOPLEFT", scalesContentContainer, "TOPLEFT", 0, 0)
+    scaleListContainer:SetPoint("BOTTOMLEFT", scalesContentContainer, "BOTTOMLEFT", 0, 0)
+    scaleListContainer:SetWidth(200)
+    
+    -- Right side: Scale editor container
+    local scaleEditorContainer = CreateFrame("Frame", nil, scalesContentContainer)
+    scaleEditorContainer:SetPoint("TOPLEFT", scaleListContainer, "TOPRIGHT", PADDING, 0)
+    scaleEditorContainer:SetPoint("BOTTOMRIGHT", scalesContentContainer, "BOTTOMRIGHT", 0, 0)
+    
+    -- Store container references for external access
+    scalesPanel.contentContainer = scalesContentContainer
+    scalesPanel.scaleListContainer = scaleListContainer
+    scalesPanel.scaleEditorContainer = scaleEditorContainer
+    
     local instructionsPanel = CreateFrame("Frame", nil, contentFrame)
     instructionsPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     instructionsPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
@@ -3010,6 +3043,11 @@ local function CreateTabSystem(mainFrame, contentFrame)
     changelogPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     changelogPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     changelogPanel:Hide()
+    
+    local bestEquipmentPanel = CreateFrame("Frame", nil, contentFrame)
+    bestEquipmentPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    bestEquipmentPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
+    bestEquipmentPanel:Hide()
     
     -- Create tabs (Scales on left, Instructions/About/Changelog/Settings on right)
     CreateTab("scales", "Scales", scalesPanel, "left")
@@ -3080,6 +3118,27 @@ local function CreateTabSystem(mainFrame, contentFrame)
     tabs["instructions"] = instructionsBtn
     tabPanels["instructions"] = instructionsPanel
     
+    -- Create Best Equipment tab to the left of Instructions
+    local bestEquipmentBtn = CreateFrame("Button", nil, mainFrame)
+    bestEquipmentBtn:SetHeight(22)
+    bestEquipmentBtn:SetBackdrop(BACKDROP_BUTTON)
+    bestEquipmentBtn:SetBackdropColor(unpack(COLORS.buttonBg))
+    bestEquipmentBtn:SetBackdropBorderColor(unpack(COLORS.border))
+    bestEquipmentBtn:SetScript("OnClick", function()
+        SelectTab("bestEquipment")
+    end)
+    
+    local bestEquipmentLabel = bestEquipmentBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    bestEquipmentLabel:SetPoint("CENTER", bestEquipmentBtn, "CENTER", 0, 0)
+    bestEquipmentLabel:SetText("Best Equipment")
+    bestEquipmentLabel:SetTextColor(unpack(COLORS.textBody))
+    bestEquipmentBtn.label = bestEquipmentLabel
+    bestEquipmentBtn:SetWidth(bestEquipmentLabel:GetStringWidth() + 40)
+    bestEquipmentBtn:SetPoint("RIGHT", instructionsBtn, "LEFT", -4, 0)
+    
+    tabs["bestEquipment"] = bestEquipmentBtn
+    tabPanels["bestEquipment"] = bestEquipmentPanel
+    
     -- Select default tab
     SelectTab("scales")
     
@@ -3090,6 +3149,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
         aboutPanel = aboutPanel,
         changelogPanel = changelogPanel,
         settingsPanel = settingsPanel,
+        bestEquipmentPanel = bestEquipmentPanel,
         selectTab = SelectTab
     }
 end
@@ -3334,6 +3394,11 @@ local function UpdateScaleList()
                         end
                         UpdateScaleList()
                         
+                        -- Clear best equipment data for this scale
+                        if Valuate.ClearBestEquipmentForScale then
+                            Valuate:ClearBestEquipmentForScale(scaleName)
+                        end
+                        
                         -- Reset all tooltips to reflect the deletion immediately
                         if Valuate.ResetTooltips then
                             Valuate:ResetTooltips()
@@ -3552,15 +3617,11 @@ ValuateUI_OnTemplateOverwrite = function(template)
 end
 
 local function CreateScaleList(parent)
-    local container = CreateFrame("Frame", nil, parent)
-    container:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
-    container:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
-    container:SetWidth(200)
-    
+    -- Parent is now the scaleListContainer with proper size/positioning already set
     -- Button container for New Scale and Template buttons
-    local buttonContainer = CreateFrame("Frame", nil, container)
-    buttonContainer:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    buttonContainer:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    local buttonContainer = CreateFrame("Frame", nil, parent)
+    buttonContainer:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    buttonContainer:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     buttonContainer:SetHeight(BUTTON_HEIGHT)
     
     -- New Blank Scale button (80% width)
@@ -3596,11 +3657,11 @@ local function CreateScaleList(parent)
     end)
     
     -- Scroll frame for scale list (initially takes full width, scrollbar space reserved only when needed)
-    local scrollFrame = CreateFrame("ScrollFrame", nil, container)
+    local scrollFrame = CreateFrame("ScrollFrame", nil, parent)
     scrollFrame:SetPoint("TOPLEFT", buttonContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    scrollFrame:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", 0, PADDING)
+    scrollFrame:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, PADDING)
     scrollFrame:SetPoint("TOPRIGHT", buttonContainer, "BOTTOMRIGHT", 0, -ELEMENT_SPACING)
-    scrollFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
+    scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, PADDING)
     scrollFrame:SetBackdrop(BACKDROP_PANEL)
     scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
     scrollFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
@@ -3621,9 +3682,9 @@ local function CreateScaleList(parent)
     scrollFrame:SetScrollChild(contentFrame)
     
     -- Scrollbar backdrop for visibility
-    local scrollBarBg = CreateFrame("Frame", nil, container)
+    local scrollBarBg = CreateFrame("Frame", nil, parent)
     scrollBarBg:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 0, 0)
-    scrollBarBg:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
+    scrollBarBg:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, PADDING)
     scrollBarBg:SetBackdrop(BACKDROP_PANEL)
     scrollBarBg:SetBackdropColor(unpack(COLORS.windowBg))
     scrollBarBg:SetBackdropBorderColor(unpack(COLORS.borderDark))
@@ -3649,7 +3710,7 @@ local function CreateScaleList(parent)
     
     ScaleListFrame = contentFrame
     
-    return container
+    return parent
 end
 
 -- ========================================
@@ -3666,17 +3727,17 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     row:SetWidth(COLUMN_WIDTH)
     row:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
     
-    -- Stat label (shorter width for 4-column layout)
+    -- Stat label (adjusted width for 5-column layout)
     local label = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     label:SetPoint("LEFT", row, "LEFT", 0, 0)
-    label:SetWidth(75)
+    label:SetWidth(82)  -- Increased for longer stat names like "Shadow Resist:"
     label:SetJustifyH("RIGHT")
     label:SetText((ValuateStatNames[statName] or statName) .. ":")
     
     -- Value input (compact, with validation)
     local editBox = CreateFrame("EditBox", nil, row)
     editBox:SetHeight(14)
-    editBox:SetWidth(52)  -- Width for comfortable display of 5 digits + minus + decimal
+    editBox:SetWidth(48)  -- Slightly reduced to accommodate wider label
     editBox:SetPoint("LEFT", label, "RIGHT", 2, 0)
     editBox:SetAutoFocus(false)
     editBox:SetFontObject("GameFontHighlightSmall")  -- Using smaller font for compact display
@@ -3819,14 +3880,25 @@ local function UpdateStatWeightsList(scaleName, scale)
         return
     end
     
-    -- Create 4 column frames
-    local columnFrames = {}
-    local columnHeights = {0, 0, 0, 0}
+    -- ========================================
+    -- Item Stats Container (top section with 5 columns)
+    -- ========================================
+    local itemStatsContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
+    itemStatsContainer:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", 0, 0)
+    itemStatsContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
+    tinsert(StatWeightRows, itemStatsContainer)
     
-    for i = 1, 4 do
-        local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
+    -- Create column frames within Item Stats container
+    local columnFrames = {}
+    local columnHeights = {}
+    for i = 1, NUM_COLUMNS do
+        columnHeights[i] = 0
+    end
+    
+    for i = 1, NUM_COLUMNS do
+        local colFrame = CreateFrame("Frame", nil, itemStatsContainer)
         colFrame:SetWidth(COLUMN_WIDTH)
-        colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), 0)
+        colFrame:SetPoint("TOPLEFT", itemStatsContainer, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), 0)
         columnFrames[i] = colFrame
         tinsert(StatWeightRows, colFrame)
     end
@@ -3834,7 +3906,7 @@ local function UpdateStatWeightsList(scaleName, scale)
     -- Populate each column with its categories
     for _, category in ipairs(ValuateStatCategories) do
         local col = category.column
-        if col and col >= 1 and col <= 4 and columnFrames[col] then
+        if col and col >= 1 and col <= NUM_COLUMNS and columnFrames[col] then
             local colFrame = columnFrames[col]
             local yOffset = -columnHeights[col]
             
@@ -3874,30 +3946,39 @@ local function UpdateStatWeightsList(scaleName, scale)
         end
     end
     
-    -- Find tallest column for scroll height (core stats section)
-    local coreMaxHeight = 0
-    for i = 1, 4 do
-        if columnHeights[i] > coreMaxHeight then
-            coreMaxHeight = columnHeights[i]
+    -- Find tallest column for Item Stats section
+    local itemStatsMaxHeight = 0
+    for i = 1, NUM_COLUMNS do
+        if columnHeights[i] > itemStatsMaxHeight then
+            itemStatsMaxHeight = columnHeights[i]
         end
     end
     
-    -- Set column frame heights for core stats
-    for i = 1, 4 do
-        columnFrames[i]:SetHeight(coreMaxHeight)
+    -- Set column frame heights for Item Stats
+    for i = 1, NUM_COLUMNS do
+        columnFrames[i]:SetHeight(itemStatsMaxHeight)
     end
     
+    -- Set Item Stats container height
+    itemStatsContainer:SetHeight(itemStatsMaxHeight)
+    
     -- ========================================
-    -- Equipment Types Section (below core stats)
+    -- Equipment Types Container (below Item Stats with 5 columns)
     -- ========================================
-    local equipmentStartY = coreMaxHeight + ELEMENT_SPACING * 2
+    local equipmentStartY = itemStatsMaxHeight + ELEMENT_SPACING * 2
     
     if ValuateEquipmentCategories then
+        -- Equipment Types container
+        local equipmentTypesContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
+        equipmentTypesContainer:SetPoint("TOPLEFT", itemStatsContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
+        equipmentTypesContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
+        tinsert(StatWeightRows, equipmentTypesContainer)
+        
         -- Equipment section header
-        local equipHeader = CreateFrame("Frame", nil, ScaleEditorFrame)
+        local equipHeader = CreateFrame("Frame", nil, equipmentTypesContainer)
         equipHeader:SetHeight(HEADER_HEIGHT + 4)
-        equipHeader:SetWidth(4 * COLUMN_WIDTH + 3 * COLUMN_GAP)
-        equipHeader:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", 0, -equipmentStartY)
+        equipHeader:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
+        equipHeader:SetPoint("TOPLEFT", equipmentTypesContainer, "TOPLEFT", 0, 0)
         
         -- Separator line
         local separator = equipHeader:CreateTexture(nil, "BACKGROUND")
@@ -3913,36 +3994,27 @@ local function UpdateStatWeightsList(scaleName, scale)
         
         tinsert(StatWeightRows, equipHeader)
         
-        local equipStartY = equipmentStartY + HEADER_HEIGHT + ELEMENT_SPACING
+        local equipStartY = HEADER_HEIGHT + ELEMENT_SPACING
         
-        -- Separate categories by row
-        local row1Categories = {}
-        local row2Categories = {}
-        
-        for _, category in ipairs(ValuateEquipmentCategories) do
-            if category.row == 2 then
-                tinsert(row2Categories, category)
-            else
-                tinsert(row1Categories, category)
-            end
+        -- Create equipment column frames
+        local equipColumnFrames = {}
+        local equipColumnHeights = {}
+        for i = 1, NUM_COLUMNS do
+            equipColumnHeights[i] = 0
         end
         
-        -- Create equipment column frames for row 1
-        local equipColumnFrames = {}
-        local equipColumnHeights = {0, 0, 0, 0}
-        
-        for i = 1, 4 do
-            local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
+        for i = 1, NUM_COLUMNS do
+            local colFrame = CreateFrame("Frame", nil, equipmentTypesContainer)
             colFrame:SetWidth(COLUMN_WIDTH)
-            colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), -equipStartY)
+            colFrame:SetPoint("TOPLEFT", equipmentTypesContainer, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), -equipStartY)
             equipColumnFrames[i] = colFrame
             tinsert(StatWeightRows, colFrame)
         end
         
-        -- Populate row 1 equipment categories
-        for _, category in ipairs(row1Categories) do
+        -- Populate equipment categories (now all in one row with 5 columns)
+        for _, category in ipairs(ValuateEquipmentCategories) do
             local col = category.column
-            if col and col >= 1 and col <= 4 and equipColumnFrames[col] then
+            if col and col >= 1 and col <= NUM_COLUMNS and equipColumnFrames[col] then
                 local colFrame = equipColumnFrames[col]
                 local yOffset = -equipColumnHeights[col]
                 
@@ -3974,102 +4046,51 @@ local function UpdateStatWeightsList(scaleName, scale)
             end
         end
         
-        -- Find tallest equipment column in row 1
+        -- Find tallest equipment column
         local equipMaxHeight = 0
-        for i = 1, 4 do
+        for i = 1, NUM_COLUMNS do
             if equipColumnHeights[i] > equipMaxHeight then
                 equipMaxHeight = equipColumnHeights[i]
             end
         end
         
-        -- Set equipment column heights for row 1
-        for i = 1, 4 do
+        -- Set equipment column heights
+        for i = 1, NUM_COLUMNS do
             equipColumnFrames[i]:SetHeight(equipMaxHeight)
         end
         
-        local row1Height = equipMaxHeight
+        -- Set Equipment Types container height
+        equipmentTypesContainer:SetHeight(equipStartY + equipMaxHeight)
         
-        -- Handle row 2 categories (Relics)
-        if #row2Categories > 0 then
-            local row2StartY = equipStartY + row1Height + HEADER_SPACING
+        -- Total height is Item Stats height + spacing + Equipment Types container height
+        local totalContentHeight = itemStatsMaxHeight + ELEMENT_SPACING * 2 + equipStartY + equipMaxHeight
+        
+        -- Update ScaleEditorFrame height
+        if ScaleEditorFrame then
+            ScaleEditorFrame:SetHeight(math.max(totalContentHeight, 100))
             
-            -- Create column frames for row 2
-            local row2ColumnFrames = {}
-            local row2ColumnHeights = {0, 0, 0, 0}
-            
-            for i = 1, 4 do
-                local colFrame = CreateFrame("Frame", nil, ScaleEditorFrame)
-                colFrame:SetWidth(COLUMN_WIDTH)
-                colFrame:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", (i - 1) * (COLUMN_WIDTH + COLUMN_GAP), -row2StartY)
-                row2ColumnFrames[i] = colFrame
-                tinsert(StatWeightRows, colFrame)
+            -- Resize main window to fit content
+            if ValuateUIFrame then
+                -- Calculate needed window height:
+                -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
+                local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + totalContentHeight + PADDING
+                local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
+                ValuateUIFrame:SetHeight(windowHeight)
             end
-            
-            -- Populate row 2 equipment categories
-            for _, category in ipairs(row2Categories) do
-                local col = category.column
-                if col and col >= 1 and col <= 4 and row2ColumnFrames[col] then
-                    local colFrame = row2ColumnFrames[col]
-                    local yOffset = -row2ColumnHeights[col]
-                    
-                    -- Create category header
-                    local headerFrame = CreateFrame("Frame", nil, colFrame)
-                    headerFrame:SetHeight(HEADER_HEIGHT)
-                    headerFrame:SetWidth(COLUMN_WIDTH)
-                    headerFrame:SetPoint("TOPLEFT", colFrame, "TOPLEFT", 0, yOffset)
-                    
-                    local headerLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H3)
-                    headerLabel:SetPoint("LEFT", headerFrame, "LEFT", 0, 0)
-                    headerLabel:SetText(category.header)
-                    headerLabel:SetTextColor(unpack(COLORS.textAccent))
-                    
-                    tinsert(StatWeightRows, headerFrame)
-                    row2ColumnHeights[col] = row2ColumnHeights[col] + HEADER_HEIGHT
-                    
-                    -- Create stat rows for equipment types
-                    for _, statName in ipairs(category.stats) do
-                        if ValuateStatNames[statName] then
-                            local rowYOffset = -row2ColumnHeights[col] - ROW_SPACING
-                            local row = CreateStatRow(colFrame, statName, scale, rowYOffset)
-                            
-                            StatWeightRows[statName] = row
-                            tinsert(StatWeightRows, row)
-                            row2ColumnHeights[col] = row2ColumnHeights[col] + ROW_HEIGHT + ROW_SPACING
-                        end
-                    end
-                end
-            end
-            
-            -- Find tallest column in row 2
-            local row2MaxHeight = 0
-            for i = 1, 4 do
-                if row2ColumnHeights[i] > row2MaxHeight then
-                    row2MaxHeight = row2ColumnHeights[i]
-                end
-            end
-            
-            -- Set row 2 column heights
-            for i = 1, 4 do
-                row2ColumnFrames[i]:SetHeight(row2MaxHeight)
-            end
-            
-            -- Total height includes both rows
-            coreMaxHeight = row2StartY + row2MaxHeight
-        else
-            -- Total height includes only row 1
-            coreMaxHeight = equipStartY + equipMaxHeight
         end
+        
+        return -- Exit early since we've handled equipment types
     end
     
-    -- Update content frame height (no scrolling needed)
+    -- If no equipment categories, just set ScaleEditorFrame height based on Item Stats
     if ScaleEditorFrame then
-        ScaleEditorFrame:SetHeight(math.max(coreMaxHeight, 100))
+        ScaleEditorFrame:SetHeight(math.max(itemStatsMaxHeight, 100))
         
         -- Resize main window to fit content
         if ValuateUIFrame then
             -- Calculate needed window height:
-            -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content (coreMaxHeight) + Bottom padding (PADDING)
-            local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + coreMaxHeight + PADDING
+            -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
+            local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + itemStatsMaxHeight + PADDING
             local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
             ValuateUIFrame:SetHeight(windowHeight)
         end
@@ -4158,6 +4179,11 @@ function ValuateUI_CreateScaleFromTemplate(template)
         ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
     end
     
+    -- Refresh best equipment display to show new scale
+    if Valuate.RefreshBestEquipmentDisplay then
+        Valuate:RefreshBestEquipmentDisplay()
+    end
+    
     return scaleName
 end
 
@@ -4183,6 +4209,11 @@ function ValuateUI_NewScale()
     UpdateScaleList()
     if ScaleListButtons[name] then
         ScaleListButtons[name]:GetScript("OnClick")(ScaleListButtons[name])
+    end
+    
+    -- Refresh best equipment display to show new scale
+    if Valuate.RefreshBestEquipmentDisplay then
+        Valuate:RefreshBestEquipmentDisplay()
     end
 end
 
@@ -4400,14 +4431,11 @@ function Valuate:ShowImportDialog()
 end
 
 local function CreateScaleEditor(parent)
-    local container = CreateFrame("Frame", nil, parent)
-    container:SetPoint("TOPLEFT", parent, "TOPLEFT", SCALE_LIST_WIDTH + PADDING, 0)
-    container:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
-    
+    -- Parent is now the scaleEditorContainer with proper size/positioning already set
     -- Header area (non-scrolling) for Scale Name - reduced height
-    local headerFrame = CreateFrame("Frame", nil, container)
-    headerFrame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-    headerFrame:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, 0)
+    local headerFrame = CreateFrame("Frame", nil, parent)
+    headerFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    headerFrame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     headerFrame:SetHeight(40)
     
     -- Scale Name (single line header)
@@ -4522,21 +4550,21 @@ local function CreateScaleEditor(parent)
     end)
     
     -- Content frame for stat weights (below header) - no scrollbar needed as everything fits
-    local contentFrame = CreateFrame("Frame", nil, container)
+    local contentFrame = CreateFrame("Frame", nil, parent)
     contentFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    contentFrame:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, PADDING)
+    contentFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, PADDING)
     contentFrame:SetBackdrop(BACKDROP_PANEL)
     contentFrame:SetBackdropColor(unpack(COLORS.panelBg))
     contentFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
     
     -- Store references
     ScaleEditorFrame = contentFrame
-    ScaleEditorFrame.container = container
+    ScaleEditorFrame.container = parent
     ScaleEditorFrame.nameEditBox = nameEditBox
     
     
-    container:Hide()
-    return container
+    parent:Hide()
+    return parent
 end
 
 -- ========================================
@@ -5035,6 +5063,639 @@ local function CreateChangelogPanel(parent)
 end
 
 -- ========================================
+-- Best Equipment Panel
+-- ========================================
+
+local BestEquipmentScrollFrame = nil
+local BestEquipmentContentFrame = nil
+local BestEquipmentScaleFrames = {}
+
+local function CreateBestEquipmentPanel(parent)
+    -- Safety check
+    if not Valuate or not Valuate.GetOptions or not Valuate.GetScales then
+        local errorText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        errorText:SetPoint("CENTER", parent, "CENTER", 0, 0)
+        errorText:SetText("Best Equipment not available. Please /reload to initialize.")
+        errorText:SetTextColor(1, 0.5, 0.5, 1)
+        return parent
+    end
+    
+    -- Equipment slot definitions (local to this function)
+    local EquipmentSlots = {
+        { slotId = 1, name = "Head" },
+        { slotId = 2, name = "Neck" },
+        { slotId = 3, name = "Shoulder" },
+        { slotId = 15, name = "Back" },
+        { slotId = 5, name = "Chest" },
+        { slotId = 9, name = "Wrist" },
+        { slotId = 10, name = "Hands" },
+        { slotId = 6, name = "Waist" },
+        { slotId = 7, name = "Legs" },
+        { slotId = 8, name = "Feet" },
+        { slotId = 11, name = "Ring 1" },
+        { slotId = 12, name = "Ring 2" },
+        { slotId = 13, name = "Trinket 1" },
+        { slotId = 14, name = "Trinket 2" },
+        { slotId = 16, name = "Main Hand" },
+        { slotId = 17, name = "Off Hand" },
+        { slotId = 18, name = "Ranged" },
+    }
+    
+    -- Scan button at top
+    local scanButton = CreateFrame("Button", nil, parent)
+    scanButton:SetHeight(BUTTON_HEIGHT)
+    scanButton:SetWidth(200)
+    scanButton:SetPoint("TOPLEFT", parent, "TOPLEFT", PADDING, -PADDING)
+    scanButton:SetBackdrop(BACKDROP_BUTTON)
+    scanButton:SetBackdropColor(unpack(COLORS.buttonBg))
+    scanButton:SetBackdropBorderColor(unpack(COLORS.border))
+    
+    local scanLabel = scanButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    scanLabel:SetPoint("CENTER", scanButton, "CENTER", 0, 0)
+    scanLabel:SetText("Scan Best Equipment")
+    scanLabel:SetTextColor(unpack(COLORS.textBody))
+    
+    scanButton:SetScript("OnClick", function()
+        Valuate:ScanBestEquipment()
+        -- Refresh display after scan
+        if Valuate.RefreshBestEquipmentDisplay then
+            Valuate:RefreshBestEquipmentDisplay()
+        end
+    end)
+    
+    scanButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Scan Best Equipment", 1, 1, 1)
+            GameTooltip:AddLine("Scans all equipped items and items in your bags to find the best item for each slot per active scale.", 0.8, 0.8, 0.8)
+            GameTooltip:Show()
+        end
+    end)
+    scanButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    
+    -- Create horizontal scrolling frame (wider to fit 3 scales comfortably)
+    local scrollBarHeight = 18
+    local scrollFrame = CreateFrame("ScrollFrame", nil, parent)
+    scrollFrame:SetPoint("TOPLEFT", scanButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    -- Extend to use full available width (reduce right padding)
+    scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -PADDING, PADDING + scrollBarHeight + 6)
+    scrollFrame:SetBackdrop(BACKDROP_PANEL)
+    scrollFrame:SetBackdropColor(unpack(COLORS.panelBg))
+    scrollFrame:SetBackdropBorderColor(unpack(COLORS.border))
+    
+    local contentFrame = CreateFrame("Frame", nil, scrollFrame)
+    -- Height will be calculated based on actual content
+    contentFrame:SetHeight(400)  -- Initial height, will be adjusted
+    contentFrame:SetWidth(100)    -- Will be adjusted based on number of scales
+    
+    scrollFrame:SetScrollChild(contentFrame)
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local current = self:GetHorizontalScroll()
+        local maxScroll = self:GetHorizontalScrollRange()
+        local newScroll = current - (delta * 50)
+        newScroll = math.max(0, math.min(maxScroll, newScroll))
+        self:SetHorizontalScroll(newScroll)
+    end)
+    
+    -- Horizontal scrollbar at bottom (use full width)
+    local horizScrollbar = CreateFrame("Slider", nil, parent)
+    horizScrollbar:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", PADDING, PADDING)
+    horizScrollbar:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -PADDING, PADDING)
+    horizScrollbar:SetHeight(scrollBarHeight)
+    horizScrollbar:SetOrientation("HORIZONTAL")
+    horizScrollbar:SetThumbTexture("Interface\\Buttons\\UI-ScrollBar-Knob")
+    horizScrollbar:SetMinMaxValues(0, 100)
+    horizScrollbar:SetValue(0)
+    horizScrollbar:SetValueStep(1)
+    horizScrollbar:Hide()  -- Hidden by default, shown when needed
+    
+    -- Scrollbar background
+    local horizScrollbarBg = horizScrollbar:CreateTexture(nil, "BACKGROUND")
+    horizScrollbarBg:SetAllPoints(horizScrollbar)
+    horizScrollbarBg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+    
+    -- Scrollbar arrows (optional, can be hidden)
+    local leftArrow = CreateFrame("Button", nil, horizScrollbar)
+    leftArrow:SetSize(scrollBarHeight, scrollBarHeight)
+    leftArrow:SetPoint("LEFT", horizScrollbar, "LEFT", 0, 0)
+    leftArrow:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollLeftButton-Up")
+    leftArrow:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollLeftButton-Down")
+    leftArrow:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollLeftButton-Highlight")
+    leftArrow:SetScript("OnClick", function()
+        local current = horizScrollbar:GetValue()
+        horizScrollbar:SetValue(math.max(0, current - 10))
+    end)
+    
+    local rightArrow = CreateFrame("Button", nil, horizScrollbar)
+    rightArrow:SetSize(scrollBarHeight, scrollBarHeight)
+    rightArrow:SetPoint("RIGHT", horizScrollbar, "RIGHT", 0, 0)
+    rightArrow:SetNormalTexture("Interface\\Buttons\\UI-ScrollBar-ScrollRightButton-Up")
+    rightArrow:SetPushedTexture("Interface\\Buttons\\UI-ScrollBar-ScrollRightButton-Down")
+    rightArrow:SetHighlightTexture("Interface\\Buttons\\UI-ScrollBar-ScrollRightButton-Highlight")
+    rightArrow:SetScript("OnClick", function()
+        local current = horizScrollbar:GetValue()
+        local max = horizScrollbar:GetMaxValue()
+        horizScrollbar:SetValue(math.min(max, current + 10))
+    end)
+    
+    -- Connect scrollbar to scroll frame
+    horizScrollbar:SetScript("OnValueChanged", function(self, value)
+        scrollFrame:SetHorizontalScroll(value)
+    end)
+    
+    scrollFrame:SetScript("OnHorizontalScroll", function(self, offset)
+        horizScrollbar:SetValue(offset)
+    end)
+    
+    -- Update scrollbar visibility and range
+    scrollFrame:SetScript("OnSizeChanged", function(self)
+        local range = self:GetHorizontalScrollRange()
+        if range > 0 then
+            horizScrollbar:Show()
+            horizScrollbar:SetMinMaxValues(0, range)
+        else
+            horizScrollbar:Hide()
+        end
+    end)
+    
+    BestEquipmentScrollFrame = scrollFrame
+    BestEquipmentContentFrame = contentFrame
+    BestEquipmentHorizScrollbar = horizScrollbar
+    
+    -- Function to update the display
+    local function UpdateBestEquipmentDisplay()
+        if not contentFrame then return end
+        
+        -- Clear existing scale frames
+        for _, frame in pairs(BestEquipmentScaleFrames) do
+            frame:Hide()
+        end
+        BestEquipmentScaleFrames = {}
+        
+        local activeScales = Valuate:GetActiveScales()
+        local scales = Valuate:GetScales()
+        local bestEquipment = Valuate:GetBestEquipment()
+        
+        if #activeScales == 0 then
+            local noScalesText = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+            noScalesText:SetPoint("CENTER", contentFrame, "CENTER", 0, 0)
+            noScalesText:SetText("No active scales. Activate scales in the Scales tab to see best equipment.")
+            noScalesText:SetTextColor(unpack(COLORS.textDim))
+            return
+        end
+        
+        local scaleWidth = 310  -- Further reduced to fit 3 scales comfortably
+        local scaleSpacing = 8  -- Reduced spacing between scales
+        local slotSize = 22  -- Reduced from 24 to fit all 17 slots
+        local slotSpacing = 0
+        local headerHeight = 60  -- Compact header with left/right layout
+        local maxVisibleScales = 3  -- Show max 3 scales at a time horizontally
+        
+        -- Calculate content width for all scales
+        local totalWidth = (#activeScales * scaleWidth) + ((#activeScales - 1) * scaleSpacing)
+        contentFrame:SetWidth(totalWidth)
+        
+        -- Set scroll frame width to show exactly 3 scales (or fewer if less than 3 exist)
+        local numVisibleScales = math.min(maxVisibleScales, #activeScales)
+        local visibleWidth = (numVisibleScales * scaleWidth) + ((numVisibleScales - 1) * scaleSpacing)
+        -- Note: The scroll frame width is controlled by its anchors, but we can enforce it here
+        -- by ensuring the contentFrame is wider when needed
+        
+        -- Calculate content height based on number of slots + header
+        local numSlots = #EquipmentSlots
+        local calculatedHeight = headerHeight + (numSlots * (slotSize + slotSpacing)) + 10  -- Increased bottom padding from 5 to 10
+        contentFrame:SetHeight(calculatedHeight)
+        
+        for i, scaleName in ipairs(activeScales) do
+            local scale = scales[scaleName]
+            if scale then
+                local scaleFrame = CreateFrame("Frame", nil, contentFrame)
+                scaleFrame:SetWidth(scaleWidth)
+                -- Calculate height based on number of slots + header
+                local numSlots = #EquipmentSlots
+                local calculatedHeight = headerHeight + (numSlots * (slotSize + slotSpacing)) + 10  -- Increased bottom padding from 5 to 10
+                scaleFrame:SetHeight(calculatedHeight)
+                scaleFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", (i - 1) * (scaleWidth + scaleSpacing), 0)
+                
+                -- Header section
+                local color = scale.Color or "FFFFFF"
+                local displayName = scale.DisplayName or scaleName
+                local iconPath = scale.Icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+                
+                -- Header Container
+                local headerContainer = CreateFrame("Frame", nil, scaleFrame)
+                headerContainer:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
+                headerContainer:SetSize(scaleWidth, headerHeight)
+                
+                -- Header background (optional, for visual separation)
+                local headerBg = headerContainer:CreateTexture(nil, "BACKGROUND")
+                headerBg:SetAllPoints(headerContainer)
+                headerBg:SetColorTexture(0.05, 0.05, 0.05, 0.5)
+                
+                -- Left section: Icon + Name
+                local iconSize = 32
+                local iconPadding = 8
+                
+                -- Scale icon (smaller, on left)
+                local scaleIcon = headerContainer:CreateTexture(nil, "ARTWORK")
+                scaleIcon:SetSize(iconSize, iconSize)
+                scaleIcon:SetPoint("LEFT", headerContainer, "LEFT", iconPadding, 0)
+                scaleIcon:SetTexture(iconPath)
+                scaleIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                
+                -- Icon border
+                local iconBorder = headerContainer:CreateTexture(nil, "OVERLAY")
+                iconBorder:SetSize(iconSize + 4, iconSize + 4)
+                iconBorder:SetPoint("CENTER", scaleIcon, "CENTER", 0, 0)
+                iconBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
+                local cr, cg, cb = HexToRGB(color)
+                iconBorder:SetVertexColor(cr, cg, cb, 1)
+                
+                -- Scale name (to right of icon)
+                local nameLabel = headerContainer:CreateFontString(nil, "OVERLAY", FONT_BODY)
+                nameLabel:SetPoint("LEFT", scaleIcon, "RIGHT", 8, 0)
+                nameLabel:SetWidth(120)  -- Reserve space for buttons on right
+                nameLabel:SetJustifyH("LEFT")
+                nameLabel:SetText("|cFF" .. color .. displayName .. "|r")
+                nameLabel:SetTextColor(unpack(COLORS.textHeader))
+                
+                -- Right section: Buttons
+                local buttonHeight = 20
+                
+                -- Clear Items button (only button, positioned on right)
+                local clearButton = CreateFrame("Button", nil, headerContainer)
+                clearButton:SetHeight(buttonHeight)
+                clearButton:SetWidth(80)  -- Wider to fit "Clear Items"
+                clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -20)
+                clearButton:SetBackdrop(BACKDROP_BUTTON)
+                clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
+                clearButton:SetBackdropBorderColor(unpack(COLORS.border))
+                
+                local clearLabel = clearButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+                clearLabel:SetPoint("CENTER", clearButton, "CENTER", 0, 0)
+                clearLabel:SetText("Clear Items")
+                clearLabel:SetTextColor(1, 0.3, 0.3, 1)  -- Red color
+                
+                clearButton:SetScript("OnClick", function(self)
+                    Valuate:ClearBestEquipmentForScale(scaleName)
+                end)
+                
+                clearButton:SetScript("OnEnter", function(self)
+                    if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                        GameTooltip:AddLine("Clear Best Equipment", 1, 1, 1)
+                        GameTooltip:AddLine("Clears stored best equipment data for this scale.", 0.8, 0.8, 0.8)
+                        GameTooltip:AddLine("Locked slots will be preserved.", 0.7, 0.7, 0.7)
+                        GameTooltip:Show()
+                    end
+                end)
+                clearButton:SetScript("OnLeave", function()
+                    GameTooltip:Hide()
+                end)
+                
+                -- Create Set button REMOVED - Redundant with built-in equipment manager
+                -- Equip Set button REMOVED - Use Blizzard's equipment manager (press C, Equipment Manager icon)
+                
+                -- Equipment Container (for all slot rows)
+                local equipmentContainer = CreateFrame("Frame", nil, scaleFrame)
+                equipmentContainer:SetPoint("TOPLEFT", headerContainer, "BOTTOMLEFT", 0, -5)
+                equipmentContainer:SetSize(scaleWidth, calculatedHeight - headerHeight - 5)
+                
+                -- Equipment slots list (vertical, positioned within equipment container)
+                local yOffset = 0
+                
+                for _, slotInfo in ipairs(EquipmentSlots) do
+                    local slotId = slotInfo.slotId
+                    local slotName = slotInfo.name
+                    
+                    local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
+                    local equippedItemLink = GetInventoryItemLink("player", slotId)
+                    local equippedScore = nil
+                    if equippedItemLink then
+                        local tooltip = Valuate:GetPrivateTooltip()
+                        tooltip:ClearLines()
+                        tooltip:SetInventoryItem("player", slotId)
+                        local equippedStats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                        if equippedStats then
+                            equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
+                        end
+                    end
+                    
+                    local slotRow = CreateFrame("Frame", nil, equipmentContainer)
+                    slotRow:SetSize(scaleWidth - 10, slotSize)  -- Reduced padding from 16 to 10
+                    slotRow:SetPoint("TOPLEFT", equipmentContainer, "TOPLEFT", 3, yOffset)  -- Reduced left offset from 5 to 3
+                    
+                    -- Lock button (leftmost, toggles lock state for this slot)
+                    local lockButton = CreateFrame("Button", nil, slotRow)
+                    lockButton:SetSize(16, 16)
+                    lockButton:SetPoint("LEFT", slotRow, "LEFT", 0, 0)
+                    
+                    local lockIcon = lockButton:CreateTexture(nil, "ARTWORK")
+                    lockIcon:SetAllPoints(lockButton)
+                    lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
+                    lockIcon:SetTexCoord(0, 1, 0, 1)
+                    
+                    -- Initialize lock state from saved data
+                    local isLocked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
+                    if isLocked then
+                        lockIcon:SetTexture("Interface\\Buttons\\LockButton-Locked-Up")
+                        lockIcon:SetAlpha(1.0)
+                    else
+                        lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
+                        lockIcon:SetAlpha(0.4)
+                    end
+                    
+                    lockButton:SetScript("OnClick", function(self)
+                        -- Toggle lock state
+                        if not bestEquipment[scaleName].locks then
+                            bestEquipment[scaleName].locks = {}
+                        end
+                        
+                        local newLockState = not bestEquipment[scaleName].locks[slotId]
+                        bestEquipment[scaleName].locks[slotId] = newLockState or nil
+                        
+                        -- Update icon
+                        if newLockState then
+                            lockIcon:SetTexture("Interface\\Buttons\\LockButton-Locked-Up")
+                            lockIcon:SetAlpha(1.0)
+                        else
+                            lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
+                            lockIcon:SetAlpha(0.4)
+                        end
+                        
+                        -- Update tooltip immediately if it's showing
+                        if GameTooltip:IsOwned(self) then
+                            GameTooltip:Hide()
+                            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                                local locked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
+                                if locked then
+                                    GameTooltip:AddLine("Slot Locked", 1, 1, 1)
+                                    GameTooltip:AddLine("This slot won't be updated during scans.", 0.8, 0.8, 0.8)
+                                    GameTooltip:AddLine("Click to unlock.", 0.7, 0.7, 0.7)
+                                else
+                                    GameTooltip:AddLine("Slot Unlocked", 1, 1, 1)
+                                    GameTooltip:AddLine("This slot will be updated during scans.", 0.8, 0.8, 0.8)
+                                    GameTooltip:AddLine("Click to lock.", 0.7, 0.7, 0.7)
+                                end
+                                GameTooltip:Show()
+                            end
+                        end
+                    end)
+                    
+                    lockButton:SetScript("OnEnter", function(self)
+                        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                            local locked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
+                            if locked then
+                                GameTooltip:AddLine("Slot Locked", 1, 1, 1)
+                                GameTooltip:AddLine("This slot won't be updated during scans.", 0.8, 0.8, 0.8)
+                                GameTooltip:AddLine("Click to unlock.", 0.7, 0.7, 0.7)
+                            else
+                                GameTooltip:AddLine("Slot Unlocked", 1, 1, 1)
+                                GameTooltip:AddLine("This slot will be updated during scans.", 0.8, 0.8, 0.8)
+                                GameTooltip:AddLine("Click to lock.", 0.7, 0.7, 0.7)
+                            end
+                            GameTooltip:Show()
+                        end
+                    end)
+                    lockButton:SetScript("OnLeave", function()
+                        GameTooltip:Hide()
+                    end)
+                    
+                    -- Slot name label (after lock button)
+                    local nameLabel = slotRow:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+                    nameLabel:SetPoint("LEFT", lockButton, "RIGHT", 4, 0)
+                    nameLabel:SetWidth(60)  -- Slightly reduced to make room for lock button
+                    nameLabel:SetJustifyH("LEFT")
+                    nameLabel:SetText(slotName)
+                    nameLabel:SetTextColor(unpack(COLORS.textDim))
+                    
+                    local slotFrame = CreateFrame("Button", nil, slotRow)
+                    slotFrame:SetSize(slotSize, slotSize)
+                    slotFrame:SetPoint("LEFT", nameLabel, "RIGHT", 1, 0)
+                    
+                    -- Slot background (empty slot texture)
+                    local slotBg = slotFrame:CreateTexture(nil, "BACKGROUND")
+                    slotBg:SetAllPoints(slotFrame)
+                    -- Use a generic empty slot texture
+                    slotBg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+                    slotBg:SetAlpha(0.3)
+                    
+                    -- Item icon
+                    local icon = slotFrame:CreateTexture(nil, "ARTWORK")
+                    icon:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 2, -2)
+                    icon:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", -2, 2)
+                    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                    
+                    -- Quality border
+                    local qualityBorder = slotFrame:CreateTexture(nil, "OVERLAY")
+                    qualityBorder:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 0, 0)
+                    qualityBorder:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", 0, 0)
+                    qualityBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
+                    qualityBorder:Hide()
+                    
+                    -- Column layout for item info
+                    local infoFrame = CreateFrame("Frame", nil, slotRow)
+                    infoFrame:SetPoint("LEFT", slotFrame, "RIGHT", 2, 0)
+                    infoFrame:SetPoint("RIGHT", slotRow, "RIGHT", 0, 0)
+                    infoFrame:SetHeight(slotSize)
+                    
+                    -- Define column widths
+                    local valueColumnWidth = 65  -- Width for item value (up to 5 digits)
+                    local comparisonColumnWidth = 65  -- Width for comparison value (up to 5 digits + sign)
+                    
+                    -- Item name (flexible width, truncated)
+                    local itemNameText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+                    itemNameText:SetPoint("LEFT", infoFrame, "LEFT", 2, 0)
+                    itemNameText:SetPoint("RIGHT", infoFrame, "RIGHT", -(valueColumnWidth + comparisonColumnWidth + 4), 0)
+                    itemNameText:SetJustifyH("LEFT")
+                    itemNameText:SetTextColor(1, 1, 1, 1)
+                    itemNameText:SetNonSpaceWrap(false)
+                    itemNameText:SetWordWrap(false)
+                    
+                    -- Item value column (fixed width, right-aligned)
+                    local scoreText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+                    scoreText:SetPoint("RIGHT", infoFrame, "RIGHT", -comparisonColumnWidth - 2, 0)
+                    scoreText:SetWidth(valueColumnWidth)
+                    scoreText:SetJustifyH("RIGHT")
+                    scoreText:SetTextColor(1, 1, 1, 1)
+                    
+                    -- Comparison value column (fixed width, right-aligned)
+                    local comparisonText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+                    comparisonText:SetPoint("RIGHT", infoFrame, "RIGHT", 0, 0)
+                    comparisonText:SetWidth(comparisonColumnWidth)
+                    comparisonText:SetJustifyH("RIGHT")
+                    comparisonText:SetTextColor(0.7, 0.7, 0.7, 1)
+                    
+                    if bestItem and bestItem.itemLink then
+                        -- Use stored texture or try to get it
+                        local itemTexture = bestItem.itemTexture
+                        if not itemTexture then
+                            local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(bestItem.itemLink)
+                            itemTexture = tex
+                        end
+                        
+                        if itemTexture then
+                            icon:SetTexture(itemTexture)
+                            icon:Show()
+                        else
+                            icon:Hide()
+                        end
+                        
+                        -- Quality border
+                        local itemQuality = bestItem.itemQuality or 0
+                        if itemQuality and itemQuality > 0 then
+                            local r, g, b = GetItemQualityColor(itemQuality)
+                            qualityBorder:SetVertexColor(r, g, b, 1)
+                            qualityBorder:Show()
+                        else
+                            qualityBorder:Hide()
+                        end
+                        
+                        local decimals = Valuate:GetOptions().decimalPlaces or 1
+                        local formatStr = "%." .. decimals .. "f"
+                        local scoreValue = bestItem.score or 0
+                        scoreText:SetText("|cFF" .. color .. string.format(formatStr, scoreValue) .. "|r")
+                        
+                        -- Item name with quality color
+                        local itemName = bestItem.itemName or "Unknown"
+                        if itemQuality and itemQuality > 0 then
+                            local r, g, b = GetItemQualityColor(itemQuality)
+                            local hexColor = string.format("%02x%02x%02x", r * 255, g * 255, b * 255)
+                            itemNameText:SetText("|cFF" .. hexColor .. itemName .. "|r")
+                        else
+                            itemNameText:SetText(itemName)
+                        end
+                        
+                        -- Comparison with equipped
+                        if equippedScore and equippedScore > 0 then
+                            local diff = scoreValue - equippedScore
+                            -- Handle floating point negative zero
+                            if math.abs(diff) < 0.01 then
+                                diff = 0
+                            end
+                            
+                            local diffColor = "FFFFFF"
+                            local diffSign = ""
+                            if diff > 0.01 then
+                                diffColor = "00FF00"
+                                diffSign = "+"
+                            elseif diff < -0.01 then
+                                diffColor = "FF0000"
+                            else
+                                diffColor = "FFFF00"
+                                diff = 0  -- Force to 0 for display
+                            end
+                            comparisonText:SetText("|cFF" .. diffColor .. diffSign .. string.format(formatStr, diff) .. "|r")
+                        elseif equippedScore == 0 or not equippedScore then
+                            -- Item not equipped or couldn't calculate score (e.g., after /reload before cache loads)
+                            comparisonText:SetText("|cFF888888--|r")
+                        else
+                            comparisonText:SetText("|cFF00FF00New|r")
+                        end
+                        
+                        -- Tooltip
+                        slotFrame:SetScript("OnEnter", function(self)
+                            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                                GameTooltip:SetHyperlink(bestItem.itemLink)
+                                
+                                -- Add "Best for" line showing ALL scales this item is best for
+                                local options = Valuate:GetOptions()
+                                if options.showBestFor ~= false then
+                                    local bestScales = Valuate:IsBestInSlot(bestItem.itemLink)
+                                    if bestScales and #bestScales > 0 then
+                                        local scaleNamesList = {}
+                                        local scales = Valuate:GetScales()
+                                        for _, bestScaleName in ipairs(bestScales) do
+                                            local bestScale = scales[bestScaleName]
+                                            if bestScale then
+                                                local bestColor = bestScale.Color or "FFFFFF"
+                                                local bestDisplayName = bestScale.DisplayName or bestScaleName
+                                                table.insert(scaleNamesList, "|cFF" .. bestColor .. bestDisplayName .. "|r")
+                                            end
+                                        end
+                                        if #scaleNamesList > 0 then
+                                            GameTooltip:AddLine(" ")
+                                            local scaleNamesText = table.concat(scaleNamesList, ", ")
+                                            GameTooltip:AddLine("|cFFFFD700★ Best for:|r " .. scaleNamesText, 1, 1, 1)
+                                        end
+                                    end
+                                end
+                                
+                                GameTooltip:AddLine(" ")
+                                GameTooltip:AddLine("Score for |cFF" .. color .. displayName .. "|r: |cFF" .. color .. string.format(formatStr, scoreValue) .. "|r", 1, 1, 1)
+                                if equippedScore and equippedScore > 0 then
+                                    local diff = scoreValue - equippedScore
+                                    -- Handle floating point negative zero
+                                    if math.abs(diff) < 0.01 then
+                                        diff = 0
+                                    end
+                                    
+                                    local diffColor = "FFFFFF"
+                                    local diffSign = ""
+                                    if diff > 0.01 then
+                                        diffColor = "00FF00"
+                                        diffSign = "+"
+                                    elseif diff < -0.01 then
+                                        diffColor = "FF0000"
+                                    else
+                                        diffColor = "FFFF00"
+                                        diff = 0
+                                    end
+                                    GameTooltip:AddLine("vs Equipped: |cFF" .. diffColor .. diffSign .. string.format(formatStr, diff) .. "|r", 0.8, 0.8, 0.8)
+                                end
+                                GameTooltip:AddLine(" ")
+                                GameTooltip:AddLine("|cFF888888Right-click to equip|r", 0.6, 0.6, 0.6)
+                                GameTooltip:Show()
+                            end
+                        end)
+                        slotFrame:SetScript("OnLeave", function()
+                            GameTooltip:Hide()
+                        end)
+                        
+                        -- Right-click to equip
+                        slotFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                        slotFrame:SetScript("OnClick", function(self, button)
+                            if button == "RightButton" and bestItem and bestItem.itemLink then
+                                -- Use EquipItemByName with slot ID to ensure correct slot
+                                -- This is safe and equivalent to /equip macro with slot specification
+                                EquipItemByName(bestItem.itemLink, slotId)
+                                
+                                -- Show feedback in chat
+                                local itemName = bestItem.itemName or "Item"
+                                local slotName = slotInfo.name or "slot"
+                                print("|cFF" .. color .. "Valuate|r: Equipping " .. bestItem.itemLink .. " to " .. slotName)
+                            end
+                        end)
+                    else
+                        icon:Hide()
+                        qualityBorder:Hide()
+                        itemNameText:SetText("|cFF888888No item found|r")
+                        scoreText:SetText("--")
+                        comparisonText:SetText("")
+                        
+                        slotFrame:SetScript("OnEnter", nil)
+                        slotFrame:SetScript("OnLeave", nil)
+                        slotFrame:SetScript("OnClick", nil)
+                    end
+                    
+                    yOffset = yOffset - (slotSize + slotSpacing)
+                end
+                
+                BestEquipmentScaleFrames[scaleName] = scaleFrame
+            end
+        end
+    end
+    
+    -- Store update function for external access
+    Valuate.RefreshBestEquipmentDisplay = UpdateBestEquipmentDisplay
+    
+    -- Initial update
+    UpdateBestEquipmentDisplay()
+    
+    return parent
+end
+
 -- Settings Panel
 -- ========================================
 
@@ -5179,10 +5840,39 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
     
+    -- Show Best For checkbox (Column 1)
+    local showBestForCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    showBestForCheckbox:SetSize(24, 24)
+    showBestForCheckbox:SetPoint("TOPLEFT", showScaleCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    
+    local showBestForLabel = showBestForCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    showBestForLabel:SetPoint("LEFT", showBestForCheckbox, "RIGHT", 5, 0)
+    showBestForLabel:SetText("Show Best For")
+    showBestForCheckbox:SetChecked(Valuate:GetOptions().showBestFor ~= false)
+    showBestForCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().showBestFor = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        
+        -- Reset all tooltips to show/hide "Best for" immediately
+        if Valuate.ResetTooltips then
+            Valuate:ResetTooltips()
+        end
+    end)
+    showBestForCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Show Best For", 1, 1, 1)
+            GameTooltip:AddLine("Display the 'Best for' indicator on tooltips for items that are best in slot for any active scale.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    showBestForCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+    
     -- Normalize Display checkbox (Column 1)
     local normalizeCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     normalizeCheckbox:SetSize(24, 24)
-    normalizeCheckbox:SetPoint("TOPLEFT", showScaleCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    normalizeCheckbox:SetPoint("TOPLEFT", showBestForCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     
     local normalizeLabel = normalizeCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     normalizeLabel:SetPoint("LEFT", normalizeCheckbox, "RIGHT", 5, 0)
@@ -6566,11 +7256,11 @@ function Valuate:ShowUI()
             local tabs = CreateTabSystem(ValuateUIFrame, ValuateUIFrame.contentFrame)
             ValuateUIFrame.tabs = tabs
             
-            -- Create scale list
-            local scaleList = CreateScaleList(tabs.scalesPanel)
+            -- Create scale list using the proper container hierarchy
+            local scaleList = CreateScaleList(tabs.scalesPanel.scaleListContainer)
             
-            -- Create scale editor
-            local scaleEditor = CreateScaleEditor(tabs.scalesPanel)
+            -- Create scale editor using the proper container hierarchy
+            local scaleEditor = CreateScaleEditor(tabs.scalesPanel.scaleEditorContainer)
             
             -- Create instructions panel
             local instructionsPanel = CreateInstructionsPanel(tabs.instructionsPanel)
@@ -6587,6 +7277,9 @@ function Valuate:ShowUI()
             -- Create settings panel
             local settingsPanel = CreateSettingsPanel(tabs.settingsPanel)
             ValuateUIFrame.settingsPanel = settingsPanel
+            
+            -- Create best equipment panel
+            CreateBestEquipmentPanel(tabs.bestEquipmentPanel)
         end
         
         -- Update dynamic lists

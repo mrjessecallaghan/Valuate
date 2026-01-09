@@ -15,8 +15,8 @@ ValuateStatCategories = {
     },
     {
         column = 1,
-        header = "Hybrid Ratings",
-        stats = { "HitRating", "CritRating", "HasteRating" }
+        header = "Vitality",
+        stats = { "Health", "Hp5" }
     },
     {
         column = 1,
@@ -29,38 +29,28 @@ ValuateStatCategories = {
         stats = { "ItemLevel" }
     },
     
-    -- Column 2: Physical
+    -- Column 2: Hybrid & Physical
+    {
+        column = 2,
+        header = "Hybrid Ratings",
+        stats = { "HitRating", "CritRating", "HasteRating" }
+    },
     {
         column = 2,
         header = "Physical Offense",
         stats = { "AttackPower", "RangedAP", "FeralAP", "ExpertiseRating", "ArmorPenetration" }
-    },
-    {
-        column = 2,
-        header = "Weapon DPS",
-        stats = { "Dps", "MeleeDps", "RangedDps", "MainHandDps", "OffHandDps", "OneHandDps", "TwoHandDps" }
-    },
-    {
-        column = 2,
-        header = "Weapon Speed",
-        stats = { "Speed", "MeleeSpeed", "RangedSpeed" }
     },
     
     -- Column 3: Spell
     {
         column = 3,
         header = "Spell",
-        stats = { "SpellPower", "Mp5", "SpellPenetration" }
+        stats = { "SpellPower", "Mana", "Mp5", "SpellPenetration" }
     },
     {
         column = 3,
         header = "School Power",
         stats = { "FireSpellPower", "ShadowSpellPower", "NatureSpellPower", "ArcaneSpellPower", "FrostSpellPower", "HolySpellPower" }
-    },
-    {
-        column = 3,
-        header = "Mana",
-        stats = { "Mana" }
     },
     
     -- Column 4: Defense
@@ -74,10 +64,17 @@ ValuateStatCategories = {
         header = "Resistances",
         stats = { "ResilienceRating", "AllResist", "FireResist", "ShadowResist", "NatureResist", "ArcaneResist", "FrostResist" }
     },
+    
+    -- Column 5: Weapons
     {
-        column = 4,
-        header = "Vitality",
-        stats = { "Health", "Hp5" }
+        column = 5,
+        header = "Weapon DPS",
+        stats = { "Dps", "MeleeDps", "RangedDps", "MainHandDps", "OffHandDps", "OneHandDps", "TwoHandDps" }
+    },
+    {
+        column = 5,
+        header = "Weapon Speed",
+        stats = { "Speed", "MeleeSpeed", "RangedSpeed" }
     },
 }
 
@@ -85,12 +82,12 @@ ValuateStatCategories = {
 ValuateEquipmentCategories = {
     {
         column = 1,
-        header = "Melee 1H",
+        header = "Melee One-Handed",
         stats = { "IsDagger", "IsFist", "IsAxe", "IsMace", "IsSword" }
     },
     {
         column = 2,
-        header = "Melee 2H",
+        header = "Melee Two-Handed",
         stats = { "IsStaff", "IsPolearm", "Is2HAxe", "Is2HMace", "Is2HSword" }
     },
     {
@@ -100,14 +97,13 @@ ValuateEquipmentCategories = {
     },
     {
         column = 4,
-        header = "Armor",
-        stats = { "IsCloth", "IsLeather", "IsMail", "IsPlate", "IsShield", "IsFrill" }
+        header = "Relics",
+        stats = { "IsLibram", "IsTotem", "IsSigil", "IsIdol" }
     },
     {
-        column = 1,
-        header = "Relics",
-        row = 2,  -- Second row of equipment types
-        stats = { "IsLibram", "IsTotem", "IsSigil", "IsIdol" }
+        column = 5,
+        header = "Armor",
+        stats = { "IsCloth", "IsLeather", "IsMail", "IsPlate", "IsShield", "IsFrill" }
     },
 }
 
@@ -201,6 +197,9 @@ ValuateStatPatterns = {
     {"^%+?(%d+) Block Rating%.?$", "BlockRating"},
     {"^Equip: Increases your block rating by (%d+)%.?$", "BlockRating"},
     {"^Equip: Improves your block rating by (%d+)%.?$", "BlockRating"},
+    {"^Equip: Increases your shield block rating by (%d+)%.?$", "BlockRating"},
+    {"^Equip: Improves your shield block rating by (%d+)%.?$", "BlockRating"},
+    {"^(%d+) Block$", "BlockValue"},
     {"^%+?(%d+) Block Value%.?$", "BlockValue"},
     {"^Equip: Increases the block value of your shield by (%d+)%.?$", "BlockValue"},
     
