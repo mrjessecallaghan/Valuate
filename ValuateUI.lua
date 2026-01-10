@@ -3421,12 +3421,13 @@ local function UpdateScaleList()
         
         -- Helper to update visual state based on visibility
         local function UpdateVisualState(visible)
-            -- Get current color from scale data (may have been updated by color picker)
-            local currentColor = (Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Color) or "FFFFFF"
+            -- Get current scale from cache (may have been updated by color picker or icon picker)
+            local currentScale = Valuate:GetScales()[scaleData.name]
+            local currentColor = (currentScale and currentScale.Color) or "FFFFFF"
             local cr, cg, cb = HexToRGB(currentColor)
             
             -- Get current icon from scale data
-            local currentScaleIcon = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Icon
+            local currentScaleIcon = currentScale and currentScale.Icon
             local hasIcon = currentScaleIcon and currentScaleIcon ~= ""
             
             if visible then
@@ -3453,8 +3454,9 @@ local function UpdateScaleList()
         -- Visibility checkbox click handler
         visCheckbox:SetScript("OnClick", function(self)
             local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-            if Valuate:GetScales()[scaleData.name] then
-                Valuate:GetScales()[scaleData.name].Visible = checked
+            local scale = Valuate:GetScales()[scaleData.name]
+            if scale then
+                scale.Visible = checked
                 
                 -- Reset all tooltips to reflect the visibility change immediately
                 if Valuate.ResetTooltips then
@@ -3486,7 +3488,8 @@ local function UpdateScaleList()
         -- Highlight on mouseover (only if visible)
         btn:SetScript("OnEnter", function(self)
             if CurrentSelectedScale ~= scaleData.name then
-                local vis = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Visible ~= false
+                local scale = Valuate:GetScales()[scaleData.name]
+                local vis = scale and scale.Visible ~= false
                 if vis then
                     self:SetBackdropColor(unpack(COLORS.buttonHover))
                 end
@@ -3494,7 +3497,8 @@ local function UpdateScaleList()
         end)
         btn:SetScript("OnLeave", function(self)
             if CurrentSelectedScale ~= scaleData.name then
-                local vis = Valuate:GetScales()[scaleData.name] and Valuate:GetScales()[scaleData.name].Visible ~= false
+                local scale = Valuate:GetScales()[scaleData.name]
+                local vis = scale and scale.Visible ~= false
                 if vis then
                     self:SetBackdropColor(unpack(COLORS.buttonBg))
                 else
@@ -3508,7 +3512,8 @@ local function UpdateScaleList()
             -- Deselect previous
             if CurrentSelectedScale and ScaleListButtons[CurrentSelectedScale] then
                 local prevBtn = ScaleListButtons[CurrentSelectedScale]
-                local prevVis = Valuate:GetScales()[CurrentSelectedScale] and Valuate:GetScales()[CurrentSelectedScale].Visible ~= false
+                local prevScale = Valuate:GetScales()[CurrentSelectedScale]
+                local prevVis = prevScale and prevScale.Visible ~= false
                 if prevVis then
                     prevBtn:SetBackdropColor(unpack(COLORS.buttonBg))
                     prevBtn:SetBackdropBorderColor(unpack(COLORS.border))

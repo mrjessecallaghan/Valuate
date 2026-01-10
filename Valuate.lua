@@ -326,7 +326,8 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         return nil
     end
     
-    debug = debug or (Valuate:GetOptions().debug == true)
+    local options = Valuate:GetOptions()
+    debug = debug or (options.debug == true)
     
     -- Track weapon slot type for assigning type-specific DPS/Speed
     local weaponSlotType = nil  -- IsMainHand, IsOffHand, IsOneHand, IsTwoHand, IsRanged
@@ -338,7 +339,7 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         local leftText = getglobal(tooltipName .. "TextLeft" .. i)
         local rightText = getglobal(tooltipName .. "TextRight" .. i)
         
-        if leftText then
+        if leftText and leftText.GetText then
             local rawText = leftText:GetText() or ""
             local lineText = StripColorCodes(rawText)
             
@@ -373,7 +374,7 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         end
         
         -- Check right side for weapon type (e.g., "Sword", "Axe")
-        if rightText then
+        if rightText and rightText.GetText then
             local rawRightText = rightText:GetText() or ""
             local rightLineText = StripColorCodes(rawRightText)
             
@@ -429,7 +430,7 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
     -- Second pass: parse regular stats
     for i = 1, tooltip:NumLines() do
         local leftText = getglobal(tooltipName .. "TextLeft" .. i)
-        if leftText then
+        if leftText and leftText.GetText then
             local rawText = leftText:GetText() or ""
             local lineText = StripColorCodes(rawText)
             
@@ -565,7 +566,8 @@ function Valuate:GetStatsForItemLink(itemLink)
     end
     
     -- Parse the tooltip (note: this will show base stats, not scaled stats)
-    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", Valuate:GetOptions().debug)
+    local options = Valuate:GetOptions()
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip", options.debug)
     
     return stats
 end
@@ -711,6 +713,47 @@ local function HasValuateLines(tooltip)
         end
     end
     return false
+end
+
+-- Helper function to format percentage comparison text
+-- Returns formatted text string with color codes
+local function FormatPercentageComparison(diff, equippedScore, formatStr, compMode)
+    if not equippedScore or equippedScore == 0 then
+        -- Can't calculate percentage, return number only or "new"
+        local diffColor = diff > 0 and "|cFF00FF00" or (diff < 0 and "|cFFFF0000" or "|cFFFFFF00")
+        local diffSign = diff > 0 and "+" or ""
+        local diffText = string.format(formatStr, diff)
+        if equippedScore == 0 then
+            return " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
+        else
+            return " " .. diffColor .. "(new)|r"
+        end
+    end
+    
+    -- Calculate percentage
+    local percent = (diff / equippedScore) * 100
+    local diffColor = diff > 0 and "|cFF00FF00" or (diff < 0 and "|cFFFF0000" or "|cFFFFFF00")
+    local diffSign = diff > 0 and "+" or ""
+    local diffText = string.format(formatStr, diff)
+    
+    -- Handle extreme percentages
+    if math.abs(percent) >= 1000 then
+        if compMode == "both" then
+            return " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. "HUGE!)|r"
+        else
+            return " " .. diffColor .. "(" .. diffSign .. "HUGE!)|r"
+        end
+    end
+    
+    local percentText = string.format("%.1f", percent)
+    if compMode == "percent" then
+        return " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
+    elseif compMode == "both" then
+        return " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
+    else
+        -- Default to number
+        return " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
+    end
 end
 
 -- Add score lines to tooltip
@@ -1284,51 +1327,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 diffSign = ""
                             end
                             
-                            local diffText = string.format(formatStr, diff)
-                            
-                            if compMode == "number" then
-                                comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
-                            elseif compMode == "percent" then
-                                -- Check if equippedScore exists and is not 0 (can't divide by 0)
-                                if equippedScore and equippedScore ~= 0 then
-                                    local percent = (diff / equippedScore) * 100
-                                    local percentText
-                                    -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
-                                    if math.abs(percent) >= 1000 then
-                                        percentText = "HUGE!"
-                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. ")|r"
-                                    else
-                                        percentText = string.format("%.1f", percent)
-                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. percentText .. "%)|r"
-                                    end
-                                elseif equippedScore == 0 then
-                                    -- Equipped item has score of 0, can't calculate percentage, show number only
-                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
-                                else
-                                    -- No equipped item (nil), show as new
-                                    comparisonText = " " .. diffColor .. "(new)|r"
-                                end
-                            elseif compMode == "both" then
-                                -- Check if equippedScore exists and is not 0 (can't divide by 0)
-                                if equippedScore and equippedScore ~= 0 then
-                                    local percent = (diff / equippedScore) * 100
-                                    local percentText
-                                    -- Use "HUGE!" for extreme percentages (>=1000% or <=-1000%)
-                                    if math.abs(percent) >= 1000 then
-                                        percentText = "HUGE!"
-                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. ")|r"
-                                    else
-                                        percentText = string.format("%.1f", percent)
-                                        comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. percentText .. "%)|r"
-                                    end
-                                elseif equippedScore == 0 then
-                                    -- Equipped item has score of 0, can't calculate percentage, show number only
-                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ")|r"
-                                else
-                                    -- No equipped item (nil), show as new
-                                    comparisonText = " " .. diffColor .. "(" .. diffSign .. diffText .. ", new)|r"
-                                end
-                            end
+                            -- Use helper function to format comparison text
+                            comparisonText = FormatPercentageComparison(diff, equippedScore, formatStr, compMode)
                         end
                         
                         -- Build final display text for single-slot items (skip if stat breakdown already shown)
@@ -1579,7 +1579,7 @@ function Valuate:HookTooltips()
         -- Shopping tooltips show equipped items - display only equipped item's stats (no comparison)
         local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
         if equippedStats and next(equippedStats) then
-            -- Get the item link for "Best for" checking
+            -- Get the item link for "Best for" checking (cache to avoid redundant call)
             local shoppingItemLink = tooltip:GetItem()
             
             -- Fix malformed item links from shopping tooltips
@@ -1608,8 +1608,7 @@ function Valuate:HookTooltips()
             tooltip:Show()  -- Resize tooltip to fit new lines
         end
         
-        -- Apply border coloring for shopping tooltips
-        local shoppingItemLink = tooltip:GetItem()
+        -- Apply border coloring for shopping tooltips (reuse cached shoppingItemLink)
         if shoppingItemLink and equippedStats then
             -- Store default border color on first run
             if not DefaultTooltipBorderColor then
@@ -1774,6 +1773,11 @@ end
 -- Returns: Total score (number)
 function Valuate:CalculateItemScore(stats, scale)
     if not stats or not scale or not scale.Values then
+        return nil
+    end
+    
+    -- Check for empty Values table
+    if not next(scale.Values) then
         return nil
     end
     
