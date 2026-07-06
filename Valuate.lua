@@ -80,22 +80,39 @@ local function AreWeaponTypesComparable(hoverType, equippedType)
         return false
     end
     
-    -- 1H generic weapons (INVTYPE_WEAPON) compare to other 1H generic weapons
-    if hoverType == "INVTYPE_WEAPON" then
-        return equippedType == "INVTYPE_WEAPON"
+    -- Ranged weapons only compare to other ranged weapons
+    if hoverType == "INVTYPE_RANGED" or hoverType == "INVTYPE_RANGEDRIGHT" or hoverType == "INVTYPE_THROWN" then
+        return (equippedType == "INVTYPE_RANGED" or equippedType == "INVTYPE_RANGEDRIGHT" or equippedType == "INVTYPE_THROWN")
+    end
+    if equippedType == "INVTYPE_RANGED" or equippedType == "INVTYPE_RANGEDRIGHT" or equippedType == "INVTYPE_THROWN" then
+        return false
     end
     
-    -- Mainhand-only weapons compare to mainhand-only and 1H generic in mainhand slot
+    -- 1H generic weapons (INVTYPE_WEAPON) compare to other 1H generic weapons, mainhand-only, and offhand-only
+    if hoverType == "INVTYPE_WEAPON" then
+        return equippedType == "INVTYPE_WEAPON" or equippedType == "INVTYPE_WEAPONMAINHAND" or equippedType == "INVTYPE_WEAPONOFFHAND"
+    end
+    if equippedType == "INVTYPE_WEAPON" then
+        return hoverType == "INVTYPE_WEAPON" or hoverType == "INVTYPE_WEAPONMAINHAND" or hoverType == "INVTYPE_WEAPONOFFHAND"
+    end
+    
+    -- Mainhand-only weapons compare to mainhand-only and 1H generic
     if hoverType == "INVTYPE_WEAPONMAINHAND" then
         return equippedType == "INVTYPE_WEAPONMAINHAND" or equippedType == "INVTYPE_WEAPON"
     end
+    if equippedType == "INVTYPE_WEAPONMAINHAND" then
+        return hoverType == "INVTYPE_WEAPONMAINHAND" or hoverType == "INVTYPE_WEAPON"
+    end
     
-    -- Offhand-only weapons compare to offhand-only and 1H generic in offhand slot
+    -- Offhand-only weapons compare to offhand-only and 1H generic
     if hoverType == "INVTYPE_WEAPONOFFHAND" then
         return equippedType == "INVTYPE_WEAPONOFFHAND" or equippedType == "INVTYPE_WEAPON"
     end
+    if equippedType == "INVTYPE_WEAPONOFFHAND" then
+        return hoverType == "INVTYPE_WEAPONOFFHAND" or hoverType == "INVTYPE_WEAPON"
+    end
     
-    -- For all other cases, types should match
+    -- For all other cases, types should match exactly
     return hoverType == equippedType
 end
 
@@ -106,6 +123,58 @@ local frame = CreateFrame("Frame")
 local lastAutoScanTime = 0
 local AUTO_SCAN_THROTTLE = 2  -- seconds between auto-scans
 
+-- Track if equipment swap is in progress
+local equipmentSwapPending = false
+local pendingScanTimer = nil
+local lastBagUpdateTime = 0
+local bagUpdateCooldown = 0  -- Cooldown after bag updates to let items settle
+local recentEquipmentChange = false  -- Track if we recently had equipment changes
+
+-- Schedule a scan with proper delays
+local function ScheduleScan(delay, reason)
+    delay = delay or 3.0  -- Default delay increased significantly to ensure items are in bags
+    
+    -- Check autoScan setting
+    local options = Valuate:GetOptions()
+    local autoScan = options.autoScan or "onEquipmentChange"
+    
+    -- Determine if we should scan based on reason and setting
+    local shouldScan = false
+    if autoScan == "always" then
+        shouldScan = true
+    elseif autoScan == "onEquipmentChange" and (reason == "equipment" or reason == "swap") then
+        shouldScan = true
+    elseif autoScan == "onLoot" and reason == "loot" then
+        shouldScan = true
+    elseif autoScan == "off" then
+        shouldScan = false
+    end
+    
+    if not shouldScan then
+        return
+    end
+    
+    -- Cancel any pending scan
+    if pendingScanTimer then
+        C_Timer.Cancel(pendingScanTimer)
+    end
+    -- Schedule new scan
+    pendingScanTimer = C_Timer.After(delay, function()
+        pendingScanTimer = nil
+        -- Only scan if not in swap and bag update cooldown has passed
+        local currentTime = GetTime()
+        if not equipmentSwapPending and (currentTime - bagUpdateCooldown) >= 2.0 then
+            if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
+                lastAutoScanTime = currentTime
+                recentEquipmentChange = false
+                if Valuate.ScanBestEquipment then
+                    Valuate:ScanBestEquipment()
+                end
+            end
+        end
+    end)
+end
+
 -- Event handler
 local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
@@ -114,18 +183,60 @@ local function OnEvent(self, event, addonName, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- Player entered world, can do additional setup here
         frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
-    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-        -- Equipment changed, auto-scan with throttle
-        local currentTime = GetTime()
-        if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
-            lastAutoScanTime = currentTime
-            -- Scan on next frame to avoid doing it mid-combat or mid-swap
-            C_Timer.After(0.1, function()
-                if Valuate.ScanBestEquipment then
-                    Valuate:ScanBestEquipment()
-                end
-            end)
+    elseif event == "EQUIPMENT_SWAP_PENDING" then
+        -- Equipment swap is starting, pause scanning completely
+        equipmentSwapPending = true
+        recentEquipmentChange = true
+        -- Cancel any pending scan
+        if pendingScanTimer then
+            C_Timer.Cancel(pendingScanTimer)
+            pendingScanTimer = nil
         end
+    elseif event == "EQUIPMENT_SWAP_FINISHED" then
+        -- Equipment swap is complete, but wait for bag updates to settle
+        equipmentSwapPending = false
+        bagUpdateCooldown = GetTime()
+        -- Wait much longer after swap to ensure items are fully in bags
+        -- Don't scan immediately - let items settle first
+        ScheduleScan(3.0, "swap")
+    elseif event == "BAG_UPDATE" then
+        -- Bag contents changed - items are being moved
+        local currentTime = GetTime()
+        lastBagUpdateTime = currentTime
+        bagUpdateCooldown = currentTime  -- Reset cooldown
+        -- If we're in a swap or recently had equipment changes, wait longer
+        if equipmentSwapPending or recentEquipmentChange then
+            return
+        end
+        
+        -- Only schedule scan if enough time has passed since last bag update
+        -- This prevents scanning while items are actively being moved
+        if (currentTime - bagUpdateCooldown) < 1.0 then
+            return  -- Too soon, items still moving
+        end
+        
+        -- Check if we should scan on bag updates (for "always" mode)
+        local options = Valuate:GetOptions()
+        local autoScan = options.autoScan or "onEquipmentChange"
+        if autoScan == "always" then
+            -- Schedule scan after bag updates settle (items need time to be placed)
+            ScheduleScan(2.5, "bag")
+        end
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        -- Equipment changed - mark that we had a change
+        recentEquipmentChange = true
+        -- Skip scanning entirely if equipment swap is in progress
+        if equipmentSwapPending then
+            return
+        end
+        
+        -- Wait much longer after equipment changes to ensure items are in bags
+        -- Use longer delay to ensure items are fully moved to bags
+        ScheduleScan(3.5, "equipment")
+    elseif event == "LOOT_OPENED" then
+        -- Loot window opened - schedule scan after loot is collected
+        -- Wait a bit to ensure items are in bags
+        ScheduleScan(2.0, "loot")
     end
 end
 
@@ -147,9 +258,10 @@ function Valuate:GetOptions()
             debug = false,
             decimalPlaces = 1,
             rightAlign = false,
-            showScaleValue = true,
+            showScaleValue = "all",  -- Options: "all" or "current"
             showBestFor = true,
             chatMessages = true,  -- Show chat messages (verbose mode)
+            scanVerbose = false,  -- Show scan completion messages (verbose scan mode)
             showStartupMessage = true,  -- Show "Valuate loaded" message
             comparisonMode = "number",
             characterWindowScale = nil,
@@ -159,6 +271,7 @@ function Valuate:GetOptions()
             uiPosition = {},
             normalizeDisplay = false,
             showStatBreakdown = false,
+            autoScan = "onEquipmentChange",  -- Options: "off", "onEquipmentChange", "onLoot", "always"
         }
     end
     return ValuateOptions
@@ -215,9 +328,21 @@ function Valuate:Initialize()
     if options.debug == nil then options.debug = false end
     if options.decimalPlaces == nil then options.decimalPlaces = 1 end
     if options.rightAlign == nil then options.rightAlign = false end
-    if options.showScaleValue == nil then options.showScaleValue = true end
+    -- Migrate from boolean to string format, or set default
+    if options.showScaleValue == nil then 
+        options.showScaleValue = "all"
+    elseif type(options.showScaleValue) == "boolean" then
+        -- Migrate old boolean value to new string format
+        -- true -> "all", false -> "all" (since feature now always shows values, just with different scopes)
+        options.showScaleValue = "all"
+    end
+    -- Ensure it's a valid value
+    if options.showScaleValue ~= "all" and options.showScaleValue ~= "current" then
+        options.showScaleValue = "all"
+    end
     if options.showBestFor == nil then options.showBestFor = true end
     if options.chatMessages == nil then options.chatMessages = true end
+    if options.scanVerbose == nil then options.scanVerbose = false end
     if options.showStartupMessage == nil then options.showStartupMessage = true end
     if options.comparisonMode == nil then options.comparisonMode = "number" end
     if options.characterWindowScale == nil then options.characterWindowScale = nil end
@@ -227,6 +352,7 @@ function Valuate:Initialize()
     if options.uiPosition == nil then options.uiPosition = {} end
     if options.normalizeDisplay == nil then options.normalizeDisplay = false end
     if options.showStatBreakdown == nil then options.showStatBreakdown = false end
+    if options.autoScan == nil then options.autoScan = "onEquipmentChange" end
     
     -- Get per-character scales
     local scales = Valuate:GetScales()
@@ -805,10 +931,31 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
         end
     end
     
+    -- Determine current scale for "current" mode
+    local currentScaleName = nil
+    if options.showScaleValue == "current" then
+        -- Use characterWindowScale if set and active, otherwise use first active scale
+        if options.characterWindowScale then
+            for _, scaleName in ipairs(activeScales) do
+                if scaleName == options.characterWindowScale then
+                    currentScaleName = scaleName
+                    break
+                end
+            end
+        end
+        -- Fall back to first active scale if characterWindowScale is not set or not active
+        if not currentScaleName and #activeScales > 0 then
+            currentScaleName = activeScales[1]
+        end
+    end
+    
     -- Calculate and display scores
     for _, scaleName in ipairs(activeScales) do
         local scale = scales[scaleName]
         if scale then
+            -- Skip this scale if we're in "current" mode and this isn't the current scale
+            if not (options.showScaleValue == "current" and scaleName ~= currentScaleName) then
+            
             -- Check if item has any stats marked as unusable (banned) for this scale
             local hasUnusableStat = false
             if scale.Unusable then
@@ -849,7 +996,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 local score = Valuate:CalculateItemScore(stats, scale)
                 if score and score > 0 then
                     -- Check if user wants to show scale values
-                    local showValue = options.showScaleValue ~= false
+                    local showValue = options.showScaleValue == "all" or options.showScaleValue == "current"
                     
                     -- Only display scale info if showValue is enabled
                     if showValue then
@@ -1372,6 +1519,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                     end  -- Close "if showValue then" block
                 end
             end
+            end  -- Close "if not (options.showScaleValue == "current" and scaleName ~= currentScaleName) then"
         end
     end
     
@@ -1966,10 +2114,11 @@ function Valuate:GetEquippedItemScores(equipSlot, scale)
             local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
             
             -- Check if these item types should be compared
-            local shouldCompare = true
-            if equippedEquipLoc then
+            local shouldCompare = false
+            if equippedEquipLoc and equippedEquipLoc ~= "" then
                 shouldCompare = AreWeaponTypesComparable(equipSlot, equippedEquipLoc)
             end
+            -- If equippedEquipLoc is missing or empty, we can't determine comparability, so don't compare
             
             if shouldCompare then
                 tooltip:ClearLines()
@@ -2034,10 +2183,11 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
             local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
             
             -- Check if these item types should be compared
-            local shouldCompare = true
-            if equippedEquipLoc then
+            local shouldCompare = false
+            if equippedEquipLoc and equippedEquipLoc ~= "" then
                 shouldCompare = AreWeaponTypesComparable(equipSlot, equippedEquipLoc)
             end
+            -- If equippedEquipLoc is missing or empty, we can't determine comparability, so don't compare
             
             if shouldCompare then
                 tooltip:ClearLines()
@@ -2120,13 +2270,22 @@ end
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
 function Valuate:ScanBestEquipment()
+    -- CRITICAL FIX: Do not scan if equipment swap is pending or recent equipment change occurred
+    -- Calling SetBagItem during item transit causes items to disappear
+    if equipmentSwapPending or recentEquipmentChange then
+        return
+    end
+    
     local bestEquipment = Valuate:GetBestEquipment()
     local activeScales = Valuate:GetActiveScales()
     local scales = Valuate:GetScales()
     local tooltip = GetPrivateTooltip()
+    local options = Valuate:GetOptions()
     
     if #activeScales == 0 then
-        print("|cFFFF8800[Valuate]|r No active scales - cannot scan best equipment")
+        if options.scanVerbose then
+            print("|cFFFF8800[Valuate]|r No active scales - cannot scan best equipment")
+        end
         return
     end
     
@@ -2202,23 +2361,32 @@ function Valuate:ScanBestEquipment()
                         
                         -- Only process equippable items
                         if itemEquipLoc and itemEquipLoc ~= "" then
-                            -- Get item stats
-                            tooltip:ClearLines()
-                            -- Use SetBagItem for bag items to get actual scaled stats
-                            tooltip:SetBagItem(bagId, slotId)
-                            local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-                            
-                            if stats then
-                                local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
-                                itemData[itemId] = {
-                                    itemLink = itemLink,
-                                    itemName = itemName or "Unknown",
-                                    itemEquipLoc = itemEquipLoc,
-                                    stats = stats,
-                                    itemTexture = itemTexture,
-                                    itemQuality = itemQuality or 0
-                                }
-                                itemsProcessed = itemsProcessed + 1
+                            -- CRITICAL FIX: Skip SetBagItem if items are in transit
+                            -- Calling SetBagItem during equipment swaps causes items to disappear
+                            if equipmentSwapPending or recentEquipmentChange then
+                                -- Skip this item - don't call SetBagItem during swaps
+                            else
+                                -- Get item stats
+                                tooltip:ClearLines()
+                                -- Use SetBagItem for bag items to get actual scaled stats
+                                -- Use pcall to safely handle cases where item might be in transit
+                                local success, stats = pcall(function()
+                                    tooltip:SetBagItem(bagId, slotId)
+                                    return Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                end)
+                                
+                                if success and stats then
+                                    local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
+                                    itemData[itemId] = {
+                                        itemLink = itemLink,
+                                        itemName = itemName or "Unknown",
+                                        itemEquipLoc = itemEquipLoc,
+                                        stats = stats,
+                                        itemTexture = itemTexture,
+                                        itemQuality = itemQuality or 0
+                                    }
+                                    itemsProcessed = itemsProcessed + 1
+                                end
                             end
                         end
                     end
@@ -2314,8 +2482,7 @@ function Valuate:ScanBestEquipment()
         end
     end
     
-    local options = Valuate:GetOptions()
-    if options.chatMessages then
+    if options.scanVerbose then
         print("|cFF00FF00[Valuate]|r Best equipment scan complete: " .. itemsProcessed .. " items processed from " .. itemsScanned .. " items scanned")
     end
     
@@ -2721,6 +2888,10 @@ end
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
+frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
+frame:RegisterEvent("BAG_UPDATE")
+frame:RegisterEvent("LOOT_OPENED")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)

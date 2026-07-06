@@ -5816,39 +5816,74 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
     
-    -- Show Scale Value checkbox (Column 1) - moved from Column 2
-    local showScaleCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
-    showScaleCheckbox:SetSize(24, 24)
-    showScaleCheckbox:SetPoint("TOPLEFT", alignCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    -- Show Scale Value dropdown (Column 1) - moved from Column 2
+    local showScaleLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    showScaleLabel:SetPoint("TOPLEFT", alignCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    showScaleLabel:SetText("Show Scale Value:")
     
-    local showScaleLabel = showScaleCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    showScaleLabel:SetPoint("LEFT", showScaleCheckbox, "RIGHT", 5, 0)
-    showScaleLabel:SetText("Show Scale Value")
-    showScaleCheckbox:SetChecked(Valuate:GetOptions().showScaleValue ~= false)
-    showScaleCheckbox:SetScript("OnClick", function(self)
-        Valuate:GetOptions().showScaleValue = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        
-        -- Reset all tooltips to show/hide scale values immediately
-        if Valuate.ResetTooltips then
-            Valuate:ResetTooltips()
+    local showScaleModes = {
+        { value = "all", text = "ON all" },
+        { value = "current", text = "On current scale only" },
+    }
+    
+    local showScaleDropdown = CreateFrame("Frame", "ValuateShowScaleDropdown", col1, "UIDropDownMenuTemplate")
+    showScaleDropdown:SetPoint("LEFT", showScaleLabel, "RIGHT", -5, -2)
+    UIDropDownMenu_SetWidth(showScaleDropdown, 180)
+    
+    columnHeights[1] = columnHeights[1] + 32 + ELEMENT_SPACING
+    
+    local function GetShowScaleText(value)
+        for _, mode in ipairs(showScaleModes) do
+            if mode.value == value then
+                return mode.text
+            end
+        end
+        return "ON all"
+    end
+    
+    -- Set initial text
+    local currentShowScale = Valuate:GetOptions().showScaleValue or "all"
+    UIDropDownMenu_SetText(showScaleDropdown, GetShowScaleText(currentShowScale))
+    
+    -- Dropdown initialization function
+    UIDropDownMenu_Initialize(showScaleDropdown, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, mode in ipairs(showScaleModes) do
+            info.text = mode.text
+            info.value = mode.value
+            info.checked = (Valuate:GetOptions().showScaleValue or "all") == mode.value
+            info.func = function(self)
+                Valuate:GetOptions().showScaleValue = self.value
+                UIDropDownMenu_SetText(showScaleDropdown, GetShowScaleText(self.value))
+                
+                -- Reset all tooltips to show/hide scale values immediately
+                if Valuate.ResetTooltips then
+                    Valuate:ResetTooltips()
+                end
+            end
+            UIDropDownMenu_AddButton(info, level)
         end
     end)
-    showScaleCheckbox:SetScript("OnEnter", function(self)
+    
+    -- Tooltip for dropdown
+    showScaleDropdown:SetScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-        GameTooltip:AddLine("Show Scale Value", 1, 1, 1)
-        GameTooltip:AddLine("Display the item's calculated scale score on tooltips.", 0.8, 0.8, 0.8, true)
-        GameTooltip:Show()
+            GameTooltip:AddLine("Show Scale Value", 1, 1, 1)
+            GameTooltip:AddLine("Controls which scale values are displayed on tooltips.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("ON all: Show values for all active scales", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("On current scale only: Show value only for the current scale", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
         end
     end)
-    showScaleCheckbox:SetScript("OnLeave", function()
+    showScaleDropdown:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
     
     -- Show Best For checkbox (Column 1)
     local showBestForCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     showBestForCheckbox:SetSize(24, 24)
-    showBestForCheckbox:SetPoint("TOPLEFT", showScaleCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    showBestForCheckbox:SetPoint("TOPLEFT", showScaleLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     
     local showBestForLabel = showBestForCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     showBestForLabel:SetPoint("LEFT", showBestForCheckbox, "RIGHT", 5, 0)
@@ -5931,6 +5966,98 @@ local function CreateSettingsPanel(parent)
         GameTooltip:Hide()
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+    
+    -- Scan Verbose checkbox (Column 1)
+    local scanVerboseCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    scanVerboseCheckbox:SetSize(24, 24)
+    scanVerboseCheckbox:SetPoint("TOPLEFT", breakdownCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    
+    local scanVerboseLabel = scanVerboseCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    scanVerboseLabel:SetPoint("LEFT", scanVerboseCheckbox, "RIGHT", 5, 0)
+    scanVerboseLabel:SetText("Scan Verbose Messages")
+    
+    -- Default to disabled if not set
+    if Valuate:GetOptions().scanVerbose == nil then
+        Valuate:GetOptions().scanVerbose = false
+    end
+    scanVerboseCheckbox:SetChecked(Valuate:GetOptions().scanVerbose == true)
+    scanVerboseCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().scanVerbose = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    scanVerboseCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Scan Verbose Messages", 1, 1, 1)
+            GameTooltip:AddLine("When enabled, displays completion messages in chat after scanning best equipment. Disabled by default to keep chat clean.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    scanVerboseCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+    
+    -- Auto Scan dropdown (Column 1)
+    local autoScanLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoScanLabel:SetPoint("TOPLEFT", scanVerboseCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    autoScanLabel:SetText("Auto Scan:")
+    
+    local autoScanModes = {
+        { value = "off", text = "Off" },
+        { value = "onEquipmentChange", text = "On Equipment Change" },
+        { value = "onLoot", text = "On Loot" },
+        { value = "always", text = "Always" },
+    }
+    
+    local autoScanDropdown = CreateFrame("Frame", "ValuateAutoScanDropdown", col1, "UIDropDownMenuTemplate")
+    autoScanDropdown:SetPoint("LEFT", autoScanLabel, "RIGHT", -5, -2)
+    UIDropDownMenu_SetWidth(autoScanDropdown, 180)
+    
+    columnHeights[1] = columnHeights[1] + 32 + ELEMENT_SPACING
+    
+    local function GetAutoScanText(value)
+        for _, mode in ipairs(autoScanModes) do
+            if mode.value == value then
+                return mode.text
+            end
+        end
+        return "On Equipment Change"
+    end
+    
+    -- Set initial text
+    local currentAutoScan = Valuate:GetOptions().autoScan or "onEquipmentChange"
+    UIDropDownMenu_SetText(autoScanDropdown, GetAutoScanText(currentAutoScan))
+    
+    -- Dropdown initialization function
+    UIDropDownMenu_Initialize(autoScanDropdown, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for _, mode in ipairs(autoScanModes) do
+            info.text = mode.text
+            info.value = mode.value
+            info.checked = (Valuate:GetOptions().autoScan or "onEquipmentChange") == mode.value
+            info.func = function(self)
+                Valuate:GetOptions().autoScan = self.value
+                UIDropDownMenu_SetText(autoScanDropdown, GetAutoScanText(self.value))
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    
+    -- Tooltip for dropdown
+    autoScanDropdown:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Scan", 1, 1, 1)
+            GameTooltip:AddLine("Controls when the best equipment scan runs automatically.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Off: Never scan automatically", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("On Equipment Change: Scan when you change equipment", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("On Loot: Scan when you loot items", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("Always: Scan on equipment changes, loot, and bag updates", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end
+    end)
+    autoScanDropdown:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
     
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
