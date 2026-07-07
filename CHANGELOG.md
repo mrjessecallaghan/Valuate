@@ -11,6 +11,15 @@ keeps the addon name, saved scales, and the AdiBags/PassLoot integrations fully
 working. The pristine pre-fork addon is preserved in the repo's `master` branch
 and in an `_Valuate_Original_Archive_*` folder + zip outside the load path.
 
+### Added
+- **Auto Choose Best Quest Reward** (opt-in, off by default). When a quest offers
+  a choice of rewards, Valuate scores each choosable reward with your active scale
+  (the character-window scale, or the first active scale) using the item's *scaled*
+  stats, honoring the scale's banned stats, and pre-selects the highest-scoring one.
+  It only highlights the reward — you still click "Complete Quest" yourself — and it
+  leaves non-gear rewards (bags, consumables) for you to decide. Toggle it in
+  Settings → "Auto Choose Best Quest Reward".
+
 ### Fixed
 - **Shopping-tooltip border coloring never ran.** In `UpdateShoppingTooltip`,
   `shoppingItemLink` was scoped to an inner `if` block but read again afterward

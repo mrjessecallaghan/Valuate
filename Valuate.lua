@@ -284,6 +284,11 @@ local function OnEvent(self, event, addonName, ...)
         -- Loot window opened - schedule scan after loot is collected
         -- Wait a bit to ensure items are in bags
         ScheduleScan(2.0, "loot")
+    elseif event == "QUEST_COMPLETE" then
+        -- Quest reward screen is up - auto-select the best choosable reward
+        if Valuate.AutoSelectBestQuestReward then
+            Valuate:AutoSelectBestQuestReward()
+        end
     end
 end
 
@@ -319,6 +324,7 @@ function Valuate:GetOptions()
             normalizeDisplay = false,
             showStatBreakdown = false,
             autoScan = "onEquipmentChange",  -- Options: "off", "onEquipmentChange", "onLoot", "always"
+            autoQuestReward = false,  -- Auto-select the best quest reward choice for the active scale
         }
     end
     return ValuateOptions
@@ -400,6 +406,7 @@ function Valuate:Initialize()
     if options.normalizeDisplay == nil then options.normalizeDisplay = false end
     if options.showStatBreakdown == nil then options.showStatBreakdown = false end
     if options.autoScan == nil then options.autoScan = "onEquipmentChange" end
+    if options.autoQuestReward == nil then options.autoQuestReward = false end
     
     -- Get per-character scales
     local scales = Valuate:GetScales()
@@ -2934,6 +2941,157 @@ function Valuate:DisplayScoresOnTooltip(tooltip, stats)
     end
 end
 
+-- ========================================
+-- Auto Quest Reward Selection
+-- ========================================
+
+-- Determines which scale drives automatic decisions (currently quest rewards).
+-- Prefers the character-window scale if it is active, otherwise the first
+-- active scale. Returns scaleData, scaleName - or nil if no scale is active.
+function Valuate:GetPrimaryScale()
+    local activeScales = Valuate:GetActiveScales()
+    if #activeScales == 0 then
+        return nil, nil
+    end
+
+    local scales = Valuate:GetScales()
+    local preferred = Valuate:GetOptions().characterWindowScale
+
+    -- Use the explicitly-selected character window scale when it is active
+    if preferred and preferred ~= "" then
+        for _, name in ipairs(activeScales) do
+            if name == preferred then
+                return scales[name], name
+            end
+        end
+    end
+
+    -- Otherwise fall back to the first active scale
+    local firstName = activeScales[1]
+    return scales[firstName], firstName
+end
+
+-- Scores a single quest reward choice for the given scale.
+-- Reads SCALED stats directly from the quest item tooltip (Ascension scales
+-- quest rewards too), and honors the scale's banned ("Unusable") stats exactly
+-- like the item tooltips do. Returns a score, or nil if it can't/shouldn't be
+-- scored (non-gear reward, banned stats, tooltip failure).
+local function ScoreQuestChoice(index, scale)
+    if not scale or not scale.Values then
+        return nil
+    end
+
+    local tooltip = GetPrivateTooltip()
+    tooltip:ClearLines()
+    local ok = pcall(function() tooltip:SetQuestItem("choice", index) end)
+    if not ok then
+        return nil
+    end
+
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+    if not stats or not next(stats) then
+        return nil
+    end
+
+    -- Respect banned stats (mirrors the tooltip / best-equipment logic)
+    if scale.Unusable then
+        for statName, statValue in pairs(stats) do
+            if scale.Unusable[statName] and statValue and statValue > 0 then
+                return nil
+            end
+        end
+
+        -- Slot-type fallback for weapon bans the tooltip parse may have missed
+        local itemLink = GetQuestItemLink("choice", index)
+        if itemLink then
+            local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
+            if equipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                return nil
+            elseif equipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+                return nil
+            elseif (equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+                return nil
+            end
+        end
+    end
+
+    return Valuate:CalculateItemScore(stats, scale)
+end
+
+-- Auto-selects the highest-scoring quest reward choice for the active scale.
+-- This only PRE-SELECTS (highlights) the reward so the player still clicks
+-- "Complete Quest" themselves - it never turns the quest in automatically.
+-- Called on QUEST_COMPLETE when options.autoQuestReward is enabled.
+function Valuate:AutoSelectBestQuestReward()
+    local options = Valuate:GetOptions()
+    if not options.autoQuestReward then
+        return
+    end
+
+    -- GetNumQuestChoices() = number of "choose one of these" rewards.
+    -- 0 means only guaranteed rewards (nothing to choose), so we do nothing.
+    local numChoices = GetNumQuestChoices()
+    if not numChoices or numChoices < 1 then
+        return
+    end
+
+    local scale, scaleName = Valuate:GetPrimaryScale()
+    if not scale then
+        if options.chatMessages then
+            print("|cFFFF8800Valuate|r: Auto quest reward skipped - no active scale to score with.")
+        end
+        return
+    end
+
+    -- Find the highest-scoring choice
+    local bestIndex, bestScore, bestLink
+    for index = 1, numChoices do
+        local score = ScoreQuestChoice(index, scale)
+        if score and (not bestScore or score > bestScore) then
+            bestScore = score
+            bestIndex = index
+            bestLink = GetQuestItemLink("choice", index)
+        end
+    end
+
+    -- If nothing scored (e.g. all rewards are bags/consumables), don't guess -
+    -- leave the decision to the player. A lone choice is safe to pre-select.
+    if not bestIndex then
+        if numChoices == 1 then
+            bestIndex = 1
+            bestLink = GetQuestItemLink("choice", 1)
+        else
+            return
+        end
+    end
+
+    -- Functionally select the reward. Blizzard's QuestRewardCompleteButton_OnClick
+    -- reads QuestInfoFrame.itemChoice, so setting it makes "Complete Quest" use
+    -- our pick regardless of reward-button frame naming.
+    if QuestInfoFrame then
+        QuestInfoFrame.itemChoice = bestIndex
+    end
+
+    -- Best-effort visual highlight via Blizzard's own click handler (guarded,
+    -- since exact button names differ across UI replacements).
+    pcall(function()
+        local button = _G["QuestInfoItem" .. bestIndex]
+        if button and button.type == "choice" and QuestInfoItem_OnClick then
+            QuestInfoItem_OnClick(button)
+        end
+    end)
+
+    if options.chatMessages then
+        local rewardText = bestLink or ("choice " .. bestIndex)
+        if bestScore then
+            print(string.format("|cFF00FF00Valuate|r auto-selected reward: %s |cFFAAAAAA(score %.1f for %s)|r",
+                rewardText, bestScore, scale.DisplayName or scaleName or "scale"))
+        else
+            print("|cFF00FF00Valuate|r auto-selected reward: " .. rewardText)
+        end
+    end
+end
+
 -- Register events
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -2942,6 +3100,7 @@ frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
 frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
 frame:RegisterEvent("BAG_UPDATE")
 frame:RegisterEvent("LOOT_OPENED")
+frame:RegisterEvent("QUEST_COMPLETE")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)

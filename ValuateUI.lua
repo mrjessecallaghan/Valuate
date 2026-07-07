@@ -4966,6 +4966,8 @@ local function CreateChangelogPanel(parent)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v090Text = CreateChangeText(
+        "• NEW: Auto Choose Best Quest Reward - pre-selects the highest-scoring quest\n" ..
+        "   reward choice for your active scale (opt-in, see Settings)\n" ..
         "• Polished, bug-fixed fork - original preserved in an archive folder + git master\n" ..
         "• Fixed: shopping/comparison tooltips now get their green/red Valuate border\n" ..
         "• Fixed: auto-scan timers are now genuinely cancelable (no more overlapping scans)\n" ..
@@ -6074,7 +6076,33 @@ local function CreateSettingsPanel(parent)
     autoScanDropdown:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
-    
+
+    -- Auto Choose Best Quest Reward checkbox (Column 1, below the Auto Scan dropdown)
+    local autoQuestCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoQuestCheckbox:SetSize(24, 24)
+    autoQuestCheckbox:SetPoint("TOPLEFT", autoScanLabel, "BOTTOMLEFT", 0, -36)
+
+    local autoQuestLabel = autoQuestCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoQuestLabel:SetPoint("LEFT", autoQuestCheckbox, "RIGHT", 5, 0)
+    autoQuestLabel:SetText("Auto Choose Best Quest Reward")
+    autoQuestCheckbox:SetChecked(Valuate:GetOptions().autoQuestReward == true)
+    autoQuestCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoQuestReward = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoQuestCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Choose Best Quest Reward", 1, 1, 1)
+            GameTooltip:AddLine("When a quest offers a choice of rewards, Valuate automatically pre-selects the highest-scoring one for your active scale (the character-window scale, or the first active scale).", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("It only highlights the reward - you still click 'Complete Quest' yourself. Non-gear rewards (bags, consumables) are left for you to decide.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoQuestCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================
