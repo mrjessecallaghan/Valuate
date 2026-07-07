@@ -130,6 +130,50 @@ local lastBagUpdateTime = 0
 local bagUpdateCooldown = 0  -- Cooldown after bag updates to let items settle
 local recentEquipmentChange = false  -- Track if we recently had equipment changes
 
+-- ========================================
+-- Cancelable one-shot timer (client-compat)
+-- ========================================
+-- Ascension / 3.3.5a clients ship C_Timer in several flavors:
+--   * C_Timer.NewTimer(delay, cb) -> object with :Cancel()  (cancelable)
+--   * C_Timer.After(delay, cb)    -> no return value, no C_Timer.Cancel
+--   * neither present              -> older/limited clients
+-- The auto-scan logic needs to be able to CANCEL a pending scan, so we wrap
+-- all of these behind a single helper that always returns a handle exposing
+-- :Cancel(). This makes scan-throttling actually work instead of silently
+-- leaking overlapping scans (the previous code called C_Timer.Cancel on a
+-- handle that C_Timer.After never returned).
+local function ValuateAfter(delay, callback)
+    if C_Timer and C_Timer.NewTimer then
+        -- Native cancelable timer object.
+        return C_Timer.NewTimer(delay, callback)
+    elseif C_Timer and C_Timer.After then
+        -- No native cancel: gate the callback behind a cancelled flag.
+        local handle = { cancelled = false }
+        function handle:Cancel() self.cancelled = true end
+        C_Timer.After(delay, function()
+            if not handle.cancelled then callback() end
+        end)
+        return handle
+    else
+        -- Pure OnUpdate fallback for clients lacking C_Timer entirely.
+        local handle = { cancelled = false, elapsed = 0 }
+        local timerFrame = CreateFrame("Frame")
+        handle.frame = timerFrame
+        function handle:Cancel()
+            self.cancelled = true
+            if self.frame then self.frame:SetScript("OnUpdate", nil) end
+        end
+        timerFrame:SetScript("OnUpdate", function(self, e)
+            handle.elapsed = handle.elapsed + (e or 0)
+            if handle.elapsed >= delay then
+                self:SetScript("OnUpdate", nil)
+                if not handle.cancelled then callback() end
+            end
+        end)
+        return handle
+    end
+end
+
 -- Schedule a scan with proper delays
 local function ScheduleScan(delay, reason)
     delay = delay or 3.0  -- Default delay increased significantly to ensure items are in bags
@@ -156,10 +200,11 @@ local function ScheduleScan(delay, reason)
     
     -- Cancel any pending scan
     if pendingScanTimer then
-        C_Timer.Cancel(pendingScanTimer)
+        pendingScanTimer:Cancel()
+        pendingScanTimer = nil
     end
     -- Schedule new scan
-    pendingScanTimer = C_Timer.After(delay, function()
+    pendingScanTimer = ValuateAfter(delay, function()
         pendingScanTimer = nil
         -- Only scan if not in swap and bag update cooldown has passed
         local currentTime = GetTime()
@@ -189,7 +234,7 @@ local function OnEvent(self, event, addonName, ...)
         recentEquipmentChange = true
         -- Cancel any pending scan
         if pendingScanTimer then
-            C_Timer.Cancel(pendingScanTimer)
+            pendingScanTimer:Cancel()
             pendingScanTimer = nil
         end
     elseif event == "EQUIPMENT_SWAP_FINISHED" then
@@ -204,18 +249,20 @@ local function OnEvent(self, event, addonName, ...)
         local currentTime = GetTime()
         lastBagUpdateTime = currentTime
         bagUpdateCooldown = currentTime  -- Reset cooldown
-        -- If we're in a swap or recently had equipment changes, wait longer
+        -- If we're in a swap or recently had equipment changes, wait longer.
+        -- This is the real "items are in transit" guard - it must stay.
         if equipmentSwapPending or recentEquipmentChange then
             return
         end
-        
-        -- Only schedule scan if enough time has passed since last bag update
-        -- This prevents scanning while items are actively being moved
-        if (currentTime - bagUpdateCooldown) < 1.0 then
-            return  -- Too soon, items still moving
-        end
-        
-        -- Check if we should scan on bag updates (for "always" mode)
+
+        -- Check if we should scan on bag updates (for "always" mode).
+        -- Debouncing is handled entirely by ScheduleScan (it cancels and
+        -- reschedules on every call) plus the scan callback's own bag-quiet
+        -- gate (it waits until GetTime() - bagUpdateCooldown >= 2s before it
+        -- actually scans). The previous "< 1.0" early-return here compared
+        -- currentTime against bagUpdateCooldown, which was just set to
+        -- currentTime one line above, so it was always true and silently
+        -- disabled "always" mode entirely.
         local options = Valuate:GetOptions()
         local autoScan = options.autoScan or "onEquipmentChange"
         if autoScan == "always" then
@@ -362,9 +409,8 @@ function Valuate:Initialize()
     
     -- Clean up orphaned best equipment data from deleted scales
     Valuate:CleanupOrphanedBestEquipment()
-    
-    -- Basic initialization
-    local options = self:GetOptions()
+
+    -- Basic initialization (reuse the 'options' table fetched above)
     if options.showStartupMessage then
         print("|cFF00FF00Valuate|r loaded (v" .. self.version .. ")")
     end
@@ -1725,10 +1771,14 @@ function Valuate:HookTooltips()
         if HasValuateLines(tooltip) then return end
         
         -- Shopping tooltips show equipped items - display only equipped item's stats (no comparison)
+        -- NOTE: shoppingItemLink is declared at function scope so the border-coloring
+        -- block below can reuse it. (Previously it was scoped to the if-block, so the
+        -- border coloring always saw nil and never ran.)
+        local shoppingItemLink
         local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
         if equippedStats and next(equippedStats) then
             -- Get the item link for "Best for" checking (cache to avoid redundant call)
-            local shoppingItemLink = tooltip:GetItem()
+            shoppingItemLink = tooltip:GetItem()
             
             -- Fix malformed item links from shopping tooltips
             local itemId = GetItemIdFromLink(shoppingItemLink)

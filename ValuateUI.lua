@@ -4961,10 +4961,26 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.7.0 (Current)
-    local v070Header = CreateVersionHeader("Version 0.7.0 (Current)", currentY)
+    -- Version 0.9.0a (Current) - Claude fork
+    local v090Header = CreateVersionHeader("Version 0.9.0a (Current) - Claude fork", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
-    
+
+    local v090Text = CreateChangeText(
+        "• Polished, bug-fixed fork - original preserved in an archive folder + git master\n" ..
+        "• Fixed: shopping/comparison tooltips now get their green/red Valuate border\n" ..
+        "• Fixed: auto-scan timers are now genuinely cancelable (no more overlapping scans)\n" ..
+        "• Fixed: 'always' auto-scan mode on bag updates now actually works\n" ..
+        "• Hardened timer handling for varying 3.3.5a C_Timer implementations\n" ..
+        "• Internal cleanup; item-in-transit safety guards left intact",
+        currentY
+    )
+    local v090Height = v090Text:GetStringHeight()
+    currentY = currentY - v090Height - versionSpacing
+
+    -- Version 0.7.0
+    local v070Header = CreateVersionHeader("Version 0.7.0", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
     local v070Text = CreateChangeText(
         "• Per-Character Profile System - Settings and scales are now saved per-character\n" ..
         "• Each character maintains completely independent scales and settings\n" ..

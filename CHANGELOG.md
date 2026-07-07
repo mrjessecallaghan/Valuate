@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.0a] - 2026-07-07 — Claude fork
+
+This release begins the **Claude fork** of Valuate: an in-place polish pass that
+keeps the addon name, saved scales, and the AdiBags/PassLoot integrations fully
+working. The pristine pre-fork addon is preserved in the repo's `master` branch
+and in an `_Valuate_Original_Archive_*` folder + zip outside the load path.
+
+### Fixed
+- **Shopping-tooltip border coloring never ran.** In `UpdateShoppingTooltip`,
+  `shoppingItemLink` was scoped to an inner `if` block but read again afterward
+  for border coloring, so it was always `nil` there and equipped-item comparison
+  tooltips never got their green/red border. Hoisted to function scope.
+- **Auto-scan timer cancellation was inert.** Scans were scheduled with
+  `C_Timer.After` (which returns no handle) and cancelled with `C_Timer.Cancel`
+  (not present on stock 3.3.5a `C_Timer`), so pending scans could never actually
+  be cancelled and overlapping scans could queue. Replaced with a `ValuateAfter`
+  helper that returns a real cancelable handle via `C_Timer.NewTimer` when
+  available, and gracefully degrades to `C_Timer.After` or a pure `OnUpdate`
+  timer on clients that ship neither.
+- **`BAG_UPDATE` "always" auto-scan mode was silently disabled.** The handler
+  compared `GetTime()` against a cooldown value it had set one line earlier, so
+  the guard was always true and the "always" scan path never fired. Removed the
+  dead check; debouncing is still handled by `ScheduleScan` and the scan
+  callback's own bag-quiet gate. The genuine item-in-transit guards are untouched.
+
+### Changed
+- Removed a redundant second `local options` declaration in `Valuate:Initialize()`.
+- Bumped version to `0.9.0a` and marked the addon as the Claude fork in the `.toc`.
+
 ## [0.7.0] - 2026-01-06
 
 ### Added
