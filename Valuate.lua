@@ -2324,8 +2324,41 @@ end
 -- Best Equipment Tracking
 -- ========================================
 
+-- True if a tooltip FontString is drawn in Blizzard's "unmet requirement" red
+-- (~1.0, 0.125, 0.125). Requirement failures - level too high, an unlearned
+-- weapon proficiency, wrong class, missing skill/reputation - are all rendered
+-- in this red on the item tooltip, so reading the color reflects exactly what
+-- the player sees, and respects Ascension's learned proficiencies rather than a
+-- static class table.
+local function TooltipLineIsRed(fontString)
+    if not fontString or not fontString.GetText then return false end
+    local text = fontString:GetText()
+    if not text or text == "" then return false end
+    local r, g, b = fontString:GetTextColor()
+    if not r then return false end
+    return r > 0.8 and g < 0.35 and b < 0.35
+end
+
+-- Scans an already-populated tooltip for any red (unmet) requirement line, on
+-- either the left (level/skill/class lines) or right (weapon/armor proficiency).
+-- Line 1 is the item name (quality-colored, never requirement-red) so it's skipped.
+local function TooltipHasUnmetRequirement(tooltipName)
+    local tooltip = _G[tooltipName]
+    if not tooltip then return false end
+    for i = 2, tooltip:NumLines() do
+        if TooltipLineIsRed(getglobal(tooltipName .. "TextLeft" .. i))
+           or TooltipLineIsRed(getglobal(tooltipName .. "TextRight" .. i)) then
+            return true
+        end
+    end
+    return false
+end
+
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
+-- Items the character can't equip yet (too high level / unlearned proficiency) are
+-- not chosen as the current best; if they'd be an upgrade they're recorded under
+-- ValuateBestEquipment[scaleName].future[slotId] so they're kept but never auto-equipped.
 function Valuate:ScanBestEquipment()
     -- CRITICAL FIX: Do not scan if equipment swap is pending or recent equipment change occurred
     -- Calling SetBagItem during item transit causes items to disappear
@@ -2338,7 +2371,8 @@ function Valuate:ScanBestEquipment()
     local scales = Valuate:GetScales()
     local tooltip = GetPrivateTooltip()
     local options = Valuate:GetOptions()
-    
+    local playerLevel = UnitLevel("player") or 1
+
     if #activeScales == 0 then
         if options.scanVerbose then
             print("|cFFFF8800[Valuate]|r No active scales - cannot scan best equipment")
@@ -2377,12 +2411,12 @@ function Valuate:ScanBestEquipment()
                     
                     -- Store item data if not already stored
                     if not itemData[itemId] then
-                        local _, itemName, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
                         tooltip:ClearLines()
                         -- Use SetInventoryItem for equipped items to get actual scaled stats
                         tooltip:SetInventoryItem("player", slotId)
                         local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-                        
+
                         if stats and itemEquipLoc and itemEquipLoc ~= "" then
                             local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
                             itemData[itemId] = {
@@ -2391,7 +2425,10 @@ function Valuate:ScanBestEquipment()
                                 itemEquipLoc = itemEquipLoc,
                                 stats = stats,
                                 itemTexture = itemTexture,
-                                itemQuality = itemQuality or 0
+                                itemQuality = itemQuality or 0,
+                                reqLevel = itemMinLevel or 0,
+                                -- An equipped item is by definition currently equippable.
+                                equippableNow = true,
                             }
                             itemsProcessed = itemsProcessed + 1
                         end
@@ -2414,8 +2451,8 @@ function Valuate:ScanBestEquipment()
                     
                     -- Store item data if not already stored
                     if not itemData[itemId] then
-                        local _, itemName, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-                        
+                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+
                         -- Only process equippable items
                         if itemEquipLoc and itemEquipLoc ~= "" then
                             -- CRITICAL FIX: Skip SetBagItem if items are in transit
@@ -2423,24 +2460,33 @@ function Valuate:ScanBestEquipment()
                             if equipmentSwapPending or recentEquipmentChange then
                                 -- Skip this item - don't call SetBagItem during swaps
                             else
-                                -- Get item stats
+                                -- Get item stats AND its current equippability in one pass while
+                                -- the tooltip holds this bag item (both need the populated tooltip).
                                 tooltip:ClearLines()
                                 -- Use SetBagItem for bag items to get actual scaled stats
                                 -- Use pcall to safely handle cases where item might be in transit
-                                local success, stats = pcall(function()
+                                local success, stats, hasUnmetReq = pcall(function()
                                     tooltip:SetBagItem(bagId, slotId)
-                                    return Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                    local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                    return parsed, TooltipHasUnmetRequirement("ValuatePrivateTooltip")
                                 end)
-                                
+
                                 if success and stats then
                                     local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
+                                    local reqLevel = itemMinLevel or 0
+                                    -- Equippable now = meets required level AND the tooltip shows no
+                                    -- red (unmet) requirement lines. Bag items only; equipped items
+                                    -- are always equippable.
+                                    local equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq)
                                     itemData[itemId] = {
                                         itemLink = itemLink,
                                         itemName = itemName or "Unknown",
                                         itemEquipLoc = itemEquipLoc,
                                         stats = stats,
                                         itemTexture = itemTexture,
-                                        itemQuality = itemQuality or 0
+                                        itemQuality = itemQuality or 0,
+                                        reqLevel = reqLevel,
+                                        equippableNow = equippableNow,
                                     }
                                     itemsProcessed = itemsProcessed + 1
                                 end
@@ -2502,39 +2548,81 @@ function Valuate:ScanBestEquipment()
             -- Sort by score (descending) so we assign best items first
             table.sort(itemsWithScores, function(a, b) return a.score > b.score end)
             
-            -- Assign items to slots
+            -- Pass 1: assign the CURRENT best-in-slot from items the character can
+            -- equip right now. These drive tooltips ("Best for"), the panel, and
+            -- right-click-to-equip. Items are pre-sorted by score descending.
             for _, itemInfo in ipairs(itemsWithScores) do
-                local itemId = itemInfo.itemId
-                local score = itemInfo.score
-                local data = itemInfo.data
-                local targetSlots = EquipSlotToInvNumber[data.itemEquipLoc]
-                
-                if targetSlots then
-                    for _, targetSlotId in ipairs(targetSlots) do
-                        -- Skip locked slots
-                        if not locks[targetSlotId] then
-                            -- Calculate available copies each time
-                            local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
-                            
-                            -- Only assign if we have copies available
-                            if availableCopies > 0 then
-                                -- Check if this is better than current best for this slot
-                                local currentBest = bestEquipment[scaleName][targetSlotId]
-                                if not currentBest or score > currentBest.score then
-                                    bestEquipment[scaleName][targetSlotId] = {
-                                        itemLink = data.itemLink,
-                                        score = score,
-                                        itemName = data.itemName,
-                                        itemTexture = data.itemTexture,
-                                        itemQuality = data.itemQuality
-                                    }
-                                    -- Mark this item as used for this slot
-                                    itemUsage[itemId] = (itemUsage[itemId] or 0) + 1
+                if itemInfo.data.equippableNow then
+                    local itemId = itemInfo.itemId
+                    local score = itemInfo.score
+                    local data = itemInfo.data
+                    local targetSlots = EquipSlotToInvNumber[data.itemEquipLoc]
+
+                    if targetSlots then
+                        for _, targetSlotId in ipairs(targetSlots) do
+                            -- Skip locked slots
+                            if not locks[targetSlotId] then
+                                -- Calculate available copies each time
+                                local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
+
+                                -- Only assign if we have copies available
+                                if availableCopies > 0 then
+                                    -- Check if this is better than current best for this slot
+                                    local currentBest = bestEquipment[scaleName][targetSlotId]
+                                    if not currentBest or score > currentBest.score then
+                                        bestEquipment[scaleName][targetSlotId] = {
+                                            itemLink = data.itemLink,
+                                            score = score,
+                                            itemName = data.itemName,
+                                            itemTexture = data.itemTexture,
+                                            itemQuality = data.itemQuality
+                                        }
+                                        -- Mark this item as used for this slot
+                                        itemUsage[itemId] = (itemUsage[itemId] or 0) + 1
+                                    end
                                 end
                             end
                         end
                     end
                 end
+            end
+
+            -- Pass 2: record the best FUTURE upgrade per slot from items that are
+            -- NOT yet equippable (too high level / unlearned proficiency). These are
+            -- kept for reference only - never auto-equipped and never marked
+            -- "Best for" on tooltips. Only items that would actually beat the current
+            -- best in that slot are worth keeping. No copy accounting: a future item
+            -- may show for every slot it fits (e.g. both rings).
+            local futureBest = {}
+            for _, itemInfo in ipairs(itemsWithScores) do
+                if not itemInfo.data.equippableNow then
+                    local score = itemInfo.score
+                    local data = itemInfo.data
+                    local targetSlots = EquipSlotToInvNumber[data.itemEquipLoc]
+
+                    if targetSlots then
+                        for _, targetSlotId in ipairs(targetSlots) do
+                            if not locks[targetSlotId] then
+                                local currentBest = bestEquipment[scaleName][targetSlotId]
+                                local currentScore = currentBest and currentBest.score or 0
+                                local existingFuture = futureBest[targetSlotId]
+                                if score > currentScore and (not existingFuture or score > existingFuture.score) then
+                                    futureBest[targetSlotId] = {
+                                        itemLink = data.itemLink,
+                                        score = score,
+                                        itemName = data.itemName,
+                                        itemTexture = data.itemTexture,
+                                        itemQuality = data.itemQuality,
+                                        reqLevel = data.reqLevel or 0,
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            if next(futureBest) then
+                bestEquipment[scaleName].future = futureBest
             end
         end
     end

@@ -4966,6 +4966,8 @@ local function CreateChangelogPanel(parent)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v090Text = CreateChangeText(
+        "• NEW: Best Equipment only picks items you can actually equip now (level +\n" ..
+        "   proficiency). Not-yet-usable upgrades are kept as dimmed 'future' items\n" ..
         "• NEW: Auto Choose Best Quest Reward - pre-selects the highest-scoring quest\n" ..
         "   reward choice for your active scale (opt-in, see Settings)\n" ..
         "• Polished, bug-fixed fork - original preserved in an archive folder + git master\n" ..
@@ -5691,15 +5693,75 @@ local function CreateBestEquipmentPanel(parent)
                             end
                         end)
                     else
-                        icon:Hide()
-                        qualityBorder:Hide()
-                        itemNameText:SetText("|cFF888888No item found|r")
-                        scoreText:SetText("--")
-                        comparisonText:SetText("")
-                        
-                        slotFrame:SetScript("OnEnter", nil)
-                        slotFrame:SetScript("OnLeave", nil)
-                        slotFrame:SetScript("OnClick", nil)
+                        -- No currently-equippable best for this slot. If a not-yet-usable
+                        -- upgrade exists (too high level / unlearned proficiency), show it
+                        -- dimmed for reference - but never offer to equip it.
+                        local futureItem = bestEquipment[scaleName] and bestEquipment[scaleName].future
+                            and bestEquipment[scaleName].future[slotId]
+
+                        if futureItem and futureItem.itemLink then
+                            local itemTexture = futureItem.itemTexture
+                            if not itemTexture then
+                                local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(futureItem.itemLink)
+                                itemTexture = tex
+                            end
+                            if itemTexture then
+                                icon:SetTexture(itemTexture)
+                                if icon.SetDesaturated then icon:SetDesaturated(true) end
+                                icon:SetAlpha(0.5)
+                                icon:Show()
+                            else
+                                icon:Hide()
+                            end
+
+                            local itemQuality = futureItem.itemQuality or 0
+                            if itemQuality > 0 then
+                                local r, g, b = GetItemQualityColor(itemQuality)
+                                qualityBorder:SetVertexColor(r, g, b, 0.5)
+                                qualityBorder:Show()
+                            else
+                                qualityBorder:Hide()
+                            end
+
+                            local decimals = Valuate:GetOptions().decimalPlaces or 1
+                            local formatStr = "%." .. decimals .. "f"
+                            itemNameText:SetText("|cFF888888" .. (futureItem.itemName or "Unknown") .. "|r")
+                            scoreText:SetText("|cFF888888" .. string.format(formatStr, futureItem.score or 0) .. "|r")
+                            if futureItem.reqLevel and futureItem.reqLevel > 0 then
+                                comparisonText:SetText("|cFF808080Lv " .. futureItem.reqLevel .. "|r")
+                            else
+                                comparisonText:SetText("|cFF808080Locked|r")
+                            end
+
+                            slotFrame:SetScript("OnEnter", function(self)
+                                if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                                    GameTooltip:SetHyperlink(futureItem.itemLink)
+                                    GameTooltip:AddLine(" ")
+                                    GameTooltip:AddLine("|cFFFFCC00Future upgrade|r - not equippable yet", 1, 0.8, 0)
+                                    if futureItem.reqLevel and futureItem.reqLevel > 0 then
+                                        GameTooltip:AddLine("Requires level " .. futureItem.reqLevel .. ".", 0.8, 0.8, 0.8)
+                                    else
+                                        GameTooltip:AddLine("You can't use this yet (unlearned proficiency or other requirement).", 0.8, 0.8, 0.8, true)
+                                    end
+                                    GameTooltip:AddLine("Kept for reference - Valuate won't auto-equip it.", 0.6, 0.6, 0.6)
+                                    GameTooltip:Show()
+                                end
+                            end)
+                            slotFrame:SetScript("OnLeave", function()
+                                GameTooltip:Hide()
+                            end)
+                            slotFrame:SetScript("OnClick", nil)
+                        else
+                            icon:Hide()
+                            qualityBorder:Hide()
+                            itemNameText:SetText("|cFF888888No item found|r")
+                            scoreText:SetText("--")
+                            comparisonText:SetText("")
+
+                            slotFrame:SetScript("OnEnter", nil)
+                            slotFrame:SetScript("OnLeave", nil)
+                            slotFrame:SetScript("OnClick", nil)
+                        end
                     end
                     
                     yOffset = yOffset - (slotSize + slotSpacing)

@@ -12,6 +12,16 @@ working. The pristine pre-fork addon is preserved in the repo's `master` branch
 and in an `_Valuate_Original_Archive_*` folder + zip outside the load path.
 
 ### Added
+- **Best Equipment now respects what you can actually equip.** The best-in-slot
+  scan previously picked the highest-scoring item regardless of whether the
+  character could wear it. It now only chooses items that are *currently
+  equippable* — required level met and no red requirement lines on the tooltip
+  (which also catches unlearned weapon/armor proficiencies on Ascension's
+  classless system). Items that would be an upgrade but aren't usable yet (e.g.
+  above your level) are no longer treated as best-in-slot and are never
+  auto-equipped or marked "Best for" on tooltips. Instead they're kept as a
+  **future upgrade**: when a slot has no equippable best, the Best Equipment
+  panel shows the future item dimmed with its required level, for reference only.
 - **Auto Choose Best Quest Reward** (opt-in, off by default). When a quest offers
   a choice of rewards, Valuate scores each choosable reward with your active scale
   (the character-window scale, or the first active scale) using the item's *scaled*
