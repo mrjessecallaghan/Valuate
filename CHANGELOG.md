@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.3a] - 2026-07-08 — Best Equipment layout & off-hand fixes
+
+### Fixed
+- **Item names no longer cut off** in the Best Equipment panel. The score and
+  comparison columns were a fixed 130px combined for tiny values ("0.0", "2.5",
+  "Lv 12"); tightened them (and the slot-name label) to give the item-name
+  column much more room.
+- **One-hand weapons are no longer recommended for the off-hand** on characters
+  that can't dual-wield. The scan mapped every `INVTYPE_WEAPON` to both the main-
+  and off-hand slots unconditionally. A new `Valuate:CanDualWield()` (native API
+  → currently-equipped off-hand weapon → class default) now gates the off-hand
+  slot; shields, held-in-off-hand items, and off-hand-only weapons are unaffected.
+  If detection is wrong for your character, equipping any off-hand weapon once is
+  read as "can dual-wield."
+
 ## [0.9.2a] - 2026-07-08 — Ignore profession tools
 
 ### Added

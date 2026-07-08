@@ -4961,8 +4961,21 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.2a (Current) - ignore profession tools
-    local v092Header = CreateVersionHeader("Version 0.9.2a (Current) - ignore profession tools", currentY)
+    -- Version 0.9.3a (Current) - layout & off-hand fixes
+    local v093Header = CreateVersionHeader("Version 0.9.3a (Current) - layout & off-hand fixes", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v093Text = CreateChangeText(
+        "• Fixed: item names were cut off in Best Equipment - name column widened\n" ..
+        "• Fixed: 1H weapons no longer suggested for the off-hand unless you can\n" ..
+        "   dual-wield (shields / held / off-hand items are unaffected)",
+        currentY
+    )
+    local v093Height = v093Text:GetStringHeight()
+    currentY = currentY - v093Height - versionSpacing
+
+    -- Version 0.9.2a - ignore profession tools
+    local v092Header = CreateVersionHeader("Version 0.9.2a - ignore profession tools", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v092Text = CreateChangeText(
@@ -5546,7 +5559,7 @@ local function CreateBestEquipmentPanel(parent)
                     -- Slot name label (after lock button)
                     local nameLabel = slotRow:CreateFontString(nil, "OVERLAY", FONT_SMALL)
                     nameLabel:SetPoint("LEFT", lockButton, "RIGHT", 4, 0)
-                    nameLabel:SetWidth(60)  -- Slightly reduced to make room for lock button
+                    nameLabel:SetWidth(54)  -- slot name ("Main Hand"); tightened to widen item name
                     nameLabel:SetJustifyH("LEFT")
                     nameLabel:SetText(slotName)
                     nameLabel:SetTextColor(unpack(COLORS.textDim))
@@ -5581,9 +5594,11 @@ local function CreateBestEquipmentPanel(parent)
                     infoFrame:SetPoint("RIGHT", slotRow, "RIGHT", 0, 0)
                     infoFrame:SetHeight(slotSize)
                     
-                    -- Define column widths
-                    local valueColumnWidth = 65  -- Width for item value (up to 5 digits)
-                    local comparisonColumnWidth = 65  -- Width for comparison value (up to 5 digits + sign)
+                    -- Define column widths. Kept tight (scores are small, e.g. "0.0",
+                    -- "2.5", "Lv 12") so the item-name column gets as much room as
+                    -- possible - names were being truncated hard at the old 65/65.
+                    local valueColumnWidth = 44   -- item score, e.g. "999.9"
+                    local comparisonColumnWidth = 50  -- comparison / "Lv 12" / "New"
                     
                     -- Item name (flexible width, truncated)
                     local itemNameText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)

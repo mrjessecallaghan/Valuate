@@ -806,6 +806,42 @@ function Valuate:IsItemExcludedFromEvaluation(itemLink)
     return false
 end
 
+-- Classes that can dual-wield by default (best-effort fallback; Ascension is
+-- classless, so this is only used when the more reliable signals below fail).
+local DUAL_WIELD_DEFAULT = {
+    WARRIOR = true, ROGUE = true, HUNTER = true, SHAMAN = true, DEATHKNIGHT = true,
+}
+
+-- Returns true if the character can wield a one-hand weapon in the off-hand.
+-- Used so the best-equipment scan doesn't recommend a 1H weapon for the off-hand
+-- slot on characters who can't dual-wield (e.g. casters/tanks). Layered detection:
+--   1. a native API if the client provides one,
+--   2. currently having an off-hand weapon equipped (proof positive),
+--   3. class default (unreliable under Ascension's classless system).
+-- Dedicated off-hands - shields, held-in-off-hand, and off-hand-only weapons -
+-- are unaffected; only generic INVTYPE_WEAPON items are gated by this.
+function Valuate:CanDualWield()
+    if type(CanDualWield) == "function" then
+        local ok, res = pcall(CanDualWield)
+        if ok and res ~= nil then return res and true or false end
+    end
+    if type(IsDualWielding) == "function" then
+        local ok, res = pcall(IsDualWielding)
+        if ok and res then return true end
+    end
+    -- Proof positive: an off-hand weapon is currently equipped.
+    local offLink = GetInventoryItemLink("player", 17)
+    if offLink then
+        local _, _, _, _, _, _, _, _, offLoc = GetItemInfo(offLink)
+        if offLoc == "INVTYPE_WEAPONOFFHAND" or offLoc == "INVTYPE_WEAPON"
+           or offLoc == "INVTYPE_WEAPONMAINHAND" then
+            return true
+        end
+    end
+    local _, class = UnitClass("player")
+    return DUAL_WIELD_DEFAULT[class] or false
+end
+
 -- Track current item and whether we've added our lines
 local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
@@ -2440,6 +2476,7 @@ function Valuate:ScanBestEquipment()
     local tooltip = GetPrivateTooltip()
     local options = Valuate:GetOptions()
     local playerLevel = UnitLevel("player") or 1
+    local canDualWield = Valuate:CanDualWield()
 
     if #activeScales == 0 then
         if options.scanVerbose then
@@ -2630,8 +2667,10 @@ function Valuate:ScanBestEquipment()
 
                     if targetSlots then
                         for _, targetSlotId in ipairs(targetSlots) do
-                            -- Skip locked slots
-                            if not locks[targetSlotId] then
+                            -- Skip locked slots; and don't put a generic one-hand
+                            -- weapon in the off-hand (17) unless we can dual-wield.
+                            if not locks[targetSlotId]
+                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not canDualWield) then
                                 -- Calculate available copies each time
                                 local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
 
@@ -2672,7 +2711,8 @@ function Valuate:ScanBestEquipment()
 
                     if targetSlots then
                         for _, targetSlotId in ipairs(targetSlots) do
-                            if not locks[targetSlotId] then
+                            if not locks[targetSlotId]
+                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not canDualWield) then
                                 local currentBest = bestEquipment[scaleName][targetSlotId]
                                 local currentScore = currentBest and currentBest.score or 0
                                 local existingFuture = futureBest[targetSlotId]
