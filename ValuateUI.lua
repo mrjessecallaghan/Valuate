@@ -5252,7 +5252,14 @@ local function CreateBestEquipmentPanel(parent)
     -- Function to update the display
     local function UpdateBestEquipmentDisplay()
         if not contentFrame then return end
-        
+
+        -- Skip the (expensive) rebuild while the window is closed. ScanBestEquipment
+        -- calls this on every scan; there's no point rebuilding 3x17 rows of frames
+        -- nobody can see. Valuate:ShowUI refreshes the panel when the window opens.
+        if not ValuateUIFrame or not ValuateUIFrame:IsShown() then
+            return
+        end
+
         -- Clear existing scale frames
         for _, frame in pairs(BestEquipmentScaleFrames) do
             frame:Hide()
@@ -6894,11 +6901,19 @@ local function UpdateCharacterWindowDisplay()
     if CharacterWindowUpdating then
         return
     end
-    
+
     if not CharacterWindowFrame then
         return
     end
-    
+
+    -- Skip while the character sheet is closed: this recomputes the total
+    -- equipped score (parses ~17 item tooltips) and is triggered by ResetTooltips
+    -- on nearly every option change. The character frame's OnShow hook refreshes
+    -- the display when the sheet is reopened, so nothing goes stale.
+    if not CharacterWindowFrame:IsVisible() then
+        return
+    end
+
     CharacterWindowUpdating = true
     
     -- Standardized padding values (must match frame creation)
@@ -7520,10 +7535,15 @@ function Valuate:ShowUI()
             CreateBestEquipmentPanel(tabs.bestEquipmentPanel)
         end
         
-        -- Update dynamic lists
-        UpdateScaleList()
-        
+        -- Show first, then refresh: the best-equipment panel skips rebuilding
+        -- while the window is hidden, so it must be shown before we refresh it.
         ValuateUIFrame:Show()
+
+        -- Update dynamic lists now that the window is visible
+        UpdateScaleList()
+        if Valuate.RefreshBestEquipmentDisplay then
+            Valuate:RefreshBestEquipmentDisplay()
+        end
     end)
     
     if not success then
