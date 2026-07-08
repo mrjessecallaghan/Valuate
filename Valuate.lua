@@ -780,6 +780,10 @@ end
 local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
 local ValuateLinesAdded = false
+-- Cached border color for the current hovered item, computed once per item
+-- instead of every OnUpdate frame. nil = not computed yet; false = "no coloring";
+-- otherwise a {r, g, b} table.
+local CurrentTooltipBorderColor = nil
 
 -- Store default tooltip border colors
 local DefaultTooltipBorderColor = nil
@@ -1593,6 +1597,7 @@ function Valuate:HookTooltips()
             if CurrentTooltipItem ~= itemLink then
                 CurrentTooltipItem = itemLink
                 CurrentTooltipStats = nil
+                CurrentTooltipBorderColor = nil
                 ValuateLinesAdded = false
             end
         end
@@ -1653,17 +1658,20 @@ function Valuate:HookTooltips()
             end
         end
         
-        -- Check if our lines are already present
-        if HasValuateLines(self) then
+        -- Check if our lines are already present. Only worth scanning the lines
+        -- while we still think we haven't added them (this loops every tooltip
+        -- line, so skip it once our lines are confirmed present).
+        if not ValuateLinesAdded and HasValuateLines(self) then
             ValuateLinesAdded = true
             -- Don't return yet - still need to update border color
         end
-        
+
         -- If lines were added but are now gone, the tooltip was rebuilt - need to re-add
         -- Parse stats if we haven't yet for this item
         if not CurrentTooltipStats or CurrentTooltipItem ~= itemLink then
             CurrentTooltipItem = itemLink
             CurrentTooltipStats = Valuate:GetStatsFromDisplayedTooltip("GameTooltip")
+            CurrentTooltipBorderColor = nil  -- recompute border once for this item
             ValuateLinesAdded = false
         end
         
@@ -1713,16 +1721,25 @@ function Valuate:HookTooltips()
                 local r, g, b, a = self:GetBackdropBorderColor()
                 DefaultTooltipBorderColor = {r, g, b, a}
             end
-            
-            -- Get border color based on displayed scale
-            local r, g, b = GetTooltipBorderColor(CurrentTooltipStats, itemLink)
-            if r and g and b then
-                self:SetBackdropBorderColor(r, g, b, 1)
-            else
-                -- No coloring needed, use default
-                if DefaultTooltipBorderColor then
-                    self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+
+            -- Compute the border color ONCE per hovered item, not every frame.
+            -- GetTooltipBorderColor parses the equipped item's tooltip, so running
+            -- it ~60x/sec was the addon's biggest CPU cost. Cache it: nil means
+            -- "not computed yet", false means "no coloring", else a {r,g,b} table.
+            if CurrentTooltipBorderColor == nil then
+                local r, g, b = GetTooltipBorderColor(CurrentTooltipStats, itemLink)
+                if r and g and b then
+                    CurrentTooltipBorderColor = { r, g, b }
+                else
+                    CurrentTooltipBorderColor = false
                 end
+            end
+
+            -- Apply the cached result (cheap every frame)
+            if CurrentTooltipBorderColor then
+                self:SetBackdropBorderColor(CurrentTooltipBorderColor[1], CurrentTooltipBorderColor[2], CurrentTooltipBorderColor[3], 1)
+            elseif DefaultTooltipBorderColor then
+                self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
             end
         end
     end)
@@ -1731,6 +1748,7 @@ function Valuate:HookTooltips()
     GameTooltip:HookScript("OnHide", function(self)
         CurrentTooltipItem = nil
         CurrentTooltipStats = nil
+        CurrentTooltipBorderColor = nil
         ValuateLinesAdded = false
         LastInventorySlot = nil
         LastBagSlot = nil
