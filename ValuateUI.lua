@@ -4961,8 +4961,26 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.0a (Current) - Claude fork
-    local v090Header = CreateVersionHeader("Version 0.9.0a (Current) - Claude fork", currentY)
+    -- Version 0.9.1a (Current) - improvement pass
+    local v091Header = CreateVersionHeader("Version 0.9.1a (Current) - improvement pass", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v091Text = CreateChangeText(
+        "• PERF: tooltip border color cached per item (was recomputed every frame)\n" ..
+        "• PERF: Best Equipment & character-window skip refreshing while hidden\n" ..
+        "• PERF: best-equipment scan parses each equipped item once, not per scale\n" ..
+        "• Auto quest reward now skips rewards you can't use yet (level/proficiency)\n" ..
+        "• Tooltip 'vs equipped' now matches the panel (all use scaled stats)\n" ..
+        "• New /valuate scan and /valuate quest commands\n" ..
+        "• PassLoot_Valuate no longer spams chat on every loot roll\n" ..
+        "• Removed dead code; consolidated option defaults",
+        currentY
+    )
+    local v091Height = v091Text:GetStringHeight()
+    currentY = currentY - v091Height - versionSpacing
+
+    -- Version 0.9.0a - Claude fork
+    local v090Header = CreateVersionHeader("Version 0.9.0a - Claude fork", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v090Text = CreateChangeText(
@@ -5299,7 +5317,31 @@ local function CreateBestEquipmentPanel(parent)
         local numSlots = #EquipmentSlots
         local calculatedHeight = headerHeight + (numSlots * (slotSize + slotSpacing)) + 10  -- Increased bottom padding from 5 to 10
         contentFrame:SetHeight(calculatedHeight)
-        
+
+        -- Parse each equipped item's SCALED stats once per rebuild and cache by
+        -- slot. Previously the equipped tooltip was parsed once per (scale x slot)
+        -- - e.g. 3 scales x 17 slots = 51 parses - even though the equipped item
+        -- only depends on the slot. Now it's at most 17 parses; scoring each
+        -- cached stat table against a scale is cheap. false = "parsed, no stats".
+        local equippedStatsCache = {}
+        local function GetEquippedStatsForSlot(slotId)
+            local cached = equippedStatsCache[slotId]
+            if cached ~= nil then
+                return cached or nil
+            end
+            local link = GetInventoryItemLink("player", slotId)
+            if not link then
+                equippedStatsCache[slotId] = false
+                return nil
+            end
+            local tooltip = Valuate:GetPrivateTooltip()
+            tooltip:ClearLines()
+            tooltip:SetInventoryItem("player", slotId)
+            local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+            equippedStatsCache[slotId] = stats or false
+            return stats
+        end
+
         for i, scaleName in ipairs(activeScales) do
             local scale = scales[scaleName]
             if scale then
@@ -5402,16 +5444,10 @@ local function CreateBestEquipmentPanel(parent)
                     local slotName = slotInfo.name
                     
                     local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
-                    local equippedItemLink = GetInventoryItemLink("player", slotId)
                     local equippedScore = nil
-                    if equippedItemLink then
-                        local tooltip = Valuate:GetPrivateTooltip()
-                        tooltip:ClearLines()
-                        tooltip:SetInventoryItem("player", slotId)
-                        local equippedStats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-                        if equippedStats then
-                            equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
-                        end
+                    local equippedStats = GetEquippedStatsForSlot(slotId)
+                    if equippedStats then
+                        equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
                     end
                     
                     local slotRow = CreateFrame("Frame", nil, equipmentContainer)

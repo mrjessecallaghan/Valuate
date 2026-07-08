@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.1a] - 2026-07-08 — Improvement pass
+
+Performance, consistency and quality-of-life pass across the fork.
+
+### Performance
+- **Tooltip border color is cached per item** instead of recomputed every frame.
+  The `GameTooltip` OnUpdate hook was calling the border-color logic (~60×/sec)
+  while any item tooltip was shown, and that logic parses the equipped item's
+  tooltip — the addon's biggest CPU cost. Now computed once per hovered item.
+- **Best Equipment / character-window refreshes are skipped while hidden.** The
+  Best Equipment panel was rebuilt (3×17 rows of frames) on *every* scan even with
+  the window closed; the character-window score (which parses ~17 tooltips) was
+  recomputed on nearly every option change even with the character sheet closed.
+  Both now no-op when not visible and refresh on show.
+- **Best Equipment rebuild parses each equipped item once**, not once per
+  (scale × slot) — e.g. 51 tooltip parses → 17 for three scales.
+
+### Consistency & logic
+- **Auto quest reward now skips rewards you can't use yet** (level / unlearned
+  proficiency), matching the Best Equipment "equippable now" logic.
+- **Equipped-item scores now use scaled stats** (`SetInventoryItem`) everywhere, so
+  tooltip "vs equipped" numbers match the Best Equipment panel and character window.
+- Option defaults consolidated into a single source of truth (no more drift between
+  the two default lists).
+
+### Quality of life
+- New `/valuate scan` (manual best-equipment scan) and `/valuate quest` (toggle auto
+  quest reward); `/valuate help` refreshed.
+- **PassLoot_Valuate no longer spams chat**: ~14 debug `print()` calls on every loot
+  evaluation are now gated behind PassLoot's debug toggle.
+
+### Cleanup
+- Removed the dead `Valuate:DisplayScoresOnTooltip` function (~115 lines, unused) and
+  a dead `lastBagUpdateTime` variable.
+
+### Known follow-up
+- Full frame-reuse (pooling) for the Best Equipment panel is deferred pending in-game
+  testing; the per-scan rebuild cost was already addressed above.
+
 ## [0.9.0a] - 2026-07-07 — Claude fork
 
 This release begins the **Claude fork** of Valuate: an in-place polish pass that
