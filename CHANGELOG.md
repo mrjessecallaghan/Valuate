@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.4a] - 2026-07-08 — Auto quest turn-in
+
+### Added
+- **Auto Turn In Quests** (Settings toggle, off by default; requires "Auto Choose
+  Best Quest Reward"). Extends the reward auto-select: at a quest's reward screen
+  Valuate completes the quest and takes the best-scoring reward, and it advances
+  the "do you have the items?" progress screen for you. Safety: if a reward choice
+  can't be scored (e.g. all bags/consumables), the quest is NOT auto-completed so
+  you can decide. New `/valuate turnin` command; also on the QUEST_PROGRESS and
+  QUEST_COMPLETE events.
+
 ## [0.9.3a] - 2026-07-08 — Best Equipment layout & off-hand fixes
 
 ### Fixed

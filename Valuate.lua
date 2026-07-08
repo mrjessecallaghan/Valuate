@@ -287,6 +287,11 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoSelectBestQuestReward then
             Valuate:AutoSelectBestQuestReward()
         end
+    elseif event == "QUEST_PROGRESS" then
+        -- "Do you have the items?" screen - advance it when full auto turn-in is on
+        if Valuate.AutoAdvanceQuestProgress then
+            Valuate:AutoAdvanceQuestProgress()
+        end
     end
 end
 
@@ -324,6 +329,7 @@ local DEFAULT_OPTIONS = {
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
+    autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
 }
 
@@ -3117,8 +3123,9 @@ local function ScoreQuestChoice(index, scale)
 end
 
 -- Auto-selects the highest-scoring quest reward choice for the active scale.
--- This only PRE-SELECTS (highlights) the reward so the player still clicks
--- "Complete Quest" themselves - it never turns the quest in automatically.
+-- By default this only PRE-SELECTS (highlights) the reward so the player still
+-- clicks "Complete Quest" themselves. If autoQuestTurnIn is also enabled it goes
+-- one step further and actually completes the quest (GetQuestReward).
 -- Called on QUEST_COMPLETE when options.autoQuestReward is enabled.
 function Valuate:AutoSelectBestQuestReward()
     local options = Valuate:GetOptions()
@@ -3127,9 +3134,17 @@ function Valuate:AutoSelectBestQuestReward()
     end
 
     -- GetNumQuestChoices() = number of "choose one of these" rewards.
-    -- 0 means only guaranteed rewards (nothing to choose), so we do nothing.
+    -- 0 means only guaranteed rewards (nothing to choose).
     local numChoices = GetNumQuestChoices()
     if not numChoices or numChoices < 1 then
+        -- Nothing to select. With full auto turn-in on, still complete the quest
+        -- (index 0 = the guaranteed reward, if any).
+        if options.autoQuestTurnIn then
+            if options.chatMessages then
+                print("|cFF00FF00Valuate|r: auto-completing quest (no reward choice).")
+            end
+            GetQuestReward(0)
+        end
         return
     end
 
@@ -3179,14 +3194,44 @@ function Valuate:AutoSelectBestQuestReward()
         end
     end)
 
+    local rewardText = bestLink or ("choice " .. bestIndex)
+
+    -- Full auto turn-in: actually complete the quest, taking the best reward.
+    -- GetQuestReward takes the choice index directly, so this is authoritative
+    -- regardless of the itemChoice set above.
+    if options.autoQuestTurnIn then
+        if options.chatMessages then
+            if bestScore then
+                print(string.format("|cFF00FF00Valuate|r turning in quest, reward: %s |cFFAAAAAA(score %.1f for %s)|r",
+                    rewardText, bestScore, scale.DisplayName or scaleName or "scale"))
+            else
+                print("|cFF00FF00Valuate|r turning in quest, reward: " .. rewardText)
+            end
+        end
+        GetQuestReward(bestIndex)
+        return
+    end
+
     if options.chatMessages then
-        local rewardText = bestLink or ("choice " .. bestIndex)
         if bestScore then
             print(string.format("|cFF00FF00Valuate|r auto-selected reward: %s |cFFAAAAAA(score %.1f for %s)|r",
                 rewardText, bestScore, scale.DisplayName or scaleName or "scale"))
         else
             print("|cFF00FF00Valuate|r auto-selected reward: " .. rewardText)
         end
+    end
+end
+
+-- On the quest "progress" screen (the "do you have the items?" step), advance to
+-- the reward screen when full auto turn-in is enabled. QUEST_COMPLETE then fires
+-- and AutoSelectBestQuestReward finishes the turn-in.
+function Valuate:AutoAdvanceQuestProgress()
+    local options = Valuate:GetOptions()
+    if not (options.autoQuestReward and options.autoQuestTurnIn) then
+        return
+    end
+    if IsQuestCompletable and IsQuestCompletable() then
+        CompleteQuest()
     end
 end
 
@@ -3199,6 +3244,7 @@ frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
 frame:RegisterEvent("BAG_UPDATE")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("QUEST_COMPLETE")
+frame:RegisterEvent("QUEST_PROGRESS")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
@@ -3225,6 +3271,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate version - Show version info")
         print("  /valuate scan - Scan bags/equipped now for best-in-slot items")
         print("  /valuate quest - Toggle auto-choosing the best quest reward")
+        print("  /valuate turnin - Toggle auto-completing quests (takes best reward)")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
@@ -3271,6 +3318,13 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoQuestReward = not options.autoQuestReward
         print("|cFF00FF00Valuate|r: Auto quest reward " .. (options.autoQuestReward and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "turnin" then
+        local options = Valuate:GetOptions()
+        options.autoQuestTurnIn = not options.autoQuestTurnIn
+        print("|cFF00FF00Valuate|r: Auto quest turn-in " .. (options.autoQuestTurnIn and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        if options.autoQuestTurnIn and not options.autoQuestReward then
+            print("|cFFFFAA00Valuate|r: Note - also enable Auto Quest Reward (/valuate quest) for turn-in to work.")
+        end
     elseif command == "scales" then
         local activeScales = Valuate:GetActiveScales()
         if #activeScales > 0 then

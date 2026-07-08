@@ -4961,8 +4961,21 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.3a (Current) - layout & off-hand fixes
-    local v093Header = CreateVersionHeader("Version 0.9.3a (Current) - layout & off-hand fixes", currentY)
+    -- Version 0.9.4a (Current) - auto quest turn-in
+    local v094Header = CreateVersionHeader("Version 0.9.4a (Current) - auto quest turn-in", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v094Text = CreateChangeText(
+        "• NEW: Auto Turn In Quests (Settings, off by default) - completes the quest\n" ..
+        "   and takes the best reward for you. Requires Auto Choose Best Quest Reward;\n" ..
+        "   won't auto-complete when a reward choice can't be scored.",
+        currentY
+    )
+    local v094Height = v094Text:GetStringHeight()
+    currentY = currentY - v094Height - versionSpacing
+
+    -- Version 0.9.3a - layout & off-hand fixes
+    local v093Header = CreateVersionHeader("Version 0.9.3a - layout & off-hand fixes", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v093Text = CreateChangeText(
@@ -6236,10 +6249,41 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
-    -- Ignore Profession Tools checkbox (Column 1, below Auto Choose Best Quest Reward)
+    -- Auto Turn In Quests checkbox (Column 1, indented under Auto Choose Best Quest Reward)
+    local autoTurnInCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoTurnInCheckbox:SetSize(24, 24)
+    autoTurnInCheckbox:SetPoint("TOPLEFT", autoQuestCheckbox, "BOTTOMLEFT", 16, -ELEMENT_SPACING)
+
+    local autoTurnInLabel = autoTurnInCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoTurnInLabel:SetPoint("LEFT", autoTurnInCheckbox, "RIGHT", 5, 0)
+    autoTurnInLabel:SetText("Auto Turn In Quests")
+    autoTurnInCheckbox:SetChecked(Valuate:GetOptions().autoQuestTurnIn == true)
+    autoTurnInCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoQuestTurnIn = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        if Valuate:GetOptions().autoQuestTurnIn and not Valuate:GetOptions().autoQuestReward then
+            print("|cFFFFAA00Valuate|r: Also enable 'Auto Choose Best Quest Reward' above for turn-in to work.")
+        end
+    end)
+    autoTurnInCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Turn In Quests", 1, 1, 1)
+            GameTooltip:AddLine("Goes beyond pre-selecting: at a quest's reward screen, Valuate actually completes the quest and takes the best-scoring reward - and advances the 'do you have the items?' screen for you.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Requires 'Auto Choose Best Quest Reward'. If a reward choice can't be scored (all bags/consumables), the quest is NOT auto-completed so you can decide.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Warning: this hands in quests automatically. Leave off if you like to read or pick rewards yourself.", 1, 0.5, 0.5, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoTurnInCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Ignore Profession Tools checkbox (Column 1, below Auto Turn In Quests;
+    -- -16 x-offset undoes the turn-in checkbox's indent to return to the base column)
     local ignoreToolsCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     ignoreToolsCheckbox:SetSize(24, 24)
-    ignoreToolsCheckbox:SetPoint("TOPLEFT", autoQuestCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    ignoreToolsCheckbox:SetPoint("TOPLEFT", autoTurnInCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
 
     local ignoreToolsLabel = ignoreToolsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     ignoreToolsLabel:SetPoint("LEFT", ignoreToolsCheckbox, "RIGHT", 5, 0)
