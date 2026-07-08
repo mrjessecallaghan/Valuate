@@ -4961,8 +4961,21 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.1a (Current) - improvement pass
-    local v091Header = CreateVersionHeader("Version 0.9.1a (Current) - improvement pass", currentY)
+    -- Version 0.9.2a (Current) - ignore profession tools
+    local v092Header = CreateVersionHeader("Version 0.9.2a (Current) - ignore profession tools", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v092Text = CreateChangeText(
+        "• NEW: Ignore Profession Tools (Settings, on by default) - fishing poles,\n" ..
+        "   mining picks, skinning knives, hammers, etc. are never scored, tracked,\n" ..
+        "   shown, or filtered. Caster off-hand tomes/orbs are not affected.",
+        currentY
+    )
+    local v092Height = v092Text:GetStringHeight()
+    currentY = currentY - v092Height - versionSpacing
+
+    -- Version 0.9.1a - improvement pass
+    local v091Header = CreateVersionHeader("Version 0.9.1a - improvement pass", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v091Text = CreateChangeText(
@@ -6204,6 +6217,35 @@ local function CreateSettingsPanel(parent)
         end
     end)
     autoQuestCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Ignore Profession Tools checkbox (Column 1, below Auto Choose Best Quest Reward)
+    local ignoreToolsCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    ignoreToolsCheckbox:SetSize(24, 24)
+    ignoreToolsCheckbox:SetPoint("TOPLEFT", autoQuestCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local ignoreToolsLabel = ignoreToolsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    ignoreToolsLabel:SetPoint("LEFT", ignoreToolsCheckbox, "RIGHT", 5, 0)
+    ignoreToolsLabel:SetText("Ignore Profession Tools")
+    ignoreToolsCheckbox:SetChecked(Valuate:GetOptions().ignoreProfessionTools ~= false)
+    ignoreToolsCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().ignoreProfessionTools = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        -- Re-evaluate tooltips and re-scan so the change takes effect immediately
+        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    end)
+    ignoreToolsCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Ignore Profession Tools", 1, 1, 1)
+            GameTooltip:AddLine("When enabled, Valuate never scores, displays, tracks, or filters on profession tools - fishing poles, mining picks, skinning knives, blacksmith hammers, engineering tools, and similar.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Caster off-hand tomes/orbs are NOT affected - only weapon-type tools.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    ignoreToolsCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING

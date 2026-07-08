@@ -324,6 +324,7 @@ local DEFAULT_OPTIONS = {
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
+    ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -776,6 +777,35 @@ local function GetItemIdFromLink(itemLink)
     return itemId and tonumber(itemId) or nil
 end
 
+-- Weapon subtypes that are profession tools / non-combat gear Valuate should
+-- never score, display, track, or filter on: fishing poles and the tool weapons
+-- (mining picks, skinning knives, blacksmith hammers, engineering tools, etc.,
+-- which the game files under the "Miscellaneous" weapon subtype).
+-- IMPORTANT: keyed off itemType == "Weapon" so ARMOR/"Miscellaneous" items
+-- (caster held-in-off-hand tomes/orbs, which are real gear) are NOT excluded.
+-- Subtypes are localized; these are the enUS values (Ascension is enUS).
+local EXCLUDED_WEAPON_SUBTYPES = {
+    ["Fishing Poles"] = true,
+    ["Fishing Pole"] = true,   -- singular, seen on some clients
+    ["Miscellaneous"] = true,  -- mining pick / skinning knife / blacksmith hammer / etc.
+}
+
+-- Returns true if Valuate should ignore this item entirely - no score, no
+-- tooltip lines, not tracked as best equipment, not matched by loot filters.
+-- Controlled by the ignoreProfessionTools option (on by default). Central gate
+-- reused by the tooltip, scan, quest, and PassLoot paths.
+function Valuate:IsItemExcludedFromEvaluation(itemLink)
+    if not itemLink then return false end
+    if Valuate:GetOptions().ignoreProfessionTools == false then
+        return false
+    end
+    local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
+    if itemType == "Weapon" and itemSubType and EXCLUDED_WEAPON_SUBTYPES[itemSubType] then
+        return true
+    end
+    return false
+end
+
 -- Track current item and whether we've added our lines
 local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
@@ -944,7 +974,10 @@ end
 -- Add score lines to tooltip
 local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
     if not tooltip or not stats then return end
-    
+
+    -- Never score profession tools / fishing poles (central gate)
+    if itemLink and Valuate:IsItemExcludedFromEvaluation(itemLink) then return end
+
     -- Get active scales
     local activeScales = Valuate:GetActiveScales()
     if #activeScales == 0 then return end
@@ -1657,7 +1690,16 @@ function Valuate:HookTooltips()
                 end
             end
         end
-        
+
+        -- Profession tools / fishing poles are ignored entirely: don't parse
+        -- stats, add lines, or color the border. Reset the border to default.
+        if Valuate:IsItemExcludedFromEvaluation(itemLink) then
+            if DefaultTooltipBorderColor then
+                self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
+            end
+            return
+        end
+
         -- Check if our lines are already present. Only worth scanning the lines
         -- while we still think we haven't added them (this loops every tooltip
         -- line, so skip it once our lines are confirmed present).
@@ -2186,7 +2228,8 @@ function Valuate:GetEquippedItemScores(equipSlot, scale)
     
     for _, slotId in ipairs(invSlots) do
         local itemLink = GetInventoryItemLink("player", slotId)
-        if itemLink then
+        -- Ignore profession tools / fishing poles as comparison baselines too
+        if itemLink and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
             -- Get the equipped item's type
             local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
             
@@ -2257,7 +2300,8 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
     
     for _, slotId in ipairs(invSlots) do
         local itemLink = GetInventoryItemLink("player", slotId)
-        if itemLink then
+        -- Ignore profession tools / fishing poles as comparison baselines too
+        if itemLink and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
             -- Get the equipped item's type
             local _, _, _, _, _, _, _, _, equippedEquipLoc = GetItemInfo(itemLink)
             
@@ -2441,7 +2485,8 @@ function Valuate:ScanBestEquipment()
                         tooltip:SetInventoryItem("player", slotId)
                         local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
 
-                        if stats and itemEquipLoc and itemEquipLoc ~= "" then
+                        if stats and itemEquipLoc and itemEquipLoc ~= ""
+                           and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
                             local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
                             itemData[itemId] = {
                                 itemLink = itemLink,
@@ -2477,8 +2522,9 @@ function Valuate:ScanBestEquipment()
                     if not itemData[itemId] then
                         local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
 
-                        -- Only process equippable items
-                        if itemEquipLoc and itemEquipLoc ~= "" then
+                        -- Only process equippable items, and never profession tools / fishing poles
+                        if itemEquipLoc and itemEquipLoc ~= ""
+                           and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
                             -- CRITICAL FIX: Skip SetBagItem if items are in transit
                             -- Calling SetBagItem during equipment swaps causes items to disappear
                             if equipmentSwapPending or recentEquipmentChange then
@@ -2666,7 +2712,8 @@ end
 -- Returns: Table of scale names for which this item is best-in-slot, or nil
 function Valuate:IsBestInSlot(itemLink)
     if not itemLink then return nil end
-    
+    if Valuate:IsItemExcludedFromEvaluation(itemLink) then return nil end
+
     local bestEquipment = Valuate:GetBestEquipment()
     local activeScales = Valuate:GetActiveScales()
     local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
@@ -2987,6 +3034,12 @@ local function ScoreQuestChoice(index, scale)
 
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     if not stats or not next(stats) then
+        return nil
+    end
+
+    -- Never pre-select a profession tool / fishing pole as a quest reward
+    local questItemLink = GetQuestItemLink("choice", index)
+    if questItemLink and Valuate:IsItemExcludedFromEvaluation(questItemLink) then
         return nil
     end
 

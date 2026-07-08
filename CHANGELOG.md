@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.2a] - 2026-07-08 — Ignore profession tools
+
+### Added
+- **Ignore Profession Tools** (Settings toggle, on by default). Valuate no longer
+  scores, displays scores for, tracks as best-in-slot, or filters loot on
+  profession tools — fishing poles, mining picks, skinning knives, blacksmith
+  hammers, engineering tools, and similar. These are the "Fishing Poles" and
+  "Miscellaneous" weapon subtypes; caster held-in-off-hand tomes/orbs (Armor
+  subtype "Miscellaneous") are deliberately **not** affected. A central gate,
+  `Valuate:IsItemExcludedFromEvaluation`, is applied on the item tooltip, the
+  best-equipment scan (and equipped-item comparison baselines), the "Best for"
+  indicator, quest-reward auto-select, and the Valuate-PassLoot loot filter.
+  Note: item subtypes are localized; the exclusion list uses enUS names.
+
 ## [0.9.1a] - 2026-07-08 — Improvement pass
 
 Performance, consistency and quality-of-life pass across the fork.
