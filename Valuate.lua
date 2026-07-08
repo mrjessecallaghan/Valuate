@@ -126,7 +126,6 @@ local AUTO_SCAN_THROTTLE = 2  -- seconds between auto-scans
 -- Track if equipment swap is in progress
 local equipmentSwapPending = false
 local pendingScanTimer = nil
-local lastBagUpdateTime = 0
 local bagUpdateCooldown = 0  -- Cooldown after bag updates to let items settle
 local recentEquipmentChange = false  -- Track if we recently had equipment changes
 
@@ -247,7 +246,6 @@ local function OnEvent(self, event, addonName, ...)
     elseif event == "BAG_UPDATE" then
         -- Bag contents changed - items are being moved
         local currentTime = GetTime()
-        lastBagUpdateTime = currentTime
         bagUpdateCooldown = currentTime  -- Reset cooldown
         -- If we're in a swap or recently had equipment changes, wait longer.
         -- This is the real "items are in transit" guard - it must stay.
@@ -303,29 +301,50 @@ function Valuate:GetCharacterKey()
     return realm .. "_" .. name
 end
 
+-- Single source of truth for per-character option defaults. Used both when
+-- creating a fresh character's options and when backfilling missing keys for an
+-- existing character after an update (see Valuate:Initialize). Keeping one list
+-- prevents the two default sets from drifting apart.
+-- Note: characterWindowScale is intentionally omitted (its default is nil).
+local DEFAULT_OPTIONS = {
+    debug = false,
+    decimalPlaces = 1,
+    rightAlign = false,
+    showScaleValue = "all",              -- "all" or "current"
+    showBestFor = true,
+    chatMessages = true,                  -- verbose chat messages
+    scanVerbose = false,                  -- scan completion messages
+    showStartupMessage = true,            -- "Valuate loaded" message
+    comparisonMode = "number",
+    showCharacterWindowDisplay = true,
+    minimapButtonHidden = false,
+    characterWindowDisplayMode = "total",
+    uiPosition = {},                      -- table default: fresh copy per character
+    normalizeDisplay = false,
+    showStatBreakdown = false,
+    autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
+    autoQuestReward = false,              -- auto-select best quest reward for the active scale
+}
+
+-- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
+-- values. Table-valued defaults get a fresh table so characters never share a ref.
+local function ApplyOptionDefaults(options)
+    for key, value in pairs(DEFAULT_OPTIONS) do
+        if options[key] == nil then
+            if type(value) == "table" then
+                options[key] = {}
+            else
+                options[key] = value
+            end
+        end
+    end
+end
+
 -- Get character-specific options table
 function Valuate:GetOptions()
     if not ValuateOptions then
-        ValuateOptions = {
-            debug = false,
-            decimalPlaces = 1,
-            rightAlign = false,
-            showScaleValue = "all",  -- Options: "all" or "current"
-            showBestFor = true,
-            chatMessages = true,  -- Show chat messages (verbose mode)
-            scanVerbose = false,  -- Show scan completion messages (verbose scan mode)
-            showStartupMessage = true,  -- Show "Valuate loaded" message
-            comparisonMode = "number",
-            characterWindowScale = nil,
-            showCharacterWindowDisplay = true,
-            minimapButtonHidden = false,
-            characterWindowDisplayMode = "total",
-            uiPosition = {},
-            normalizeDisplay = false,
-            showStatBreakdown = false,
-            autoScan = "onEquipmentChange",  -- Options: "off", "onEquipmentChange", "onLoot", "always"
-            autoQuestReward = false,  -- Auto-select the best quest reward choice for the active scale
-        }
+        ValuateOptions = {}
+        ApplyOptionDefaults(ValuateOptions)
     end
     return ValuateOptions
 end
@@ -377,36 +396,19 @@ function Valuate:Initialize()
     -- Get per-character options and initialize defaults if they don't exist
     local options = Valuate:GetOptions()
     
-    -- Initialize default values for any missing options
-    if options.debug == nil then options.debug = false end
-    if options.decimalPlaces == nil then options.decimalPlaces = 1 end
-    if options.rightAlign == nil then options.rightAlign = false end
-    -- Migrate from boolean to string format, or set default
-    if options.showScaleValue == nil then 
-        options.showScaleValue = "all"
-    elseif type(options.showScaleValue) == "boolean" then
-        -- Migrate old boolean value to new string format
-        -- true -> "all", false -> "all" (since feature now always shows values, just with different scopes)
+    -- Backfill any missing options from the shared defaults (handles existing
+    -- characters that saved data before newer options were added).
+    ApplyOptionDefaults(options)
+
+    -- showScaleValue needs migration beyond a simple default: older versions
+    -- stored a boolean, and we must guard against any invalid saved value.
+    if type(options.showScaleValue) == "boolean" then
+        -- Old boolean -> new string format (feature now always shows values)
         options.showScaleValue = "all"
     end
-    -- Ensure it's a valid value
     if options.showScaleValue ~= "all" and options.showScaleValue ~= "current" then
         options.showScaleValue = "all"
     end
-    if options.showBestFor == nil then options.showBestFor = true end
-    if options.chatMessages == nil then options.chatMessages = true end
-    if options.scanVerbose == nil then options.scanVerbose = false end
-    if options.showStartupMessage == nil then options.showStartupMessage = true end
-    if options.comparisonMode == nil then options.comparisonMode = "number" end
-    if options.characterWindowScale == nil then options.characterWindowScale = nil end
-    if options.showCharacterWindowDisplay == nil then options.showCharacterWindowDisplay = true end
-    if options.minimapButtonHidden == nil then options.minimapButtonHidden = false end
-    if options.characterWindowDisplayMode == nil then options.characterWindowDisplayMode = "total" end
-    if options.uiPosition == nil then options.uiPosition = {} end
-    if options.normalizeDisplay == nil then options.normalizeDisplay = false end
-    if options.showStatBreakdown == nil then options.showStatBreakdown = false end
-    if options.autoScan == nil then options.autoScan = "onEquipmentChange" end
-    if options.autoQuestReward == nil then options.autoQuestReward = false end
     
     -- Get per-character scales
     local scales = Valuate:GetScales()
@@ -2179,7 +2181,9 @@ function Valuate:GetEquippedItemScores(equipSlot, scale)
             
             if shouldCompare then
                 tooltip:ClearLines()
-                tooltip:SetHyperlink(itemLink)
+                -- Use SetInventoryItem so equipped scores use the same SCALED stats
+                -- basis as the best-equipment scan and character window (consistency).
+                tooltip:SetInventoryItem("player", slotId)
                 local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                 if stats then
                     local score = Valuate:CalculateItemScore(stats, scale)
@@ -2190,7 +2194,7 @@ function Valuate:GetEquippedItemScores(equipSlot, scale)
             end
         end
     end
-    
+
     return next(scores) and scores or nil
 end
 
@@ -2248,9 +2252,11 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
             
             if shouldCompare then
                 tooltip:ClearLines()
-                -- Use SetHyperlink instead of SetInventoryItem to get consistent base stats
-                -- This ensures we're comparing the same type of stats (base vs base, not base vs scaled)
-                tooltip:SetHyperlink(itemLink)
+                -- Use SetInventoryItem so the equipped item is read with its SCALED
+                -- stats - the same basis as the hovered item's displayed tooltip and
+                -- the best-equipment scan. (Previously SetHyperlink read base stats,
+                -- which made tooltip "vs equipped" numbers disagree with the panel.)
+                tooltip:SetInventoryItem("player", slotId)
                 local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                 if stats then
                     local score = Valuate:CalculateItemScore(stats, scale)
@@ -2914,121 +2920,6 @@ function Valuate:CleanupOrphanedBestEquipment()
 end
 
 
--- Displays calculated scores on the tooltip
-function Valuate:DisplayScoresOnTooltip(tooltip, stats)
-    local options = Valuate:GetOptions()
-    if not tooltip or not stats then
-        if options.debug then
-            print("|cFFFF8800[Valuate Debug]|r DisplayScoresOnTooltip: missing tooltip or stats")
-        end
-        return
-    end
-    
-    -- Get active scales
-    local activeScales = Valuate:GetActiveScales()
-    
-    if options.debug then
-        print("|cFFFF8800[Valuate Debug]|r Found " .. #activeScales .. " active scale(s)")
-    end
-    
-    -- If no active scales, don't display anything
-    if #activeScales == 0 then
-        if options.debug then
-            print("|cFFFF8800[Valuate Debug]|r No active scales - cannot display scores")
-        end
-        return
-    end
-    
-    -- Get the item's equipment slot for banned stat checking
-    local equipSlot = nil
-    if tooltip then
-        local itemLink = tooltip:GetItem()
-        if itemLink then
-            local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-            equipSlot = itemEquipLoc
-        end
-    end
-    
-    -- Calculate scores for each active scale
-    local scores = {}
-    local scales = Valuate:GetScales()
-    for _, scaleName in ipairs(activeScales) do
-        local scale = scales[scaleName]
-        if scale then
-            -- Check if item has any stats marked as unusable for this scale
-            local hasUnusableStat = false
-            if scale.Unusable then
-                -- First check parsed stats
-                for statName, statValue in pairs(stats) do
-                    if scale.Unusable[statName] and statValue and statValue > 0 then
-                        hasUnusableStat = true
-                        if options.debug then
-                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item has banned stat '" .. statName .. "'")
-                        end
-                        break
-                    end
-                end
-                
-                -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
-                if not hasUnusableStat and equipSlot then
-                    if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
-                        hasUnusableStat = true
-                        if options.debug then
-                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
-                        end
-                    elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
-                        hasUnusableStat = true
-                        if options.debug then
-                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is offhand weapon (banned by OffHandDps)")
-                        end
-                    elseif (equipSlot == "INVTYPE_RANGED" or equipSlot == "INVTYPE_RANGEDRIGHT" or equipSlot == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
-                        hasUnusableStat = true
-                        if options.debug then
-                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is ranged weapon (banned by RangedDps)")
-                        end
-                    end
-                end
-            end
-            
-            if not hasUnusableStat then
-                local score = Valuate:CalculateItemScore(stats, scale)
-                if score and score ~= 0 then
-                    scores[scaleName] = score
-                    if options.debug then
-                        print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' score: " .. score)
-                    end
-                end
-            end
-        end
-    end
-    
-    -- If we have scores, display them
-    if next(scores) then
-        -- Add a blank line first
-        tooltip:AddLine(" ")
-        
-        -- Display each scale's score
-        for scaleName, score in pairs(scores) do
-            local scale = scales[scaleName]
-            local color = scale.Color or "FFFFFF"
-            local displayName = scale.DisplayName or scaleName
-            local lineText = "|cFF" .. color .. displayName .. ": " .. string.format("%.1f", score) .. "|r"
-            tooltip:AddLine(lineText)
-            
-            if options.debug then
-                print("|cFFFF8800[Valuate Debug]|r Added line to tooltip: " .. lineText)
-            end
-        end
-        
-        -- Show the tooltip with updated lines
-        tooltip:Show()
-    else
-        if options.debug then
-            print("|cFFFF8800[Valuate Debug]|r No scores to display (all were 0 or nil)")
-        end
-    end
-end
-
 -- ========================================
 -- Auto Quest Reward Selection
 -- ========================================
@@ -3078,6 +2969,14 @@ local function ScoreQuestChoice(index, scale)
 
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     if not stats or not next(stats) then
+        return nil
+    end
+
+    -- Skip rewards the character can't actually use yet (too high level,
+    -- unlearned proficiency, wrong class, etc.). The quest tooltip is still
+    -- populated here, so reuse the same red requirement-line scan the best
+    -- equipment feature uses. Consistent "can I use it?" logic across features.
+    if TooltipHasUnmetRequirement("ValuatePrivateTooltip") then
         return nil
     end
 
@@ -3213,6 +3112,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate or /val - Open the configuration UI")
         print("  /valuate help - Show this help")
         print("  /valuate version - Show version info")
+        print("  /valuate scan - Scan bags/equipped now for best-in-slot items")
+        print("  /valuate quest - Toggle auto-choosing the best quest reward")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
@@ -3248,6 +3149,17 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.debug = not options.debug
         print("|cFF00FF00Valuate|r: Debug mode " .. (options.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "scan" then
+        if Valuate.ScanBestEquipment then
+            Valuate:ScanBestEquipment()
+            print("|cFF00FF00Valuate|r: Best equipment scan requested.")
+        else
+            print("|cFFFF0000Valuate|r: Scan unavailable. Please /reload.")
+        end
+    elseif command == "quest" then
+        local options = Valuate:GetOptions()
+        options.autoQuestReward = not options.autoQuestReward
+        print("|cFF00FF00Valuate|r: Auto quest reward " .. (options.autoQuestReward and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "scales" then
         local activeScales = Valuate:GetActiveScales()
         if #activeScales > 0 then
