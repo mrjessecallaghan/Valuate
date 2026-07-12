@@ -2942,6 +2942,13 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     -- Trigger resize by refreshing the scale editor
                     ValuateUI_UpdateScaleEditor(EditingScaleName, scales[EditingScaleName])
                 end
+            elseif tabName == "bestEquipment" then
+                -- Best Equipment tab sizes itself to fit rows + weapon-sets + summary
+                -- (the panel is already shown above, so the refresh will resize).
+                ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                if Valuate.RefreshBestEquipmentDisplay then
+                    Valuate:RefreshBestEquipmentDisplay()
+                end
             else
                 -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
                 ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
@@ -5431,6 +5438,10 @@ local function CreateBestEquipmentPanel(parent)
     local BE_HEADER_HEIGHT = 60
     local BE_VALUE_W = 44    -- item score column ("999.9")
     local BE_COMPARE_W = 50  -- comparison / "Lv 12" / "New"
+    -- Weapon-sets + summary block appended below the equipment rows:
+    -- title (16) + up to 4 set rows (4*18) + gap (8) + 2 summary lines (2*15).
+    local BE_WS_ROW_H = 18
+    local BE_WS_BLOCK_H = 16 + (4 * BE_WS_ROW_H) + 8 + (2 * 15) + 6
 
     -- Build one column's static widget structure (header + one row per equipment
     -- slot). No scale-specific content or closures are baked in here.
@@ -5578,6 +5589,49 @@ local function CreateBestEquipmentPanel(parent)
             yOffset = yOffset - (BE_SLOT_SIZE + BE_SLOT_SPACING)
         end
 
+        -- ---- Weapon Sets sub-panel (fixed 4 rows) + summary, below the rows ----
+        -- Fixed structure so it fits the pool; rows are shown/populated per scale.
+        local rowsHeight = #EquipmentSlots * (BE_SLOT_SIZE + BE_SLOT_SPACING)
+        local wsTop = BE_HEADER_HEIGHT + 5 + rowsHeight + 10
+
+        local wsTitle = scaleFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        wsTitle:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 8, -wsTop)
+        wsTitle:SetText("Weapon Sets")
+        wsTitle:SetTextColor(unpack(COLORS.textAccent))
+        col.wsTitle = wsTitle
+
+        col.wsRows = {}
+        for i = 1, 4 do
+            local wr = {}
+            local btn = CreateFrame("Button", nil, scaleFrame)
+            btn:SetSize(BE_SCALE_WIDTH - 16, BE_WS_ROW_H)
+            btn:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 8, -(wsTop + 16 + (i - 1) * BE_WS_ROW_H))
+            btn:RegisterForClicks("LeftButtonUp")
+            local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+            hl:SetAllPoints(btn)
+            hl:SetColorTexture(1, 1, 1, 0.08)
+            local lbl = btn:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            lbl:SetPoint("LEFT", btn, "LEFT", 2, 0)
+            lbl:SetJustifyH("LEFT")
+            wr.label = lbl
+            local tot = btn:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            tot:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+            tot:SetJustifyH("RIGHT")
+            wr.total = tot
+            wr.btn = btn
+            col.wsRows[i] = wr
+        end
+
+        local summaryText = scaleFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        summaryText:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 8, -(wsTop + 16 + 4 * BE_WS_ROW_H + 8))
+        summaryText:SetJustifyH("LEFT")
+        col.summaryText = summaryText
+
+        local upgradesText = scaleFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        upgradesText:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 8, -(wsTop + 16 + 4 * BE_WS_ROW_H + 8 + 15))
+        upgradesText:SetJustifyH("LEFT")
+        col.upgradesText = upgradesText
+
         return col
     end
 
@@ -5612,9 +5666,19 @@ local function CreateBestEquipmentPanel(parent)
         if noScalesTextFrame then noScalesTextFrame:Hide() end
 
         local numSlots = #EquipmentSlots
-        local calculatedHeight = BE_HEADER_HEIGHT + (numSlots * (BE_SLOT_SIZE + BE_SLOT_SPACING)) + 10
+        local calculatedHeight = BE_HEADER_HEIGHT + (numSlots * (BE_SLOT_SIZE + BE_SLOT_SPACING)) + 10 + BE_WS_BLOCK_H
         contentFrame:SetWidth((#activeScales * BE_SCALE_WIDTH) + ((#activeScales - 1) * BE_SCALE_SPACING))
         contentFrame:SetHeight(calculatedHeight)
+
+        -- Grow the window to fit the taller content (rows + weapon-sets + summary),
+        -- but only while this tab is actually visible so we don't fight the scale
+        -- editor's own sizing when a config toggle refreshes us from another tab.
+        if ValuateUIFrame and parent:IsShown() then
+            -- title + tabs + scan row + content + generous chrome/margin so the
+            -- summary lines never clip (a slightly tall window is harmless; clipping isn't).
+            local neededHeight = 40 + 30 + 40 + calculatedHeight + PADDING + 60
+            ValuateUIFrame:SetHeight(math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight)))
+        end
 
         -- Parse each equipped item's SCALED stats once per rebuild, cached by slot
         -- (the equipped item depends only on the slot, not the scale).
@@ -5666,6 +5730,9 @@ local function CreateBestEquipmentPanel(parent)
                     Valuate:ClearBestEquipmentForScale(scaleName)
                 end)
 
+                -- Running totals for the summary block (accumulated in the row loop).
+                local equippedTotal, bestTotal, upgradeTotal = 0, 0, 0
+
                 for rowIndex, slotInfo in ipairs(EquipmentSlots) do
                     local slotId = slotInfo.slotId
                     local r = col.rows[rowIndex]
@@ -5683,6 +5750,16 @@ local function CreateBestEquipmentPanel(parent)
                     local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
                     local equippedStats = GetEquippedStatsForSlot(slotId)
                     local equippedScore = equippedStats and Valuate:CalculateItemScore(equippedStats, scale) or nil
+
+                    -- Summary totals: best-achievable per slot is max(best, equipped);
+                    -- upgrades are the positive best-over-equipped deltas.
+                    local eqSlotScore = equippedScore or 0
+                    local bestSlotScore = (bestItem and bestItem.score) or 0
+                    equippedTotal = equippedTotal + eqSlotScore
+                    bestTotal = bestTotal + math.max(bestSlotScore, eqSlotScore)
+                    if bestSlotScore > eqSlotScore then
+                        upgradeTotal = upgradeTotal + (bestSlotScore - eqSlotScore)
+                    end
 
                     -- Lock state + closures (rebound each update for this scaleName/slotId)
                     local isLocked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
@@ -5902,6 +5979,56 @@ local function CreateBestEquipmentPanel(parent)
                             slotFrame:SetScript("OnClick", nil)
                         end
                     end
+                end
+
+                -- Populate the weapon-sets sub-panel + summary for this scale.
+                local be = bestEquipment[scaleName]
+                local wsData = be and be.weaponSets
+                local activeKey = be and be.activeWeaponSet
+                local wsIndex = 0
+                for _, def in ipairs(Valuate:GetWeaponSetDefinitions()) do
+                    local set = wsData and wsData[def.key]
+                    if set then
+                        wsIndex = wsIndex + 1
+                        local wr = col.wsRows[wsIndex]
+                        if wr then
+                            local isActive = (def.key == activeKey)
+                            local labelColor = isActive and "FFFFD700" or "FFBBBBBB"
+                            local marker = isActive and "|cFFFFD700>|r " or ""
+                            wr.label:SetText(marker .. "|c" .. labelColor .. def.label .. "|r")
+                            wr.total:SetText("|cFF" .. color .. string.format(formatStr, set.total or 0) .. "|r")
+                            wr.btn:Show()
+                            wr.btn:SetScript("OnClick", function()
+                                scale.ActiveWeaponSet = def.key
+                                Valuate:ScanBestEquipment()
+                                if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end
+                                if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+                            end)
+                            wr.btn:SetScript("OnEnter", function(self)
+                                if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                                    GameTooltip:AddLine(def.label, 1, 1, 1)
+                                    if set.mh and set.mh.itemName then GameTooltip:AddLine("Main: " .. set.mh.itemName, 0.8, 0.8, 0.8) end
+                                    if set.oh and set.oh.itemName then GameTooltip:AddLine("Off: " .. set.oh.itemName, 0.8, 0.8, 0.8) end
+                                    GameTooltip:AddLine("Set total: " .. string.format(formatStr, set.total or 0), 0.7, 0.9, 0.7)
+                                    GameTooltip:AddLine(isActive and "Currently active" or "Click to make this the active set", 0.6, 0.6, 0.6)
+                                    GameTooltip:Show()
+                                end
+                            end)
+                            wr.btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                        end
+                    end
+                end
+                for j = wsIndex + 1, 4 do
+                    if col.wsRows[j] then col.wsRows[j].btn:Hide() end
+                end
+                col.wsTitle:SetText(wsIndex == 0 and "Weapon Sets |cFF808080(none enabled / owned)|r" or "Weapon Sets")
+
+                col.summaryText:SetText("Equipped: |cFF" .. color .. string.format(formatStr, equippedTotal)
+                    .. "|r   Best: |cFF" .. color .. string.format(formatStr, bestTotal) .. "|r")
+                if upgradeTotal > 0.01 then
+                    col.upgradesText:SetText("|cFF00FF00Upgrades in bags: +" .. string.format(formatStr, upgradeTotal) .. "|r")
+                else
+                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r")
                 end
             end
         end
