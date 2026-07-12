@@ -4066,9 +4066,106 @@ local function UpdateStatWeightsList(scaleName, scale)
         
         -- Set Equipment Types container height
         equipmentTypesContainer:SetHeight(equipStartY + equipMaxHeight)
-        
-        -- Total height is Item Stats height + spacing + Equipment Types container height
+
+        -- ========================================
+        -- Weapon Sets Container (below Equipment Types)
+        -- ========================================
+        -- Which weapon configurations to track for this scale, and which one is active.
+        local wsFullWidth = NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP
+        local weaponSetsContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
+        weaponSetsContainer:SetPoint("TOPLEFT", equipmentTypesContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
+        weaponSetsContainer:SetWidth(wsFullWidth)
+        tinsert(StatWeightRows, weaponSetsContainer)
+
+        -- Section header with separator
+        local wsHeader = CreateFrame("Frame", nil, weaponSetsContainer)
+        wsHeader:SetHeight(HEADER_HEIGHT + 4)
+        wsHeader:SetWidth(wsFullWidth)
+        wsHeader:SetPoint("TOPLEFT", weaponSetsContainer, "TOPLEFT", 0, 0)
+        local wsSep = wsHeader:CreateTexture(nil, "BACKGROUND")
+        wsSep:SetHeight(1)
+        wsSep:SetPoint("TOPLEFT", wsHeader, "TOPLEFT", 0, 0)
+        wsSep:SetPoint("TOPRIGHT", wsHeader, "TOPRIGHT", 0, 0)
+        wsSep:SetColorTexture(unpack(COLORS.border))
+        local wsLabel = wsHeader:CreateFontString(nil, "OVERLAY", FONT_H2)
+        wsLabel:SetPoint("LEFT", wsHeader, "LEFT", 0, -6)
+        wsLabel:SetText("Weapon Sets")
+        wsLabel:SetTextColor(unpack(COLORS.textHeader))
+        tinsert(StatWeightRows, wsHeader)
+
+        local wsDesc = weaponSetsContainer:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        wsDesc:SetPoint("TOPLEFT", weaponSetsContainer, "TOPLEFT", 0, -(HEADER_HEIGHT + 4))
+        wsDesc:SetPoint("RIGHT", weaponSetsContainer, "RIGHT", 0, 0)
+        wsDesc:SetJustifyH("LEFT")
+        wsDesc:SetText("Track the best of each enabled weapon configuration, and pick which one is active (drives the main/off-hand best-in-slot).")
+        wsDesc:SetTextColor(unpack(COLORS.textDim))
+
+        local wsDefs = Valuate:GetWeaponSetDefinitions()
+        local wsCheckY = (HEADER_HEIGHT + 4) + ROW_HEIGHT + ROW_SPACING
+        for idx, def in ipairs(wsDefs) do
+            local cb = CreateFrame("CheckButton", nil, weaponSetsContainer)
+            cb:SetSize(18, 18)
+            cb:SetPoint("TOPLEFT", weaponSetsContainer, "TOPLEFT", (idx - 1) * (COLUMN_WIDTH + COLUMN_GAP), -wsCheckY)
+            cb:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
+            cb:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
+            cb:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
+            cb:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
+            cb:SetChecked(Valuate:IsWeaponSetEnabled(scale, def.key))
+            local cbLabel = cb:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            cbLabel:SetPoint("LEFT", cb, "RIGHT", 3, 0)
+            cbLabel:SetText(def.label)
+            cbLabel:SetTextColor(unpack(COLORS.textBody))
+            cb:SetScript("OnClick", function(self)
+                local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
+                if not scale.WeaponSets then
+                    -- Materialize the implicit "all enabled" default before editing.
+                    scale.WeaponSets = {}
+                    for _, d in ipairs(wsDefs) do scale.WeaponSets[d.key] = true end
+                end
+                scale.WeaponSets[def.key] = checked or nil
+                Valuate:ScanBestEquipment()
+                if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end
+                if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+            end)
+            tinsert(StatWeightRows, cb)
+        end
+
+        -- Active-set selector: click to cycle Auto -> each enabled config.
+        local function activeSetDisplay()
+            local key = scale.ActiveWeaponSet
+            if not key or key == "auto" then return "Auto (equipped / highest)" end
+            for _, d in ipairs(wsDefs) do if d.key == key then return d.label end end
+            return "Auto (equipped / highest)"
+        end
+        local wsActiveY = wsCheckY + ROW_HEIGHT + ROW_SPACING + 6
+        local wsActiveLabel = weaponSetsContainer:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        wsActiveLabel:SetPoint("TOPLEFT", weaponSetsContainer, "TOPLEFT", 0, -wsActiveY)
+        wsActiveLabel:SetText("Active set:")
+        wsActiveLabel:SetTextColor(unpack(COLORS.textBody))
+        local wsActiveButton = CreateStyledButton(weaponSetsContainer, activeSetDisplay(), 200, 20)
+        wsActiveButton:SetPoint("LEFT", wsActiveLabel, "RIGHT", 8, 0)
+        wsActiveButton:SetScript("OnClick", function(self)
+            local order = { "auto" }
+            for _, d in ipairs(wsDefs) do
+                if Valuate:IsWeaponSetEnabled(scale, d.key) then tinsert(order, d.key) end
+            end
+            local cur = scale.ActiveWeaponSet or "auto"
+            local curIdx = 1
+            for i, k in ipairs(order) do if k == cur then curIdx = i break end end
+            scale.ActiveWeaponSet = order[(curIdx % #order) + 1]
+            self.label:SetText(activeSetDisplay())
+            Valuate:ScanBestEquipment()
+            if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end
+            if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        end)
+        tinsert(StatWeightRows, wsActiveButton)
+
+        local weaponSetsHeight = wsActiveY + ROW_HEIGHT + ELEMENT_SPACING
+        weaponSetsContainer:SetHeight(weaponSetsHeight)
+
+        -- Total height is Item Stats + Equipment Types + Weapon Sets, with spacing.
         local totalContentHeight = itemStatsMaxHeight + ELEMENT_SPACING * 2 + equipStartY + equipMaxHeight
+                                   + ELEMENT_SPACING * 2 + weaponSetsHeight
         
         -- Update ScaleEditorFrame height
         if ScaleEditorFrame then
