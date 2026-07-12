@@ -57,6 +57,16 @@ local SlotIdToName = {
     [17] = "Off Hand",
 }
 
+-- Weapon configuration ("set") definitions, in display order. Each scale can
+-- enable/disable these independently and pick one as its "active" set; the active
+-- set resolves into the Main Hand (16) / Off Hand (17) best-in-slot entries.
+local WEAPON_SET_DEFS = {
+    { key = "TwoHand",        label = "Two-Hander" },
+    { key = "OneHandShield",  label = "1H + Shield" },
+    { key = "OneHandOffhand", label = "1H + Off-Hand" },
+    { key = "DualWield",      label = "Dual Wield" },
+}
+
 -- Helper function to check if two weapon types are comparable
 local function AreWeaponTypesComparable(hoverType, equippedType)
     -- Handle nil or empty strings
@@ -2493,6 +2503,19 @@ local function TooltipHasUnmetRequirement(tooltipName)
     return false
 end
 
+-- Returns the ordered list of weapon-set definitions ({key, label}).
+function Valuate:GetWeaponSetDefinitions()
+    return WEAPON_SET_DEFS
+end
+
+-- Whether a given weapon-set config key is enabled for a scale.
+-- Backward-compat: a scale with no WeaponSets table has every config enabled.
+function Valuate:IsWeaponSetEnabled(scale, key)
+    if not scale then return false end
+    if scale.WeaponSets == nil then return true end
+    return scale.WeaponSets[key] and true or false
+end
+
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
 -- Items the character can't equip yet (too high level / unlearned proficiency) are
@@ -2731,6 +2754,131 @@ function Valuate:ScanBestEquipment()
                         end
                     end
                 end
+            end
+
+            -- ===== Weapon sets =====
+            -- Find the best currently-equippable item for each weapon category,
+            -- assemble the enabled weapon configurations, and resolve the active one
+            -- into the Main Hand (16) / Off Hand (17) best-in-slot entries so every
+            -- existing consumer reflects the chosen set. itemsWithScores is already
+            -- sorted by score descending with banned stats filtered out.
+            local function makeWeaponRec(itemInfo)
+                local d = itemInfo.data
+                return {
+                    itemLink = d.itemLink,
+                    score = itemInfo.score,
+                    itemName = d.itemName,
+                    itemTexture = d.itemTexture,
+                    itemQuality = d.itemQuality,
+                    itemId = itemInfo.itemId,
+                }
+            end
+
+            local bestMH2H, bestMH1H, bestOffShield, bestOffHold, bestOH1H
+            for _, itemInfo in ipairs(itemsWithScores) do
+                if itemInfo.data.equippableNow then
+                    local loc = itemInfo.data.itemEquipLoc
+                    local id = itemInfo.itemId
+                    if loc == "INVTYPE_2HWEAPON" then
+                        if not bestMH2H then bestMH2H = makeWeaponRec(itemInfo) end
+                    elseif loc == "INVTYPE_WEAPON" or loc == "INVTYPE_WEAPONMAINHAND" then
+                        if not bestMH1H then
+                            bestMH1H = makeWeaponRec(itemInfo)
+                            -- Owning 2+ of the top one-hander (and able to dual-wield)
+                            -- means a second copy wins the off-hand over any lesser 1H.
+                            if canDualWield and loc == "INVTYPE_WEAPON"
+                               and (itemCounts[id] or 0) >= 2 then
+                                bestOH1H = makeWeaponRec(itemInfo)
+                            end
+                        elseif canDualWield and not bestOH1H and loc == "INVTYPE_WEAPON" then
+                            bestOH1H = makeWeaponRec(itemInfo)
+                        end
+                    elseif loc == "INVTYPE_SHIELD" then
+                        if not bestOffShield then bestOffShield = makeWeaponRec(itemInfo) end
+                    elseif loc == "INVTYPE_HOLDABLE" or loc == "INVTYPE_WEAPONOFFHAND" then
+                        if not bestOffHold then bestOffHold = makeWeaponRec(itemInfo) end
+                    end
+                end
+            end
+
+            -- Assemble enabled configs (a set forms as long as it has a main-hand item;
+            -- the off-hand may be empty if the player owns nothing suitable yet).
+            local weaponSets = {}
+            local function addWeaponSet(key, mh, oh)
+                if mh and Valuate:IsWeaponSetEnabled(scale, key) then
+                    weaponSets[key] = { mh = mh, oh = oh, total = (mh.score or 0) + (oh and oh.score or 0) }
+                end
+            end
+            addWeaponSet("TwoHand", bestMH2H, nil)
+            addWeaponSet("OneHandShield", bestMH1H, bestOffShield)
+            addWeaponSet("OneHandOffhand", bestMH1H, bestOffHold)
+            addWeaponSet("DualWield", bestMH1H, bestOH1H)
+
+            if next(weaponSets) then
+                bestEquipment[scaleName].weaponSets = weaponSets
+
+                -- Resolve the active set: honor an explicit choice, else "auto" =
+                -- match the player's currently-equipped weapons, else highest total.
+                local activeKey = scale.ActiveWeaponSet
+                if not (activeKey and activeKey ~= "auto" and weaponSets[activeKey]) then
+                    activeKey = nil
+                    local mhLink = GetInventoryItemLink("player", 16)
+                    local ohLink = GetInventoryItemLink("player", 17)
+                    local mhLoc = mhLink and select(9, GetItemInfo(mhLink)) or nil
+                    local ohLoc = ohLink and select(9, GetItemInfo(ohLink)) or nil
+                    local detected
+                    if mhLoc == "INVTYPE_2HWEAPON" then
+                        detected = "TwoHand"
+                    elseif ohLoc == "INVTYPE_SHIELD" then
+                        detected = "OneHandShield"
+                    elseif ohLoc == "INVTYPE_HOLDABLE" or ohLoc == "INVTYPE_WEAPONOFFHAND" then
+                        detected = "OneHandOffhand"
+                    elseif ohLoc == "INVTYPE_WEAPON" or ohLoc == "INVTYPE_WEAPONMAINHAND" then
+                        detected = "DualWield"
+                    end
+                    if detected and weaponSets[detected] then
+                        activeKey = detected
+                    else
+                        local bestTotal
+                        for key, set in pairs(weaponSets) do
+                            if not bestTotal or set.total > bestTotal then
+                                bestTotal, activeKey = set.total, key
+                            end
+                        end
+                    end
+                end
+
+                local active = weaponSets[activeKey]
+                if active then
+                    bestEquipment[scaleName].activeWeaponSet = activeKey
+                    if not locks[16] then bestEquipment[scaleName][16] = active.mh end
+                    if not locks[17] then bestEquipment[scaleName][17] = active.oh end
+                end
+            elseif scale.WeaponSets ~= nil then
+                -- Every weapon config explicitly disabled: track no weapons.
+                if not locks[16] then bestEquipment[scaleName][16] = nil end
+                if not locks[17] then bestEquipment[scaleName][17] = nil end
+            end
+
+            -- Union of items that are the category-best for any ENABLED config, tagged
+            -- with a display category. Drives the "Best <category> for" tooltip and the
+            -- AdiBags "keep" decision (Phase 2) so gear for a non-active but enabled set
+            -- is never dropped.
+            local weaponKeep = {}
+            local function keepWeapon(rec, category)
+                if rec then weaponKeep[rec.itemId] = category end
+            end
+            if Valuate:IsWeaponSetEnabled(scale, "TwoHand") then keepWeapon(bestMH2H, "twohander") end
+            if Valuate:IsWeaponSetEnabled(scale, "OneHandShield")
+               or Valuate:IsWeaponSetEnabled(scale, "OneHandOffhand")
+               or Valuate:IsWeaponSetEnabled(scale, "DualWield") then
+                keepWeapon(bestMH1H, "onehander")
+            end
+            if Valuate:IsWeaponSetEnabled(scale, "OneHandShield") then keepWeapon(bestOffShield, "shield") end
+            if Valuate:IsWeaponSetEnabled(scale, "OneHandOffhand") then keepWeapon(bestOffHold, "offhand") end
+            if Valuate:IsWeaponSetEnabled(scale, "DualWield") then keepWeapon(bestOH1H, "onehander") end
+            if next(weaponKeep) then
+                bestEquipment[scaleName].weaponKeep = weaponKeep
             end
 
             -- Pass 2: record the best FUTURE upgrade per slot from items that are
