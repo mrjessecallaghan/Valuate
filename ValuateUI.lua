@@ -5703,22 +5703,10 @@ local function CreateBestEquipmentPanel(parent)
                                 GameTooltip:SetHyperlink(bestItem.itemLink)
                                 local options = Valuate:GetOptions()
                                 if options.showBestFor ~= false then
-                                    local bestScales = Valuate:IsBestInSlot(bestItem.itemLink)
-                                    if bestScales and #bestScales > 0 then
-                                        local scaleNamesList = {}
-                                        local allScales = Valuate:GetScales()
-                                        for _, bestScaleName in ipairs(bestScales) do
-                                            local bestScale = allScales[bestScaleName]
-                                            if bestScale then
-                                                local bestColor = bestScale.Color or "FFFFFF"
-                                                local bestDisplayName = bestScale.DisplayName or bestScaleName
-                                                table.insert(scaleNamesList, "|cFF" .. bestColor .. bestDisplayName .. "|r")
-                                            end
-                                        end
-                                        if #scaleNamesList > 0 then
-                                            GameTooltip:AddLine(" ")
-                                            GameTooltip:AddLine("|cFFFFD700★ Best for:|r " .. table.concat(scaleNamesList, ", "), 1, 1, 1)
-                                        end
+                                    local bestForLine = Valuate:BuildBestForLine(bestItem.itemLink)
+                                    if bestForLine then
+                                        GameTooltip:AddLine(" ")
+                                        GameTooltip:AddLine(bestForLine, 1, 1, 1)
                                     end
                                 end
                                 GameTooltip:AddLine(" ")

@@ -1066,25 +1066,13 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
     if itemLink and options.showBestFor ~= false then
         local ownsItem = Valuate:PlayerOwnsItem(itemLink)
         if ownsItem then
-            local bestScales = Valuate:IsBestInSlot(itemLink)
-            if bestScales and #bestScales > 0 then
-                -- Build colored scale names list
-                local scaleNamesList = {}
-                for _, bestScaleName in ipairs(bestScales) do
-                    local scale = scales[bestScaleName]
-                    if scale then
-                        local color = scale.Color or "FFFFFF"
-                        local displayName = scale.DisplayName or bestScaleName
-                        table.insert(scaleNamesList, "|cFF" .. color .. displayName .. "|r")
-                    end
-                end
-                
-                if #scaleNamesList > 0 then
-                    tooltip:AddLine(" ")  -- Blank line before "Best for"
-                    local scaleNamesText = table.concat(scaleNamesList, ", ")
-                    tooltip:AddLine(VALUATE_MARKER_FULL .. " |cFFFFD700★ Best for:|r " .. scaleNamesText, nil, nil, nil, true)
-                    hasScores = true  -- Mark that we've added lines
-                end
+            -- Qualified line, e.g. "★ Best two-hander for: Retribution" (weapons) or
+            -- "★ Best for: Retribution" (everything else).
+            local bestForLine = Valuate:BuildBestForLine(itemLink)
+            if bestForLine then
+                tooltip:AddLine(" ")  -- Blank line before "Best for"
+                tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. bestForLine, nil, nil, nil, true)
+                hasScores = true  -- Mark that we've added lines
             end
         end
     end
@@ -1809,26 +1797,12 @@ function Valuate:HookTooltips()
         if itemLink and not statsAdded and not ValuateLinesAdded and options.showBestFor ~= false then
             local ownsItem = Valuate:PlayerOwnsItem(itemLink)
             if ownsItem then
-                local bestScales = Valuate:IsBestInSlot(itemLink)
-                if bestScales and #bestScales > 0 then
-                    local scaleNamesList = {}
-                    local scales = Valuate:GetScales()
-                    for _, bestScaleName in ipairs(bestScales) do
-                        local scale = scales[bestScaleName]
-                        if scale then
-                            local color = scale.Color or "FFFFFF"
-                            local displayName = scale.DisplayName or bestScaleName
-                            table.insert(scaleNamesList, "|cFF" .. color .. displayName .. "|r")
-                        end
-                    end
-                    
-                    if #scaleNamesList > 0 then
-                        self:AddLine(" ")
-                        local scaleNamesText = table.concat(scaleNamesList, ", ")
-                        self:AddLine(VALUATE_MARKER_FULL .. " |cFFFFD700★ Best for:|r " .. scaleNamesText, nil, nil, nil, true)
-                        self:Show()
-                        ValuateLinesAdded = true
-                    end
+                local bestForLine = Valuate:BuildBestForLine(itemLink)
+                if bestForLine then
+                    self:AddLine(" ")
+                    self:AddLine(VALUATE_MARKER_FULL .. " " .. bestForLine, nil, nil, nil, true)
+                    self:Show()
+                    ValuateLinesAdded = true
                 end
             end
         end
@@ -2933,51 +2907,88 @@ function Valuate:ScanBestEquipment()
     return true
 end
 
--- Checks if an item is the best-in-slot for any active scale
--- itemLink: The item link to check
--- Returns: Table of scale names for which this item is best-in-slot, or nil
-function Valuate:IsBestInSlot(itemLink)
+-- Returns "best for" info for an item across active scales, or nil.
+-- Each entry: { scaleName = <string>, category = <nil|"twohander"|"onehander"|"shield"|"offhand"> }.
+-- Weapons are matched via each scale's weaponKeep union, so an item that is best in ANY
+-- enabled weapon config is reported and tagged with its category. Everything else matches
+-- the per-slot best-in-slot entry as before (category nil).
+function Valuate:GetBestForInfo(itemLink)
     if not itemLink then return nil end
     if Valuate:IsItemExcludedFromEvaluation(itemLink) then return nil end
+
+    local itemId = GetItemIdFromLink(itemLink)
+    if not itemId then return nil end
 
     local bestEquipment = Valuate:GetBestEquipment()
     local activeScales = Valuate:GetActiveScales()
     local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-    
-    if not itemEquipLoc or itemEquipLoc == "" then
-        return nil
-    end
-    
-    local bestScales = {}
-    local targetSlots = EquipSlotToInvNumber[itemEquipLoc]
-    
-    if not targetSlots then
-        return nil
-    end
-    
-    -- Get item ID for comparison (handles unique item link suffixes)
-    local itemId = GetItemIdFromLink(itemLink)
-    if not itemId then
-        return nil
-    end
-    
+    local targetSlots = (itemEquipLoc and itemEquipLoc ~= "") and EquipSlotToInvNumber[itemEquipLoc] or nil
+
+    local results = {}
     for _, scaleName in ipairs(activeScales) do
-        if bestEquipment[scaleName] then
-            for _, targetSlotId in ipairs(targetSlots) do
-                local bestItem = bestEquipment[scaleName][targetSlotId]
-                if bestItem and bestItem.itemLink then
-                    local bestItemId = GetItemIdFromLink(bestItem.itemLink)
-                    -- Compare by item ID instead of full link
-                    if bestItemId == itemId then
-                        tinsert(bestScales, scaleName)
-                        break  -- Found it for this scale, move to next scale
+        local be = bestEquipment[scaleName]
+        if be then
+            local category = be.weaponKeep and be.weaponKeep[itemId]
+            if category then
+                tinsert(results, { scaleName = scaleName, category = category })
+            elseif targetSlots then
+                for _, slotId in ipairs(targetSlots) do
+                    local bestItem = be[slotId]
+                    if bestItem and bestItem.itemLink
+                       and GetItemIdFromLink(bestItem.itemLink) == itemId then
+                        tinsert(results, { scaleName = scaleName, category = nil })
+                        break
                     end
                 end
             end
         end
     end
-    
-    return #bestScales > 0 and bestScales or nil
+
+    return #results > 0 and results or nil
+end
+
+-- Checks if an item is the best-in-slot for any active scale.
+-- Returns: table of scale names, or nil. Weapons count if best in any enabled config.
+function Valuate:IsBestInSlot(itemLink)
+    local info = Valuate:GetBestForInfo(itemLink)
+    if not info then return nil end
+    local names = {}
+    for _, entry in ipairs(info) do
+        tinsert(names, entry.scaleName)
+    end
+    return names
+end
+
+-- Formatted "★ Best [category] for: <scales>" tooltip line for an item, or nil if it
+-- isn't best for any active scale. Excludes the hidden Valuate marker; callers that need
+-- line-detection prepend it themselves.
+local BEST_FOR_CATEGORY_LABELS = {
+    twohander = "two-hander",
+    onehander = "one-hander",
+    shield = "shield",
+    offhand = "off-hand",
+}
+function Valuate:BuildBestForLine(itemLink)
+    local info = Valuate:GetBestForInfo(itemLink)
+    if not info then return nil end
+
+    local scales = Valuate:GetScales()
+    local names = {}
+    local category = nil
+    for _, entry in ipairs(info) do
+        if entry.category then category = entry.category end
+        local scale = scales[entry.scaleName]
+        if scale then
+            local color = scale.Color or "FFFFFF"
+            local displayName = scale.DisplayName or entry.scaleName
+            tinsert(names, "|cFF" .. color .. displayName .. "|r")
+        end
+    end
+    if #names == 0 then return nil end
+
+    local catLabel = category and BEST_FOR_CATEGORY_LABELS[category]
+    local prefix = catLabel and ("Best " .. catLabel .. " for:") or "Best for:"
+    return "|cFFFFD700★ " .. prefix .. "|r " .. table.concat(names, ", ")
 end
 
 -- Checks if the player owns an item (equipped or in bags)
