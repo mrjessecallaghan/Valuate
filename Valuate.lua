@@ -934,7 +934,7 @@ local function GetTooltipBorderColor(stats, itemLink)
     
     -- Try to get equipped score from shopping tooltip first (if comparing items)
     if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
-        local equippedItemLink = ShoppingTooltip1:GetItem()
+        local stName, stLink = ShoppingTooltip1:GetItem(); local equippedItemLink = stLink or stName
         if equippedItemLink then
             local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
             -- Check if items are comparable (uses smart weapon comparison logic)
@@ -1181,7 +1181,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             if itemLink and equipSlot and equipSlot ~= "" then
                                 -- Try shopping tooltip first for context
                                 if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
-                                    local equippedItemLink = ShoppingTooltip1:GetItem()
+                                    local stName, stLink = ShoppingTooltip1:GetItem(); local equippedItemLink = stLink or stName
                                     if equippedItemLink then
                                         local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
                                         if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
@@ -1585,7 +1585,7 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                         -- This ensures both items use the same scaled stats context
                         local equippedScore = nil
                         if ShoppingTooltip1 and ShoppingTooltip1:IsVisible() then
-                            local equippedItemLink = ShoppingTooltip1:GetItem()
+                            local stName, stLink = ShoppingTooltip1:GetItem(); local equippedItemLink = stLink or stName
                             if equippedItemLink then
                                 -- Check if this shopping tooltip shows the equipped item for this slot
                                 local _, _, _, _, _, _, _, _, shoppingEquipLoc = GetItemInfo(equippedItemLink)
@@ -1678,7 +1678,10 @@ end
 function Valuate:HookTooltips()
     -- Hook the Set* methods to parse stats and mark for update
     local function OnTooltipSet(self)
-        local itemLink = self:GetItem()
+        -- GetItem() returns name, link - use the real LINK (the name-only first
+        -- return was why the malformed-link workaround below was always needed).
+        local itemName, itemLink = self:GetItem()
+        itemLink = itemLink or itemName
         if itemLink then
             -- New item - reset state
             if CurrentTooltipItem ~= itemLink then
@@ -1717,7 +1720,10 @@ function Valuate:HookTooltips()
     GameTooltip:HookScript("OnUpdate", function(self, elapsed)
         -- Only process if tooltip is visible and has an item
         if not self:IsVisible() then return end
-        local itemLink = self:GetItem()
+        -- Prefer the real link (2nd return); fall back to the name so the
+        -- inventory/bag source workaround below can still resolve it.
+        local tipName, tipLink = self:GetItem()
+        local itemLink = tipLink or tipName
         if not itemLink then
             -- No item, reset border to default
             if DefaultTooltipBorderColor then
@@ -1900,21 +1906,25 @@ function Valuate:HookTooltips()
         local shoppingItemLink
         local equippedStats = Valuate:GetStatsFromDisplayedTooltip(tooltipName)
         if equippedStats and next(equippedStats) then
-            -- Get the item link for "Best for" checking (cache to avoid redundant call)
-            shoppingItemLink = tooltip:GetItem()
-            
+            -- Get the item link for "Best for" checking. GetItem() returns
+            -- name, link - prefer the real link, keep the name for the
+            -- equipped-slot search fallback below.
+            local shoppingName
+            shoppingName, shoppingItemLink = tooltip:GetItem()
+            shoppingItemLink = shoppingItemLink or shoppingName
+
             -- Fix malformed item links from shopping tooltips
             local itemId = GetItemIdFromLink(shoppingItemLink)
-            
-            if not itemId and shoppingItemLink then
-                -- Shopping tooltips often just return item name, not full link
-                -- Search equipped items to find matching slot and get proper link
+
+            if not itemId and shoppingName then
+                -- No usable link - match the NAME against equipped items to
+                -- recover the proper link
                 for slotId = 1, 18 do
                     if slotId ~= 4 then  -- Skip shirt slot
                         local equippedLink = GetInventoryItemLink("player", slotId)
                         if equippedLink then
                             local itemName = GetItemInfo(equippedLink)
-                            if itemName and itemName == shoppingItemLink then
+                            if itemName and itemName == shoppingName then
                                 -- Found matching item!
                                 shoppingItemLink = equippedLink
                                 break
