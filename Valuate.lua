@@ -240,6 +240,11 @@ local function OnEvent(self, event, addonName, ...)
         -- Equipment swap is complete, but wait for bag updates to settle
         equipmentSwapPending = false
         bagUpdateCooldown = GetTime()
+        -- Failsafe: clear the in-transit flag once items settle even when
+        -- Auto Scan is off (see PLAYER_EQUIPMENT_CHANGED note).
+        ValuateAfter(4.0, function()
+            recentEquipmentChange = false
+        end)
         -- Wait much longer after swap to ensure items are fully in bags
         -- Don't scan immediately - let items settle first
         ScheduleScan(3.0, "swap")
@@ -270,11 +275,18 @@ local function OnEvent(self, event, addonName, ...)
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
         -- Equipment changed - mark that we had a change
         recentEquipmentChange = true
+        -- Failsafe: always clear the in-transit flag after items have settled.
+        -- Previously it was only cleared when a scheduled scan ran, so with
+        -- Auto Scan = "off" it stayed true forever and silently blocked all
+        -- MANUAL scans (/valuate scan and the panel button) after any equip.
+        ValuateAfter(4.0, function()
+            recentEquipmentChange = false
+        end)
         -- Skip scanning entirely if equipment swap is in progress
         if equipmentSwapPending then
             return
         end
-        
+
         -- Wait much longer after equipment changes to ensure items are in bags
         -- Use longer delay to ensure items are fully moved to bags
         ScheduleScan(3.5, "equipment")
@@ -2473,7 +2485,7 @@ function Valuate:ScanBestEquipment()
     -- CRITICAL FIX: Do not scan if equipment swap is pending or recent equipment change occurred
     -- Calling SetBagItem during item transit causes items to disappear
     if equipmentSwapPending or recentEquipmentChange then
-        return
+        return false  -- caller can tell the user to retry in a few seconds
     end
     
     local bestEquipment = Valuate:GetBestEquipment()
@@ -2751,6 +2763,7 @@ function Valuate:ScanBestEquipment()
     if Valuate.RefreshBestEquipmentDisplay then
         Valuate:RefreshBestEquipmentDisplay()
     end
+    return true
 end
 
 -- Checks if an item is the best-in-slot for any active scale
@@ -3295,7 +3308,7 @@ SlashCmdList["VALUATE"] = function(msg)
                     local displayName = ValuateStatNames[statName] or statName
                     print("  " .. displayName .. ": " .. value)
                 end
-                print("|cFFFFFF00Note:|r For scaled items, hover over the item and use tooltip parsing (coming soon)")
+                print("|cFFFFFF00Note:|r Scaled values are read live when you hover the item's tooltip.")
             else
                 print("|cFFFF0000Valuate|r: Failed to parse stats for item.")
             end
@@ -3309,8 +3322,11 @@ SlashCmdList["VALUATE"] = function(msg)
         print("|cFF00FF00Valuate|r: Debug mode " .. (options.debug and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "scan" then
         if Valuate.ScanBestEquipment then
-            Valuate:ScanBestEquipment()
-            print("|cFF00FF00Valuate|r: Best equipment scan requested.")
+            if Valuate:ScanBestEquipment() then
+                print("|cFF00FF00Valuate|r: Best equipment scan complete.")
+            else
+                print("|cFFFF8800Valuate|r: Items are still settling from an equipment change - try again in a few seconds.")
+            end
         else
             print("|cFFFF0000Valuate|r: Scan unavailable. Please /reload.")
         end
