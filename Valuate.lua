@@ -913,7 +913,9 @@ local function GetTooltipBorderColor(stats, itemLink)
         
         -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
         if equipSlot then
-            if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+            if (equipSlot == "INVTYPE_WEAPON" or equipSlot == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
+                return nil  -- Item is 1H weapon (banned), use default border
+            elseif equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                 return nil  -- Item is 2H weapon (banned), use default border
             elseif equipSlot == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
                 return nil  -- Item is offhand weapon (banned), use default border
@@ -1118,7 +1120,12 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 
                 -- Also check equipment slot type directly (in case tooltip parsing missed weapon type)
                 if not hasUnusableStat and equipSlot then
-                    if equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                    if (equipSlot == "INVTYPE_WEAPON" or equipSlot == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
+                        hasUnusableStat = true
+                        if options.debug then
+                            print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 1H weapon (banned by OneHandDps)")
+                        end
+                    elseif equipSlot == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                         hasUnusableStat = true
                         if options.debug then
                             print("|cFFFF8800[Valuate Debug]|r Scale '" .. scaleName .. "' skipped: item is 2H weapon (banned by TwoHandDps)")
@@ -2658,7 +2665,9 @@ function Valuate:ScanBestEquipment()
                     end
                     
                     if not hasUnusableStat and data.itemEquipLoc then
-                        if data.itemEquipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+                        if (data.itemEquipLoc == "INVTYPE_WEAPON" or data.itemEquipLoc == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
+                            hasUnusableStat = true
+                        elseif data.itemEquipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                             hasUnusableStat = true
                         elseif data.itemEquipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
                             hasUnusableStat = true
@@ -3132,7 +3141,9 @@ local function ScoreQuestChoice(index, scale)
         local itemLink = GetQuestItemLink("choice", index)
         if itemLink then
             local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
-            if equipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+            if (equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
+                return nil
+            elseif equipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
                 return nil
             elseif equipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
                 return nil
