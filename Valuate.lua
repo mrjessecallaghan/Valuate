@@ -3315,6 +3315,51 @@ local function ScoreQuestChoice(index, scale)
     return Valuate:CalculateItemScore(stats, scale)
 end
 
+-- Returns the score of the current best-in-slot ("Best for") item that a reward
+-- with this link would have to beat to be an upgrade, for the given scale. Weapons
+-- compare against the same-category best from the tracked weapon sets; everything
+-- else compares against the weakest best-in-slot among the slots it can occupy (so a
+-- ring/trinket is measured against the ring/trinket you'd actually replace). Returns
+-- 0 when nothing is tracked yet (so the reward counts as a full upgrade).
+local function RewardBaselineScore(itemLink, scaleName)
+    if not itemLink or not scaleName then return 0 end
+    local be = Valuate:GetBestEquipment()[scaleName]
+    if not be then return 0 end
+
+    local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
+    if not equipLoc or equipLoc == "" then return 0 end
+
+    -- Weapons: compare against the best of the same category (from enabled sets).
+    local ws = be.weaponSets
+    if ws then
+        local catBest
+        if equipLoc == "INVTYPE_2HWEAPON" then
+            catBest = ws.TwoHand and ws.TwoHand.mh
+        elseif equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND" then
+            catBest = (ws.OneHandShield and ws.OneHandShield.mh)
+                or (ws.OneHandOffhand and ws.OneHandOffhand.mh)
+                or (ws.DualWield and ws.DualWield.mh)
+        elseif equipLoc == "INVTYPE_SHIELD" then
+            catBest = ws.OneHandShield and ws.OneHandShield.oh
+        elseif equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_WEAPONOFFHAND" then
+            catBest = ws.OneHandOffhand and ws.OneHandOffhand.oh
+        end
+        if catBest then return catBest.score or 0 end
+    end
+
+    -- Non-weapons (and weapon categories not currently tracked): the weakest
+    -- best-in-slot among the slots this item can go in.
+    local targetSlots = EquipSlotToInvNumber[equipLoc]
+    if not targetSlots then return 0 end
+    local minScore
+    for _, slotId in ipairs(targetSlots) do
+        local b = be[slotId]
+        local s = (b and b.score) or 0
+        if not minScore or s < minScore then minScore = s end
+    end
+    return minScore or 0
+end
+
 -- Auto-selects the highest-scoring quest reward choice for the active scale.
 -- By default this only PRE-SELECTS (highlights) the reward so the player still
 -- clicks "Complete Quest" themselves. If autoQuestTurnIn is also enabled it goes
@@ -3349,15 +3394,32 @@ function Valuate:AutoSelectBestQuestReward()
         return
     end
 
-    -- Find the highest-scoring choice
+    -- Score every choice, tracking both the highest raw score (fallback) and the
+    -- biggest UPGRADE over the current best-in-slot ("Best for") item for that slot.
+    -- We prefer the reward that most improves your gear, not just the one with the
+    -- highest number in a vacuum: a strong weapon you'll never beat your current best
+    -- with should lose to a modest trinket that actually upgrades an empty slot.
     local bestIndex, bestScore, bestLink
+    local upgIndex, upgDelta, upgScore, upgLink
     for index = 1, numChoices do
         local score = ScoreQuestChoice(index, scale)
-        if score and (not bestScore or score > bestScore) then
-            bestScore = score
-            bestIndex = index
-            bestLink = GetQuestItemLink("choice", index)
+        if score then
+            local link = GetQuestItemLink("choice", index)
+            if not bestScore or score > bestScore then
+                bestScore, bestIndex, bestLink = score, index, link
+            end
+            local delta = score - RewardBaselineScore(link, scaleName)
+            if not upgDelta or delta > upgDelta then
+                upgDelta, upgIndex, upgScore, upgLink = delta, index, score, link
+            end
         end
+    end
+
+    -- If at least one reward beats what you already have, take the biggest upgrade.
+    -- Otherwise keep the highest-scoring reward (nothing is an upgrade, so grab the
+    -- most valuable item overall).
+    if upgIndex and upgDelta and upgDelta > 0 then
+        bestIndex, bestScore, bestLink = upgIndex, upgScore, upgLink
     end
 
     -- If nothing scored (e.g. all rewards are bags/consumables), don't guess -
