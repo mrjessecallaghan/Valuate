@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.9.5a] - 2026-07-08 — Best Equipment frame pooling
+
+### Changed
+- **The Best Equipment panel now reuses a persistent pool of column/row frames**
+  instead of creating a fresh set (~3 scales × 17 rows × ~11 widgets) on every
+  rebuild. WoW never garbage-collects `CreateFrame` widgets, so the old approach
+  leaked frames each time the panel refreshed. Structure is built once per column
+  (`BuildBestEquipColumn`) and only content + per-slot closures are updated.
+  All mutable visual state (icon desaturation/alpha, quality border, texts,
+  scripts) is reset each update so a reused row can't inherit a previous look.
+  **Untested in-game at release — verify before relying on it (see below).**
+
 ## [0.9.4a] - 2026-07-08 — Auto quest turn-in
 
 ### Added

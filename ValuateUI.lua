@@ -4961,8 +4961,20 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.4a (Current) - auto quest turn-in
-    local v094Header = CreateVersionHeader("Version 0.9.4a (Current) - auto quest turn-in", currentY)
+    -- Version 0.9.5a (Current) - Best Equipment frame pooling
+    local v095Header = CreateVersionHeader("Version 0.9.5a (Current) - Best Equipment frame pooling", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v095Text = CreateChangeText(
+        "• PERF: the Best Equipment panel now reuses its frames instead of leaking a\n" ..
+        "   new set every rebuild (WoW never frees frames)",
+        currentY
+    )
+    local v095Height = v095Text:GetStringHeight()
+    currentY = currentY - v095Height - versionSpacing
+
+    -- Version 0.9.4a - auto quest turn-in
+    local v094Header = CreateVersionHeader("Version 0.9.4a - auto quest turn-in", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v094Text = CreateChangeText(
@@ -5150,7 +5162,7 @@ end
 
 local BestEquipmentScrollFrame = nil
 local BestEquipmentContentFrame = nil
-local BestEquipmentScaleFrames = {}
+-- (BestEquipmentScaleFrames removed: the panel now uses a persistent column pool)
 
 local function CreateBestEquipmentPanel(parent)
     -- Safety check
@@ -5306,62 +5318,209 @@ local function CreateBestEquipmentPanel(parent)
     BestEquipmentContentFrame = contentFrame
     BestEquipmentHorizScrollbar = horizScrollbar
     
+    -- Persistent pool of per-column widget bundles, reused across rebuilds so we
+    -- never leak frames (WoW never garbage-collects CreateFrame widgets). Each
+    -- bundle caches its column frame, header widgets, and an array of per-row
+    -- widget bundles. BuildBestEquipColumn creates the static structure once;
+    -- UpdateBestEquipmentDisplay only sets content and (re)binds per-slot closures.
+    local columnBundles = {}
+    local noScalesTextFrame
+
+    -- Layout constants (shared by build + update)
+    local BE_SCALE_WIDTH = 310
+    local BE_SCALE_SPACING = 8
+    local BE_SLOT_SIZE = 22
+    local BE_SLOT_SPACING = 0
+    local BE_HEADER_HEIGHT = 60
+    local BE_VALUE_W = 44    -- item score column ("999.9")
+    local BE_COMPARE_W = 50  -- comparison / "Lv 12" / "New"
+
+    -- Build one column's static widget structure (header + one row per equipment
+    -- slot). No scale-specific content or closures are baked in here.
+    local function BuildBestEquipColumn()
+        local col = { rows = {} }
+
+        local scaleFrame = CreateFrame("Frame", nil, contentFrame)
+        scaleFrame:SetWidth(BE_SCALE_WIDTH)
+        col.frame = scaleFrame
+
+        -- Header
+        local headerContainer = CreateFrame("Frame", nil, scaleFrame)
+        headerContainer:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
+        headerContainer:SetSize(BE_SCALE_WIDTH, BE_HEADER_HEIGHT)
+
+        local headerBg = headerContainer:CreateTexture(nil, "BACKGROUND")
+        headerBg:SetAllPoints(headerContainer)
+        headerBg:SetColorTexture(0.05, 0.05, 0.05, 0.5)
+
+        local iconSize = 32
+        local scaleIcon = headerContainer:CreateTexture(nil, "ARTWORK")
+        scaleIcon:SetSize(iconSize, iconSize)
+        scaleIcon:SetPoint("LEFT", headerContainer, "LEFT", 8, 0)
+        scaleIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        col.scaleIcon = scaleIcon
+
+        local iconBorder = headerContainer:CreateTexture(nil, "OVERLAY")
+        iconBorder:SetSize(iconSize + 4, iconSize + 4)
+        iconBorder:SetPoint("CENTER", scaleIcon, "CENTER", 0, 0)
+        iconBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
+        col.iconBorder = iconBorder
+
+        local headerName = headerContainer:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        headerName:SetPoint("LEFT", scaleIcon, "RIGHT", 8, 0)
+        headerName:SetWidth(120)
+        headerName:SetJustifyH("LEFT")
+        headerName:SetTextColor(unpack(COLORS.textHeader))
+        col.headerName = headerName
+
+        local clearButton = CreateFrame("Button", nil, headerContainer)
+        clearButton:SetHeight(20)
+        clearButton:SetWidth(80)
+        clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -20)
+        clearButton:SetBackdrop(BACKDROP_BUTTON)
+        clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
+        clearButton:SetBackdropBorderColor(unpack(COLORS.border))
+        local clearLabel = clearButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        clearLabel:SetPoint("CENTER", clearButton, "CENTER", 0, 0)
+        clearLabel:SetText("Clear Items")
+        clearLabel:SetTextColor(1, 0.3, 0.3, 1)
+        clearButton:SetScript("OnEnter", function(self)
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                GameTooltip:AddLine("Clear Best Equipment", 1, 1, 1)
+                GameTooltip:AddLine("Clears stored best equipment data for this scale.", 0.8, 0.8, 0.8)
+                GameTooltip:AddLine("Locked slots will be preserved.", 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end
+        end)
+        clearButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        col.clearButton = clearButton
+
+        -- Equipment container + rows
+        local equipmentContainer = CreateFrame("Frame", nil, scaleFrame)
+        equipmentContainer:SetPoint("TOPLEFT", headerContainer, "BOTTOMLEFT", 0, -5)
+        col.equipmentContainer = equipmentContainer
+
+        local yOffset = 0
+        for rowIndex = 1, #EquipmentSlots do
+            local r = {}
+
+            local slotRow = CreateFrame("Frame", nil, equipmentContainer)
+            slotRow:SetSize(BE_SCALE_WIDTH - 10, BE_SLOT_SIZE)
+            slotRow:SetPoint("TOPLEFT", equipmentContainer, "TOPLEFT", 3, yOffset)
+            r.slotRow = slotRow
+
+            local lockButton = CreateFrame("Button", nil, slotRow)
+            lockButton:SetSize(16, 16)
+            lockButton:SetPoint("LEFT", slotRow, "LEFT", 0, 0)
+            local lockIcon = lockButton:CreateTexture(nil, "ARTWORK")
+            lockIcon:SetAllPoints(lockButton)
+            lockIcon:SetTexCoord(0, 1, 0, 1)
+            lockButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            r.lockButton = lockButton
+            r.lockIcon = lockIcon
+
+            local slotNameLabel = slotRow:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            slotNameLabel:SetPoint("LEFT", lockButton, "RIGHT", 4, 0)
+            slotNameLabel:SetWidth(54)
+            slotNameLabel:SetJustifyH("LEFT")
+            slotNameLabel:SetTextColor(unpack(COLORS.textDim))
+            r.slotNameLabel = slotNameLabel
+
+            local slotFrame = CreateFrame("Button", nil, slotRow)
+            slotFrame:SetSize(BE_SLOT_SIZE, BE_SLOT_SIZE)
+            slotFrame:SetPoint("LEFT", slotNameLabel, "RIGHT", 1, 0)
+            slotFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+            r.slotFrame = slotFrame
+
+            local slotBg = slotFrame:CreateTexture(nil, "BACKGROUND")
+            slotBg:SetAllPoints(slotFrame)
+            slotBg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
+            slotBg:SetAlpha(0.3)
+
+            local icon = slotFrame:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 2, -2)
+            icon:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", -2, 2)
+            icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+            r.icon = icon
+
+            local qualityBorder = slotFrame:CreateTexture(nil, "OVERLAY")
+            qualityBorder:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 0, 0)
+            qualityBorder:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", 0, 0)
+            qualityBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
+            r.qualityBorder = qualityBorder
+
+            local infoFrame = CreateFrame("Frame", nil, slotRow)
+            infoFrame:SetPoint("LEFT", slotFrame, "RIGHT", 2, 0)
+            infoFrame:SetPoint("RIGHT", slotRow, "RIGHT", 0, 0)
+            infoFrame:SetHeight(BE_SLOT_SIZE)
+
+            local itemNameText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            itemNameText:SetPoint("LEFT", infoFrame, "LEFT", 2, 0)
+            itemNameText:SetPoint("RIGHT", infoFrame, "RIGHT", -(BE_VALUE_W + BE_COMPARE_W + 4), 0)
+            itemNameText:SetJustifyH("LEFT")
+            itemNameText:SetTextColor(1, 1, 1, 1)
+            itemNameText:SetNonSpaceWrap(false)
+            itemNameText:SetWordWrap(false)
+            r.itemNameText = itemNameText
+
+            local scoreText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            scoreText:SetPoint("RIGHT", infoFrame, "RIGHT", -BE_COMPARE_W - 2, 0)
+            scoreText:SetWidth(BE_VALUE_W)
+            scoreText:SetJustifyH("RIGHT")
+            scoreText:SetTextColor(1, 1, 1, 1)
+            r.scoreText = scoreText
+
+            local comparisonText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+            comparisonText:SetPoint("RIGHT", infoFrame, "RIGHT", 0, 0)
+            comparisonText:SetWidth(BE_COMPARE_W)
+            comparisonText:SetJustifyH("RIGHT")
+            comparisonText:SetTextColor(0.7, 0.7, 0.7, 1)
+            r.comparisonText = comparisonText
+
+            col.rows[rowIndex] = r
+            yOffset = yOffset - (BE_SLOT_SIZE + BE_SLOT_SPACING)
+        end
+
+        return col
+    end
+
     -- Function to update the display
     local function UpdateBestEquipmentDisplay()
         if not contentFrame then return end
 
         -- Skip the (expensive) rebuild while the window is closed. ScanBestEquipment
-        -- calls this on every scan; there's no point rebuilding 3x17 rows of frames
-        -- nobody can see. Valuate:ShowUI refreshes the panel when the window opens.
+        -- calls this on every scan; there's no point rebuilding rows nobody can see.
+        -- Valuate:ShowUI refreshes the panel when the window opens.
         if not ValuateUIFrame or not ValuateUIFrame:IsShown() then
             return
         end
 
-        -- Clear existing scale frames
-        for _, frame in pairs(BestEquipmentScaleFrames) do
-            frame:Hide()
-        end
-        BestEquipmentScaleFrames = {}
-        
         local activeScales = Valuate:GetActiveScales()
         local scales = Valuate:GetScales()
         local bestEquipment = Valuate:GetBestEquipment()
-        
+
+        -- Hide all pooled columns up front; needed ones are re-shown below.
+        for _, col in ipairs(columnBundles) do col.frame:Hide() end
+
         if #activeScales == 0 then
-            local noScalesText = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
-            noScalesText:SetPoint("CENTER", contentFrame, "CENTER", 0, 0)
-            noScalesText:SetText("No active scales. Activate scales in the Scales tab to see best equipment.")
-            noScalesText:SetTextColor(unpack(COLORS.textDim))
+            if not noScalesTextFrame then
+                noScalesTextFrame = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+                noScalesTextFrame:SetPoint("CENTER", contentFrame, "CENTER", 0, 0)
+                noScalesTextFrame:SetText("No active scales. Activate scales in the Scales tab to see best equipment.")
+                noScalesTextFrame:SetTextColor(unpack(COLORS.textDim))
+            end
+            noScalesTextFrame:Show()
             return
         end
-        
-        local scaleWidth = 310  -- Further reduced to fit 3 scales comfortably
-        local scaleSpacing = 8  -- Reduced spacing between scales
-        local slotSize = 22  -- Reduced from 24 to fit all 17 slots
-        local slotSpacing = 0
-        local headerHeight = 60  -- Compact header with left/right layout
-        local maxVisibleScales = 3  -- Show max 3 scales at a time horizontally
-        
-        -- Calculate content width for all scales
-        local totalWidth = (#activeScales * scaleWidth) + ((#activeScales - 1) * scaleSpacing)
-        contentFrame:SetWidth(totalWidth)
-        
-        -- Set scroll frame width to show exactly 3 scales (or fewer if less than 3 exist)
-        local numVisibleScales = math.min(maxVisibleScales, #activeScales)
-        local visibleWidth = (numVisibleScales * scaleWidth) + ((numVisibleScales - 1) * scaleSpacing)
-        -- Note: The scroll frame width is controlled by its anchors, but we can enforce it here
-        -- by ensuring the contentFrame is wider when needed
-        
-        -- Calculate content height based on number of slots + header
+        if noScalesTextFrame then noScalesTextFrame:Hide() end
+
         local numSlots = #EquipmentSlots
-        local calculatedHeight = headerHeight + (numSlots * (slotSize + slotSpacing)) + 10  -- Increased bottom padding from 5 to 10
+        local calculatedHeight = BE_HEADER_HEIGHT + (numSlots * (BE_SLOT_SIZE + BE_SLOT_SPACING)) + 10
+        contentFrame:SetWidth((#activeScales * BE_SCALE_WIDTH) + ((#activeScales - 1) * BE_SCALE_SPACING))
         contentFrame:SetHeight(calculatedHeight)
 
-        -- Parse each equipped item's SCALED stats once per rebuild and cache by
-        -- slot. Previously the equipped tooltip was parsed once per (scale x slot)
-        -- - e.g. 3 scales x 17 slots = 51 parses - even though the equipped item
-        -- only depends on the slot. Now it's at most 17 parses; scoring each
-        -- cached stat table against a scale is cheap. false = "parsed, no stats".
+        -- Parse each equipped item's SCALED stats once per rebuild, cached by slot
+        -- (the equipped item depends only on the slot, not the scale).
         local equippedStatsCache = {}
         local function GetEquippedStatsForSlot(slotId)
             local cached = equippedStatsCache[slotId]
@@ -5381,129 +5540,54 @@ local function CreateBestEquipmentPanel(parent)
             return stats
         end
 
+        local decimals = Valuate:GetOptions().decimalPlaces or 1
+        local formatStr = "%." .. decimals .. "f"
+
         for i, scaleName in ipairs(activeScales) do
             local scale = scales[scaleName]
             if scale then
-                local scaleFrame = CreateFrame("Frame", nil, contentFrame)
-                scaleFrame:SetWidth(scaleWidth)
-                -- Calculate height based on number of slots + header
-                local numSlots = #EquipmentSlots
-                local calculatedHeight = headerHeight + (numSlots * (slotSize + slotSpacing)) + 10  -- Increased bottom padding from 5 to 10
-                scaleFrame:SetHeight(calculatedHeight)
-                scaleFrame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", (i - 1) * (scaleWidth + scaleSpacing), 0)
-                
-                -- Header section
+                local col = columnBundles[i]
+                if not col then
+                    col = BuildBestEquipColumn()
+                    columnBundles[i] = col
+                end
+
+                col.frame:SetHeight(calculatedHeight)
+                col.frame:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", (i - 1) * (BE_SCALE_WIDTH + BE_SCALE_SPACING), 0)
+                col.equipmentContainer:SetSize(BE_SCALE_WIDTH, calculatedHeight - BE_HEADER_HEIGHT - 5)
+                col.frame:Show()
+
                 local color = scale.Color or "FFFFFF"
                 local displayName = scale.DisplayName or scaleName
                 local iconPath = scale.Icon or "Interface\\Icons\\INV_Misc_QuestionMark"
-                
-                -- Header Container
-                local headerContainer = CreateFrame("Frame", nil, scaleFrame)
-                headerContainer:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
-                headerContainer:SetSize(scaleWidth, headerHeight)
-                
-                -- Header background (optional, for visual separation)
-                local headerBg = headerContainer:CreateTexture(nil, "BACKGROUND")
-                headerBg:SetAllPoints(headerContainer)
-                headerBg:SetColorTexture(0.05, 0.05, 0.05, 0.5)
-                
-                -- Left section: Icon + Name
-                local iconSize = 32
-                local iconPadding = 8
-                
-                -- Scale icon (smaller, on left)
-                local scaleIcon = headerContainer:CreateTexture(nil, "ARTWORK")
-                scaleIcon:SetSize(iconSize, iconSize)
-                scaleIcon:SetPoint("LEFT", headerContainer, "LEFT", iconPadding, 0)
-                scaleIcon:SetTexture(iconPath)
-                scaleIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-                
-                -- Icon border
-                local iconBorder = headerContainer:CreateTexture(nil, "OVERLAY")
-                iconBorder:SetSize(iconSize + 4, iconSize + 4)
-                iconBorder:SetPoint("CENTER", scaleIcon, "CENTER", 0, 0)
-                iconBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
+
+                col.scaleIcon:SetTexture(iconPath)
                 local cr, cg, cb = HexToRGB(color)
-                iconBorder:SetVertexColor(cr, cg, cb, 1)
-                
-                -- Scale name (to right of icon)
-                local nameLabel = headerContainer:CreateFontString(nil, "OVERLAY", FONT_BODY)
-                nameLabel:SetPoint("LEFT", scaleIcon, "RIGHT", 8, 0)
-                nameLabel:SetWidth(120)  -- Reserve space for buttons on right
-                nameLabel:SetJustifyH("LEFT")
-                nameLabel:SetText("|cFF" .. color .. displayName .. "|r")
-                nameLabel:SetTextColor(unpack(COLORS.textHeader))
-                
-                -- Right section: Buttons
-                local buttonHeight = 20
-                
-                -- Clear Items button (only button, positioned on right)
-                local clearButton = CreateFrame("Button", nil, headerContainer)
-                clearButton:SetHeight(buttonHeight)
-                clearButton:SetWidth(80)  -- Wider to fit "Clear Items"
-                clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -20)
-                clearButton:SetBackdrop(BACKDROP_BUTTON)
-                clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
-                clearButton:SetBackdropBorderColor(unpack(COLORS.border))
-                
-                local clearLabel = clearButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                clearLabel:SetPoint("CENTER", clearButton, "CENTER", 0, 0)
-                clearLabel:SetText("Clear Items")
-                clearLabel:SetTextColor(1, 0.3, 0.3, 1)  -- Red color
-                
-                clearButton:SetScript("OnClick", function(self)
+                col.iconBorder:SetVertexColor(cr, cg, cb, 1)
+                col.headerName:SetText("|cFF" .. color .. displayName .. "|r")
+                col.clearButton:SetScript("OnClick", function()
                     Valuate:ClearBestEquipmentForScale(scaleName)
                 end)
-                
-                clearButton:SetScript("OnEnter", function(self)
-                    if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-                        GameTooltip:AddLine("Clear Best Equipment", 1, 1, 1)
-                        GameTooltip:AddLine("Clears stored best equipment data for this scale.", 0.8, 0.8, 0.8)
-                        GameTooltip:AddLine("Locked slots will be preserved.", 0.7, 0.7, 0.7)
-                        GameTooltip:Show()
-                    end
-                end)
-                clearButton:SetScript("OnLeave", function()
-                    GameTooltip:Hide()
-                end)
-                
-                -- Create Set button REMOVED - Redundant with built-in equipment manager
-                -- Equip Set button REMOVED - Use Blizzard's equipment manager (press C, Equipment Manager icon)
-                
-                -- Equipment Container (for all slot rows)
-                local equipmentContainer = CreateFrame("Frame", nil, scaleFrame)
-                equipmentContainer:SetPoint("TOPLEFT", headerContainer, "BOTTOMLEFT", 0, -5)
-                equipmentContainer:SetSize(scaleWidth, calculatedHeight - headerHeight - 5)
-                
-                -- Equipment slots list (vertical, positioned within equipment container)
-                local yOffset = 0
-                
-                for _, slotInfo in ipairs(EquipmentSlots) do
+
+                for rowIndex, slotInfo in ipairs(EquipmentSlots) do
                     local slotId = slotInfo.slotId
-                    local slotName = slotInfo.name
-                    
+                    local r = col.rows[rowIndex]
+                    local icon, qualityBorder = r.icon, r.qualityBorder
+                    local itemNameText, scoreText, comparisonText = r.itemNameText, r.scoreText, r.comparisonText
+                    local slotFrame, lockButton, lockIcon = r.slotFrame, r.lockButton, r.lockIcon
+
+                    r.slotNameLabel:SetText(slotInfo.name)
+
+                    -- Reset mutable icon state (pooled widgets keep their last look;
+                    -- the "future" branch dims/desaturates the icon, so undo that here).
+                    if icon.SetDesaturated then icon:SetDesaturated(false) end
+                    icon:SetAlpha(1)
+
                     local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
-                    local equippedScore = nil
                     local equippedStats = GetEquippedStatsForSlot(slotId)
-                    if equippedStats then
-                        equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
-                    end
-                    
-                    local slotRow = CreateFrame("Frame", nil, equipmentContainer)
-                    slotRow:SetSize(scaleWidth - 10, slotSize)  -- Reduced padding from 16 to 10
-                    slotRow:SetPoint("TOPLEFT", equipmentContainer, "TOPLEFT", 3, yOffset)  -- Reduced left offset from 5 to 3
-                    
-                    -- Lock button (leftmost, toggles lock state for this slot)
-                    local lockButton = CreateFrame("Button", nil, slotRow)
-                    lockButton:SetSize(16, 16)
-                    lockButton:SetPoint("LEFT", slotRow, "LEFT", 0, 0)
-                    
-                    local lockIcon = lockButton:CreateTexture(nil, "ARTWORK")
-                    lockIcon:SetAllPoints(lockButton)
-                    lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
-                    lockIcon:SetTexCoord(0, 1, 0, 1)
-                    
-                    -- Initialize lock state from saved data
+                    local equippedScore = equippedStats and Valuate:CalculateItemScore(equippedStats, scale) or nil
+
+                    -- Lock state + closures (rebound each update for this scaleName/slotId)
                     local isLocked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
                     if isLocked then
                         lockIcon:SetTexture("Interface\\Buttons\\LockButton-Locked-Up")
@@ -5512,17 +5596,13 @@ local function CreateBestEquipmentPanel(parent)
                         lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
                         lockIcon:SetAlpha(0.4)
                     end
-                    
                     lockButton:SetScript("OnClick", function(self)
-                        -- Toggle lock state
+                        if not bestEquipment[scaleName] then bestEquipment[scaleName] = {} end
                         if not bestEquipment[scaleName].locks then
                             bestEquipment[scaleName].locks = {}
                         end
-                        
                         local newLockState = not bestEquipment[scaleName].locks[slotId]
                         bestEquipment[scaleName].locks[slotId] = newLockState or nil
-                        
-                        -- Update icon
                         if newLockState then
                             lockIcon:SetTexture("Interface\\Buttons\\LockButton-Locked-Up")
                             lockIcon:SetAlpha(1.0)
@@ -5530,8 +5610,6 @@ local function CreateBestEquipmentPanel(parent)
                             lockIcon:SetTexture("Interface\\Buttons\\LockButton-Border")
                             lockIcon:SetAlpha(0.4)
                         end
-                        
-                        -- Update tooltip immediately if it's showing
                         if GameTooltip:IsOwned(self) then
                             GameTooltip:Hide()
                             if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
@@ -5549,7 +5627,6 @@ local function CreateBestEquipmentPanel(parent)
                             end
                         end
                     end)
-                    
                     lockButton:SetScript("OnEnter", function(self)
                         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                             local locked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
@@ -5565,125 +5642,44 @@ local function CreateBestEquipmentPanel(parent)
                             GameTooltip:Show()
                         end
                     end)
-                    lockButton:SetScript("OnLeave", function()
-                        GameTooltip:Hide()
-                    end)
-                    
-                    -- Slot name label (after lock button)
-                    local nameLabel = slotRow:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                    nameLabel:SetPoint("LEFT", lockButton, "RIGHT", 4, 0)
-                    nameLabel:SetWidth(54)  -- slot name ("Main Hand"); tightened to widen item name
-                    nameLabel:SetJustifyH("LEFT")
-                    nameLabel:SetText(slotName)
-                    nameLabel:SetTextColor(unpack(COLORS.textDim))
-                    
-                    local slotFrame = CreateFrame("Button", nil, slotRow)
-                    slotFrame:SetSize(slotSize, slotSize)
-                    slotFrame:SetPoint("LEFT", nameLabel, "RIGHT", 1, 0)
-                    
-                    -- Slot background (empty slot texture)
-                    local slotBg = slotFrame:CreateTexture(nil, "BACKGROUND")
-                    slotBg:SetAllPoints(slotFrame)
-                    -- Use a generic empty slot texture
-                    slotBg:SetTexture("Interface\\Buttons\\UI-EmptySlot")
-                    slotBg:SetAlpha(0.3)
-                    
-                    -- Item icon
-                    local icon = slotFrame:CreateTexture(nil, "ARTWORK")
-                    icon:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 2, -2)
-                    icon:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", -2, 2)
-                    icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-                    
-                    -- Quality border
-                    local qualityBorder = slotFrame:CreateTexture(nil, "OVERLAY")
-                    qualityBorder:SetPoint("TOPLEFT", slotFrame, "TOPLEFT", 0, 0)
-                    qualityBorder:SetPoint("BOTTOMRIGHT", slotFrame, "BOTTOMRIGHT", 0, 0)
-                    qualityBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
-                    qualityBorder:Hide()
-                    
-                    -- Column layout for item info
-                    local infoFrame = CreateFrame("Frame", nil, slotRow)
-                    infoFrame:SetPoint("LEFT", slotFrame, "RIGHT", 2, 0)
-                    infoFrame:SetPoint("RIGHT", slotRow, "RIGHT", 0, 0)
-                    infoFrame:SetHeight(slotSize)
-                    
-                    -- Define column widths. Kept tight (scores are small, e.g. "0.0",
-                    -- "2.5", "Lv 12") so the item-name column gets as much room as
-                    -- possible - names were being truncated hard at the old 65/65.
-                    local valueColumnWidth = 44   -- item score, e.g. "999.9"
-                    local comparisonColumnWidth = 50  -- comparison / "Lv 12" / "New"
-                    
-                    -- Item name (flexible width, truncated)
-                    local itemNameText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                    itemNameText:SetPoint("LEFT", infoFrame, "LEFT", 2, 0)
-                    itemNameText:SetPoint("RIGHT", infoFrame, "RIGHT", -(valueColumnWidth + comparisonColumnWidth + 4), 0)
-                    itemNameText:SetJustifyH("LEFT")
-                    itemNameText:SetTextColor(1, 1, 1, 1)
-                    itemNameText:SetNonSpaceWrap(false)
-                    itemNameText:SetWordWrap(false)
-                    
-                    -- Item value column (fixed width, right-aligned)
-                    local scoreText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                    scoreText:SetPoint("RIGHT", infoFrame, "RIGHT", -comparisonColumnWidth - 2, 0)
-                    scoreText:SetWidth(valueColumnWidth)
-                    scoreText:SetJustifyH("RIGHT")
-                    scoreText:SetTextColor(1, 1, 1, 1)
-                    
-                    -- Comparison value column (fixed width, right-aligned)
-                    local comparisonText = infoFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-                    comparisonText:SetPoint("RIGHT", infoFrame, "RIGHT", 0, 0)
-                    comparisonText:SetWidth(comparisonColumnWidth)
-                    comparisonText:SetJustifyH("RIGHT")
-                    comparisonText:SetTextColor(0.7, 0.7, 0.7, 1)
-                    
+
                     if bestItem and bestItem.itemLink then
-                        -- Use stored texture or try to get it
                         local itemTexture = bestItem.itemTexture
                         if not itemTexture then
                             local _, _, _, _, _, _, _, _, _, tex = GetItemInfo(bestItem.itemLink)
                             itemTexture = tex
                         end
-                        
                         if itemTexture then
                             icon:SetTexture(itemTexture)
                             icon:Show()
                         else
                             icon:Hide()
                         end
-                        
-                        -- Quality border
+
                         local itemQuality = bestItem.itemQuality or 0
                         if itemQuality and itemQuality > 0 then
-                            local r, g, b = GetItemQualityColor(itemQuality)
-                            qualityBorder:SetVertexColor(r, g, b, 1)
+                            local r2, g2, b2 = GetItemQualityColor(itemQuality)
+                            qualityBorder:SetVertexColor(r2, g2, b2, 1)
                             qualityBorder:Show()
                         else
                             qualityBorder:Hide()
                         end
-                        
-                        local decimals = Valuate:GetOptions().decimalPlaces or 1
-                        local formatStr = "%." .. decimals .. "f"
+
                         local scoreValue = bestItem.score or 0
                         scoreText:SetText("|cFF" .. color .. string.format(formatStr, scoreValue) .. "|r")
-                        
-                        -- Item name with quality color
+
                         local itemName = bestItem.itemName or "Unknown"
                         if itemQuality and itemQuality > 0 then
-                            local r, g, b = GetItemQualityColor(itemQuality)
-                            local hexColor = string.format("%02x%02x%02x", r * 255, g * 255, b * 255)
+                            local r2, g2, b2 = GetItemQualityColor(itemQuality)
+                            local hexColor = string.format("%02x%02x%02x", r2 * 255, g2 * 255, b2 * 255)
                             itemNameText:SetText("|cFF" .. hexColor .. itemName .. "|r")
                         else
                             itemNameText:SetText(itemName)
                         end
-                        
-                        -- Comparison with equipped
+
                         if equippedScore and equippedScore > 0 then
                             local diff = scoreValue - equippedScore
-                            -- Handle floating point negative zero
-                            if math.abs(diff) < 0.01 then
-                                diff = 0
-                            end
-                            
+                            if math.abs(diff) < 0.01 then diff = 0 end
                             local diffColor = "FFFFFF"
                             local diffSign = ""
                             if diff > 0.01 then
@@ -5693,30 +5689,26 @@ local function CreateBestEquipmentPanel(parent)
                                 diffColor = "FF0000"
                             else
                                 diffColor = "FFFF00"
-                                diff = 0  -- Force to 0 for display
+                                diff = 0
                             end
                             comparisonText:SetText("|cFF" .. diffColor .. diffSign .. string.format(formatStr, diff) .. "|r")
                         elseif equippedScore == 0 or not equippedScore then
-                            -- Item not equipped or couldn't calculate score (e.g., after /reload before cache loads)
                             comparisonText:SetText("|cFF888888--|r")
                         else
                             comparisonText:SetText("|cFF00FF00New|r")
                         end
-                        
-                        -- Tooltip
+
                         slotFrame:SetScript("OnEnter", function(self)
                             if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                                 GameTooltip:SetHyperlink(bestItem.itemLink)
-                                
-                                -- Add "Best for" line showing ALL scales this item is best for
                                 local options = Valuate:GetOptions()
                                 if options.showBestFor ~= false then
                                     local bestScales = Valuate:IsBestInSlot(bestItem.itemLink)
                                     if bestScales and #bestScales > 0 then
                                         local scaleNamesList = {}
-                                        local scales = Valuate:GetScales()
+                                        local allScales = Valuate:GetScales()
                                         for _, bestScaleName in ipairs(bestScales) do
-                                            local bestScale = scales[bestScaleName]
+                                            local bestScale = allScales[bestScaleName]
                                             if bestScale then
                                                 local bestColor = bestScale.Color or "FFFFFF"
                                                 local bestDisplayName = bestScale.DisplayName or bestScaleName
@@ -5725,21 +5717,15 @@ local function CreateBestEquipmentPanel(parent)
                                         end
                                         if #scaleNamesList > 0 then
                                             GameTooltip:AddLine(" ")
-                                            local scaleNamesText = table.concat(scaleNamesList, ", ")
-                                            GameTooltip:AddLine("|cFFFFD700★ Best for:|r " .. scaleNamesText, 1, 1, 1)
+                                            GameTooltip:AddLine("|cFFFFD700★ Best for:|r " .. table.concat(scaleNamesList, ", "), 1, 1, 1)
                                         end
                                     end
                                 end
-                                
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine("Score for |cFF" .. color .. displayName .. "|r: |cFF" .. color .. string.format(formatStr, scoreValue) .. "|r", 1, 1, 1)
                                 if equippedScore and equippedScore > 0 then
                                     local diff = scoreValue - equippedScore
-                                    -- Handle floating point negative zero
-                                    if math.abs(diff) < 0.01 then
-                                        diff = 0
-                                    end
-                                    
+                                    if math.abs(diff) < 0.01 then diff = 0 end
                                     local diffColor = "FFFFFF"
                                     local diffSign = ""
                                     if diff > 0.01 then
@@ -5758,28 +5744,17 @@ local function CreateBestEquipmentPanel(parent)
                                 GameTooltip:Show()
                             end
                         end)
-                        slotFrame:SetScript("OnLeave", function()
-                            GameTooltip:Hide()
-                        end)
-                        
-                        -- Right-click to equip
-                        slotFrame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                        slotFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
                         slotFrame:SetScript("OnClick", function(self, button)
                             if button == "RightButton" and bestItem and bestItem.itemLink then
-                                -- Use EquipItemByName with slot ID to ensure correct slot
-                                -- This is safe and equivalent to /equip macro with slot specification
                                 EquipItemByName(bestItem.itemLink, slotId)
-                                
-                                -- Show feedback in chat
-                                local itemName = bestItem.itemName or "Item"
                                 local slotName = slotInfo.name or "slot"
                                 print("|cFF" .. color .. "Valuate|r: Equipping " .. bestItem.itemLink .. " to " .. slotName)
                             end
                         end)
                     else
-                        -- No currently-equippable best for this slot. If a not-yet-usable
-                        -- upgrade exists (too high level / unlearned proficiency), show it
-                        -- dimmed for reference - but never offer to equip it.
+                        -- No currently-equippable best. Show a not-yet-usable "future"
+                        -- upgrade dimmed if one exists; otherwise mark the slot empty.
                         local futureItem = bestEquipment[scaleName] and bestEquipment[scaleName].future
                             and bestEquipment[scaleName].future[slotId]
 
@@ -5800,15 +5775,13 @@ local function CreateBestEquipmentPanel(parent)
 
                             local itemQuality = futureItem.itemQuality or 0
                             if itemQuality > 0 then
-                                local r, g, b = GetItemQualityColor(itemQuality)
-                                qualityBorder:SetVertexColor(r, g, b, 0.5)
+                                local r2, g2, b2 = GetItemQualityColor(itemQuality)
+                                qualityBorder:SetVertexColor(r2, g2, b2, 0.5)
                                 qualityBorder:Show()
                             else
                                 qualityBorder:Hide()
                             end
 
-                            local decimals = Valuate:GetOptions().decimalPlaces or 1
-                            local formatStr = "%." .. decimals .. "f"
                             itemNameText:SetText("|cFF888888" .. (futureItem.itemName or "Unknown") .. "|r")
                             scoreText:SetText("|cFF888888" .. string.format(formatStr, futureItem.score or 0) .. "|r")
                             if futureItem.reqLevel and futureItem.reqLevel > 0 then
@@ -5831,9 +5804,7 @@ local function CreateBestEquipmentPanel(parent)
                                     GameTooltip:Show()
                                 end
                             end)
-                            slotFrame:SetScript("OnLeave", function()
-                                GameTooltip:Hide()
-                            end)
+                            slotFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
                             slotFrame:SetScript("OnClick", nil)
                         else
                             icon:Hide()
@@ -5841,18 +5812,20 @@ local function CreateBestEquipmentPanel(parent)
                             itemNameText:SetText("|cFF888888No item found|r")
                             scoreText:SetText("--")
                             comparisonText:SetText("")
-
                             slotFrame:SetScript("OnEnter", nil)
                             slotFrame:SetScript("OnLeave", nil)
                             slotFrame:SetScript("OnClick", nil)
                         end
                     end
-                    
-                    yOffset = yOffset - (slotSize + slotSpacing)
                 end
-                
-                BestEquipmentScaleFrames[scaleName] = scaleFrame
             end
+        end
+
+        -- Hide any surplus columns left over from a previous larger scale count.
+        local extra = #activeScales + 1
+        while columnBundles[extra] do
+            columnBundles[extra].frame:Hide()
+            extra = extra + 1
         end
     end
     
