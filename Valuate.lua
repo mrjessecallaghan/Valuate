@@ -3315,13 +3315,14 @@ local function ScoreQuestChoice(index, scale)
     return Valuate:CalculateItemScore(stats, scale)
 end
 
--- Returns the score of the current best-in-slot ("Best for") item that a reward
--- with this link would have to beat to be an upgrade, for the given scale. Weapons
--- compare against the same-category best from the tracked weapon sets; everything
--- else compares against the weakest best-in-slot among the slots it can occupy (so a
--- ring/trinket is measured against the ring/trinket you'd actually replace). Returns
--- 0 when nothing is tracked yet (so the reward counts as a full upgrade).
-local function RewardBaselineScore(itemLink, scaleName)
+-- Returns the score a reward with this link must beat to be an upgrade for the given
+-- scale: the LOWEST-scoring position it could take across every enabled weapon set,
+-- or the weakest best-in-slot for non-weapon gear. Ranking rewards by
+-- (rewardScore - baseline) therefore favours the biggest upgrade to ANY set - a huge
+-- gain to a weak 1H (or dual-wield off-hand, or empty shield slot) beats a marginal
+-- gain to an already-strong 2H. Empty positions count as 0 (a full upgrade); returns
+-- 0 when nothing is tracked yet.
+local function RewardBaselineScore(itemLink, scale, scaleName)
     if not itemLink or not scaleName then return 0 end
     local be = Valuate:GetBestEquipment()[scaleName]
     if not be then return 0 end
@@ -3329,26 +3330,50 @@ local function RewardBaselineScore(itemLink, scaleName)
     local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
     if not equipLoc or equipLoc == "" then return 0 end
 
-    -- Weapons: compare against the best of the same category (from enabled sets).
     local ws = be.weaponSets
-    if ws then
-        local catBest
-        if equipLoc == "INVTYPE_2HWEAPON" then
-            catBest = ws.TwoHand and ws.TwoHand.mh
-        elseif equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND" then
-            catBest = (ws.OneHandShield and ws.OneHandShield.mh)
-                or (ws.OneHandOffhand and ws.OneHandOffhand.mh)
-                or (ws.DualWield and ws.DualWield.mh)
-        elseif equipLoc == "INVTYPE_SHIELD" then
-            catBest = ws.OneHandShield and ws.OneHandShield.oh
-        elseif equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_WEAPONOFFHAND" then
-            catBest = ws.OneHandOffhand and ws.OneHandOffhand.oh
-        end
-        if catBest then return catBest.score or 0 end
+    -- Current score of the item now occupying position `which` ("mh"/"oh") of set
+    -- `key`; 0 when that position is empty (so a reward filling it is a full upgrade).
+    local function setScore(key, which)
+        local set = ws and ws[key]
+        local rec = set and set[which]
+        return (rec and rec.score) or 0
     end
 
-    -- Non-weapons (and weapon categories not currently tracked): the weakest
-    -- best-in-slot among the slots this item can go in.
+    -- Every set position this reward could take, across ENABLED sets. Its best play
+    -- is the weakest of these, so we take the minimum below.
+    local baselines = {}
+    local function add(s) baselines[#baselines + 1] = s or 0 end
+
+    local is1H = (equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND")
+    if equipLoc == "INVTYPE_2HWEAPON" then
+        if Valuate:IsWeaponSetEnabled(scale, "TwoHand") then add(setScore("TwoHand", "mh")) end
+    elseif is1H then
+        if Valuate:IsWeaponSetEnabled(scale, "OneHandShield") then add(setScore("OneHandShield", "mh")) end
+        if Valuate:IsWeaponSetEnabled(scale, "OneHandOffhand") then add(setScore("OneHandOffhand", "mh")) end
+        if Valuate:IsWeaponSetEnabled(scale, "DualWield") then
+            if equipLoc == "INVTYPE_WEAPON" then
+                -- Can go in either hand: it would replace the weaker of the two.
+                add(math.min(setScore("DualWield", "mh"), setScore("DualWield", "oh")))
+            else
+                add(setScore("DualWield", "mh"))  -- main-hand-only 1H
+            end
+        end
+    elseif equipLoc == "INVTYPE_SHIELD" then
+        if Valuate:IsWeaponSetEnabled(scale, "OneHandShield") then add(setScore("OneHandShield", "oh")) end
+    elseif equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_WEAPONOFFHAND" then
+        if Valuate:IsWeaponSetEnabled(scale, "OneHandOffhand") then add(setScore("OneHandOffhand", "oh")) end
+    end
+
+    if #baselines > 0 then
+        local minB = baselines[1]
+        for i = 2, #baselines do
+            if baselines[i] < minB then minB = baselines[i] end
+        end
+        return minB
+    end
+
+    -- Non-weapon gear (or a weapon whose sets are all disabled): the weakest
+    -- best-in-slot among the slots this item can occupy (the one you'd replace).
     local targetSlots = EquipSlotToInvNumber[equipLoc]
     if not targetSlots then return 0 end
     local minScore
@@ -3408,7 +3433,7 @@ function Valuate:AutoSelectBestQuestReward()
             if not bestScore or score > bestScore then
                 bestScore, bestIndex, bestLink = score, index, link
             end
-            local delta = score - RewardBaselineScore(link, scaleName)
+            local delta = score - RewardBaselineScore(link, scale, scaleName)
             if not upgDelta or delta > upgDelta then
                 upgDelta, upgIndex, upgScore, upgLink = delta, index, score, link
             end
