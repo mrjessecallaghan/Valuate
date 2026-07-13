@@ -5484,7 +5484,7 @@ local function CreateBestEquipmentPanel(parent)
         local clearButton = CreateFrame("Button", nil, headerContainer)
         clearButton:SetHeight(20)
         clearButton:SetWidth(80)
-        clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -20)
+        clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -34)
         clearButton:SetBackdrop(BACKDROP_BUTTON)
         clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
         clearButton:SetBackdropBorderColor(unpack(COLORS.border))
@@ -5502,6 +5502,21 @@ local function CreateBestEquipmentPanel(parent)
         end)
         clearButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
         col.clearButton = clearButton
+
+        -- "Equip All": one-click equip of this scale's best-in-slot items.
+        local equipAllButton = CreateFrame("Button", nil, headerContainer)
+        equipAllButton:SetHeight(20)
+        equipAllButton:SetWidth(80)
+        equipAllButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -10)
+        equipAllButton:SetBackdrop(BACKDROP_BUTTON)
+        equipAllButton:SetBackdropColor(unpack(COLORS.buttonBg))
+        equipAllButton:SetBackdropBorderColor(unpack(COLORS.border))
+        local equipAllLabel = equipAllButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        equipAllLabel:SetPoint("CENTER", equipAllButton, "CENTER", 0, 0)
+        equipAllLabel:SetText("Equip All")
+        equipAllLabel:SetTextColor(0.4, 1, 0.4, 1)
+        equipAllButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        col.equipAllButton = equipAllButton
 
         -- Equipment container + rows
         local equipmentContainer = CreateFrame("Frame", nil, scaleFrame)
@@ -5728,6 +5743,20 @@ local function CreateBestEquipmentPanel(parent)
                 col.headerName:SetText("|cFF" .. color .. displayName .. "|r")
                 col.clearButton:SetScript("OnClick", function()
                     Valuate:ClearBestEquipmentForScale(scaleName)
+                end)
+                col.equipAllButton:SetScript("OnClick", function()
+                    if Valuate.EquipBestSet then Valuate:EquipBestSet(scaleName) end
+                end)
+                col.equipAllButton:SetScript("OnEnter", function(self)
+                    if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                        GameTooltip:AddLine("Equip All", 1, 1, 1)
+                        GameTooltip:AddLine("Equip every best-in-slot item for this scale at once.", 0.8, 0.8, 0.8, true)
+                        GameTooltip:AddLine("Skips locked slots and anything already worn.", 0.7, 0.7, 0.7, true)
+                        if Valuate:GetOptions().autoSaveEquipmentSet ~= false then
+                            GameTooltip:AddLine("Also saves a WoW equipment set for this scale.", 0.6, 0.8, 0.6, true)
+                        end
+                        GameTooltip:Show()
+                    end
                 end)
 
                 -- Running totals for the summary block (accumulated in the row loop).

@@ -353,6 +353,7 @@ local DEFAULT_OPTIONS = {
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
+    autoSaveEquipmentSet = true,          -- after "Equip All", save a WoW equipment set for the scale
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -3228,6 +3229,73 @@ function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override)
     end
     
     return true
+end
+
+-- Equips every currently-equippable best-in-slot item for a scale in one go, so the
+-- player doesn't have to right-click each slot. Skips locked slots and anything
+-- already worn. Then (unless disabled) integrates with WoW's Equipment Manager by
+-- saving/updating a set named after the scale once the swaps settle, so it can be
+-- re-equipped from the character panel or a /equipset macro later.
+-- Returns the number of items it began equipping, or false if it couldn't run.
+function Valuate:EquipBestSet(scaleName)
+    if not scaleName then return false end
+    local options = Valuate:GetOptions()
+
+    if InCombatLockdown() then
+        print("|cFFFF0000[Valuate]|r Can't change equipment in combat.")
+        return false
+    end
+
+    local bestEquipment = Valuate:GetBestEquipment()
+    local be = bestEquipment[scaleName]
+    if not be then
+        print("|cFFFF8800[Valuate]|r No best equipment for this scale yet - run a scan first.")
+        return false
+    end
+
+    local scales = Valuate:GetScales()
+    local scale = scales[scaleName]
+    local locks = be.locks or {}
+
+    local equipped = 0
+    for slotId = 1, 18 do
+        -- Skip shirt (4) and any slot the user locked.
+        if slotId ~= 4 and not locks[slotId] then
+            local item = be[slotId]
+            if item and item.itemLink then
+                local cur = GetInventoryItemLink("player", slotId)
+                local curId = cur and GetItemIdFromLink(cur)
+                if curId ~= GetItemIdFromLink(item.itemLink) then
+                    -- EquipItemByName targets the specific slot, so multi-slot items
+                    -- (rings/trinkets/1H) go exactly where the scan assigned them.
+                    EquipItemByName(item.itemLink, slotId)
+                    equipped = equipped + 1
+                end
+            end
+        end
+    end
+
+    if options.chatMessages then
+        local label = (scale and (scale.DisplayName or scaleName)) or scaleName
+        if equipped > 0 then
+            print(string.format("|cFF00FF00[Valuate]|r Equipping %d best item(s) for %s.", equipped, label))
+        else
+            print("|cFF00FF00[Valuate]|r Already wearing the best items for " .. label .. ".")
+        end
+    end
+
+    -- Integrate with WoW's Equipment Manager: after the swaps settle, snapshot the
+    -- now-equipped gear into a set named for the scale (best-effort, guarded).
+    if equipped > 0 and options.autoSaveEquipmentSet ~= false
+       and GetNumEquipmentSets and SaveEquipmentSet then
+        ValuateAfter(2.0, function()
+            if not InCombatLockdown() then
+                pcall(function() Valuate:CreateGearSetFromCurrentEquipment(scaleName) end)
+            end
+        end)
+    end
+
+    return equipped
 end
 
 -- OLD FUNCTION REMOVED - Use Blizzard's equipment manager directly to switch sets
