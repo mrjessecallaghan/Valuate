@@ -2991,6 +2991,43 @@ function Valuate:BuildBestForLine(itemLink)
     return "|cFFFFD700★ " .. prefix .. "|r " .. table.concat(names, ", ")
 end
 
+-- Checks whether an item is a tracked FUTURE upgrade for any active scale: an item
+-- the character can't equip yet (e.g. requires a higher level) but which would beat
+-- the current best-in-slot once usable. These are recorded in
+-- bestEquipment[scale].future[slotId] by ScanBestEquipment's future pass.
+-- Returns a table of scale names, or nil.
+function Valuate:GetFutureUpgradeScales(itemLink)
+    if not itemLink then return nil end
+    if Valuate:IsItemExcludedFromEvaluation(itemLink) then return nil end
+
+    local itemId = GetItemIdFromLink(itemLink)
+    if not itemId then return nil end
+
+    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+    local targetSlots = (itemEquipLoc and itemEquipLoc ~= "") and EquipSlotToInvNumber[itemEquipLoc] or nil
+    if not targetSlots then return nil end
+
+    local bestEquipment = Valuate:GetBestEquipment()
+    local activeScales = Valuate:GetActiveScales()
+
+    local results = {}
+    for _, scaleName in ipairs(activeScales) do
+        local be = bestEquipment[scaleName]
+        local future = be and be.future
+        if future then
+            for _, slotId in ipairs(targetSlots) do
+                local f = future[slotId]
+                if f and f.itemLink and GetItemIdFromLink(f.itemLink) == itemId then
+                    tinsert(results, scaleName)
+                    break
+                end
+            end
+        end
+    end
+
+    return #results > 0 and results or nil
+end
+
 -- Checks if the player owns an item (equipped or in bags)
 -- itemLink: The item link to check
 -- Returns: true if player owns the item, false otherwise
