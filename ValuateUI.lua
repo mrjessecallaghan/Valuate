@@ -46,30 +46,30 @@ local MAX_WINDOW_HEIGHT = 900
 -- Color Palette (Modern, clean look)
 -- ========================================
 local COLORS = {
-    -- Backgrounds
-    windowBg = { 0.06, 0.06, 0.06, 0.98 },
-    panelBg = { 0.04, 0.04, 0.04, 0.95 },
-    inputBg = { 0.08, 0.08, 0.08, 0.95 },
-    buttonBg = { 0.15, 0.15, 0.15, 1 },
-    buttonHover = { 0.22, 0.22, 0.22, 1 },
-    buttonPressed = { 0.1, 0.1, 0.1, 1 },
-    
-    -- Borders
-    border = { 0.35, 0.35, 0.35, 1 },
-    borderLight = { 0.45, 0.45, 0.45, 1 },
-    borderDark = { 0.25, 0.25, 0.25, 1 },
-    
-    -- Text
-    textTitle = { 0.9, 0.9, 0.9, 1 },
-    textHeader = { 0.75, 0.75, 0.75, 1 },
-    textBody = { 0.85, 0.85, 0.85, 1 },
-    textDim = { 0.5, 0.5, 0.5, 1 },
-    textAccent = { 0.4, 0.7, 0.9, 1 },  -- Soft blue accent
-    
+    -- Backgrounds (near-black with a subtle cool slate tint for depth)
+    windowBg = { 0.055, 0.060, 0.075, 0.98 },
+    panelBg = { 0.035, 0.040, 0.052, 0.96 },
+    inputBg = { 0.090, 0.100, 0.120, 1 },
+    buttonBg = { 0.145, 0.155, 0.185, 1 },
+    buttonHover = { 0.240, 0.270, 0.340, 1 },
+    buttonPressed = { 0.100, 0.110, 0.140, 1 },
+
+    -- Borders (cool, subtle, crisp)
+    border = { 0.26, 0.29, 0.36, 1 },
+    borderLight = { 0.42, 0.48, 0.60, 1 },
+    borderDark = { 0.14, 0.16, 0.20, 1 },
+
+    -- Text (crisp, cool-neutral hierarchy)
+    textTitle = { 0.96, 0.97, 1.00, 1 },
+    textHeader = { 0.70, 0.77, 0.90, 1 },
+    textBody = { 0.85, 0.87, 0.92, 1 },
+    textDim = { 0.46, 0.50, 0.60, 1 },
+    textAccent = { 0.38, 0.72, 1.00, 1 },   -- vivid azure accent
+
     -- States
-    selected = { 0.25, 0.45, 0.65, 1 },
-    selectedBorder = { 0.4, 0.6, 0.8, 1 },
-    disabled = { 0.3, 0.3, 0.3, 0.6 },
+    selected = { 0.16, 0.32, 0.52, 1 },
+    selectedBorder = { 0.36, 0.62, 0.95, 1 },
+    disabled = { 0.24, 0.25, 0.30, 0.6 },
 }
 
 -- Standardized Border Styles
