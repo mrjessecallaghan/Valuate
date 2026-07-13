@@ -3180,7 +3180,7 @@ end
 -- Returns: true if successful, false otherwise
 -- SAFE VERSION: Creates a gear set from CURRENTLY equipped items (no auto-equipping)
 -- User must manually equip items before calling this
-function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override)
+function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override, suppressHints)
     if not scaleName then return false end
     
     local bestEquipment = Valuate:GetBestEquipment()
@@ -3223,9 +3223,11 @@ function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override)
     
     local options = Valuate:GetOptions()
     if options.chatMessages then
-        print("|cFF00FF00[Valuate]|r Created equipment set '" .. finalSetName .. "' from currently equipped items.")
-        print("|cFFFFAA00[Valuate]|r IMPORTANT: The set saves what you're WEARING, not what's shown in Best Equipment.")
-        print("|cFFFFAA00[Valuate]|r Manually equip your best items BEFORE clicking 'Create Set'.")
+        print("|cFF00FF00[Valuate]|r Saved equipment set '" .. finalSetName .. "' from your equipped items.")
+        if not suppressHints then
+            print("|cFFFFAA00[Valuate]|r IMPORTANT: The set saves what you're WEARING, not what's shown in Best Equipment.")
+            print("|cFFFFAA00[Valuate]|r Manually equip your best items BEFORE clicking 'Create Set'.")
+        end
     end
     
     return true
@@ -3284,15 +3286,21 @@ function Valuate:EquipBestSet(scaleName)
         end
     end
 
-    -- Integrate with WoW's Equipment Manager: after the swaps settle, snapshot the
-    -- now-equipped gear into a set named for the scale (best-effort, guarded).
-    if equipped > 0 and options.autoSaveEquipmentSet ~= false
-       and GetNumEquipmentSets and SaveEquipmentSet then
-        ValuateAfter(2.0, function()
+    -- Integrate with WoW's Equipment Manager: snapshot the best gear into a set named
+    -- for the scale. Save regardless of whether anything needed equipping - if you're
+    -- already wearing the best set we still (re)create/overwrite the WoW set. When we
+    -- did equip something, wait for the swaps to settle first.
+    if options.autoSaveEquipmentSet ~= false and GetNumEquipmentSets and SaveEquipmentSet then
+        local function saveSet()
             if not InCombatLockdown() then
-                pcall(function() Valuate:CreateGearSetFromCurrentEquipment(scaleName) end)
+                pcall(function() Valuate:CreateGearSetFromCurrentEquipment(scaleName, nil, nil, true) end)
             end
-        end)
+        end
+        if equipped > 0 then
+            ValuateAfter(2.0, saveSet)  -- let the equip swaps finish first
+        else
+            saveSet()                   -- already wearing best: nothing to settle
+        end
     end
 
     return equipped
