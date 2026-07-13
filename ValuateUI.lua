@@ -2958,15 +2958,17 @@ local function CreateTabSystem(mainFrame, contentFrame)
         -- Update tab buttons - selected vs unselected appearance
         for name, btn in pairs(tabs) do
             if name == tabName then
-                -- Selected tab: brighter background and border
+                -- Selected tab: brighter fill, azure accent bar, bright label
                 btn:SetBackdropColor(unpack(COLORS.buttonHover))
-                btn:SetBackdropBorderColor(unpack(COLORS.borderLight))
-                btn.label:SetTextColor(unpack(COLORS.textBody))
+                btn:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
+                btn.label:SetTextColor(unpack(COLORS.textTitle))
+                if btn.accent then btn.accent:Show() end
             else
                 -- Unselected tab: darker, recessed look
                 btn:SetBackdropColor(unpack(COLORS.buttonPressed))
                 btn:SetBackdropBorderColor(unpack(COLORS.borderDark))
                 btn.label:SetTextColor(unpack(COLORS.textDim))
+                if btn.accent then btn.accent:Hide() end
             end
         end
     end
@@ -2987,6 +2989,15 @@ local function CreateTabSystem(mainFrame, contentFrame)
         label:SetText(text)
         label:SetTextColor(unpack(COLORS.textBody))
         btn.label = label
+
+        -- Azure accent bar along the top edge, shown only for the active tab.
+        local accent = btn:CreateTexture(nil, "OVERLAY")
+        accent:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -1)
+        accent:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -2, -1)
+        accent:SetHeight(2)
+        accent:SetColorTexture(unpack(COLORS.textAccent))
+        accent:Hide()
+        btn.accent = accent
         
         -- Size button based on text
         btn:SetWidth(label:GetStringWidth() + 40)
@@ -5452,6 +5463,27 @@ local function CreateBestEquipmentPanel(parent)
         scaleFrame:SetWidth(BE_SCALE_WIDTH)
         col.frame = scaleFrame
 
+        -- Card: subtle lifted background + crisp side/bottom hairline borders. The top
+        -- edge is left for the scale-colored accent bar in the header below.
+        local cardBg = scaleFrame:CreateTexture(nil, "BACKGROUND")
+        cardBg:SetAllPoints(scaleFrame)
+        cardBg:SetColorTexture(0.10, 0.11, 0.14, 0.55)
+        local leftEdge = scaleFrame:CreateTexture(nil, "BORDER")
+        leftEdge:SetColorTexture(unpack(COLORS.border))
+        leftEdge:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
+        leftEdge:SetPoint("BOTTOMLEFT", scaleFrame, "BOTTOMLEFT", 0, 0)
+        leftEdge:SetWidth(1)
+        local rightEdge = scaleFrame:CreateTexture(nil, "BORDER")
+        rightEdge:SetColorTexture(unpack(COLORS.border))
+        rightEdge:SetPoint("TOPRIGHT", scaleFrame, "TOPRIGHT", 0, 0)
+        rightEdge:SetPoint("BOTTOMRIGHT", scaleFrame, "BOTTOMRIGHT", 0, 0)
+        rightEdge:SetWidth(1)
+        local bottomEdge = scaleFrame:CreateTexture(nil, "BORDER")
+        bottomEdge:SetColorTexture(unpack(COLORS.border))
+        bottomEdge:SetPoint("BOTTOMLEFT", scaleFrame, "BOTTOMLEFT", 0, 0)
+        bottomEdge:SetPoint("BOTTOMRIGHT", scaleFrame, "BOTTOMRIGHT", 0, 0)
+        bottomEdge:SetHeight(1)
+
         -- Header
         local headerContainer = CreateFrame("Frame", nil, scaleFrame)
         headerContainer:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
@@ -5460,6 +5492,21 @@ local function CreateBestEquipmentPanel(parent)
         local headerBg = headerContainer:CreateTexture(nil, "BACKGROUND")
         headerBg:SetAllPoints(headerContainer)
         headerBg:SetColorTexture(0.05, 0.05, 0.05, 0.5)
+        col.headerBg = headerBg
+
+        -- Scale-colored accent bar across the top of the card header.
+        local accentBar = headerContainer:CreateTexture(nil, "ARTWORK")
+        accentBar:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 0, 0)
+        accentBar:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", 0, 0)
+        accentBar:SetHeight(3)
+        col.accentBar = accentBar
+
+        -- Hairline divider under the header.
+        local headerDivider = headerContainer:CreateTexture(nil, "ARTWORK")
+        headerDivider:SetPoint("BOTTOMLEFT", headerContainer, "BOTTOMLEFT", 0, 0)
+        headerDivider:SetPoint("BOTTOMRIGHT", headerContainer, "BOTTOMRIGHT", 0, 0)
+        headerDivider:SetHeight(1)
+        headerDivider:SetColorTexture(unpack(COLORS.border))
 
         local iconSize = 32
         local scaleIcon = headerContainer:CreateTexture(nil, "ARTWORK")
@@ -5740,6 +5787,8 @@ local function CreateBestEquipmentPanel(parent)
                 col.scaleIcon:SetTexture(iconPath)
                 local cr, cg, cb = HexToRGB(color)
                 col.iconBorder:SetVertexColor(cr, cg, cb, 1)
+                if col.accentBar then col.accentBar:SetColorTexture(cr, cg, cb, 0.95) end
+                if col.headerBg then col.headerBg:SetColorTexture(cr, cg, cb, 0.12) end
                 col.headerName:SetText("|cFF" .. color .. displayName .. "|r")
                 col.clearButton:SetScript("OnClick", function()
                     Valuate:ClearBestEquipmentForScale(scaleName)
