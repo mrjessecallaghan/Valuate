@@ -61,10 +61,10 @@ local SlotIdToName = {
 -- enable/disable these independently and pick one as its "active" set; the active
 -- set resolves into the Main Hand (16) / Off Hand (17) best-in-slot entries.
 local WEAPON_SET_DEFS = {
-    { key = "TwoHand",        label = "Two-Hander" },
-    { key = "OneHandShield",  label = "1H + Shield" },
-    { key = "OneHandOffhand", label = "1H + Off-Hand" },
-    { key = "DualWield",      label = "Dual Wield" },
+    { key = "TwoHand",        label = "Two-Hander",   short = "2H" },
+    { key = "OneHandShield",  label = "1H + Shield",  short = "1H+Sh" },
+    { key = "OneHandOffhand", label = "1H + Off-Hand", short = "1H+OH" },
+    { key = "DualWield",      label = "Dual Wield",   short = "DW" },
 }
 
 -- Helper function to check if two weapon types are comparable
@@ -2491,6 +2491,19 @@ function Valuate:IsWeaponSetEnabled(scale, key)
     return scale.WeaponSets[key] and true or false
 end
 
+-- Shorthand label (e.g. "2H", "1H+Sh") for a scale's currently-resolved active
+-- weapon set, from the last scan. Returns nil if none is tracked.
+function Valuate:GetActiveWeaponSetShort(scaleName)
+    if not scaleName then return nil end
+    local be = Valuate:GetBestEquipment()[scaleName]
+    local key = be and be.activeWeaponSet
+    if not key then return nil end
+    for _, def in ipairs(WEAPON_SET_DEFS) do
+        if def.key == key then return def.short end
+    end
+    return nil
+end
+
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
 -- Items the character can't equip yet (too high level / unlearned proficiency) are
@@ -3192,8 +3205,19 @@ function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override,
         return false
     end
     
+    -- Default set name is the scale, suffixed with the active weapon set in shorthand
+    -- (e.g. "Retribution (2H)") so each weapon configuration gets its own WoW set
+    -- rather than overwriting the others. An explicit setName is used verbatim.
+    local finalSetName = setName
+    if not finalSetName then
+        finalSetName = scale.DisplayName or scaleName
+        local short = Valuate:GetActiveWeaponSetShort(scaleName)
+        if short then
+            finalSetName = finalSetName .. " (" .. short .. ")"
+        end
+    end
+
     -- Check if set name already exists and delete it (always override)
-    local finalSetName = setName or (scale.DisplayName or scaleName)
     for i = 1, GetNumEquipmentSets() do
         local existingName = GetEquipmentSetInfo(i)
         if existingName == finalSetName then
