@@ -6572,6 +6572,32 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Auto Accept Quests checkbox (Column 1, below Ignore Profession Tools)
+    local autoAcceptCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoAcceptCheckbox:SetSize(24, 24)
+    autoAcceptCheckbox:SetPoint("TOPLEFT", ignoreToolsCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local autoAcceptLabel = autoAcceptCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoAcceptLabel:SetPoint("LEFT", autoAcceptCheckbox, "RIGHT", 5, 0)
+    autoAcceptLabel:SetText("Auto Accept Quests")
+    autoAcceptCheckbox:SetChecked(Valuate:GetOptions().autoAcceptQuests == true)
+    autoAcceptCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoAcceptQuests = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoAcceptCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Accept Quests", 1, 1, 1)
+            GameTooltip:AddLine("Automatically accepts quests offered by NPCs - including escort/party-shared confirmations and quests listed in a gossip or multi-quest greeting window.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Warning: accepts every quest an NPC offers. Leave off if you like to pick and read quests yourself.", 1, 0.5, 0.5, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoAcceptCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================

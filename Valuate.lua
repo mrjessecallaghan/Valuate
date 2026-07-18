@@ -314,6 +314,12 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoAdvanceQuestProgress then
             Valuate:AutoAdvanceQuestProgress()
         end
+    elseif event == "QUEST_DETAIL" or event == "QUEST_ACCEPT_CONFIRM"
+           or event == "QUEST_GREETING" or event == "GOSSIP_SHOW" then
+        -- Auto-accept quests offered by NPCs (opt-in)
+        if Valuate.AutoAcceptQuests then
+            Valuate:AutoAcceptQuests(event)
+        end
     end
 end
 
@@ -350,6 +356,7 @@ local DEFAULT_OPTIONS = {
     normalizeDisplay = false,
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
+    autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
@@ -3652,6 +3659,39 @@ function Valuate:AutoAdvanceQuestProgress()
     end
 end
 
+-- Auto-accepts quests offered by NPCs when options.autoAcceptQuests is enabled.
+-- Handles the whole accept flow:
+--   QUEST_DETAIL         - a single quest offer -> AcceptQuest()
+--   QUEST_ACCEPT_CONFIRM - escort / party-shared quest -> ConfirmAcceptQuest()
+--   QUEST_GREETING       - old-style multi-quest NPC -> open the first available
+--   GOSSIP_SHOW          - gossip NPC that also offers quests -> open the first available
+-- Opening an available quest fires QUEST_DETAIL, which accepts it; the greeting/
+-- gossip then re-fires for the next, so multi-quest NPCs clear one at a time.
+function Valuate:AutoAcceptQuests(event)
+    local options = Valuate:GetOptions()
+    if not options.autoAcceptQuests then return end
+
+    if event == "QUEST_DETAIL" then
+        if options.chatMessages then
+            local title = GetTitleText and GetTitleText()
+            print("|cFF00FF00Valuate|r auto-accepted quest" .. (title and (": " .. title) or "") .. ".")
+        end
+        AcceptQuest()
+    elseif event == "QUEST_ACCEPT_CONFIRM" then
+        if ConfirmAcceptQuest then ConfirmAcceptQuest() end
+    elseif event == "QUEST_GREETING" then
+        local numAvail = GetNumAvailableQuests and GetNumAvailableQuests() or 0
+        if numAvail > 0 and SelectAvailableQuest then
+            SelectAvailableQuest(1)
+        end
+    elseif event == "GOSSIP_SHOW" then
+        local numAvail = GetNumGossipAvailableQuests and GetNumGossipAvailableQuests() or 0
+        if numAvail > 0 and SelectGossipAvailableQuest then
+            SelectGossipAvailableQuest(1)
+        end
+    end
+end
+
 -- Register events
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -3662,6 +3702,10 @@ frame:RegisterEvent("BAG_UPDATE")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("QUEST_COMPLETE")
 frame:RegisterEvent("QUEST_PROGRESS")
+frame:RegisterEvent("QUEST_DETAIL")
+frame:RegisterEvent("QUEST_ACCEPT_CONFIRM")
+frame:RegisterEvent("QUEST_GREETING")
+frame:RegisterEvent("GOSSIP_SHOW")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
@@ -3734,6 +3778,10 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFFFF0000Valuate|r: Scan unavailable. Please /reload.")
         end
+    elseif command == "accept" then
+        local options = Valuate:GetOptions()
+        options.autoAcceptQuests = not options.autoAcceptQuests
+        print("|cFF00FF00Valuate|r: Auto accept quests " .. (options.autoAcceptQuests and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "quest" then
         local options = Valuate:GetOptions()
         options.autoQuestReward = not options.autoQuestReward
