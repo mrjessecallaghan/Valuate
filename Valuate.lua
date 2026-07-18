@@ -528,6 +528,43 @@ function Valuate:GetPrivateTooltip()
     return GetPrivateTooltip()
 end
 
+-- Tooltip wording varies between Blizzard and custom servers. Ascension drops the
+-- possessive ("Equip: Improves hit rating by 2" where Blizzard says "...improves your
+-- hit rating by 2") and uses Improves/Increases interchangeably. Rather than
+-- duplicating every stat pattern for each phrasing, fold BOTH the tooltip line and
+-- the patterns to one canonical form before matching. This is bidirectional: it fixes
+-- patterns that require "your" against lines that omit it, AND patterns that omit it
+-- against lines that include it.
+local function NormalizeStatText(text)
+    if not text then return text end
+    text = text:gsub("[Ii]mproves", "Increases")   -- fold verb variants
+    text = text:gsub("%s[Yy]our%s", " ")           -- drop the possessive
+    text = text:gsub("%s%s+", " ")                 -- collapse repeated spaces
+    text = text:gsub("^%s+", "")
+    text = text:gsub("%s+$", "")
+    return text
+end
+
+-- Normalized copy of ValuateStatPatterns, built once and cached (normalizing every
+-- pattern on every tooltip line would be far too slow). Integer captures are also
+-- widened to accept decimals, since scaled values aren't guaranteed to be whole.
+local NormalizedStatPatterns = nil
+local function GetNormalizedStatPatterns()
+    if NormalizedStatPatterns then return NormalizedStatPatterns end
+    if not ValuateStatPatterns then return nil end
+
+    local built = {}
+    for _, patternData in ipairs(ValuateStatPatterns) do
+        local pattern = NormalizeStatText(patternData[1])
+        -- (%d+) -> (%d+%.?%d*) so "2" and "2.5" both match. Patterns that already
+        -- capture decimals (DPS/Speed) contain no literal "(%d+)" and are untouched.
+        pattern = pattern:gsub("%(%%d%+%)", "(%%d+%%.?%%d*)")
+        table.insert(built, { pattern, patternData[2] })
+    end
+    NormalizedStatPatterns = built
+    return NormalizedStatPatterns
+end
+
 -- Parses stats from tooltip text using regex patterns
 -- Returns a table with stat names as keys and values as numbers
 function Valuate:ParseStatsFromTooltip(tooltipName, debug)
@@ -560,7 +597,9 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         if leftText and leftText.GetText then
             local rawText = leftText:GetText() or ""
             local lineText = StripColorCodes(rawText)
-            
+            -- Trim stray outer whitespace so anchored (^...$) patterns still match.
+            lineText = lineText:gsub("^%s+", ""):gsub("%s+$", "")
+
             -- Check for item level
             local itemLevel = string.match(lineText, "^Item Level (%d+)$")
             if itemLevel then
@@ -595,6 +634,8 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
         if rightText and rightText.GetText then
             local rawRightText = rightText:GetText() or ""
             local rightLineText = StripColorCodes(rawRightText)
+            -- Trim stray outer whitespace so anchored (^...$) patterns still match.
+            rightLineText = rightLineText:gsub("^%s+", ""):gsub("%s+$", "")
             
             -- Check for weapon types
             if ValuateWeaponTypePatterns then
@@ -673,11 +714,15 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
                 -- Process each line separately
                 for _, line in ipairs(lines) do
                     local matched = false
-                    for _, patternData in ipairs(ValuateStatPatterns) do
+                    -- Match against the canonical form so wording differences
+                    -- ("your", Improves/Increases) don't need duplicate patterns.
+                    local normalizedLine = NormalizeStatText(line)
+                    local patterns = GetNormalizedStatPatterns() or ValuateStatPatterns
+                    for _, patternData in ipairs(patterns) do
                         local pattern = patternData[1]
                         local statName = patternData[2]
-                        
-                        local matches = {string.match(line, pattern)}
+
+                        local matches = {string.match(normalizedLine, pattern)}
                         if matches[1] then
                             local value = tonumber(matches[1])
                             if value then
