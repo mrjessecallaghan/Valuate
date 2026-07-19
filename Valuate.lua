@@ -2536,6 +2536,24 @@ local function TooltipHasUnmetRequirement(tooltipName)
     return false
 end
 
+-- Integration modules (AdiBags, PassLoot, ...) can register a callback to be told
+-- when the best-equipment data changes, so they can invalidate their own caches.
+-- Without this an AdiBags filter keeps showing the PREVIOUS scan's categorisation
+-- until something unrelated happens to make it re-filter, which looks like "some
+-- best items aren't going into the section".
+local bestEquipmentListeners = {}
+function Valuate:RegisterBestEquipmentListener(fn)
+    if type(fn) ~= "function" then return false end
+    table.insert(bestEquipmentListeners, fn)
+    return true
+end
+
+function Valuate:NotifyBestEquipmentChanged()
+    for _, fn in ipairs(bestEquipmentListeners) do
+        pcall(fn)
+    end
+end
+
 -- Returns the ordered list of weapon-set definitions ({key, label}).
 function Valuate:GetWeaponSetDefinitions()
     return WEAPON_SET_DEFS
@@ -2982,6 +3000,9 @@ function Valuate:ScanBestEquipment()
     if Valuate.RefreshBestEquipmentDisplay then
         Valuate:RefreshBestEquipmentDisplay()
     end
+    -- Tell integration modules (AdiBags/PassLoot) the data changed so they re-filter
+    -- instead of showing the previous scan's categorisation.
+    Valuate:NotifyBestEquipmentChanged()
     return true
 end
 
@@ -3197,10 +3218,11 @@ function Valuate:ClearBestEquipmentForScale(scaleName)
         if Valuate.RefreshBestEquipmentDisplay then
             Valuate:RefreshBestEquipmentDisplay()
         end
-        
+        Valuate:NotifyBestEquipmentChanged()
+
         return true
     end
-    
+
     return false
 end
 
