@@ -1980,6 +1980,62 @@ local function RGBToHex(r, g, b)
 end
 
 -- Creates a styled button with consistent look
+-- ========================================
+-- Micro-animation helpers
+-- ========================================
+-- Self-clearing tween driven off the frame's own OnUpdate. Deliberately avoids
+-- C_Timer and the AnimationGroup API, both of which vary between 3.3.5 clients.
+-- Starting a new tween on a frame replaces any running one, which is exactly what
+-- we want for hover in/out so rapid mouse movement stays smooth.
+local function ValuateTween(frame, duration, apply, onDone)
+    if not frame or not apply then return end
+    if not duration or duration <= 0 then
+        apply(1)
+        if onDone then onDone() end
+        return
+    end
+    local elapsedTotal = 0
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        elapsedTotal = elapsedTotal + elapsed
+        local t = elapsedTotal / duration
+        if t >= 1 then
+            apply(1)
+            self:SetScript("OnUpdate", nil)
+            if onDone then onDone() end
+        else
+            apply(t)
+        end
+    end)
+end
+
+-- Decelerating curve - motion that starts quick and settles reads far more
+-- "designed" than a linear ramp.
+local function EaseOutQuad(t)
+    return 1 - (1 - t) * (1 - t)
+end
+
+local function ColorLerp(from, to, t)
+    return from[1] + (to[1] - from[1]) * t,
+           from[2] + (to[2] - from[2]) * t,
+           from[3] + (to[3] - from[3]) * t,
+           (from[4] or 1) + ((to[4] or 1) - (from[4] or 1)) * t
+end
+
+-- Fades a backdrop's fill and border to the target colours from wherever they
+-- currently are, so an interrupted hover doesn't snap back to the start first.
+local function TweenBackdrop(frame, toFill, toBorder, duration)
+    if not frame or not frame.GetBackdropColor then return end
+    local fr, fg, fb, fa = frame:GetBackdropColor()
+    local br, bg, bb, ba = frame:GetBackdropBorderColor()
+    local fromFill = { fr or 0, fg or 0, fb or 0, fa or 1 }
+    local fromBorder = { br or 0, bg or 0, bb or 0, ba or 1 }
+    ValuateTween(frame, duration, function(t)
+        local e = EaseOutQuad(t)
+        frame:SetBackdropColor(ColorLerp(fromFill, toFill, e))
+        frame:SetBackdropBorderColor(ColorLerp(fromBorder, toBorder, e))
+    end)
+end
+
 local function CreateStyledButton(parent, text, width, height)
     local btn = CreateFrame("Button", nil, parent)
     btn:SetWidth(width or 100)
@@ -1994,20 +2050,20 @@ local function CreateStyledButton(parent, text, width, height)
     label:SetTextColor(unpack(COLORS.textBody))
     btn.label = label
     
-    -- Hover and click effects
+    -- Hover fades in/out; the press is instant so clicks still feel snappy, then
+    -- the release eases back to the hover state.
     btn:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(unpack(COLORS.buttonHover))
-        self:SetBackdropBorderColor(unpack(COLORS.borderLight))
+        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.12)
     end)
     btn:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(unpack(COLORS.buttonBg))
-        self:SetBackdropBorderColor(unpack(COLORS.border))
+        TweenBackdrop(self, COLORS.buttonBg, COLORS.border, 0.18)
     end)
     btn:SetScript("OnMouseDown", function(self)
+        self:SetScript("OnUpdate", nil)  -- cancel any running fade
         self:SetBackdropColor(unpack(COLORS.buttonPressed))
     end)
     btn:SetScript("OnMouseUp", function(self)
-        self:SetBackdropColor(unpack(COLORS.buttonHover))
+        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.10)
     end)
     
     return btn
@@ -2962,7 +3018,17 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 btn:SetBackdropColor(unpack(COLORS.buttonHover))
                 btn:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
                 btn.label:SetTextColor(unpack(COLORS.textTitle))
-                if btn.accent then btn.accent:Show() end
+                if btn.accent then
+                    -- Sweep the accent in rather than popping it, so switching tabs
+                    -- reads as a transition instead of a redraw. Textures have no
+                    -- OnUpdate, so the owning button drives the tween.
+                    local accent = btn.accent
+                    accent:SetAlpha(0)
+                    accent:Show()
+                    ValuateTween(btn, 0.22, function(t)
+                        accent:SetAlpha(EaseOutQuad(t))
+                    end)
+                end
             else
                 -- Unselected tab: darker, recessed look
                 btn:SetBackdropColor(unpack(COLORS.buttonPressed))
@@ -5536,6 +5602,12 @@ local function CreateBestEquipmentPanel(parent)
         clearButton:SetBackdrop(BACKDROP_BUTTON)
         clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
         clearButton:SetBackdropBorderColor(unpack(COLORS.border))
+        -- Automatic mouseover highlight (HIGHLIGHT layer renders only while hovered),
+        -- so these keep hover feedback even though their OnEnter shows a tooltip.
+        local clearHL = clearButton:CreateTexture(nil, "HIGHLIGHT")
+        clearHL:SetAllPoints(clearButton)
+        clearHL:SetColorTexture(1, 1, 1, 0.10)
+
         local clearLabel = clearButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         clearLabel:SetPoint("CENTER", clearButton, "CENTER", 0, 0)
         clearLabel:SetText("Clear Items")
@@ -5559,6 +5631,10 @@ local function CreateBestEquipmentPanel(parent)
         equipAllButton:SetBackdrop(BACKDROP_BUTTON)
         equipAllButton:SetBackdropColor(unpack(COLORS.buttonBg))
         equipAllButton:SetBackdropBorderColor(unpack(COLORS.border))
+        local equipAllHL = equipAllButton:CreateTexture(nil, "HIGHLIGHT")
+        equipAllHL:SetAllPoints(equipAllButton)
+        equipAllHL:SetColorTexture(1, 1, 1, 0.10)
+
         local equipAllLabel = equipAllButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         equipAllLabel:SetPoint("CENTER", equipAllButton, "CENTER", 0, 0)
         equipAllLabel:SetText("Equip All")
@@ -5575,6 +5651,10 @@ local function CreateBestEquipmentPanel(parent)
         saveSetButton:SetBackdrop(BACKDROP_BUTTON)
         saveSetButton:SetBackdropColor(unpack(COLORS.buttonBg))
         saveSetButton:SetBackdropBorderColor(unpack(COLORS.border))
+        local saveSetHL = saveSetButton:CreateTexture(nil, "HIGHLIGHT")
+        saveSetHL:SetAllPoints(saveSetButton)
+        saveSetHL:SetColorTexture(1, 1, 1, 0.10)
+
         local saveSetLabel = saveSetButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         saveSetLabel:SetPoint("CENTER", saveSetButton, "CENTER", 0, 0)
         saveSetLabel:SetText("Save Set")
@@ -5728,21 +5808,17 @@ local function CreateBestEquipmentPanel(parent)
         if not col or not col.wsRows or not key then return end
         for _, wr in ipairs(col.wsRows) do
             if wr.key == key and wr.flash and wr.btn then
-                local flash, btn = wr.flash, wr.btn
-                local FLASH_ALPHA, FLASH_TIME = 0.5, 0.9
-                local elapsedTotal = 0
+                local flash = wr.flash
+                local FLASH_ALPHA, FLASH_TIME = 0.55, 0.9
                 flash:SetAlpha(FLASH_ALPHA)
                 flash:Show()
-                btn:SetScript("OnUpdate", function(self, elapsed)
-                    elapsedTotal = elapsedTotal + elapsed
-                    local a = FLASH_ALPHA * (1 - (elapsedTotal / FLASH_TIME))
-                    if a <= 0 then
-                        flash:SetAlpha(0)
-                        flash:Hide()
-                        self:SetScript("OnUpdate", nil)
-                    else
-                        flash:SetAlpha(a)
-                    end
+                -- Eased fade-out: bright immediately, then lingers as it settles.
+                -- Driven by the row button since textures have no OnUpdate.
+                ValuateTween(wr.btn, FLASH_TIME, function(t)
+                    flash:SetAlpha(FLASH_ALPHA * (1 - EaseOutQuad(t)))
+                end, function()
+                    flash:SetAlpha(0)
+                    flash:Hide()
                 end)
                 return
             end
