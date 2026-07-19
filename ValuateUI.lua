@@ -5672,6 +5672,13 @@ local function CreateBestEquipmentPanel(parent)
             local hl = btn:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints(btn)
             hl:SetColorTexture(1, 1, 1, 0.08)
+            -- Flash overlay: pulses to confirm "this set is now active" after Equip All.
+            local flash = btn:CreateTexture(nil, "OVERLAY")
+            flash:SetAllPoints(btn)
+            flash:SetColorTexture(unpack(COLORS.textAccent))
+            flash:SetAlpha(0)
+            flash:Hide()
+            wr.flash = flash
             local lbl = btn:CreateFontString(nil, "OVERLAY", FONT_SMALL)
             lbl:SetPoint("LEFT", btn, "LEFT", 2, 0)
             lbl:SetJustifyH("LEFT")
@@ -5695,6 +5702,34 @@ local function CreateBestEquipmentPanel(parent)
         col.upgradesText = upgradesText
 
         return col
+    end
+
+    -- Briefly pulses the weapon-set row matching `key` to confirm it just became the
+    -- active set (used after Equip All). Self-contained fade so it doesn't depend on
+    -- any timer API; the OnUpdate clears itself when finished.
+    local function FlashWeaponSetRow(col, key)
+        if not col or not col.wsRows or not key then return end
+        for _, wr in ipairs(col.wsRows) do
+            if wr.key == key and wr.flash and wr.btn then
+                local flash, btn = wr.flash, wr.btn
+                local FLASH_ALPHA, FLASH_TIME = 0.5, 0.9
+                local elapsedTotal = 0
+                flash:SetAlpha(FLASH_ALPHA)
+                flash:Show()
+                btn:SetScript("OnUpdate", function(self, elapsed)
+                    elapsedTotal = elapsedTotal + elapsed
+                    local a = FLASH_ALPHA * (1 - (elapsedTotal / FLASH_TIME))
+                    if a <= 0 then
+                        flash:SetAlpha(0)
+                        flash:Hide()
+                        self:SetScript("OnUpdate", nil)
+                    else
+                        flash:SetAlpha(a)
+                    end
+                end)
+                return
+            end
+        end
     end
 
     -- Function to update the display
@@ -5795,6 +5830,10 @@ local function CreateBestEquipmentPanel(parent)
                 end)
                 col.equipAllButton:SetScript("OnClick", function()
                     if Valuate.EquipBestSet then Valuate:EquipBestSet(scaleName) end
+                    -- EquipBestSet pins the set it just equipped as active; pulse that
+                    -- row so it's obvious which configuration is now current.
+                    local sc = Valuate:GetScales()[scaleName]
+                    FlashWeaponSetRow(col, sc and sc.ActiveWeaponSet)
                 end)
                 col.equipAllButton:SetScript("OnEnter", function(self)
                     if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
@@ -6070,6 +6109,7 @@ local function CreateBestEquipmentPanel(parent)
                         wsIndex = wsIndex + 1
                         local wr = col.wsRows[wsIndex]
                         if wr then
+                            wr.key = def.key  -- lets FlashWeaponSetRow find this row
                             local isActive = (def.key == activeKey)
                             local labelColor = isActive and "FFFFD700" or "FFBBBBBB"
                             local marker = isActive and "|cFFFFD700>|r " or ""
@@ -6097,7 +6137,10 @@ local function CreateBestEquipmentPanel(parent)
                     end
                 end
                 for j = wsIndex + 1, 4 do
-                    if col.wsRows[j] then col.wsRows[j].btn:Hide() end
+                    if col.wsRows[j] then
+                        col.wsRows[j].btn:Hide()
+                        col.wsRows[j].key = nil  -- don't let a stale key match the flash
+                    end
                 end
                 col.wsTitle:SetText(wsIndex == 0 and "Weapon Sets |cFF808080(none enabled / owned)|r" or "Weapon Sets")
 

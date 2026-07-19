@@ -3365,6 +3365,14 @@ function Valuate:EquipBestSet(scaleName)
         end
     end
 
+    -- Mark the set we just put on as this scale's active set. If the scale was on
+    -- "auto" this pins it to an explicit choice so a later rescan can't drift it to a
+    -- different configuration behind your back.
+    local activatedKey = be.activeWeaponSet
+    if scale and activatedKey then
+        scale.ActiveWeaponSet = activatedKey
+    end
+
     if options.chatMessages then
         local label = (scale and (scale.DisplayName or scaleName)) or scaleName
         if equipped > 0 then
