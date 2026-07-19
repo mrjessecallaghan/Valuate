@@ -919,6 +919,12 @@ function Valuate:CanDualWield()
             return true
         end
     end
+    -- Ascension is classless: the Dual Wield passive (spell 674) is learnable by
+    -- anyone, so knowing it is far more reliable than a class default table.
+    if type(IsSpellKnown) == "function" then
+        local ok, known = pcall(IsSpellKnown, 674)
+        if ok and known then return true end
+    end
     local _, class = UnitClass("player")
     return DUAL_WIELD_DEFAULT[class] or false
 end
@@ -2712,6 +2718,12 @@ function Valuate:ScanBestEquipment()
             
             -- Check for locked slots
             local locks = bestEquipment[scaleName].locks or {}
+
+            -- Honour explicit intent: if this scale has the Dual Wield set enabled the
+            -- user is telling us they dual-wield, which beats auto-detection. There is
+            -- no dependable dual-wield API on 3.3.5 and class defaults are meaningless
+            -- on a classless server, so without this an off-hand 1H is never picked.
+            local wantsDualWield = canDualWield or Valuate:IsWeaponSetEnabled(scale, "DualWield")
             
             -- Collect all items with their scores for this scale
             local itemsWithScores = {}  -- {itemId, score, itemData}
@@ -2770,7 +2782,7 @@ function Valuate:ScanBestEquipment()
                             -- Skip locked slots; and don't put a generic one-hand
                             -- weapon in the off-hand (17) unless we can dual-wield.
                             if not locks[targetSlotId]
-                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not canDualWield) then
+                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not wantsDualWield) then
                                 -- Calculate available copies each time
                                 local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
 
@@ -2826,11 +2838,11 @@ function Valuate:ScanBestEquipment()
                             bestMH1H = makeWeaponRec(itemInfo)
                             -- Owning 2+ of the top one-hander (and able to dual-wield)
                             -- means a second copy wins the off-hand over any lesser 1H.
-                            if canDualWield and loc == "INVTYPE_WEAPON"
+                            if wantsDualWield and loc == "INVTYPE_WEAPON"
                                and (itemCounts[id] or 0) >= 2 then
                                 bestOH1H = makeWeaponRec(itemInfo)
                             end
-                        elseif canDualWield and not bestOH1H and loc == "INVTYPE_WEAPON" then
+                        elseif wantsDualWield and not bestOH1H and loc == "INVTYPE_WEAPON" then
                             bestOH1H = makeWeaponRec(itemInfo)
                         end
                     elseif loc == "INVTYPE_SHIELD" then
@@ -2937,7 +2949,7 @@ function Valuate:ScanBestEquipment()
                     if targetSlots then
                         for _, targetSlotId in ipairs(targetSlots) do
                             if not locks[targetSlotId]
-                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not canDualWield) then
+                               and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not wantsDualWield) then
                                 local currentBest = bestEquipment[scaleName][targetSlotId]
                                 local currentScore = currentBest and currentBest.score or 0
                                 local existingFuture = futureBest[targetSlotId]
