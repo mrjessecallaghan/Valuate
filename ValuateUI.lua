@@ -6850,7 +6850,123 @@ local function CreateSettingsPanel(parent)
         GameTooltip:Hide()
     end)
     columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
-    
+
+    -- ========================================
+    -- Auto Delete tuning (Column 2)
+    -- ========================================
+    local autoDeleteHeader = col2:CreateFontString(nil, "OVERLAY", FONT_H1)
+    autoDeleteHeader:SetPoint("TOPLEFT", minimapButtonCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
+    autoDeleteHeader:SetText("Auto Delete")
+    autoDeleteHeader:SetTextColor(unpack(COLORS.textAccent))
+    columnHeights[2] = columnHeights[2] + 20 + ELEMENT_SPACING
+
+    -- Helper: a small labelled numeric input row in column 2.
+    local function CreateCol2NumberRow(labelText, anchorTo, yGap, initialText, validator, onCommit, resetText)
+        local lbl = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        lbl:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", 0, -yGap)
+        lbl:SetText(labelText)
+
+        local box = CreateFrame("EditBox", nil, col2)
+        box:SetHeight(14)
+        box:SetWidth(55)
+        box:SetPoint("LEFT", lbl, "RIGHT", 4, 0)
+        box:SetAutoFocus(false)
+        box:SetFontObject(_G[FONT_SMALL])
+        box:SetJustifyH("CENTER")
+        box:SetBackdrop(BACKDROP_INPUT)
+        box:SetBackdropColor(unpack(COLORS.inputBg))
+        box:SetBackdropBorderColor(unpack(COLORS.border))
+        box:SetTextInsets(2, 2, 0, 0)
+        box:SetText(initialText)
+        if validator then validator(box) end
+        box:SetScript("OnEnterPressed", function(self)
+            onCommit(self)
+            self:ClearFocus()
+        end)
+        box:SetScript("OnEscapePressed", function(self)
+            self:SetText(resetText())
+            self:ClearFocus()
+        end)
+        columnHeights[2] = columnHeights[2] + 16 + ELEMENT_SPACING
+        return lbl, box
+    end
+
+    local function GoldText(copper)
+        return string.format("%.2f", (copper or 0) / 10000)
+    end
+
+    -- Keep Free Slots
+    local keepFreeLabel = CreateCol2NumberRow(
+        "Keep Free Slots:", autoDeleteHeader, ELEMENT_SPACING,
+        tostring(Valuate:GetOptions().autoDeleteKeepFree or 4),
+        ApplyWholeNumberValidation,
+        function(self)
+            local v = math.max(0, math.min(60, tonumber(self:GetText()) or 4))
+            Valuate:GetOptions().autoDeleteKeepFree = v
+            self:SetText(tostring(v))
+        end,
+        function() return tostring(Valuate:GetOptions().autoDeleteKeepFree or 4) end)
+
+    -- Max Quality (click to cycle)
+    local QUALITY_NAMES = { [0] = "Poor (grey)", [1] = "Common (white)", [2] = "Uncommon (green)", [3] = "Rare (blue)" }
+    local qualityLabel = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    qualityLabel:SetPoint("TOPLEFT", keepFreeLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING - 4)
+    qualityLabel:SetText("Max Quality:")
+
+    local function QualityText()
+        local q = Valuate:GetOptions().autoDeleteMaxQuality or 2
+        return QUALITY_NAMES[q] or tostring(q)
+    end
+    local qualityButton = CreateStyledButton(col2, QualityText(), 116, 18)
+    qualityButton:SetPoint("LEFT", qualityLabel, "RIGHT", 4, 0)
+    qualityButton:SetScript("OnClick", function(self)
+        local q = ((Valuate:GetOptions().autoDeleteMaxQuality or 2) + 1) % 4
+        Valuate:GetOptions().autoDeleteMaxQuality = q
+        self.label:SetText(QualityText())
+    end)
+    qualityButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Max Quality", 1, 1, 1)
+            GameTooltip:AddLine("Never auto-delete an item above this quality. Click to cycle.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Poor (grey) is the safest setting - greys are pure vendor trash.", 0.6, 0.9, 0.6, true)
+            GameTooltip:Show()
+        end
+    end)
+    qualityButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[2] = columnHeights[2] + 20 + ELEMENT_SPACING
+
+    -- Value ceiling / floor (entered in gold, stored as copper)
+    local maxValLabel = CreateCol2NumberRow(
+        "Max Value (g):", qualityLabel, ELEMENT_SPACING + 6,
+        GoldText(Valuate:GetOptions().autoDeleteMaxValue),
+        ApplyStatValueValidation,
+        function(self)
+            local g = math.max(0, tonumber(self:GetText()) or 0)
+            Valuate:GetOptions().autoDeleteMaxValue = math.floor(g * 10000)
+            self:SetText(GoldText(Valuate:GetOptions().autoDeleteMaxValue))
+        end,
+        function() return GoldText(Valuate:GetOptions().autoDeleteMaxValue) end)
+
+    local minValLabel = CreateCol2NumberRow(
+        "Min Value (g):", maxValLabel, ELEMENT_SPACING,
+        GoldText(Valuate:GetOptions().autoDeleteMinValue),
+        ApplyStatValueValidation,
+        function(self)
+            local g = math.max(0, tonumber(self:GetText()) or 0)
+            Valuate:GetOptions().autoDeleteMinValue = math.floor(g * 10000)
+            self:SetText(GoldText(Valuate:GetOptions().autoDeleteMinValue))
+        end,
+        function() return GoldText(Valuate:GetOptions().autoDeleteMinValue) end)
+
+    -- Explain the two bounds, since "floor" is the non-obvious one.
+    local valueHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    valueHint:SetPoint("TOPLEFT", minValLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    valueHint:SetWidth(settingsColumnWidth)
+    valueHint:SetJustifyH("LEFT")
+    valueHint:SetText("Only stacks worth between Min and Max are deletable.\nMax 0 = no ceiling, Min 0 = no floor.\nA tiny Min (0.0001 = 1c) skips unsellable items.")
+    valueHint:SetTextColor(unpack(COLORS.textDim))
+    columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 3: Character Window, Keybindings, Advanced
     -- ========================================

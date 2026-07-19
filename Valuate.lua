@@ -378,7 +378,8 @@ local DEFAULT_OPTIONS = {
     autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
     autoDeleteKeepFree = 4,               -- target number of free bag slots
     autoDeleteMaxQuality = 2,             -- never delete above this quality (2 = uncommon/green)
-    autoDeleteMaxValue = 100000,          -- never delete a stack worth more than this (copper)
+    autoDeleteMaxValue = 100000,          -- ceiling: never delete a stack worth MORE than this (copper)
+    autoDeleteMinValue = 0,               -- floor: never delete a stack worth LESS than this (0 = no floor)
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
@@ -3928,22 +3929,37 @@ end
 -- Deletes the least valuable junk until the configured number of bag slots is free.
 -- Only ever considers items AdiBags classes as Junk (which honours its own
 -- include/exclude lists) or, without AdiBags, poor/grey quality.
-function Valuate:AutoDeleteJunk()
+function Valuate:AutoDeleteJunk(opts)
+    opts = opts or {}
+    local preview = opts.preview == true
     local options = Valuate:GetOptions()
-    if not options.autoDeleteJunk then return end
-    if InCombatLockdown() then return end
+    if not preview and not options.autoDeleteJunk then return end
+
+    if InCombatLockdown() then
+        if preview then print("|cFFFF8800[Valuate]|r Can't inspect bags in combat.") end
+        return
+    end
 
     -- Same in-transit guard the scanner uses: never touch bag slots (or call
     -- SetBagItem) while items are moving, or they can vanish.
-    if equipmentSwapPending or recentEquipmentChange then return end
+    if equipmentSwapPending or recentEquipmentChange then
+        if preview then print("|cFFFF8800[Valuate]|r Items are still settling - try again in a moment.") end
+        return
+    end
 
     local keepFree = options.autoDeleteKeepFree or 4
     local free = CountFreeBagSlots()
-    if free >= keepFree then return end
+    -- A preview ALWAYS runs so you can inspect the rules with any amount of free
+    -- space; the live path only acts once bags are actually below the target.
+    if not preview and free >= keepFree then return end
 
     local maxQuality = options.autoDeleteMaxQuality or 2
     local maxValue = options.autoDeleteMaxValue or 0
-    local dryRun = options.autoDeleteDryRun == true
+    local minValue = options.autoDeleteMinValue or 0
+    local dryRun = preview or (options.autoDeleteDryRun == true)
+
+    -- Diagnostics so a preview can explain WHY nothing matched.
+    local nScanned, nJunk, nQuality, nValue, nProtected = 0, 0, 0, 0, 0
 
     -- AdiBags' own junk classification if it's loaded (respects its include/exclude).
     local AdiBags
@@ -3974,24 +3990,49 @@ function Valuate:AutoDeleteJunk()
 
                 local value = (sellPrice or 0) * stackCount
 
-                if isJunk and quality and quality <= maxQuality
-                   and (maxValue <= 0 or value <= maxValue) then
-                    local protected, reason = IsProtectedFromDelete(bag, slot, link)
-                    if not protected then
-                        tinsert(candidates, {
-                            bag = bag, slot = slot, link = link,
-                            name = name or "item", value = value, count = stackCount,
-                        })
-                    elseif options.debug then
-                        print("|cFFFF8800[Valuate]|r keeping " .. link .. " (" .. tostring(reason) .. ")")
+                nScanned = nScanned + 1
+                if isJunk then
+                    nJunk = nJunk + 1
+                    if not (quality and quality <= maxQuality) then
+                        nQuality = nQuality + 1
+                    elseif (maxValue > 0 and value > maxValue) or (minValue > 0 and value < minValue) then
+                        nValue = nValue + 1
+                    else
+                        local protected, reason = IsProtectedFromDelete(bag, slot, link)
+                        if protected then
+                            nProtected = nProtected + 1
+                            if preview or options.debug then
+                                print("|cFF88CC88[Valuate]|r keeping " .. link .. " (" .. tostring(reason) .. ")")
+                            end
+                        else
+                            tinsert(candidates, {
+                                bag = bag, slot = slot, link = link,
+                                name = name or "item", value = value, count = stackCount,
+                            })
+                        end
                     end
                 end
             end
         end
     end
 
+    local function money(v)
+        return GetCoinTextureString and GetCoinTextureString(v) or (v .. "c")
+    end
+
+    if preview then
+        print(string.format("|cFF00FF00[Valuate]|r Delete preview - %d free slot(s), target %d. Scanned %d item(s): %d junk, %d over quality limit, %d outside value range, %d protected -> |cFFFFD700%d deletable|r.",
+            free, keepFree, nScanned, nJunk, nQuality, nValue, nProtected, #candidates))
+        print(string.format("|cFFAAAAAA[Valuate]|r Limits: quality <= %d, value %s..%s per stack.",
+            maxQuality,
+            minValue > 0 and money(minValue) or "any",
+            maxValue > 0 and money(maxValue) or "any"))
+    end
+
     if #candidates == 0 then
-        if options.chatMessages then
+        if preview then
+            print("|cFFFF8800[Valuate]|r Nothing would be deleted. Loosen the quality/value limits, or check the 'keeping' lines above.")
+        elseif options.chatMessages then
             print("|cFFFF8800[Valuate]|r Bags are low on space but no safe junk to remove.")
         end
         return
@@ -4000,14 +4041,16 @@ function Valuate:AutoDeleteJunk()
     -- Cheapest first, so anything worth keeping survives longest.
     table.sort(candidates, function(a, b) return a.value < b.value end)
 
-    local needed = keepFree - free
+    -- Live: only remove what's needed to hit the target. Preview: list the ranked
+    -- queue (capped) so you can see the order it would chew through.
+    local needed = preview and math.min(#candidates, opts.limit or 15) or (keepFree - free)
     local removed = 0
     for _, c in ipairs(candidates) do
         if removed >= needed then break end
 
         if dryRun then
-            print(string.format("|cFFFFAA00[Valuate dry-run]|r would delete %s x%d (%s)",
-                c.link, c.count, GetCoinTextureString and GetCoinTextureString(c.value) or (c.value .. "c")))
+            print(string.format("|cFFFFAA00[Valuate dry-run]|r %d. would delete %s x%d (%s)",
+                removed + 1, c.link, c.count, money(c.value)))
             removed = removed + 1
         else
             PickupContainerItem(c.bag, c.slot)
@@ -4023,7 +4066,7 @@ function Valuate:AutoDeleteJunk()
                     removed = removed + 1
                     autoDeleteSessionCount = autoDeleteSessionCount + 1
                     print(string.format("|cFFFF5555[Valuate]|r Deleted %s x%d (%s)",
-                        c.link, c.count, GetCoinTextureString and GetCoinTextureString(c.value) or (c.value .. "c")))
+                        c.link, c.count, money(c.value)))
                 end
             else
                 ClearCursor()
@@ -4031,7 +4074,11 @@ function Valuate:AutoDeleteJunk()
         end
     end
 
-    if removed > 0 and options.chatMessages then
+    if preview then
+        if #candidates > removed then
+            print(string.format("|cFFAAAAAA[Valuate]|r ...and %d more deletable item(s) not shown.", #candidates - removed))
+        end
+    elseif removed > 0 and options.chatMessages then
         print(string.format("|cFF00FF00[Valuate]|r %s %d item(s); %d free slot(s). Session total: %d.",
             dryRun and "Would remove" or "Removed", removed, CountFreeBagSlots(), autoDeleteSessionCount))
     end
@@ -4225,12 +4272,9 @@ SlashCmdList["VALUATE"] = function(msg)
         options.autoDeleteJunk = not options.autoDeleteJunk
         print("|cFF00FF00Valuate|r: Auto delete junk " .. (options.autoDeleteJunk and "|cFFFF5555ENABLED|r - deletions are permanent" or "|cFF00FF00disabled|r"))
     elseif command == "deletepreview" then
-        -- One-off dry run: show what would be removed right now, delete nothing.
-        local options = Valuate:GetOptions()
-        local wasEnabled, wasDry = options.autoDeleteJunk, options.autoDeleteDryRun
-        options.autoDeleteJunk, options.autoDeleteDryRun = true, true
-        Valuate:AutoDeleteJunk()
-        options.autoDeleteJunk, options.autoDeleteDryRun = wasEnabled, wasDry
+        -- Always runs, regardless of free space or whether auto-delete is enabled,
+        -- and deletes nothing. Reports the ranked queue plus why items were skipped.
+        Valuate:AutoDeleteJunk({ preview = true, limit = 15 })
     elseif command == "accept" then
         local options = Valuate:GetOptions()
         options.autoAcceptQuests = not options.autoAcceptQuests
