@@ -320,6 +320,12 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoAcceptQuests then
             Valuate:AutoAcceptQuests(event)
         end
+    elseif event == "LOOT_CLOSED" then
+        -- Prune junk to keep bag space free (opt-in). Delayed so looted items have
+        -- actually landed in the bags before we count free slots.
+        if Valuate.AutoDeleteJunk then
+            ValuateAfter(0.5, function() Valuate:AutoDeleteJunk() end)
+        end
     elseif event == "START_LOOT_ROLL" then
         -- arg1 (the addonName slot) is the rollID for this event
         if Valuate.AutoRollOnLoot then
@@ -368,6 +374,11 @@ local DEFAULT_OPTIONS = {
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
+    autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
+    autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
+    autoDeleteKeepFree = 4,               -- target number of free bag slots
+    autoDeleteMaxQuality = 2,             -- never delete above this quality (2 = uncommon/green)
+    autoDeleteMaxValue = 100000,          -- never delete a stack worth more than this (copper)
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
@@ -3854,6 +3865,178 @@ function Valuate:AutoAdvanceQuestProgress()
     end
 end
 
+-- ========================================
+-- Junk auto-delete (DESTRUCTIVE - deletion is irreversible)
+-- ========================================
+
+local autoDeleteSessionCount = 0
+
+-- Free slots across the normal bags.
+local function CountFreeBagSlots()
+    local free = 0
+    for bag = 0, 4 do
+        local numSlots = GetContainerNumSlots(bag) or 0
+        for slot = 1, numSlots do
+            if not GetContainerItemLink(bag, slot) then
+                free = free + 1
+            end
+        end
+    end
+    return free
+end
+
+-- Hard protections that the user CANNOT switch off. Anything Valuate considers gear
+-- you want, a quest item, or part of a WoW equipment set is never a delete candidate.
+-- Returns true plus a reason when the item must be kept.
+local function IsProtectedFromDelete(bag, slot, link)
+    if not link then return true, "no link" end
+
+    -- Quest items
+    if GetContainerItemQuestInfo then
+        local ok, isQuestItem, questId = pcall(GetContainerItemQuestInfo, bag, slot)
+        if ok and (isQuestItem or questId) then return true, "quest item" end
+    end
+
+    -- Belongs to a WoW equipment set
+    if GetContainerItemEquipmentSetInfo then
+        local ok, inSet = pcall(GetContainerItemEquipmentSetInfo, bag, slot)
+        if ok and inSet then return true, "in an equipment set" end
+    end
+
+    -- Best-in-slot / weapon-set member for any scale
+    if Valuate.GetBestForInfo and Valuate:GetBestForInfo(link) then
+        return true, "best-in-slot"
+    end
+
+    -- Tracked future upgrade (can't use it yet, but will)
+    if Valuate.GetFutureUpgradeScales and Valuate:GetFutureUpgradeScales(link) then
+        return true, "future upgrade"
+    end
+
+    -- An upgrade for any scale, even if it never made it into the scan results.
+    if Valuate.GetStatsForTooltipSetter and Valuate.IsUpgradeForAnyScale then
+        local stats = Valuate:GetStatsForTooltipSetter("SetBagItem", bag, slot)
+        if stats then
+            local isUpgrade = Valuate:IsUpgradeForAnyScale(link, stats, { includeInactive = true })
+            if isUpgrade then return true, "an upgrade" end
+        end
+    end
+
+    return false
+end
+
+-- Deletes the least valuable junk until the configured number of bag slots is free.
+-- Only ever considers items AdiBags classes as Junk (which honours its own
+-- include/exclude lists) or, without AdiBags, poor/grey quality.
+function Valuate:AutoDeleteJunk()
+    local options = Valuate:GetOptions()
+    if not options.autoDeleteJunk then return end
+    if InCombatLockdown() then return end
+
+    -- Same in-transit guard the scanner uses: never touch bag slots (or call
+    -- SetBagItem) while items are moving, or they can vanish.
+    if equipmentSwapPending or recentEquipmentChange then return end
+
+    local keepFree = options.autoDeleteKeepFree or 4
+    local free = CountFreeBagSlots()
+    if free >= keepFree then return end
+
+    local maxQuality = options.autoDeleteMaxQuality or 2
+    local maxValue = options.autoDeleteMaxValue or 0
+    local dryRun = options.autoDeleteDryRun == true
+
+    -- AdiBags' own junk classification if it's loaded (respects its include/exclude).
+    local AdiBags
+    if LibStub then
+        local ace = LibStub("AceAddon-3.0", true)
+        AdiBags = ace and ace:GetAddon("AdiBags", true)
+    end
+
+    -- Collect candidates
+    local candidates = {}
+    for bag = 0, 4 do
+        local numSlots = GetContainerNumSlots(bag) or 0
+        for slot = 1, numSlots do
+            local link = GetContainerItemLink(bag, slot)
+            if link then
+                local itemId = GetItemIdFromLink(link)
+                local name, _, quality, _, _, _, _, _, _, _, sellPrice = GetItemInfo(link)
+                local _, stackCount = GetContainerItemInfo(bag, slot)
+                stackCount = stackCount or 1
+
+                -- Junk per AdiBags, else fall back to poor quality.
+                local isJunk
+                if AdiBags and AdiBags.IsJunk and itemId then
+                    local ok, res = pcall(AdiBags.IsJunk, AdiBags, itemId)
+                    if ok then isJunk = res end
+                end
+                if isJunk == nil then isJunk = (quality == 0) end
+
+                local value = (sellPrice or 0) * stackCount
+
+                if isJunk and quality and quality <= maxQuality
+                   and (maxValue <= 0 or value <= maxValue) then
+                    local protected, reason = IsProtectedFromDelete(bag, slot, link)
+                    if not protected then
+                        tinsert(candidates, {
+                            bag = bag, slot = slot, link = link,
+                            name = name or "item", value = value, count = stackCount,
+                        })
+                    elseif options.debug then
+                        print("|cFFFF8800[Valuate]|r keeping " .. link .. " (" .. tostring(reason) .. ")")
+                    end
+                end
+            end
+        end
+    end
+
+    if #candidates == 0 then
+        if options.chatMessages then
+            print("|cFFFF8800[Valuate]|r Bags are low on space but no safe junk to remove.")
+        end
+        return
+    end
+
+    -- Cheapest first, so anything worth keeping survives longest.
+    table.sort(candidates, function(a, b) return a.value < b.value end)
+
+    local needed = keepFree - free
+    local removed = 0
+    for _, c in ipairs(candidates) do
+        if removed >= needed then break end
+
+        if dryRun then
+            print(string.format("|cFFFFAA00[Valuate dry-run]|r would delete %s x%d (%s)",
+                c.link, c.count, GetCoinTextureString and GetCoinTextureString(c.value) or (c.value .. "c")))
+            removed = removed + 1
+        else
+            PickupContainerItem(c.bag, c.slot)
+            if CursorHasItem and CursorHasItem() then
+                DeleteCursorItem()
+                -- If a confirmation dialog intercepted the delete the item is still on
+                -- the cursor. We deliberately do NOT auto-answer that popup - it exists
+                -- to prevent exactly this kind of accident. Put it back and move on.
+                if CursorHasItem and CursorHasItem() then
+                    ClearCursor()
+                    print("|cFFFF8800[Valuate]|r Skipped " .. c.link .. " - needs manual confirmation.")
+                else
+                    removed = removed + 1
+                    autoDeleteSessionCount = autoDeleteSessionCount + 1
+                    print(string.format("|cFFFF5555[Valuate]|r Deleted %s x%d (%s)",
+                        c.link, c.count, GetCoinTextureString and GetCoinTextureString(c.value) or (c.value .. "c")))
+                end
+            else
+                ClearCursor()
+            end
+        end
+    end
+
+    if removed > 0 and options.chatMessages then
+        print(string.format("|cFF00FF00[Valuate]|r %s %d item(s); %d free slot(s). Session total: %d.",
+            dryRun and "Would remove" or "Removed", removed, CountFreeBagSlots(), autoDeleteSessionCount))
+    end
+end
+
 -- Auto-rolls on a group loot roll when options.autoRollLoot is enabled.
 -- Need when the item is an upgrade for ANY configured scale (active or not), Greed
 -- otherwise. Never rolls Need on something that isn't an upgrade.
@@ -3960,6 +4143,7 @@ frame:RegisterEvent("QUEST_GREETING")
 frame:RegisterEvent("GOSSIP_SHOW")
 frame:RegisterEvent("START_LOOT_ROLL")
 frame:RegisterEvent("CONFIRM_LOOT_ROLL")
+frame:RegisterEvent("LOOT_CLOSED")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
@@ -4036,6 +4220,17 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoRollLoot = not options.autoRollLoot
         print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "autodelete" then
+        local options = Valuate:GetOptions()
+        options.autoDeleteJunk = not options.autoDeleteJunk
+        print("|cFF00FF00Valuate|r: Auto delete junk " .. (options.autoDeleteJunk and "|cFFFF5555ENABLED|r - deletions are permanent" or "|cFF00FF00disabled|r"))
+    elseif command == "deletepreview" then
+        -- One-off dry run: show what would be removed right now, delete nothing.
+        local options = Valuate:GetOptions()
+        local wasEnabled, wasDry = options.autoDeleteJunk, options.autoDeleteDryRun
+        options.autoDeleteJunk, options.autoDeleteDryRun = true, true
+        Valuate:AutoDeleteJunk()
+        options.autoDeleteJunk, options.autoDeleteDryRun = wasEnabled, wasDry
     elseif command == "accept" then
         local options = Valuate:GetOptions()
         options.autoAcceptQuests = not options.autoAcceptQuests

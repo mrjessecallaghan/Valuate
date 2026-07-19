@@ -6668,6 +6668,63 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Auto Delete Junk checkbox (Column 1) - DESTRUCTIVE, so it warns loudly.
+    local autoDeleteCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoDeleteCheckbox:SetSize(24, 24)
+    autoDeleteCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local autoDeleteLabel = autoDeleteCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoDeleteLabel:SetPoint("LEFT", autoDeleteCheckbox, "RIGHT", 5, 0)
+    autoDeleteLabel:SetText("Auto Delete Junk")
+    autoDeleteLabel:SetTextColor(1, 0.6, 0.6, 1)
+    autoDeleteCheckbox:SetChecked(Valuate:GetOptions().autoDeleteJunk == true)
+    autoDeleteCheckbox:SetScript("OnClick", function(self)
+        local on = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        Valuate:GetOptions().autoDeleteJunk = on
+        if on then
+            print("|cFFFF5555Valuate|r: Auto Delete Junk is ON - deletions are PERMANENT. Use /valuate deletepreview to see what it would remove.")
+        end
+    end)
+    autoDeleteCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Delete Junk", 1, 1, 1)
+            GameTooltip:AddLine("After looting, deletes the least valuable junk until the configured number of bag slots is free. Only touches items AdiBags classes as Junk (honouring its include/exclude lists), or grey items when AdiBags isn't loaded.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Never deletes: best-in-slot, weapon-set members, future upgrades, anything that's an upgrade for any scale, quest items, or items in a WoW equipment set.", 0.6, 0.9, 0.6, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("WARNING: deletion is PERMANENT - WoW has no undo. Every deletion is printed to chat; watch it on your first few runs. /valuate deletepreview shows what would go without deleting.", 1, 0.4, 0.4, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoDeleteCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Dry-run sub-toggle (indented under Auto Delete Junk)
+    local dryRunCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    dryRunCheckbox:SetSize(24, 24)
+    dryRunCheckbox:SetPoint("TOPLEFT", autoDeleteCheckbox, "BOTTOMLEFT", 16, -ELEMENT_SPACING)
+
+    local dryRunLabel = dryRunCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    dryRunLabel:SetPoint("LEFT", dryRunCheckbox, "RIGHT", 5, 0)
+    dryRunLabel:SetText("Dry Run (log only)")
+    dryRunCheckbox:SetChecked(Valuate:GetOptions().autoDeleteDryRun == true)
+    dryRunCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoDeleteDryRun = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    dryRunCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Dry Run", 1, 1, 1)
+            GameTooltip:AddLine("Log what auto-delete WOULD remove, without deleting anything. Useful to validate the rules before trusting it.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    dryRunCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================
