@@ -6134,6 +6134,9 @@ local function CreateBestEquipmentPanel(parent)
                         slotFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
                         slotFrame:SetScript("OnClick", function(self, button)
                             if button == "RightButton" and bestItem and bestItem.itemLink then
+                                -- Mark this as a Valuate-initiated equip so a BoE's bind
+                                -- prompt is auto-confirmed (manual equips still prompt).
+                                if Valuate.MarkEquipIntent then Valuate:MarkEquipIntent(8) end
                                 EquipItemByName(bestItem.itemLink, slotId)
                                 local slotName = slotInfo.name or "slot"
                                 print("|cFF" .. color .. "Valuate|r: Equipping " .. bestItem.itemLink .. " to " .. slotName)
@@ -6772,6 +6775,33 @@ local function CreateSettingsPanel(parent)
         end
     end)
     autoRollCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Auto Confirm Bind On Loot checkbox (Column 1, below Auto Roll On Loot)
+    local bindConfirmCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    bindConfirmCheckbox:SetSize(24, 24)
+    bindConfirmCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local bindConfirmLabel = bindConfirmCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    bindConfirmLabel:SetPoint("LEFT", bindConfirmCheckbox, "RIGHT", 5, 0)
+    bindConfirmLabel:SetText("Auto Confirm Bind On Loot")
+    bindConfirmCheckbox:SetChecked(Valuate:GetOptions().autoConfirmBindOnLoot == true)
+    bindConfirmCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoConfirmBindOnLoot = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    bindConfirmCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Confirm Bind On Loot", 1, 1, 1)
+            GameTooltip:AddLine("Skips the 'this item will bind to you' prompt when YOU loot or use a bind-on-pickup item.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Not needed for Equip All or right-click-to-equip - Valuate already confirms binds for equips it starts itself, and manual equips always keep their prompt.", 0.6, 0.9, 0.6, true)
+            GameTooltip:AddLine("Warning: binding an item destroys its trade / auction value.", 1, 0.5, 0.5, true)
+            GameTooltip:Show()
+        end
+    end)
+    bindConfirmCheckbox:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING

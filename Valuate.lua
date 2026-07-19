@@ -337,6 +337,12 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.ConfirmAutoLootRoll then
             Valuate:ConfirmAutoLootRoll(addonName, rollType)
         end
+    elseif event == "EQUIP_BIND_CONFIRM" or event == "AUTOEQUIP_BIND_CONFIRM"
+           or event == "LOOT_BIND_CONFIRM" or event == "USE_BIND_CONFIRM" then
+        -- arg1 (the addonName slot) is the inventory/loot slot for these events
+        if Valuate.HandleBindConfirm then
+            Valuate:HandleBindConfirm(event, addonName)
+        end
     end
 end
 
@@ -374,6 +380,7 @@ local DEFAULT_OPTIONS = {
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
+    autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
     autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
     autoDeleteKeepFree = 4,               -- target number of free bag slots
@@ -3367,6 +3374,49 @@ function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override,
     return true
 end
 
+-- ========================================
+-- Bind confirmations
+-- ========================================
+-- Equipping a bind-on-equip item raises EQUIP_BIND_CONFIRM; with nothing answering it
+-- the equip silently doesn't happen, which stalls Equip All on BoE upgrades.
+--
+-- Auto-confirming a bind is consequential (it destroys the item's trade/AH value), so
+-- we deliberately do NOT blanket-confirm. Valuate records a short-lived "I started this
+-- equip" intent and only confirms while that intent is live - a bind prompt you raised
+-- yourself by manually equipping something still behaves exactly as it always has.
+local equipIntentUntil = 0
+
+function Valuate:MarkEquipIntent(seconds)
+    equipIntentUntil = GetTime() + (seconds or 5)
+end
+
+local function HasEquipIntent()
+    return GetTime() <= equipIntentUntil
+end
+
+-- Handles the bind-confirmation events. slot semantics differ per event, so each is
+-- passed through to its matching API. Every API is feature-detected because these vary
+-- across 3.3.5 client builds.
+function Valuate:HandleBindConfirm(event, slot)
+    local options = Valuate:GetOptions()
+
+    if event == "EQUIP_BIND_CONFIRM" or event == "AUTOEQUIP_BIND_CONFIRM" then
+        -- Only when Valuate initiated the equip.
+        if HasEquipIntent() and EquipPendingItem then
+            EquipPendingItem(slot)
+        end
+    elseif event == "LOOT_BIND_CONFIRM" then
+        -- Raised by YOUR looting, not by Valuate, so it needs its own opt-in.
+        if options.autoConfirmBindOnLoot and ConfirmLootSlot then
+            ConfirmLootSlot(slot)
+        end
+    elseif event == "USE_BIND_CONFIRM" then
+        if options.autoConfirmBindOnLoot and ConfirmBindOnUse then
+            ConfirmBindOnUse()
+        end
+    end
+end
+
 -- Equips every currently-equippable best-in-slot item for a scale in one go, so the
 -- player doesn't have to right-click each slot. Skips locked slots and anything
 -- already worn. Then (unless disabled) integrates with WoW's Equipment Manager by
@@ -3392,6 +3442,10 @@ function Valuate:EquipBestSet(scaleName)
     local scales = Valuate:GetScales()
     local scale = scales[scaleName]
     local locks = be.locks or {}
+
+    -- Tell the bind-confirm handler these equips are ours, so BoE upgrades don't stall
+    -- on the "this will bind to you" popup. Generous window: equips are asynchronous.
+    Valuate:MarkEquipIntent(8)
 
     local equipped = 0
     for slotId = 1, 18 do
@@ -4265,6 +4319,10 @@ frame:RegisterEvent("GOSSIP_SHOW")
 frame:RegisterEvent("START_LOOT_ROLL")
 frame:RegisterEvent("CONFIRM_LOOT_ROLL")
 frame:RegisterEvent("LOOT_CLOSED")
+frame:RegisterEvent("EQUIP_BIND_CONFIRM")
+frame:RegisterEvent("AUTOEQUIP_BIND_CONFIRM")
+frame:RegisterEvent("LOOT_BIND_CONFIRM")
+frame:RegisterEvent("USE_BIND_CONFIRM")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
