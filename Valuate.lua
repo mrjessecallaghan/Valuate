@@ -4271,6 +4271,18 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk
         print("|cFF00FF00Valuate|r: Auto delete junk " .. (options.autoDeleteJunk and "|cFFFF5555ENABLED|r - deletions are permanent" or "|cFF00FF00disabled|r"))
+    elseif command:match("^keepfree") then
+        -- /valuate keepfree <n> - how many bag slots auto-delete keeps free
+        local options = Valuate:GetOptions()
+        local n = tonumber(command:match("^keepfree%s+(%d+)$"))
+        if n then
+            n = math.max(0, math.min(60, n))
+            options.autoDeleteKeepFree = n
+            print("|cFF00FF00Valuate|r: Auto delete will keep |cFFFFD700" .. n .. "|r bag slot(s) free.")
+        else
+            print("|cFF00FF00Valuate|r: Keeping |cFFFFD700" .. (options.autoDeleteKeepFree or 4)
+                .. "|r bag slot(s) free. Usage: /valuate keepfree <number>")
+        end
     elseif command == "deletepreview" then
         -- Always runs, regardless of free space or whether auto-delete is enabled,
         -- and deletes nothing. Reports the ranked queue plus why items were skipped.
