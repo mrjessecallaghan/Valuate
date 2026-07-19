@@ -385,7 +385,6 @@ local DEFAULT_OPTIONS = {
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
-    autoSaveEquipmentSet = true,          -- after "Equip All", save a WoW equipment set for the scale
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -3429,24 +3428,36 @@ function Valuate:EquipBestSet(scaleName)
         end
     end
 
-    -- Integrate with WoW's Equipment Manager: snapshot the best gear into a set named
-    -- for the scale. Save regardless of whether anything needed equipping - if you're
-    -- already wearing the best set we still (re)create/overwrite the WoW set. When we
-    -- did equip something, wait for the swaps to settle first.
-    if options.autoSaveEquipmentSet ~= false and GetNumEquipmentSets and SaveEquipmentSet then
-        local function saveSet()
-            if not InCombatLockdown() then
-                pcall(function() Valuate:CreateGearSetFromCurrentEquipment(scaleName, nil, nil, true) end)
-            end
-        end
-        if equipped > 0 then
-            ValuateAfter(2.0, saveSet)  -- let the equip swaps finish first
-        else
-            saveSet()                   -- already wearing best: nothing to settle
-        end
-    end
+    -- NOTE: saving a WoW equipment set is deliberately NOT done here. Equipping and
+    -- overwriting a saved set are separate intentions, so the set snapshot lives behind
+    -- its own "Save Set" button (Valuate:SaveEquipmentSetForScale).
 
     return equipped
+end
+
+-- Snapshots the gear you are CURRENTLY WEARING into a WoW equipment set named after
+-- the scale (suffixed with the active weapon set, e.g. "Retribution (2H)"). Separate
+-- from EquipBestSet so equipping and overwriting a saved set stay independent actions.
+function Valuate:SaveEquipmentSetForScale(scaleName)
+    if not scaleName then return false end
+
+    if InCombatLockdown() then
+        print("|cFFFF0000[Valuate]|r Can't save an equipment set in combat.")
+        return false
+    end
+    if not GetNumEquipmentSets or not SaveEquipmentSet then
+        print("|cFFFF0000[Valuate]|r This client doesn't expose the equipment manager API.")
+        return false
+    end
+
+    local ok, result = pcall(function()
+        return Valuate:CreateGearSetFromCurrentEquipment(scaleName, nil, nil, true)
+    end)
+    if not ok then
+        print("|cFFFF0000[Valuate]|r Failed to save the equipment set.")
+        return false
+    end
+    return result
 end
 
 -- OLD FUNCTION REMOVED - Use Blizzard's equipment manager directly to switch sets

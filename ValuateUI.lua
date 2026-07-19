@@ -5528,10 +5528,11 @@ local function CreateBestEquipmentPanel(parent)
         headerName:SetTextColor(unpack(COLORS.textHeader))
         col.headerName = headerName
 
+        -- Three stacked action buttons fill the 60px header: Equip All / Save Set / Clear.
         local clearButton = CreateFrame("Button", nil, headerContainer)
-        clearButton:SetHeight(20)
+        clearButton:SetHeight(18)
         clearButton:SetWidth(80)
-        clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -34)
+        clearButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -40)
         clearButton:SetBackdrop(BACKDROP_BUTTON)
         clearButton:SetBackdropColor(unpack(COLORS.buttonBg))
         clearButton:SetBackdropBorderColor(unpack(COLORS.border))
@@ -5552,9 +5553,9 @@ local function CreateBestEquipmentPanel(parent)
 
         -- "Equip All": one-click equip of this scale's best-in-slot items.
         local equipAllButton = CreateFrame("Button", nil, headerContainer)
-        equipAllButton:SetHeight(20)
+        equipAllButton:SetHeight(18)
         equipAllButton:SetWidth(80)
-        equipAllButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -10)
+        equipAllButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -2)
         equipAllButton:SetBackdrop(BACKDROP_BUTTON)
         equipAllButton:SetBackdropColor(unpack(COLORS.buttonBg))
         equipAllButton:SetBackdropBorderColor(unpack(COLORS.border))
@@ -5564,6 +5565,22 @@ local function CreateBestEquipmentPanel(parent)
         equipAllLabel:SetTextColor(0.4, 1, 0.4, 1)
         equipAllButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
         col.equipAllButton = equipAllButton
+
+        -- "Save Set": snapshot what you're wearing into a WoW equipment set. Kept
+        -- separate from Equip All so equipping never overwrites a saved set for you.
+        local saveSetButton = CreateFrame("Button", nil, headerContainer)
+        saveSetButton:SetHeight(18)
+        saveSetButton:SetWidth(80)
+        saveSetButton:SetPoint("TOPRIGHT", headerContainer, "TOPRIGHT", -5, -21)
+        saveSetButton:SetBackdrop(BACKDROP_BUTTON)
+        saveSetButton:SetBackdropColor(unpack(COLORS.buttonBg))
+        saveSetButton:SetBackdropBorderColor(unpack(COLORS.border))
+        local saveSetLabel = saveSetButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        saveSetLabel:SetPoint("CENTER", saveSetButton, "CENTER", 0, 0)
+        saveSetLabel:SetText("Save Set")
+        saveSetLabel:SetTextColor(0.6, 0.8, 1, 1)
+        saveSetButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        col.saveSetButton = saveSetButton
 
         -- Equipment container + rows
         local equipmentContainer = CreateFrame("Frame", nil, scaleFrame)
@@ -5840,9 +5857,24 @@ local function CreateBestEquipmentPanel(parent)
                         GameTooltip:AddLine("Equip All", 1, 1, 1)
                         GameTooltip:AddLine("Equip every best-in-slot item for this scale at once.", 0.8, 0.8, 0.8, true)
                         GameTooltip:AddLine("Skips locked slots and anything already worn.", 0.7, 0.7, 0.7, true)
-                        if Valuate:GetOptions().autoSaveEquipmentSet ~= false then
-                            GameTooltip:AddLine("Also saves a WoW equipment set for this scale.", 0.6, 0.8, 0.6, true)
-                        end
+                        GameTooltip:AddLine("Marks this weapon set as active. Does not touch your saved equipment sets.", 0.7, 0.7, 0.7, true)
+                        GameTooltip:Show()
+                    end
+                end)
+                col.saveSetButton:SetScript("OnClick", function()
+                    if Valuate.SaveEquipmentSetForScale then
+                        Valuate:SaveEquipmentSetForScale(scaleName)
+                    end
+                end)
+                col.saveSetButton:SetScript("OnEnter", function(self)
+                    if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                        GameTooltip:AddLine("Save Set", 1, 1, 1)
+                        GameTooltip:AddLine("Save the gear you are CURRENTLY WEARING as a WoW equipment set for this scale, usable from the character panel or an /equipset macro.", 0.8, 0.8, 0.8, true)
+                        local short = Valuate.GetActiveWeaponSetShort and Valuate:GetActiveWeaponSetShort(scaleName)
+                        local setName = (scale.DisplayName or scaleName) .. (short and (" (" .. short .. ")") or "")
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("Set name: " .. setName, 0.6, 0.8, 1, true)
+                        GameTooltip:AddLine("Overwrites an existing set with that name. Tip: Equip All first so you're wearing the best gear.", 0.7, 0.7, 0.7, true)
                         GameTooltip:Show()
                     end
                 end)
