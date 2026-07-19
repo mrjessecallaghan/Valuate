@@ -380,6 +380,7 @@ local DEFAULT_OPTIONS = {
     autoDeleteMaxQuality = 2,             -- never delete above this quality (2 = uncommon/green)
     autoDeleteMaxValue = 100000,          -- ceiling: never delete a stack worth MORE than this (copper)
     autoDeleteMinValue = 0,               -- floor: never delete a stack worth LESS than this (0 = no floor)
+    autoDeleteValueSource = "vendor",     -- "vendor", or a TSM price source e.g. "DBMarket"
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
@@ -3872,6 +3873,48 @@ end
 
 local autoDeleteSessionCount = 0
 
+-- Resolves an item's UNIT value in copper from the configured price source, falling
+-- back to the vendor sell price whenever the source is unavailable or returns nothing.
+-- sourceKey: "vendor" (default) or a TSM price source / custom price string such as
+-- "DBMarket", "DBMinBuyout", or even "max(dbmarket,vendorsell)".
+-- Returns: value, sourceUsed ("vendor" | sourceKey | "vendor (fallback)").
+-- TSM's API differs sharply between generations, so each shape is tried defensively;
+-- a missing or broken price source must never stop the caller from getting a number.
+function Valuate:GetItemUnitValue(itemLink, sourceKey)
+    if not itemLink then return 0, "vendor" end
+    local vendor = select(11, GetItemInfo(itemLink)) or 0
+
+    if not sourceKey or sourceKey == "" or strlower(sourceKey) == "vendor" then
+        return vendor, "vendor"
+    end
+
+    -- TSM4+ : TSM_API.GetCustomPriceValue(priceString, itemString)
+    if TSM_API and TSM_API.GetCustomPriceValue and TSM_API.ToItemString then
+        local ok, itemString = pcall(TSM_API.ToItemString, itemLink)
+        if ok and itemString then
+            local ok2, v = pcall(TSM_API.GetCustomPriceValue, sourceKey, itemString)
+            if ok2 and type(v) == "number" and v > 0 then return v, sourceKey end
+        end
+    end
+
+    -- TSM3 : TSMAPI:GetItemValue(itemLink, priceSource)
+    if TSMAPI and TSMAPI.GetItemValue then
+        local ok, v = pcall(TSMAPI.GetItemValue, TSMAPI, itemLink, sourceKey)
+        if ok and type(v) == "number" and v > 0 then return v, sourceKey end
+    end
+
+    -- TSM3 custom price strings : TSMAPI:ParseCustomPrice(str) -> function(itemLink)
+    if TSMAPI and TSMAPI.ParseCustomPrice then
+        local ok, priceFunc = pcall(TSMAPI.ParseCustomPrice, TSMAPI, sourceKey)
+        if ok and type(priceFunc) == "function" then
+            local ok2, v = pcall(priceFunc, itemLink)
+            if ok2 and type(v) == "number" and v > 0 then return v, sourceKey end
+        end
+    end
+
+    return vendor, "vendor (fallback)"
+end
+
 -- Free slots across the normal bags.
 local function CountFreeBagSlots()
     local free = 0
@@ -3956,10 +3999,13 @@ function Valuate:AutoDeleteJunk(opts)
     local maxQuality = options.autoDeleteMaxQuality or 2
     local maxValue = options.autoDeleteMaxValue or 0
     local minValue = options.autoDeleteMinValue or 0
+    local valueSource = options.autoDeleteValueSource or "vendor"
     local dryRun = preview or (options.autoDeleteDryRun == true)
 
     -- Diagnostics so a preview can explain WHY nothing matched.
     local nScanned, nJunk, nQuality, nValue, nProtected = 0, 0, 0, 0, 0
+    -- How often the configured price source actually resolved vs fell back to vendor.
+    local nSourceHits, nSourceFallback = 0, 0
 
     -- AdiBags' own junk classification if it's loaded (respects its include/exclude).
     local AdiBags
@@ -3976,9 +4022,17 @@ function Valuate:AutoDeleteJunk(opts)
             local link = GetContainerItemLink(bag, slot)
             if link then
                 local itemId = GetItemIdFromLink(link)
-                local name, _, quality, _, _, _, _, _, _, _, sellPrice = GetItemInfo(link)
+                local name, _, quality = GetItemInfo(link)
                 local _, stackCount = GetContainerItemInfo(bag, slot)
                 stackCount = stackCount or 1
+
+                -- Unit value from the configured price source (vendor by default).
+                local unitValue, usedSource = Valuate:GetItemUnitValue(link, valueSource)
+                if usedSource == valueSource then
+                    nSourceHits = nSourceHits + 1
+                else
+                    nSourceFallback = nSourceFallback + 1
+                end
 
                 -- Junk per AdiBags, else fall back to poor quality.
                 local isJunk
@@ -3988,7 +4042,7 @@ function Valuate:AutoDeleteJunk(opts)
                 end
                 if isJunk == nil then isJunk = (quality == 0) end
 
-                local value = (sellPrice or 0) * stackCount
+                local value = unitValue * stackCount
 
                 nScanned = nScanned + 1
                 if isJunk then
@@ -4027,6 +4081,15 @@ function Valuate:AutoDeleteJunk(opts)
             maxQuality,
             minValue > 0 and money(minValue) or "any",
             maxValue > 0 and money(maxValue) or "any"))
+        if strlower(valueSource) == "vendor" then
+            print("|cFFAAAAAA[Valuate]|r Value source: vendor sell price.")
+        elseif nSourceFallback > 0 then
+            print(string.format("|cFFFF8800[Valuate]|r Value source '%s' resolved for %d item(s) but FELL BACK to vendor for %d - check the source name / that TSM is loaded.",
+                valueSource, nSourceHits, nSourceFallback))
+        else
+            print(string.format("|cFFAAAAAA[Valuate]|r Value source: '%s' (resolved for all %d item(s)).",
+                valueSource, nSourceHits))
+        end
     end
 
     if #candidates == 0 then
@@ -4271,6 +4334,17 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk
         print("|cFF00FF00Valuate|r: Auto delete junk " .. (options.autoDeleteJunk and "|cFFFF5555ENABLED|r - deletions are permanent" or "|cFF00FF00disabled|r"))
+    elseif command:match("^valuesource") then
+        -- /valuate valuesource <vendor|TSM price source>
+        local options = Valuate:GetOptions()
+        local src = strtrim(command:match("^valuesource%s+(.+)$") or "")
+        if src ~= "" then
+            options.autoDeleteValueSource = src
+            print("|cFF00FF00Valuate|r: Value source set to '" .. src .. "'. Run /valuate deletepreview to confirm it resolves.")
+        else
+            print("|cFF00FF00Valuate|r: Value source is '" .. (options.autoDeleteValueSource or "vendor")
+                .. "'. Usage: /valuate valuesource <vendor|DBMarket|...>")
+        end
     elseif command:match("^keepfree") then
         -- /valuate keepfree <n> - how many bag slots auto-delete keeps free
         local options = Valuate:GetOptions()
