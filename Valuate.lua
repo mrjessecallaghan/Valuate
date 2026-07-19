@@ -320,6 +320,17 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoAcceptQuests then
             Valuate:AutoAcceptQuests(event)
         end
+    elseif event == "START_LOOT_ROLL" then
+        -- arg1 (the addonName slot) is the rollID for this event
+        if Valuate.AutoRollOnLoot then
+            Valuate:AutoRollOnLoot(addonName)
+        end
+    elseif event == "CONFIRM_LOOT_ROLL" then
+        -- arg1 = rollID, arg2 = rollType
+        local rollType = ...
+        if Valuate.ConfirmAutoLootRoll then
+            Valuate:ConfirmAutoLootRoll(addonName, rollType)
+        end
     end
 end
 
@@ -356,6 +367,7 @@ local DEFAULT_OPTIONS = {
     normalizeDisplay = false,
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
+    autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
@@ -3842,6 +3854,63 @@ function Valuate:AutoAdvanceQuestProgress()
     end
 end
 
+-- Auto-rolls on a group loot roll when options.autoRollLoot is enabled.
+-- Need when the item is an upgrade for ANY configured scale (active or not), Greed
+-- otherwise. Never rolls Need on something that isn't an upgrade.
+-- rollID: the roll being offered. isRetry guards the one-shot item-cache retry.
+function Valuate:AutoRollOnLoot(rollID, isRetry)
+    local options = Valuate:GetOptions()
+    if not options.autoRollLoot or not rollID then return end
+    if not GetLootRollItemInfo or not RollOnLoot then return end
+
+    local _, name, _, _, _, canNeed, canGreed = GetLootRollItemInfo(rollID)
+    local link = GetLootRollItemLink and GetLootRollItemLink(rollID)
+
+    -- Item data may not be cached yet, which would make the stat parse unreliable.
+    -- Retry once shortly; rolls expire, so we only get one grace period.
+    if link and not GetItemInfo(link) and not isRetry then
+        ValuateAfter(0.5, function() Valuate:AutoRollOnLoot(rollID, true) end)
+        return
+    end
+
+    local isUpgrade, delta, scaleName = false, 0, nil
+    if link then
+        local stats = Valuate:GetStatsForTooltipSetter("SetLootRollItem", rollID)
+        if stats then
+            isUpgrade, delta, scaleName =
+                Valuate:IsUpgradeForAnyScale(link, stats, { includeInactive = true })
+        end
+    end
+
+    -- 0 = pass, 1 = need, 2 = greed. Only upgrades ever roll Need.
+    local rollType, label
+    if isUpgrade then
+        if canNeed then rollType, label = 1, "Need"
+        elseif canGreed then rollType, label = 2, "Greed"
+        else rollType, label = 0, "Pass" end
+    else
+        if canGreed then rollType, label = 2, "Greed"
+        else rollType, label = 0, "Pass" end
+    end
+
+    if options.chatMessages then
+        local reason = isUpgrade
+            and string.format("upgrade for %s, +%.1f", scaleName or "a scale", delta or 0)
+            or "not an upgrade"
+        print(string.format("|cFF00FF00Valuate|r rolled |cFFFFD700%s|r on %s |cFFAAAAAA(%s)|r",
+            label, link or name or "item", reason))
+    end
+
+    RollOnLoot(rollID, rollType)
+end
+
+-- Confirms the "are you sure?" popup that follows a Need roll on a BoP item.
+function Valuate:ConfirmAutoLootRoll(rollID, rollType)
+    local options = Valuate:GetOptions()
+    if not options.autoRollLoot or not rollID then return end
+    if ConfirmLootRoll then ConfirmLootRoll(rollID, rollType) end
+end
+
 -- Auto-accepts quests offered by NPCs when options.autoAcceptQuests is enabled.
 -- Handles the whole accept flow:
 --   QUEST_DETAIL         - a single quest offer -> AcceptQuest()
@@ -3889,6 +3958,8 @@ frame:RegisterEvent("QUEST_DETAIL")
 frame:RegisterEvent("QUEST_ACCEPT_CONFIRM")
 frame:RegisterEvent("QUEST_GREETING")
 frame:RegisterEvent("GOSSIP_SHOW")
+frame:RegisterEvent("START_LOOT_ROLL")
+frame:RegisterEvent("CONFIRM_LOOT_ROLL")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Slash command handler (basic)
@@ -3961,6 +4032,10 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFFFF0000Valuate|r: Scan unavailable. Please /reload.")
         end
+    elseif command == "roll" then
+        local options = Valuate:GetOptions()
+        options.autoRollLoot = not options.autoRollLoot
+        print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "accept" then
         local options = Valuate:GetOptions()
         options.autoAcceptQuests = not options.autoAcceptQuests

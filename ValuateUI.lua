@@ -6641,6 +6641,33 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Auto Roll On Loot checkbox (Column 1, below Auto Accept Quests)
+    local autoRollCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoRollCheckbox:SetSize(24, 24)
+    autoRollCheckbox:SetPoint("TOPLEFT", autoAcceptCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local autoRollLabel = autoRollCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoRollLabel:SetPoint("LEFT", autoRollCheckbox, "RIGHT", 5, 0)
+    autoRollLabel:SetText("Auto Roll On Loot")
+    autoRollCheckbox:SetChecked(Valuate:GetOptions().autoRollLoot == true)
+    autoRollCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoRollLoot = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoRollCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Roll On Loot", 1, 1, 1)
+            GameTooltip:AddLine("On a group loot roll, Valuate rolls NEED when the item is an upgrade for any of your scales (including inactive ones), and GREED otherwise. It never rolls Need on something that isn't an upgrade.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("An item you can't equip yet (higher level required) still counts as an upgrade if it beats your best.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Warning: rolls automatically on your behalf. Auto-Need can be contentious in groups.", 1, 0.5, 0.5, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoRollCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================
