@@ -3488,6 +3488,56 @@ end
 -- quest rewards too), and honors the scale's banned ("Unusable") stats exactly
 -- like the item tooltips do. Returns a score, or nil if it can't/shouldn't be
 -- scored (non-gear reward, banned stats, tooltip failure).
+-- ========================================
+-- Shared upgrade evaluation API
+-- ========================================
+
+-- Does this scale ban the item? Mirrors the checks used by the tooltip, the
+-- best-equipment scan and quest scoring: any banned stat present, plus equip-location
+-- backstops for weapon bans the tooltip parse can miss.
+local function ScaleBansItem(scale, stats, equipLoc)
+    if not scale or not scale.Unusable then return false end
+
+    if stats then
+        for statName, statValue in pairs(stats) do
+            if scale.Unusable[statName] and statValue and statValue > 0 then
+                return true
+            end
+        end
+    end
+
+    if equipLoc then
+        if (equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
+            return true
+        elseif equipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
+            return true
+        elseif equipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
+            return true
+        elseif (equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Populates the private tooltip through one of its Set* methods and returns the parsed
+-- stats, e.g. Valuate:GetStatsForTooltipSetter("SetLootRollItem", rollID) or
+-- ("SetQuestItem", "choice", index). Returns nil if the setter fails or nothing parsed.
+function Valuate:GetStatsForTooltipSetter(setterName, ...)
+    local tooltip = GetPrivateTooltip()
+    if not tooltip or type(tooltip[setterName]) ~= "function" then return nil end
+
+    tooltip:ClearLines()
+    local args = { ... }
+    local ok = pcall(function() tooltip[setterName](tooltip, unpack(args)) end)
+    if not ok then return nil end
+
+    local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+    if not stats or not next(stats) then return nil end
+    return stats
+end
+
 local function ScoreQuestChoice(index, scale)
     if not scale or not scale.Values then
         return nil
@@ -3519,28 +3569,10 @@ local function ScoreQuestChoice(index, scale)
         return nil
     end
 
-    -- Respect banned stats (mirrors the tooltip / best-equipment logic)
-    if scale.Unusable then
-        for statName, statValue in pairs(stats) do
-            if scale.Unusable[statName] and statValue and statValue > 0 then
-                return nil
-            end
-        end
-
-        -- Slot-type fallback for weapon bans the tooltip parse may have missed
-        local itemLink = GetQuestItemLink("choice", index)
-        if itemLink then
-            local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
-            if (equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND") and scale.Unusable["OneHandDps"] then
-                return nil
-            elseif equipLoc == "INVTYPE_2HWEAPON" and scale.Unusable["TwoHandDps"] then
-                return nil
-            elseif equipLoc == "INVTYPE_WEAPONOFFHAND" and scale.Unusable["OffHandDps"] then
-                return nil
-            elseif (equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" or equipLoc == "INVTYPE_THROWN") and scale.Unusable["RangedDps"] then
-                return nil
-            end
-        end
+    -- Respect banned stats (shared with the tooltip / best-equipment logic)
+    local equipLoc = questItemLink and select(9, GetItemInfo(questItemLink)) or nil
+    if ScaleBansItem(scale, stats, equipLoc) then
+        return nil
     end
 
     return Valuate:CalculateItemScore(stats, scale)
@@ -3553,7 +3585,7 @@ end
 -- gain to a weak 1H (or dual-wield off-hand, or empty shield slot) beats a marginal
 -- gain to an already-strong 2H. Empty positions count as 0 (a full upgrade); returns
 -- 0 when nothing is tracked yet.
-local function RewardBaselineScore(itemLink, scale, scaleName)
+function Valuate:GetUpgradeBaseline(itemLink, scale, scaleName)
     if not itemLink or not scaleName then return 0 end
     local be = Valuate:GetBestEquipment()[scaleName]
     if not be then return 0 end
@@ -3616,6 +3648,70 @@ local function RewardBaselineScore(itemLink, scale, scaleName)
     return minScore or 0
 end
 
+-- How much this item would improve each scale, given already-parsed stats.
+-- Returns an array of { scaleName, scale, score, baseline, delta }, or nil.
+-- opts.includeInactive = true considers every configured scale, not just active ones
+-- (used by auto-roll / delete protection: "an upgrade for ANY spec").
+-- Equippability is deliberately NOT considered, so an item gated behind a higher level
+-- still counts as an upgrade ("will be an upgrade").
+function Valuate:GetItemUpgradeInfo(itemLink, stats, opts)
+    if not itemLink or not stats then return nil end
+    if Valuate:IsItemExcludedFromEvaluation(itemLink) then return nil end
+
+    local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
+    if not equipLoc or equipLoc == "" then return nil end  -- not equippable gear
+
+    opts = opts or {}
+    local scales = Valuate:GetScales()
+
+    -- Candidate scale names: every configured scale, or just the active ones.
+    local candidates = {}
+    if opts.includeInactive then
+        for scaleName in pairs(scales) do tinsert(candidates, scaleName) end
+    else
+        for _, scaleName in ipairs(Valuate:GetActiveScales()) do tinsert(candidates, scaleName) end
+    end
+
+    local results = {}
+    for _, scaleName in ipairs(candidates) do
+        local scale = scales[scaleName]
+        if scale and scale.Values and not ScaleBansItem(scale, stats, equipLoc) then
+            local score = Valuate:CalculateItemScore(stats, scale)
+            if score and score > 0 then
+                local baseline = Valuate:GetUpgradeBaseline(itemLink, scale, scaleName)
+                tinsert(results, {
+                    scaleName = scaleName,
+                    scale = scale,
+                    score = score,
+                    baseline = baseline,
+                    delta = score - baseline,
+                })
+            end
+        end
+    end
+
+    return #results > 0 and results or nil
+end
+
+-- Convenience wrapper: is this item an upgrade for ANY candidate scale?
+-- Returns isUpgrade, bestDelta, bestScaleName.
+function Valuate:IsUpgradeForAnyScale(itemLink, stats, opts)
+    local info = Valuate:GetItemUpgradeInfo(itemLink, stats, opts)
+    if not info then return false, 0, nil end
+
+    local bestDelta, bestScaleName
+    for _, entry in ipairs(info) do
+        if not bestDelta or entry.delta > bestDelta then
+            bestDelta, bestScaleName = entry.delta, entry.scaleName
+        end
+    end
+
+    if bestDelta and bestDelta > 0 then
+        return true, bestDelta, bestScaleName
+    end
+    return false, bestDelta or 0, bestScaleName
+end
+
 -- Auto-selects the highest-scoring quest reward choice for the active scale.
 -- By default this only PRE-SELECTS (highlights) the reward so the player still
 -- clicks "Complete Quest" themselves. If autoQuestTurnIn is also enabled it goes
@@ -3664,7 +3760,7 @@ function Valuate:AutoSelectBestQuestReward()
             if not bestScore or score > bestScore then
                 bestScore, bestIndex, bestLink = score, index, link
             end
-            local delta = score - RewardBaselineScore(link, scale, scaleName)
+            local delta = score - Valuate:GetUpgradeBaseline(link, scale, scaleName)
             if not upgDelta or delta > upgDelta then
                 upgDelta, upgIndex, upgScore, upgLink = delta, index, score, link
             end
