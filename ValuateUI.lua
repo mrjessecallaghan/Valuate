@@ -5142,8 +5142,48 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.9.5a (Current) - Best Equipment frame pooling
-    local v095Header = CreateVersionHeader("Version 0.9.5a (Current) - Best Equipment frame pooling", currentY)
+    -- Version 0.10.0a (Current) - weapon sets, loot & bag automation
+    local v0100Header = CreateVersionHeader("Version 0.10.0a (Current) - weapon sets, loot & bag automation", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0100Text = CreateChangeText(
+        "|cFFFFD700All of this is UNTESTED in-game - verify before relying on it.|r\n" ..
+        "\n" ..
+        "• NEW: Weapon Sets - each scale tracks Two-Hander / 1H+Shield / 1H+Off-Hand /\n" ..
+        "   Dual Wield separately instead of one winner per slot. Toggle each per scale\n" ..
+        "   and pick the active set; gear for any enabled set is still kept.\n" ..
+        "• NEW: Best Equipment weapon-sets panel, plus Equipped/Best and upgrade totals.\n" ..
+        "• NEW: Equip All - equips a scale's whole best set in one click (skips locked\n" ..
+        "   and already-worn slots), pins that weapon set active.\n" ..
+        "• NEW: Save Set - saves what you're wearing as a WoW equipment set, named\n" ..
+        "   after the scale + weapon set, e.g. 'Retribution (2H)'.\n" ..
+        "• NEW: Auto Roll On Loot (off by default) - Need on upgrades for ANY scale,\n" ..
+        "   Greed otherwise. Never Needs a non-upgrade. /valuate roll\n" ..
+        "• NEW: Auto Accept Quests (off by default). /valuate accept\n" ..
+        "• NEW: Junk auto-delete (off by default, |cFFFF5555deletion is permanent|r) -\n" ..
+        "   keeps N bag slots free by removing the least valuable junk. Never deletes\n" ..
+        "   best-in-slot, weapon-set, future-upgrade, quest or equipment-set items.\n" ..
+        "   Can rank by a TSM price source instead of vendor value.\n" ..
+        "   /valuate autodelete, /valuate deletepreview, /valuate keepfree <n>\n" ..
+        "• NEW: AdiBags keeps future upgrades (gear you can't use yet) in their own\n" ..
+        "   section, optionally merged into Best Items.\n" ..
+        "• CHANGED: quest rewards now pick the biggest UPGRADE, not the highest score.\n" ..
+        "• CHANGED: tooltips say which setup an item wins, e.g. 'Best two-hander for'.\n" ..
+        "• CHANGED: refreshed UI - new palette, Best Equipment cards, tab accent and\n" ..
+        "   subtle animations.\n" ..
+        "• FIX: stats like 'Equip: Improves hit rating by 2' were silently ignored\n" ..
+        "   (the patterns required the word 'your'). Affected many stats, not just hit.\n" ..
+        "• FIX: the Dual Wield set only ever found a main hand.\n" ..
+        "• FIX: 1H weapons leaked past a 1H ban.\n" ..
+        "• FIX: AdiBags showed stale results and was out-prioritised by other filters.\n" ..
+        "• FIX: Equip All silently skipped bind-on-equip upgrades.",
+        currentY
+    )
+    local v0100Height = v0100Text:GetStringHeight()
+    currentY = currentY - v0100Height - versionSpacing
+
+    -- Version 0.9.5a - Best Equipment frame pooling
+    local v095Header = CreateVersionHeader("Version 0.9.5a - Best Equipment frame pooling", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v095Text = CreateChangeText(

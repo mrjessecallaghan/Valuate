@@ -4,6 +4,100 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.10.0a] - 2026-07-19 — Weapon sets, loot & bag automation
+
+Large release. Valuate now tracks gear as **weapon configurations** rather than one
+winner per slot, and automates most of the gear lifecycle: acquiring it (loot rolls,
+quest rewards), keeping it (AdiBags tags, delete protections), wearing it (Equip All,
+equipment sets) and making room for it (junk auto-delete).
+
+**Everything below is untested in-game at release** — no Lua runtime is available on the
+dev machine, so all changes are review-verified only. Verify before relying on them, and
+be especially careful with the destructive junk auto-delete.
+
+### Added
+- **Weapon Sets.** Each scale can track four weapon configurations independently —
+  **Two-Hander**, **1H + Shield**, **1H + Off-Hand** and **Dual Wield** — instead of a
+  single best item per slot. Previously a 2H and a 1H fought over the main-hand slot and
+  only the higher score survived, so the other setup was invisible. Each config is
+  toggleable per scale in the scale editor, and one is the **active set** that drives
+  main/off-hand best-in-slot for tooltips, AdiBags and right-click-equip. Gear belonging
+  to any *enabled* config is still kept, so switching your active set never makes Valuate
+  tell you to vendor the other setup's pieces.
+- **Best Equipment weapon-sets panel.** Each scale column lists its enabled configs with
+  a combined score; click one to make it active. Columns also show **Equipped X / Best Y**
+  and **Upgrades in bags: +Z**.
+- **Equip All** button — equips a scale's entire best-in-slot set in one click (skipping
+  locked slots and anything already worn, refusing in combat), pins that weapon set as
+  active, and flashes the row so it's clear which configuration you're now wearing.
+- **Save Set** button — snapshots the gear you're currently wearing into a WoW equipment
+  set named after the scale and its active weapon set, e.g. `Retribution (2H)`.
+- **Auto Roll On Loot** (Settings, off by default). On a group loot roll, rolls **Need**
+  when the item is an upgrade for any of your scales — including inactive ones, and
+  including gear you can't equip yet but would beat your best — and **Greed** otherwise.
+  It never rolls Need on something that isn't an upgrade. `/valuate roll`.
+- **Auto Accept Quests** (Settings, off by default). Accepts quests from NPCs, including
+  escort/shared confirmations and quests listed in gossip or multi-quest greeting windows.
+  `/valuate accept`.
+- **Junk auto-delete** (Settings, off by default — **deletion is permanent**). After
+  looting, deletes the least valuable junk until a configurable number of bag slots is
+  free. Candidates come from AdiBags' own Junk classification (honouring its
+  include/exclude lists), or grey quality without AdiBags. Tunable quality ceiling, value
+  floor/ceiling, and free-slot target. **Hard protections that cannot be disabled:** never
+  deletes best-in-slot, weapon-set members, future upgrades, anything that's an upgrade for
+  any scale, quest items, or items in a WoW equipment set. Every deletion is logged.
+  `/valuate autodelete`, `/valuate deletepreview`, `/valuate keepfree <n>`.
+- **Pluggable value source** for junk ranking — defaults to vendor sell price, but can use
+  a TradeSkillMaster price source (`DBMarket`, `DBMinBuyout`, or a custom price string) and
+  always falls back to vendor when unavailable. The preview reports when it falls back, so
+  a missing source can't silently change what gets deleted.
+- **Future upgrades are kept by AdiBags.** Items you can't equip yet (e.g. a higher level
+  is required) that would be an upgrade once usable now go to their own `Soon:`/`Future
+  Items` section, with an option to merge them into the main Best Items section.
+- **Bind confirmation handling.** Equipping a bind-on-equip item raised a confirmation
+  nothing answered, so Equip All silently skipped BoE upgrades. Valuate now confirms binds
+  for equips **it** initiated; a prompt you raise by manually equipping something still
+  behaves exactly as before. Optional `Auto Confirm Bind On Loot` for your own looting.
+
+### Changed
+- **Auto quest reward now picks the biggest upgrade, not the highest score.** Each reward
+  is measured against the weakest position it could take across your enabled weapon sets,
+  so a marginal 2H upgrade loses to a large 1H-set upgrade, and an empty slot counts as a
+  full upgrade. Falls back to the highest raw score when nothing is an upgrade.
+- **"Best for" tooltips are qualified by weapon category** — "★ Best two-hander for:
+  Retribution" rather than a bare "Best for", so you can tell *which* setup an item wins.
+- **UI overhaul.** Cohesive dark slate/azure palette, Best Equipment columns framed as
+  cards with a scale-coloured header accent, a clear active-tab accent, and micro-animations
+  (eased hover fades, tab accent sweep, set-activation flash).
+- **Saving an equipment set is no longer coupled to Equip All** — it's a separate **Save
+  Set** button, so equipping never overwrites a saved set for you.
+- Internal: one shared upgrade API (`GetItemUpgradeInfo` / `IsUpgradeForAnyScale` /
+  `GetUpgradeBaseline`) now backs quest rewards, auto-roll and delete protection, replacing
+  logic that was duplicated across four call sites.
+
+### Fixed
+- **Stats written without the possessive were silently dropped.** Ascension writes
+  "Equip: Improves hit rating by 2" where the patterns expected "...improves **your** hit
+  rating"; the line never matched, so the stat was ignored in all scoring. This affected
+  every rating with "your" in its pattern, not just hit. Tooltip lines and patterns are now
+  folded to one canonical form (and Improves/Increases treated as interchangeable), fixing
+  it in both directions. Integer captures also widened to accept decimals.
+- **The Dual Wield set only ever found a main hand.** The off-hand pick was gated on a
+  dual-wield check that has no dependable API on 3.3.5 and fell back to class defaults —
+  meaningless on a classless server. Enabling the Dual Wield set now implies you dual-wield,
+  and knowing the Dual Wield passive counts as proof.
+- **One-hand weapons leaked past a 1H ban.** Weapon-type bans had equip-location backstops
+  for 2H/off-hand/ranged but not one-hand, so 1H items whose DPS parsed differently were
+  still marked best-in-slot.
+- **AdiBags kept showing stale results.** Valuate now notifies integration modules when
+  best-equipment data changes, so the bag re-filters after a scan instead of holding the
+  previous scan's categorisation.
+- **AdiBags filter was being starved.** `ValuateBestItems` registered at priority 90, below
+  `AdiBags_AscensionStatWeights` (96) and others, which claimed the gear first — so best
+  items landed in ordinary categories. Now registered at 97.
+- **`/valuate deletepreview` printed nothing** unless bags were nearly full. Preview now
+  always runs, and reports why items were excluded (quality, value range, or protection).
+
 ## [0.9.5a] - 2026-07-08 — Best Equipment frame pooling
 
 ### Changed
