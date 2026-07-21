@@ -4325,6 +4325,86 @@ frame:RegisterEvent("LOOT_BIND_CONFIRM")
 frame:RegisterEvent("USE_BIND_CONFIRM")
 frame:SetScript("OnEvent", OnEvent)
 
+-- ========================================
+-- Self-test (/valuate selftest)
+-- ========================================
+-- Fast in-game sanity check of the plumbing: options completeness, core methods
+-- present + callable, key data structures well-formed, tooltip parsing alive. It
+-- doesn't prove behaviour is correct, but it catches a broken build the moment you
+-- reload - a missing method, a nil'd option, a parser that stopped returning stats.
+function Valuate:RunSelfTest()
+    local pass, fail = 0, 0
+    local function check(ok, label, detail)
+        if ok then
+            pass = pass + 1
+        else
+            fail = fail + 1
+            print("|cFFFF5555  FAIL|r " .. label .. (detail and (" - " .. detail) or ""))
+        end
+    end
+
+    print("|cFF00FF00[Valuate]|r Self-test (v" .. (Valuate.version or "?") .. ")...")
+
+    -- Options completeness against the single source of truth.
+    local options = Valuate:GetOptions()
+    check(type(options) == "table", "GetOptions returns a table")
+    if type(options) == "table" then
+        local missing = {}
+        for key in pairs(DEFAULT_OPTIONS) do
+            if options[key] == nil then missing[#missing + 1] = key end
+        end
+        check(#missing == 0, "all option keys present", #missing > 0 and ("missing: " .. table.concat(missing, ", ")) or nil)
+    end
+
+    -- Core methods exist and are callable.
+    local methods = {
+        "GetScales", "GetActiveScales", "GetBestEquipment", "ScanBestEquipment",
+        "ParseStatsFromTooltip", "CalculateItemScore", "GetItemUpgradeInfo",
+        "IsUpgradeForAnyScale", "GetBestForInfo", "GetFutureUpgradeScales",
+        "EquipBestSet", "SaveEquipmentSetForScale", "GetWeaponSetDefinitions",
+        "IsWeaponSetEnabled", "GetUpgradeBaseline", "GetStatsForTooltipSetter",
+        "GetPrimaryScale", "GetPrivateTooltip", "AutoRollOnLoot", "AutoDeleteJunk",
+        "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
+    }
+    for _, m in ipairs(methods) do
+        check(type(Valuate[m]) == "function", "method " .. m)
+    end
+
+    -- Data structures well-formed.
+    check(type(Valuate:GetScales()) == "table", "GetScales structure")
+    check(type(Valuate:GetActiveScales()) == "table", "GetActiveScales structure")
+    check(type(Valuate:GetBestEquipment()) == "table", "GetBestEquipment structure")
+
+    -- Weapon-set metadata is the expected shape.
+    local defs = Valuate:GetWeaponSetDefinitions()
+    check(type(defs) == "table" and #defs == 4, "weapon-set definitions (4)",
+        type(defs) == "table" and ("got " .. #defs) or nil)
+    if type(defs) == "table" then
+        for _, d in ipairs(defs) do
+            check(d.key and d.label and d.short, "weapon-set def has key/label/short", d.key)
+        end
+    end
+
+    -- Tooltip parsing is alive: parse whatever is in the chest slot (5) if worn.
+    local chestLink = GetInventoryItemLink("player", 5)
+    if chestLink then
+        local ok, stats = pcall(function()
+            return Valuate:GetStatsForTooltipSetter("SetInventoryItem", "player", 5)
+        end)
+        check(ok, "tooltip parse runs without error")
+        check(ok and type(stats) == "table", "tooltip parse returns stats for equipped chest")
+    else
+        print("|cFFAAAAAA  (skipped tooltip parse - no chest equipped)|r")
+    end
+
+    if fail == 0 then
+        print(string.format("|cFF00FF00[Valuate]|r Self-test PASSED (%d checks).", pass))
+    else
+        print(string.format("|cFFFF5555[Valuate]|r Self-test: %d passed, %d FAILED.", pass, fail))
+    end
+    return fail == 0
+end
+
 -- Slash command handler (basic)
 SLASH_VALUATE1 = "/valuate"
 SLASH_VALUATE2 = "/val"
@@ -4358,6 +4438,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate ui - Open the configuration UI")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
+    elseif command == "selftest" then
+        Valuate:RunSelfTest()
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then

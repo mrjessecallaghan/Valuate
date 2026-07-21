@@ -20,3 +20,7 @@ desktop.ini
 # Uncomment if you want to exclude these:
 # SavedVariables/
 
+# Dev tooling deps (syntax gate) - not part of the shipped addon
+tools/node_modules/
+tools/package-lock.json
+

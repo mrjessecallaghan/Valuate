@@ -1,0 +1,12 @@
+{
+  "name": "valuate-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev tooling for the Valuate addon (syntax checking).",
+  "scripts": {
+    "check": "node check.js"
+  },
+  "dependencies": {
+    "luaparse": "^0.3.1"
+  }
+}
