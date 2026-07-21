@@ -326,6 +326,23 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoDeleteJunk then
             ValuateAfter(0.5, function() Valuate:AutoDeleteJunk() end)
         end
+        -- Bag-upgrade notify (opt-in): loot may have brought in an upgrade, so refresh
+        -- best-equipment data and prompt. Own scan since it must work regardless of the
+        -- autoScan setting; ScanBestEquipment is synchronous so data is fresh right after.
+        if Valuate.CheckBagUpgradeNotify and Valuate:GetOptions().notifyBagUpgrade then
+            ValuateAfter(1.5, function()
+                if not InCombatLockdown() and not equipmentSwapPending and not recentEquipmentChange then
+                    if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+                    Valuate:CheckBagUpgradeNotify("loot")
+                end
+            end)
+        end
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        -- Left combat: show any bag-upgrade prompt that was deferred while fighting.
+        if bagUpgradePending then
+            bagUpgradePending = false
+            if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("loot") end
+        end
     elseif event == "START_LOOT_ROLL" then
         -- arg1 (the addonName slot) is the rollID for this event
         if Valuate.AutoRollOnLoot then
@@ -379,6 +396,8 @@ local DEFAULT_OPTIONS = {
     normalizeDisplay = false,
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
+    notifyBagUpgrade = false,             -- popup when an equippable upgrade for the current scale is in bags
+    notifyBagUpgradeMode = "everyLoot",   -- "everyLoot" (re-prompt each loot) | "oncePerUpgrade"
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
@@ -3394,6 +3413,99 @@ function Valuate:CreateGearSetFromCurrentEquipment(scaleName, setName, override,
 end
 
 -- ========================================
+-- Bag-upgrade notification
+-- ========================================
+-- When an equippable upgrade for your CURRENT scale is sitting in your bags, offer a
+-- one-click "equip best set" popup - out of combat only. Opt-in; re-prompts each loot
+-- event by default (or only when the available upgrades change).
+local bagUpgradePending = false      -- upgrade found during combat; recheck on leaving
+local lastNotifiedSignature = nil    -- "oncePerUpgrade" dedupe
+local pendingEquipScale = nil        -- scale the popup's Equip button will act on
+
+StaticPopupDialogs = StaticPopupDialogs or {}
+StaticPopupDialogs["VALUATE_EQUIP_UPGRADE"] = {
+    text = "|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags.\nEquip the best set now?",
+    button1 = "Equip Best Set",
+    button2 = "Dismiss",
+    OnAccept = function()
+        if pendingEquipScale and Valuate.EquipBestSet then
+            Valuate:EquipBestSet(pendingEquipScale)
+        end
+    end,
+    timeout = 0,
+    whileDead = false,      -- can't equip while dead
+    hideOnEscape = true,
+    preferredIndex = 3,     -- reduce taint risk vs the default dialog stack
+}
+
+-- Counts slots whose best-in-slot item for scaleName is NOT the one currently worn -
+-- i.e. an equippable upgrade is in the bags. best[slot] only ever holds an
+-- equippable-now item (future upgrades live under .future), so a mismatch is a real,
+-- wearable upgrade. Skips locked slots. Returns count and a signature string.
+function Valuate:CountEquippableUpgrades(scaleName)
+    if not scaleName then return 0, "" end
+    local be = Valuate:GetBestEquipment()[scaleName]
+    if not be then return 0, "" end
+    local locks = be.locks or {}
+    local count, sig = 0, {}
+    for slotId = 1, 18 do
+        if slotId ~= 4 and not locks[slotId] then
+            local best = be[slotId]
+            if best and best.itemLink then
+                local bestId = GetItemIdFromLink(best.itemLink)
+                local curLink = GetInventoryItemLink("player", slotId)
+                local curId = curLink and GetItemIdFromLink(curLink)
+                if bestId and bestId ~= curId then
+                    count = count + 1
+                    sig[#sig + 1] = slotId .. ":" .. bestId
+                end
+            end
+        end
+    end
+    return count, table.concat(sig, ",")
+end
+
+-- Shows/refreshes the bag-upgrade popup for the current scale. trigger is "loot" or
+-- "scan": "everyLoot" mode only pops on a loot trigger; "oncePerUpgrade" pops whenever
+-- the available-upgrade set changes. Always hides the popup once nothing's left to equip.
+function Valuate:CheckBagUpgradeNotify(trigger)
+    local options = Valuate:GetOptions()
+    if not options.notifyBagUpgrade then return end
+
+    local scale, scaleName = Valuate:GetPrimaryScale()
+    if not scale then return end
+
+    -- Out of combat / alive only; otherwise defer to PLAYER_REGEN_ENABLED.
+    if InCombatLockdown() then
+        bagUpgradePending = true
+        return
+    end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+
+    local count, sig = Valuate:CountEquippableUpgrades(scaleName)
+    if count == 0 then
+        lastNotifiedSignature = nil
+        if StaticPopup_Hide then StaticPopup_Hide("VALUATE_EQUIP_UPGRADE") end
+        return
+    end
+
+    local mode = options.notifyBagUpgradeMode or "everyLoot"
+    local shouldShow
+    if mode == "oncePerUpgrade" then
+        shouldShow = (sig ~= lastNotifiedSignature)
+    else -- everyLoot
+        shouldShow = (trigger == "loot")
+    end
+    if not shouldShow then return end
+
+    lastNotifiedSignature = sig
+    pendingEquipScale = scaleName
+    if StaticPopup_Show then
+        StaticPopup_Show("VALUATE_EQUIP_UPGRADE", count, scale.DisplayName or scaleName)
+    end
+end
+
+-- ========================================
 -- Bind confirmations
 -- ========================================
 -- Equipping a bind-on-equip item raises EQUIP_BIND_CONFIRM; with nothing answering it
@@ -4342,7 +4454,17 @@ frame:RegisterEvent("EQUIP_BIND_CONFIRM")
 frame:RegisterEvent("AUTOEQUIP_BIND_CONFIRM")
 frame:RegisterEvent("LOOT_BIND_CONFIRM")
 frame:RegisterEvent("USE_BIND_CONFIRM")
+frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", OnEvent)
+
+-- Re-evaluate the bag-upgrade prompt whenever best-equipment data changes (any scan).
+-- "scan" trigger hides the popup once you're wearing the best set, and drives the
+-- "oncePerUpgrade" mode; the loot path handles the "everyLoot" re-prompt.
+if Valuate.RegisterBestEquipmentListener then
+    Valuate:RegisterBestEquipmentListener(function()
+        if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("scan") end
+    end)
+end
 
 -- ========================================
 -- Self-test (/valuate selftest)
@@ -4500,6 +4622,10 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoRollLoot = not options.autoRollLoot
         print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "notify" then
+        local options = Valuate:GetOptions()
+        options.notifyBagUpgrade = not options.notifyBagUpgrade
+        print("|cFF00FF00Valuate|r: Bag-upgrade popup " .. (options.notifyBagUpgrade and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "autodelete" then
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk

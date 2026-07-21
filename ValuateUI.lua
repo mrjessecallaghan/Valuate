@@ -6819,10 +6819,56 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
-    -- Auto Confirm Bind On Loot checkbox (Column 1, below Auto Roll On Loot)
+    -- Notify Bag Upgrades checkbox (Column 1, below Auto Roll On Loot)
+    local notifyCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    notifyCheckbox:SetSize(24, 24)
+    notifyCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local notifyLabel = notifyCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    notifyLabel:SetPoint("LEFT", notifyCheckbox, "RIGHT", 5, 0)
+    notifyLabel:SetText("Notify Bag Upgrades")
+    notifyCheckbox:SetChecked(Valuate:GetOptions().notifyBagUpgrade == true)
+    notifyCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().notifyBagUpgrade = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    notifyCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Notify Bag Upgrades", 1, 1, 1)
+            GameTooltip:AddLine("When an equippable upgrade for your CURRENT scale is sitting in your bags, pops a prompt (out of combat) to equip the best set in one click.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Enabling this scans after each loot so the check is accurate. Click the mode button to the right to change how often it re-prompts.", 0.6, 0.9, 0.6, true)
+            GameTooltip:Show()
+        end
+    end)
+    notifyCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Re-prompt frequency: click to toggle everyLoot <-> oncePerUpgrade.
+    local function NotifyModeText()
+        return (Valuate:GetOptions().notifyBagUpgradeMode == "oncePerUpgrade")
+            and "Once per upgrade" or "Every loot"
+    end
+    local notifyModeButton = CreateStyledButton(col1, NotifyModeText(), 120, 18)
+    notifyModeButton:SetPoint("LEFT", notifyLabel, "RIGHT", 8, 0)
+    notifyModeButton:SetScript("OnClick", function(self)
+        local o = Valuate:GetOptions()
+        o.notifyBagUpgradeMode = (o.notifyBagUpgradeMode == "oncePerUpgrade") and "everyLoot" or "oncePerUpgrade"
+        self.label:SetText(NotifyModeText())
+    end)
+    notifyModeButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Re-prompt frequency", 1, 1, 1)
+            GameTooltip:AddLine("Every loot: re-shows the prompt after each loot event while an upgrade sits in your bags.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Once per upgrade: only prompts when the available upgrades actually change.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    notifyModeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Auto Confirm Bind On Loot checkbox (Column 1, below Notify Bag Upgrades)
     local bindConfirmCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     bindConfirmCheckbox:SetSize(24, 24)
-    bindConfirmCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    bindConfirmCheckbox:SetPoint("TOPLEFT", notifyCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local bindConfirmLabel = bindConfirmCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     bindConfirmLabel:SetPoint("LEFT", bindConfirmCheckbox, "RIGHT", 5, 0)
