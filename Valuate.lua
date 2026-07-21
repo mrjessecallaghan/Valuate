@@ -745,6 +745,10 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
                 -- Process each line separately
                 for _, line in ipairs(lines) do
                     local matched = false
+                    -- Fast reject: every stat pattern captures a number, so a line with
+                    -- no digit ("Soulbound", "Unique", "Binds when equipped") can't match
+                    -- any of them. Skip the ~100-pattern loop and the normalize entirely.
+                    if line:find("%d") then
                     -- Match against the canonical form so wording differences
                     -- ("your", Improves/Increases) don't need duplicate patterns.
                     local normalizedLine = NormalizeStatText(line)
@@ -769,11 +773,12 @@ function Valuate:ParseStatsFromTooltip(tooltipName, debug)
                     if debug and not matched then
                         print("|cFFFF8800[DEBUG]|r No pattern matched for: '" .. line .. "'")
                     end
+                    end  -- close digit fast-reject
                 end
             end
         end
     end
-    
+
     -- Assign type-specific DPS and Speed based on weapon slot
     if stats["Dps"] then
         local dps = stats["Dps"]
@@ -906,16 +911,30 @@ local EXCLUDED_WEAPON_SUBTYPES = {
 -- tooltip lines, not tracked as best equipment, not matched by loot filters.
 -- Controlled by the ignoreProfessionTools option (on by default). Central gate
 -- reused by the tooltip, scan, quest, and PassLoot paths.
+-- Memoized "is this a profession-tool weapon type" fact, keyed by itemId. The fact
+-- is item-intrinsic (a fishing pole is always a fishing pole), so it never needs
+-- invalidating; the user's option is checked outside the cache. This matters because
+-- the tooltip OnUpdate hook calls this every frame while hovering, and GetItemInfo
+-- isn't free.
+local professionToolCache = {}
 function Valuate:IsItemExcludedFromEvaluation(itemLink)
     if not itemLink then return false end
     if Valuate:GetOptions().ignoreProfessionTools == false then
         return false
     end
-    local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
-    if itemType == "Weapon" and itemSubType and EXCLUDED_WEAPON_SUBTYPES[itemSubType] then
-        return true
+    local itemId = GetItemIdFromLink(itemLink)
+    if itemId then
+        local cached = professionToolCache[itemId]
+        if cached ~= nil then return cached end
     end
-    return false
+    local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
+    if not itemType then
+        -- Item not cached yet; don't memoize a premature answer.
+        return false
+    end
+    local result = (itemType == "Weapon" and itemSubType and EXCLUDED_WEAPON_SUBTYPES[itemSubType]) and true or false
+    if itemId then professionToolCache[itemId] = result end
+    return result
 end
 
 -- Classes that can dual-wield by default (best-effort fallback; Ascension is
