@@ -4207,10 +4207,17 @@ function Valuate:AutoDeleteJunk(opts)
     local nSourceHits, nSourceFallback = 0, 0
 
     -- AdiBags' own junk classification if it's loaded (respects its include/exclude).
-    local AdiBags
+    -- We query the Junk MODULE's CheckItem directly rather than the AceHook-wrapped
+    -- addon:IsJunk - CheckItem is the authoritative, include/exclude-aware check with a
+    -- clean signature (mod:CheckItem(itemId)), so items you marked as junk in AdiBags
+    -- are recognised. IsJunk is kept only as a fallback.
+    local AdiBags, junkModule
     if LibStub then
         local ace = LibStub("AceAddon-3.0", true)
         AdiBags = ace and ace:GetAddon("AdiBags", true)
+        if AdiBags and AdiBags.GetModule then
+            junkModule = AdiBags:GetModule("Junk", true)
+        end
     end
 
     -- Collect candidates
@@ -4234,15 +4241,18 @@ function Valuate:AutoDeleteJunk(opts)
                 end
 
                 -- Deletable set = exactly what AdiBags' Junk filter classifies as junk,
-                -- so it honours your AdiBags Junk include/exclude lists. AdiBags:IsJunk
-                -- covers grey/Poor by default (plus the junk item category), and adds
-                -- anything you've marked, minus anything you've excluded. Only when
-                -- AdiBags isn't loaded at all do we fall back to grey/Poor quality.
-                local isJunk
-                if AdiBags and AdiBags.IsJunk and itemId then
-                    local ok, res = pcall(function() return AdiBags:IsJunk(itemId) end)
+                -- honouring your include/exclude lists. Prefer the Junk module's
+                -- CheckItem (authoritative + clean signature); fall back to addon:IsJunk,
+                -- then to grey/Poor quality only when AdiBags isn't present.
+                local isJunk = false
+                local numId = tonumber(itemId)
+                if junkModule and junkModule.CheckItem and numId then
+                    local ok, res = pcall(function() return junkModule:CheckItem(numId) end)
                     isJunk = (ok and res) and true or false
-                else
+                elseif AdiBags and AdiBags.IsJunk and numId then
+                    local ok, res = pcall(function() return AdiBags:IsJunk(numId) end)
+                    isJunk = (ok and res) and true or false
+                elseif not AdiBags then
                     isJunk = (quality == ITEM_QUALITY_POOR) or (quality == 0)
                 end
 
@@ -4285,8 +4295,10 @@ function Valuate:AutoDeleteJunk(opts)
             maxQuality,
             minValue > 0 and money(minValue) or "any",
             maxValue > 0 and money(maxValue) or "any"))
-        if AdiBags and AdiBags.IsJunk then
-            print("|cFFAAAAAA[Valuate]|r Junk source: AdiBags Junk filter (honours its include/exclude).")
+        if junkModule and junkModule.CheckItem then
+            print("|cFFAAAAAA[Valuate]|r Junk source: AdiBags Junk module (CheckItem; honours include/exclude).")
+        elseif AdiBags and AdiBags.IsJunk then
+            print("|cFFFF8800[Valuate]|r Junk source: AdiBags:IsJunk fallback (Junk module not found).")
         else
             print("|cFFAAAAAA[Valuate]|r Junk source: grey/Poor quality (AdiBags not loaded).")
         end
