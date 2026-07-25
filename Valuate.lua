@@ -394,6 +394,7 @@ local DEFAULT_OPTIONS = {
     characterWindowDisplayMode = "total",
     uiPosition = {},                      -- table default: fresh copy per character
     normalizeDisplay = false,
+    reduceMotion = false,                 -- collapse all UI animations to instant
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     notifyBagUpgrade = false,             -- popup when an equippable upgrade for the current scale is in bags
