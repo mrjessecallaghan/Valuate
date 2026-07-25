@@ -314,6 +314,10 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AutoAdvanceQuestProgress then
             Valuate:AutoAdvanceQuestProgress()
         end
+    elseif event == "QUEST_FINISHED" then
+        -- Quest window closed: clear our best-reward marker so it can't linger on
+        -- screen (it's parented to UIParent, not the quest button).
+        if Valuate.questRewardMarker then Valuate.questRewardMarker:Hide() end
     elseif event == "QUEST_DETAIL" or event == "QUEST_ACCEPT_CONFIRM"
            or event == "QUEST_GREETING" or event == "GOSSIP_SHOW" then
         -- Auto-accept quests offered by NPCs (opt-in)
@@ -355,7 +359,7 @@ local function OnEvent(self, event, addonName, ...)
             Valuate:ConfirmAutoLootRoll(addonName, rollType)
         end
     elseif event == "EQUIP_BIND_CONFIRM" or event == "AUTOEQUIP_BIND_CONFIRM"
-           or event == "LOOT_BIND_CONFIRM" or event == "USE_BIND_CONFIRM" then
+           or event == "LOOT_BIND_CONFIRM" then
         -- arg1 (the addonName slot) is the inventory/loot slot for these events
         if Valuate.HandleBindConfirm then
             Valuate:HandleBindConfirm(event, addonName)
@@ -3545,11 +3549,12 @@ function Valuate:HandleBindConfirm(event, slot)
         if options.autoConfirmBindOnLoot and ConfirmLootSlot then
             ConfirmLootSlot(slot)
         end
-    elseif event == "USE_BIND_CONFIRM" then
-        if options.autoConfirmBindOnLoot and ConfirmBindOnUse then
-            ConfirmBindOnUse()
-        end
     end
+    -- NOTE: USE_BIND_CONFIRM is deliberately NOT handled. Using an item is a protected
+    -- path, so an addon calling ConfirmBindOnUse() taints it and the client then blocks
+    -- the actual use ("Valuate has been blocked from an action only available to the
+    -- Blizzard UI") - which broke legitimate bind-on-use items such as Ascension's
+    -- vanity sync. Answer that popup yourself; it's one click and it always works.
 end
 
 -- Equips every currently-equippable best-in-slot item for a scale in one go, so the
@@ -4010,20 +4015,27 @@ function Valuate:AutoSelectBestQuestReward()
         end
     end
 
-    -- Functionally select the reward. Blizzard's QuestRewardCompleteButton_OnClick
-    -- reads QuestInfoFrame.itemChoice, so setting it makes "Complete Quest" use
-    -- our pick regardless of reward-button frame naming.
-    if QuestInfoFrame then
-        QuestInfoFrame.itemChoice = bestIndex
-    end
-
-    -- Best-effort visual highlight via Blizzard's own click handler (guarded,
-    -- since exact button names differ across UI replacements).
+    -- Mark the best reward WITHOUT touching Blizzard's UI. Writing QuestInfoFrame's
+    -- fields or calling QuestInfoItem_OnClick from addon code taints the quest frame,
+    -- and the client then blocks "Complete Quest" ("blocked from an action only
+    -- available to the Blizzard UI"). So we only draw our own highlight texture
+    -- anchored to the reward button and let YOU click it - unless auto turn-in is on,
+    -- which takes the reward through the GetQuestReward API below instead.
     pcall(function()
         local button = _G["QuestInfoItem" .. bestIndex]
-        if button and button.type == "choice" and QuestInfoItem_OnClick then
-            QuestInfoItem_OnClick(button)
+        if not button then return end
+        if not Valuate.questRewardMarker then
+            local tex = UIParent:CreateTexture(nil, "OVERLAY")
+            tex:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+            tex:SetBlendMode("ADD")
+            tex:SetVertexColor(1, 0.82, 0.1)
+            Valuate.questRewardMarker = tex
         end
+        local marker = Valuate.questRewardMarker
+        marker:ClearAllPoints()
+        marker:SetPoint("TOPLEFT", button, "TOPLEFT", -2, 2)
+        marker:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", 2, -2)
+        marker:Show()
     end)
 
     local rewardText = bestLink or ("choice " .. bestIndex)
@@ -4486,6 +4498,7 @@ frame:RegisterEvent("BAG_UPDATE")
 frame:RegisterEvent("LOOT_OPENED")
 frame:RegisterEvent("QUEST_COMPLETE")
 frame:RegisterEvent("QUEST_PROGRESS")
+frame:RegisterEvent("QUEST_FINISHED")
 frame:RegisterEvent("QUEST_DETAIL")
 frame:RegisterEvent("QUEST_ACCEPT_CONFIRM")
 frame:RegisterEvent("QUEST_GREETING")
@@ -4496,7 +4509,8 @@ frame:RegisterEvent("LOOT_CLOSED")
 frame:RegisterEvent("EQUIP_BIND_CONFIRM")
 frame:RegisterEvent("AUTOEQUIP_BIND_CONFIRM")
 frame:RegisterEvent("LOOT_BIND_CONFIRM")
-frame:RegisterEvent("USE_BIND_CONFIRM")
+-- USE_BIND_CONFIRM intentionally NOT registered - see HandleBindConfirm (taints the
+-- protected item-use path and gets the addon blocked).
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", OnEvent)
 
