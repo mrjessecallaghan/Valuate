@@ -3089,9 +3089,13 @@ local function CreateTabSystem(mainFrame, contentFrame)
             panel:Hide()
         end
         
-        -- Show selected panel
+        -- Show selected panel with a quick crossfade + slight rise, so switching tabs
+        -- reads as a transition rather than an instant swap.
         if tabPanels[tabName] then
-            tabPanels[tabName]:Show()
+            local panel = tabPanels[tabName]
+            panel:Show()
+            panel:SetAlpha(0)
+            Anim.fade(panel, 1, 0.18, "outQuad")
         end
         
         -- Adjust window height based on tab
@@ -8580,6 +8584,14 @@ function Valuate:ShowUI()
         -- while the window is hidden, so it must be shown before we refresh it.
         ValuateUIFrame:Show()
 
+        -- Open animation: a quick fade-in plus a spring scale-pop. Under Reduce
+        -- Motion the Anim.* calls apply the final state instantly (no flash of 0).
+        ValuateUIFrame.closing = false
+        ValuateUIFrame:SetAlpha(0)
+        ValuateUIFrame:SetScale(0.94)
+        Anim.fade(ValuateUIFrame, 1, 0.22, "outQuad")
+        Anim.scaleTo(ValuateUIFrame, 1, 0.30, "outBack")
+
         -- Update dynamic lists now that the window is visible
         UpdateScaleList()
         if Valuate.RefreshBestEquipmentDisplay then
@@ -8594,9 +8606,22 @@ function Valuate:ShowUI()
 end
 
 function Valuate:HideUI()
-    if ValuateUIFrame then
+    if not ValuateUIFrame or not ValuateUIFrame:IsShown() then return end
+
+    -- Reset helper so the window always reopens at full alpha/scale.
+    local function finish()
         ValuateUIFrame:Hide()
+        ValuateUIFrame:SetAlpha(1)
+        ValuateUIFrame:SetScale(1)
+        ValuateUIFrame.closing = false
     end
+
+    if ReduceMotion() then finish(); return end
+
+    -- Close animation: fade + shrink, then actually hide.
+    ValuateUIFrame.closing = true
+    Anim.fade(ValuateUIFrame, 0, 0.16, "outQuad")
+    Anim.scaleTo(ValuateUIFrame, 0.94, 0.16, "outQuad", finish)
 end
 
 function Valuate:ToggleUI()
@@ -8604,8 +8629,10 @@ function Valuate:ToggleUI()
         Valuate:ShowUI()
         return
     end
-    
-    if ValuateUIFrame:IsShown() then
+
+    -- Treat a window mid-close-animation as already hidden, so a quick re-toggle
+    -- reopens it rather than getting stuck.
+    if ValuateUIFrame:IsShown() and not ValuateUIFrame.closing then
         Valuate:HideUI()
     else
         Valuate:ShowUI()
