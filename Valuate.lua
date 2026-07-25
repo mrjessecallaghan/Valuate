@@ -3504,6 +3504,9 @@ function Valuate:CheckBagUpgradeNotify(trigger)
     if StaticPopup_Show then
         StaticPopup_Show("VALUATE_EQUIP_UPGRADE", count, scale.DisplayName or scaleName)
     end
+    -- Celebratory cue on the minimap button so the upgrade is noticed even if the
+    -- popup is off-screen or dismissed.
+    if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
 end
 
 -- ========================================
@@ -4646,6 +4649,9 @@ SlashCmdList["VALUATE"] = function(msg)
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "selftest" then
         Valuate:RunSelfTest()
+    elseif command == "pulse" then
+        -- Preview the minimap upgrade-pulse animation.
+        if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then

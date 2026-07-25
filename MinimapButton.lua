@@ -192,6 +192,46 @@ function Valuate:ToggleMinimapButton()
     end
 end
 
+-- Briefly pulse the minimap button (a twin starburst glow + gentle scale bump) to
+-- draw the eye when a gear upgrade for your current scale is available. Self-contained
+-- (own OnUpdate) so it doesn't depend on the UI file's animation engine, and skipped
+-- under Reduce Motion. Safe no-op if the button is hidden.
+local pulseGlow
+function Valuate:PulseMinimapButton()
+    if not minimapButton or not minimapButton:IsShown() then return end
+    if Valuate.GetOptions and Valuate:GetOptions().reduceMotion then return end
+
+    if not pulseGlow then
+        pulseGlow = minimapButton:CreateTexture(nil, "OVERLAY")
+        pulseGlow:SetTexture("Interface\\Cooldown\\star4")
+        pulseGlow:SetBlendMode("ADD")
+        pulseGlow:SetPoint("CENTER", minimapButton, "CENTER", 0, 0)
+        pulseGlow:SetVertexColor(0.40, 0.75, 1.0)
+        pulseGlow:Hide()
+    end
+
+    local total, DUR = 0, 1.3
+    pulseGlow:Show()
+    minimapButton:SetScript("OnUpdate", function(self, elapsed)
+        total = total + elapsed
+        local t = total / DUR
+        if t >= 1 then
+            self:SetScript("OnUpdate", nil)
+            pulseGlow:Hide()
+            self:SetScale(1)
+            return
+        end
+        -- Two quick pulses inside a fading envelope.
+        local env = 1 - t
+        local pulse = math.abs(math.sin(t * math.pi * 3)) * env
+        local size = 24 + pulse * 30
+        pulseGlow:SetWidth(size)
+        pulseGlow:SetHeight(size)
+        pulseGlow:SetAlpha(pulse)
+        self:SetScale(1 + pulse * 0.14)
+    end)
+end
+
 -- Initialize the button when the addon loads
 local initFrame = CreateFrame("Frame")
 local function InitializeMinimapButton()
