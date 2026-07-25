@@ -335,7 +335,12 @@ local function OnEvent(self, event, addonName, ...)
         -- autoScan setting; ScanBestEquipment is synchronous so data is fresh right after.
         if Valuate.CheckBagUpgradeNotify and Valuate:GetOptions().notifyBagUpgrade then
             ValuateAfter(1.5, function()
-                if not InCombatLockdown() and not equipmentSwapPending and not recentEquipmentChange then
+                -- Deliberately NOT gated on combat: looting usually happens mid-fight,
+                -- and CheckBagUpgradeNotify itself defers to PLAYER_REGEN_ENABLED when
+                -- in combat. Gating here skipped the check entirely AND never set the
+                -- pending flag, so the prompt was lost. Only the in-transit guard
+                -- applies (don't read bag slots while items are moving).
+                if not equipmentSwapPending and not recentEquipmentChange then
                     if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
                     Valuate:CheckBagUpgradeNotify("loot")
                 end
@@ -343,8 +348,12 @@ local function OnEvent(self, event, addonName, ...)
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- Left combat: show any bag-upgrade prompt that was deferred while fighting.
+        -- Rescan first, since the deferred check may have been made on stale data.
         if bagUpgradePending then
             bagUpgradePending = false
+            if not equipmentSwapPending and not recentEquipmentChange then
+                if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+            end
             if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("loot") end
         end
     elseif event == "START_LOOT_ROLL" then
@@ -3462,24 +3471,42 @@ end
 -- Shows/refreshes the bag-upgrade popup for the current scale. trigger is "loot" or
 -- "scan": "everyLoot" mode only pops on a loot trigger; "oncePerUpgrade" pops whenever
 -- the available-upgrade set changes. Always hides the popup once nothing's left to equip.
-function Valuate:CheckBagUpgradeNotify(trigger)
+-- verbose: report each gate to chat (used by /valuate notifycheck) instead of failing
+-- silently, so it's obvious WHY no prompt appeared.
+function Valuate:CheckBagUpgradeNotify(trigger, verbose)
+    local function say(msg) if verbose then print("|cFFAAAAAA[Valuate notify]|r " .. msg) end end
+
     local options = Valuate:GetOptions()
-    if not options.notifyBagUpgrade then return end
+    if not options.notifyBagUpgrade and not verbose then return end
+    if not options.notifyBagUpgrade then
+        say("option is OFF - enable 'Notify Bag Upgrades' in Settings (checking anyway).")
+    end
 
     local scale, scaleName = Valuate:GetPrimaryScale()
-    if not scale then return end
+    if not scale then
+        say("no active scale to compare against - activate a scale first.")
+        return
+    end
+    say("active spec: " .. (scale.DisplayName or scaleName))
 
     -- Out of combat / alive only; otherwise defer to PLAYER_REGEN_ENABLED.
     if InCombatLockdown() then
         bagUpgradePending = true
+        say("in combat - deferred until you leave combat.")
         return
     end
-    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then return end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then
+        say("you're dead/ghost - skipped.")
+        return
+    end
 
     local count, sig = Valuate:CountEquippableUpgrades(scaleName)
+    say("equippable upgrades in bags: " .. count)
     if count == 0 then
         lastNotifiedSignature = nil
         if Valuate.HideConfirmDialog then Valuate:HideConfirmDialog() end
+        say("nothing to prompt about (you're already wearing the best equippable items).")
+        say("if you expect an upgrade, run /valuate scan first - the prompt uses scan results.")
         return
     end
 
@@ -3487,9 +3514,12 @@ function Valuate:CheckBagUpgradeNotify(trigger)
     local shouldShow
     if mode == "oncePerUpgrade" then
         shouldShow = (sig ~= lastNotifiedSignature)
+        if not shouldShow then say("mode 'once per upgrade': already prompted for these exact items.") end
     else -- everyLoot
         shouldShow = (trigger == "loot")
+        if not shouldShow then say("mode 'every loot': only prompts on a loot event (this was a '" .. tostring(trigger) .. "' check).") end
     end
+    if verbose then shouldShow = true end  -- an explicit check always shows the prompt
     if not shouldShow then return end
 
     lastNotifiedSignature = sig
@@ -4710,6 +4740,11 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.notifyBagUpgrade = not options.notifyBagUpgrade
         print("|cFF00FF00Valuate|r: Bag-upgrade popup " .. (options.notifyBagUpgrade and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "notifycheck" then
+        -- Diagnose the bag-upgrade prompt: scan, then report every gate and show the
+        -- prompt if there is anything to equip.
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+        Valuate:CheckBagUpgradeNotify("loot", true)
     elseif command == "autodelete" then
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk
