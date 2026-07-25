@@ -3666,12 +3666,13 @@ local function UpdateScaleList()
                 end
                 UpdateScaleList()
             else
-                -- Show confirmation dialog
-                StaticPopupDialogs["VALUATE_DELETE_SCALE"] = {
+                -- Show confirmation dialog (our own frame - see ShowConfirmDialog:
+                -- StaticPopup frames are recycled and would taint secure dialogs)
+                Valuate:ShowConfirmDialog({
                     text = "Are you sure you want to delete the scale \"" .. (scaleData.scale.DisplayName or scaleName) .. "\"?",
-                    button1 = "Delete",
-                    button2 = "Cancel",
-                    OnAccept = function()
+                    acceptText = "Delete",
+                    cancelText = "Cancel",
+                    onAccept = function()
                         Valuate:GetScales()[scaleName] = nil
                         if CurrentSelectedScale == scaleName then
                             CurrentSelectedScale = nil
@@ -3681,22 +3682,18 @@ local function UpdateScaleList()
                             end
                         end
                         UpdateScaleList()
-                        
+
                         -- Clear best equipment data for this scale
                         if Valuate.ClearBestEquipmentForScale then
                             Valuate:ClearBestEquipmentForScale(scaleName)
                         end
-                        
+
                         -- Reset all tooltips to reflect the deletion immediately
                         if Valuate.ResetTooltips then
                             Valuate:ResetTooltips()
                         end
                     end,
-                    timeout = 0,
-                    whileDead = true,
-                    hideOnEscape = true,
-                }
-                StaticPopup_Show("VALUATE_DELETE_SCALE")
+                })
             end
         end)
         
@@ -4519,21 +4516,16 @@ function ValuateUI_CreateScaleFromTemplate(template)
     
     -- Check if scale already exists
     if Valuate:GetScales()[scaleName] then
-        -- Define the overwrite dialog dynamically with access to local scope
-        StaticPopupDialogs["VALUATE_TEMPLATE_OVERWRITE"] = {
+        Valuate:ShowConfirmDialog({
             text = "A scale named \"" .. scaleName .. "\" already exists.\n\nOverwrite it?",
-            button1 = "Overwrite",
-            button2 = "Cancel",
-            OnAccept = function()
+            acceptText = "Overwrite",
+            cancelText = "Cancel",
+            onAccept = function()
                 if ValuateUI_OnTemplateOverwrite then
                     ValuateUI_OnTemplateOverwrite(template)
                 end
             end,
-            timeout = 0,
-            whileDead = true,
-            hideOnEscape = true,
-        }
-        StaticPopup_Show("VALUATE_TEMPLATE_OVERWRITE")
+        })
         return nil
     end
     
@@ -4769,17 +4761,17 @@ function Valuate:ShowImportDialog()
         
         if status == Valuate.ImportResult.ALREADY_EXISTS then
             -- Scale already exists, show confirmation dialog
-            StaticPopupDialogs["VALUATE_IMPORT_OVERWRITE"] = {
+            Valuate:ShowConfirmDialog({
                 text = "A scale named \"" .. scaleName .. "\" already exists.\n\nOverwrite it?",
-                button1 = "Overwrite",
-                button2 = "Cancel",
-                OnAccept = function()
+                acceptText = "Overwrite",
+                cancelText = "Cancel",
+                onAccept = function()
                     -- User confirmed, now import with overwrite
                     local overwriteStatus, overwriteScaleName = self:ImportScale(text, true)
-                    
+
                     if overwriteStatus == Valuate.ImportResult.SUCCESS then
                         print("|cFF00FF00Valuate|r: Successfully overwrote scale |cFFFFFFFF" .. overwriteScaleName .. "|r")
-                        
+
                         -- Refresh the UI
                         if ValuateUIFrame and ValuateUIFrame:IsShown() then
                             UpdateScaleList()
@@ -4789,11 +4781,7 @@ function Valuate:ShowImportDialog()
                         end
                     end
                 end,
-                timeout = 0,
-                whileDead = true,
-                hideOnEscape = true,
-            }
-            StaticPopup_Show("VALUATE_IMPORT_OVERWRITE")
+            })
             return
         end
         
@@ -4915,28 +4903,24 @@ local function CreateScaleEditor(parent)
         local scaleName = EditingScaleName
         local scale = Valuate:GetScales()[scaleName]
         
-        StaticPopupDialogs["VALUATE_RESET_SCALE"] = {
+        Valuate:ShowConfirmDialog({
             text = "Are you sure you want to reset all values in the scale \"" .. (scale.DisplayName or scaleName) .. "\" to blank?",
-            button1 = "Reset",
-            button2 = "Cancel",
-            OnAccept = function()
+            acceptText = "Reset",
+            cancelText = "Cancel",
+            onAccept = function()
                 -- Clear all values and unusable flags
                 scale.Values = {}
                 scale.Unusable = {}
-                
+
                 -- Refresh the editor display
                 ValuateUI_UpdateScaleEditor(scaleName, scale)
-                
+
                 -- Reset all tooltips to reflect the change immediately
                 if Valuate.ResetTooltips then
                     Valuate:ResetTooltips()
                 end
             end,
-            timeout = 0,
-            whileDead = true,
-            hideOnEscape = true,
-        }
-        StaticPopup_Show("VALUATE_RESET_SCALE")
+        })
     end)
     
     -- Content frame for stat weights (below header) - no scrollbar needed as everything fits
@@ -8007,24 +7991,19 @@ local function CreateSettingsPanel(parent)
     
     -- Click handler with confirmation dialog
     deleteButton:SetScript("OnClick", function(self)
-        StaticPopupDialogs["VALUATE_DELETE_SAVEDVARS"] = {
+        Valuate:ShowConfirmDialog({
             text = "Are you sure you want to delete ALL Valuate saved data?\n\nThis will delete:\n- All scales\n- All settings\n- All options\n\nThis action cannot be undone!\n\nThe UI will reload after deletion.",
-            button1 = "Delete Everything",
-            button2 = "Cancel",
-            OnAccept = function()
+            acceptText = "Delete Everything",
+            cancelText = "Cancel",
+            onAccept = function()
                 -- Clear all saved variables (per-character)
                 ValuateOptions = nil
                 ValuateScales = nil
-                
+
                 -- Reload UI to reinitialize with defaults
                 ReloadUI()
             end,
-            timeout = 0,
-            whileDead = true,
-            hideOnEscape = true,
-            preferredIndex = 3,
-        }
-        StaticPopup_Show("VALUATE_DELETE_SAVEDVARS")
+        })
     end)
     
     -- Store references for updating
