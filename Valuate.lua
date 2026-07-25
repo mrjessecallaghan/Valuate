@@ -4175,13 +4175,14 @@ function Valuate:AutoDeleteJunk(opts)
     local options = Valuate:GetOptions()
     if not preview and not options.autoDeleteJunk then return end
 
-    if InCombatLockdown() then
-        if preview then print("|cFFFF8800[Valuate]|r Can't inspect bags in combat.") end
-        return
-    end
+    -- NOTE: no combat gate. Deleting BAG items (PickupContainerItem + DeleteCursorItem)
+    -- is not a protected action in 3.3.5 - only equipping gear is - and freeing bag
+    -- space mid-fight (AoE farming) is exactly when this is wanted. Only equipping in
+    -- combat is blocked, which this feature never does.
 
-    -- Same in-transit guard the scanner uses: never touch bag slots (or call
-    -- SetBagItem) while items are moving, or they can vanish.
+    -- Keep the in-transit guard, though: never touch bag slots or call SetBagItem while
+    -- items are moving between bags/equipped, or they can vanish. This is about item
+    -- movement integrity, NOT combat.
     if equipmentSwapPending or recentEquipmentChange then
         if preview then print("|cFFFF8800[Valuate]|r Items are still settling - try again in a moment.") end
         return
