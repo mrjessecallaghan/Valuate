@@ -229,6 +229,27 @@ local function ScheduleScan(delay, reason)
     end)
 end
 
+-- Debounced "something entered your bags -> is it an upgrade?" check. Shared by every
+-- inventory-addition trigger (loot, quest rewards, mail, trade, crafting, vendor buys),
+-- since ITEM_PUSH can fire many times in quick succession when a batch of items lands.
+-- Each call restarts the timer, so we scan and prompt once after things settle.
+local pendingNotifyTimer
+local function ScheduleUpgradeNotifyCheck(delay)
+    if not Valuate.GetOptions or not Valuate:GetOptions().notifyBagUpgrade then return end
+    if pendingNotifyTimer and pendingNotifyTimer.Cancel then
+        pendingNotifyTimer:Cancel()
+    end
+    pendingNotifyTimer = ValuateAfter(delay or 1.5, function()
+        pendingNotifyTimer = nil
+        -- Not gated on combat: CheckBagUpgradeNotify defers to PLAYER_REGEN_ENABLED
+        -- itself. Only the in-transit guard applies (don't read bag slots mid-move).
+        if not equipmentSwapPending and not recentEquipmentChange then
+            if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+            if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("loot") end
+        end
+    end)
+end
+
 -- Event handler
 local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
@@ -333,19 +354,11 @@ local function OnEvent(self, event, addonName, ...)
         -- Bag-upgrade notify (opt-in): loot may have brought in an upgrade, so refresh
         -- best-equipment data and prompt. Own scan since it must work regardless of the
         -- autoScan setting; ScanBestEquipment is synchronous so data is fresh right after.
-        if Valuate.CheckBagUpgradeNotify and Valuate:GetOptions().notifyBagUpgrade then
-            ValuateAfter(1.5, function()
-                -- Deliberately NOT gated on combat: looting usually happens mid-fight,
-                -- and CheckBagUpgradeNotify itself defers to PLAYER_REGEN_ENABLED when
-                -- in combat. Gating here skipped the check entirely AND never set the
-                -- pending flag, so the prompt was lost. Only the in-transit guard
-                -- applies (don't read bag slots while items are moving).
-                if not equipmentSwapPending and not recentEquipmentChange then
-                    if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
-                    Valuate:CheckBagUpgradeNotify("loot")
-                end
-            end)
-        end
+        ScheduleUpgradeNotifyCheck(1.5)
+    elseif event == "ITEM_PUSH" then
+        -- ANY item entering your bags - quest reward, mail, trade, craft, vendor buy,
+        -- loot - should be considered for the upgrade prompt, not just looting.
+        ScheduleUpgradeNotifyCheck(1.5)
     elseif event == "MERCHANT_SHOW" then
         -- Sell junk / repair on arrival at a vendor (both opt-in). Small delay so the
         -- merchant frame is fully up before we start selling.
@@ -4690,6 +4703,7 @@ frame:RegisterEvent("LOOT_BIND_CONFIRM")
 -- protected item-use path and gets the addon blocked).
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("MERCHANT_SHOW")
+frame:RegisterEvent("ITEM_PUSH")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Re-evaluate the bag-upgrade prompt whenever best-equipment data changes (any scan).
