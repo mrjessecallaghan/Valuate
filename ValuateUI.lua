@@ -6460,6 +6460,40 @@ end
 -- Settings Panel
 -- ========================================
 
+-- Structural safeguard against overlapping controls. The whole panel lays out by
+-- anchoring each control's TOPLEFT to the previous control's BOTTOMLEFT; the failure
+-- mode (which shipped once) is anchoring TWO controls to the SAME sibling, so they
+-- render on top of each other. This scans a column's child frames and font-string
+-- regions and warns loudly if any two share an anchor - so the mistake surfaces the
+-- instant you open Settings instead of silently overlapping. Read-only.
+local function CheckColumnAnchors(colFrame, colName)
+    if not colFrame or not colFrame.GetChildren then return 0 end
+    local elements = {}
+    for _, k in ipairs({ colFrame:GetChildren() }) do elements[#elements + 1] = k end
+    for _, r in ipairs({ colFrame:GetRegions() }) do elements[#elements + 1] = r end
+
+    local seen, collisions = {}, 0
+    for _, el in ipairs(elements) do
+        if el.GetNumPoints and el:GetNumPoints() > 0 then
+            local point, relTo, relPoint = el:GetPoint(1)
+            -- Only the vertical-stack anchor matters; a shared (relativeTo, relativePoint)
+            -- means two controls occupy the same slot.
+            if relTo and relTo ~= colFrame and point == "TOPLEFT" then
+                local key = tostring(relTo) .. "|" .. tostring(relPoint)
+                if seen[key] then
+                    collisions = collisions + 1
+                    print("|cFFFF0000[Valuate]|r Settings layout bug: two controls in " ..
+                        tostring(colName) .. " share an anchor and will OVERLAP. Anchor each " ..
+                        "control below the previous one, not to a shared sibling.")
+                else
+                    seen[key] = true
+                end
+            end
+        end
+    end
+    return collisions
+end
+
 local function CreateSettingsPanel(parent)
     
     -- Safety check: ensure SavedVariables are initialized
@@ -7030,7 +7064,7 @@ local function CreateSettingsPanel(parent)
     -- Auto Delete Junk checkbox (Column 1) - DESTRUCTIVE, so it warns loudly.
     local autoDeleteCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     autoDeleteCheckbox:SetSize(24, 24)
-    autoDeleteCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    autoDeleteCheckbox:SetPoint("TOPLEFT", bindConfirmCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local autoDeleteLabel = autoDeleteCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     autoDeleteLabel:SetPoint("LEFT", autoDeleteCheckbox, "RIGHT", 5, 0)
@@ -7238,7 +7272,7 @@ local function CreateSettingsPanel(parent)
     -- Auto Delete tuning (Column 2)
     -- ========================================
     local autoDeleteHeader = col2:CreateFontString(nil, "OVERLAY", FONT_H1)
-    autoDeleteHeader:SetPoint("TOPLEFT", minimapButtonCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
+    autoDeleteHeader:SetPoint("TOPLEFT", reduceMotionCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
     autoDeleteHeader:SetText("Auto Delete")
     autoDeleteHeader:SetTextColor(unpack(COLORS.textAccent))
     columnHeights[2] = columnHeights[2] + 20 + ELEMENT_SPACING
@@ -7810,7 +7844,12 @@ local function CreateSettingsPanel(parent)
     -- Store references for updating
     parent.charScaleDropdown = charScaleDropdown
     parent.GetCharScaleDisplayText = GetCharScaleDisplayText
-    
+
+    -- Structural safeguard: warn immediately if any column has overlapping controls.
+    CheckColumnAnchors(col1, "column 1")
+    CheckColumnAnchors(col2, "column 2")
+    CheckColumnAnchors(col3, "column 3")
+
     return parent
 end
 
