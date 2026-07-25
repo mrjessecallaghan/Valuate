@@ -3089,13 +3089,19 @@ local function CreateTabSystem(mainFrame, contentFrame)
             panel:Hide()
         end
         
-        -- Show selected panel with a quick crossfade + slight rise, so switching tabs
-        -- reads as a transition rather than an instant swap.
+        -- Show selected panel with a quick crossfade, so switching tabs reads as a
+        -- transition rather than an instant swap. The Best Equipment tab is exempt: it
+        -- does its own staggered per-column reveal (below), which would otherwise
+        -- compound with a whole-panel fade (child alpha x parent alpha).
         if tabPanels[tabName] then
             local panel = tabPanels[tabName]
             panel:Show()
-            panel:SetAlpha(0)
-            Anim.fade(panel, 1, 0.18, "outQuad")
+            if tabName == "bestEquipment" then
+                panel:SetAlpha(1)
+            else
+                panel:SetAlpha(0)
+                Anim.fade(panel, 1, 0.18, "outQuad")
+            end
         end
         
         -- Adjust window height based on tab
@@ -3113,6 +3119,10 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
                 if Valuate.RefreshBestEquipmentDisplay then
                     Valuate:RefreshBestEquipmentDisplay()
+                end
+                -- Staggered per-column reveal (only on tab-open, so it's a flourish).
+                if Valuate.RevealBestEquipmentColumns then
+                    Valuate:RevealBestEquipmentColumns()
                 end
             else
                 -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
@@ -6424,10 +6434,26 @@ local function CreateBestEquipmentPanel(parent)
     
     -- Store update function for external access
     Valuate.RefreshBestEquipmentDisplay = UpdateBestEquipmentDisplay
-    
+
+    -- Staggered reveal of the visible scale columns. Called on tab-open only (not on
+    -- every background refresh), so the effect stays a flourish rather than a nag:
+    -- each column rises + fades in slightly after the previous one.
+    Valuate.RevealBestEquipmentColumns = function()
+        for i, col in ipairs(columnBundles) do
+            if col.frame and col.frame:IsShown() then
+                local f = col.frame
+                f:SetAlpha(0)
+                Anim.tween({
+                    duration = 0.34, delay = (i - 1) * 0.06, ease = "outCubic",
+                    onUpdate = function(e) f:SetAlpha(e) end,
+                })
+            end
+        end
+    end
+
     -- Initial update
     UpdateBestEquipmentDisplay()
-    
+
     return parent
 end
 
