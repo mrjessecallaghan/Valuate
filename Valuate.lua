@@ -4232,15 +4232,17 @@ function Valuate:AutoDeleteJunk(opts)
                     nSourceFallback = nSourceFallback + 1
                 end
 
-                -- Grey/Poor quality is ALWAYS vendor trash (murloc eyes, broken fangs,
-                -- etc.). AdiBags, if loaded, can ADDITIONALLY flag higher-quality items
-                -- you've marked as junk in its own list - but it must never override the
-                -- basic grey=junk rule. (The previous code let a `false` from
-                -- AdiBags:IsJunk suppress the grey fallback, so greys weren't deleted.)
-                local isJunk = (quality == ITEM_QUALITY_POOR) or (quality == 0)
-                if not isJunk and AdiBags and AdiBags.IsJunk and itemId then
-                    local ok, res = pcall(AdiBags.IsJunk, AdiBags, itemId)
-                    if ok and res then isJunk = true end
+                -- Deletable set = exactly what AdiBags' Junk filter classifies as junk,
+                -- so it honours your AdiBags Junk include/exclude lists. AdiBags:IsJunk
+                -- covers grey/Poor by default (plus the junk item category), and adds
+                -- anything you've marked, minus anything you've excluded. Only when
+                -- AdiBags isn't loaded at all do we fall back to grey/Poor quality.
+                local isJunk
+                if AdiBags and AdiBags.IsJunk and itemId then
+                    local ok, res = pcall(function() return AdiBags:IsJunk(itemId) end)
+                    isJunk = (ok and res) and true or false
+                else
+                    isJunk = (quality == ITEM_QUALITY_POOR) or (quality == 0)
                 end
 
                 local value = unitValue * stackCount
@@ -4282,6 +4284,11 @@ function Valuate:AutoDeleteJunk(opts)
             maxQuality,
             minValue > 0 and money(minValue) or "any",
             maxValue > 0 and money(maxValue) or "any"))
+        if AdiBags and AdiBags.IsJunk then
+            print("|cFFAAAAAA[Valuate]|r Junk source: AdiBags Junk filter (honours its include/exclude).")
+        else
+            print("|cFFAAAAAA[Valuate]|r Junk source: grey/Poor quality (AdiBags not loaded).")
+        end
         if strlower(valueSource) == "vendor" then
             print("|cFFAAAAAA[Valuate]|r Value source: vendor sell price.")
         elseif nSourceFallback > 0 then
