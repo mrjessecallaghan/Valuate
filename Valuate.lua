@@ -4232,13 +4232,16 @@ function Valuate:AutoDeleteJunk(opts)
                     nSourceFallback = nSourceFallback + 1
                 end
 
-                -- Junk per AdiBags, else fall back to poor quality.
-                local isJunk
-                if AdiBags and AdiBags.IsJunk and itemId then
+                -- Grey/Poor quality is ALWAYS vendor trash (murloc eyes, broken fangs,
+                -- etc.). AdiBags, if loaded, can ADDITIONALLY flag higher-quality items
+                -- you've marked as junk in its own list - but it must never override the
+                -- basic grey=junk rule. (The previous code let a `false` from
+                -- AdiBags:IsJunk suppress the grey fallback, so greys weren't deleted.)
+                local isJunk = (quality == ITEM_QUALITY_POOR) or (quality == 0)
+                if not isJunk and AdiBags and AdiBags.IsJunk and itemId then
                     local ok, res = pcall(AdiBags.IsJunk, AdiBags, itemId)
-                    if ok then isJunk = res end
+                    if ok and res then isJunk = true end
                 end
-                if isJunk == nil then isJunk = (quality == 0) end
 
                 local value = unitValue * stackCount
 
