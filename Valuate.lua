@@ -4313,6 +4313,13 @@ function Valuate:AutoDeleteJunk(opts)
                 removed + 1, c.link, c.count, money(c.value)))
             removed = removed + 1
         else
+            -- Safety: re-verify the slot STILL holds the exact item we vetted. Bags can
+            -- shift between the scan and here (another addon, a stack change), and we
+            -- must never delete a slot whose contents changed out from under us.
+            local nowLink = GetContainerItemLink(c.bag, c.slot)
+            if nowLink ~= c.link then
+                -- Contents changed; skip this slot silently rather than risk it.
+            else
             PickupContainerItem(c.bag, c.slot)
             if CursorHasItem and CursorHasItem() then
                 DeleteCursorItem()
@@ -4331,6 +4338,7 @@ function Valuate:AutoDeleteJunk(opts)
             else
                 ClearCursor()
             end
+            end  -- close slot re-verify guard
         end
     end
 
@@ -4535,8 +4543,33 @@ function Valuate:RunSelfTest()
         end)
         check(ok, "tooltip parse runs without error")
         check(ok and type(stats) == "table", "tooltip parse returns stats for equipped chest")
+
+        -- Exercise the upgrade / value / notify APIs on a real item under pcall, so a
+        -- RUNTIME error (the class the syntax gate can't see) is caught here rather than
+        -- mid-loot or mid-delete. Results don't matter; not erroring does.
+        local function runs(label, fn)
+            local okc, err = pcall(fn)
+            check(okc, label, (not okc) and tostring(err) or nil)
+        end
+        runs("GetItemUpgradeInfo runs", function() Valuate:GetItemUpgradeInfo(chestLink, stats or {}, { includeInactive = true }) end)
+        runs("IsUpgradeForAnyScale runs", function() Valuate:IsUpgradeForAnyScale(chestLink, stats or {}) end)
+        runs("GetUpgradeBaseline runs", function()
+            local sc, sn = Valuate:GetPrimaryScale()
+            if sc then Valuate:GetUpgradeBaseline(chestLink, sc, sn) end
+        end)
+        runs("GetItemUnitValue runs", function() Valuate:GetItemUnitValue(chestLink, "vendor") end)
+        runs("GetBestForInfo runs", function() Valuate:GetBestForInfo(chestLink) end)
     else
-        print("|cFFAAAAAA  (skipped tooltip parse - no chest equipped)|r")
+        print("|cFFAAAAAA  (skipped item-API checks - no chest equipped)|r")
+    end
+
+    -- Non-destructive exercise of the scan-dependent helpers.
+    do
+        local sc, sn = Valuate:GetPrimaryScale()
+        if sn then
+            local okc, err = pcall(function() Valuate:CountEquippableUpgrades(sn) end)
+            check(okc, "CountEquippableUpgrades runs", (not okc) and tostring(err) or nil)
+        end
     end
 
     if fail == 0 then
