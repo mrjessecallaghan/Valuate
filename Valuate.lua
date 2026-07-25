@@ -4172,8 +4172,9 @@ end
 function Valuate:AutoDeleteJunk(opts)
     opts = opts or {}
     local preview = opts.preview == true
+    local force = opts.force == true  -- on-demand: ignore the enable toggle + free-slot gate
     local options = Valuate:GetOptions()
-    if not preview and not options.autoDeleteJunk then return end
+    if not preview and not force and not options.autoDeleteJunk then return end
 
     -- NOTE: no combat gate. Deleting BAG items (PickupContainerItem + DeleteCursorItem)
     -- is not a protected action in 3.3.5 - only equipping gear is - and freeing bag
@@ -4190,9 +4191,9 @@ function Valuate:AutoDeleteJunk(opts)
 
     local keepFree = options.autoDeleteKeepFree or 4
     local free = CountFreeBagSlots()
-    -- A preview ALWAYS runs so you can inspect the rules with any amount of free
-    -- space; the live path only acts once bags are actually below the target.
-    if not preview and free >= keepFree then return end
+    -- Preview and force ALWAYS run (preview to inspect, force for on-demand cleanup);
+    -- the normal live path only acts once bags are actually below the target.
+    if not preview and not force and free >= keepFree then return end
 
     local maxQuality = options.autoDeleteMaxQuality or 2
     local maxValue = options.autoDeleteMaxValue or 0
@@ -4312,9 +4313,16 @@ function Valuate:AutoDeleteJunk(opts)
     -- Cheapest first, so anything worth keeping survives longest.
     table.sort(candidates, function(a, b) return a.value < b.value end)
 
-    -- Live: only remove what's needed to hit the target. Preview: list the ranked
-    -- queue (capped) so you can see the order it would chew through.
-    local needed = preview and math.min(#candidates, opts.limit or 15) or (keepFree - free)
+    -- Preview: list the ranked queue (capped). Force: remove ALL eligible junk now.
+    -- Live: only remove what's needed to get back to the free-slot target.
+    local needed
+    if preview then
+        needed = math.min(#candidates, opts.limit or 15)
+    elseif force then
+        needed = #candidates
+    else
+        needed = keepFree - free
+    end
     local removed = 0
     for _, c in ipairs(candidates) do
         if removed >= needed then break end
@@ -4702,6 +4710,12 @@ SlashCmdList["VALUATE"] = function(msg)
         -- Always runs, regardless of free space or whether auto-delete is enabled,
         -- and deletes nothing. Reports the ranked queue plus why items were skipped.
         Valuate:AutoDeleteJunk({ preview = true, limit = 15 })
+    elseif command == "deletenow" then
+        -- On-demand: delete ALL eligible junk right now, regardless of the enable
+        -- toggle or the free-slot target. Still respects every hard protection, the
+        -- quality/value limits, and the AdiBags Junk classification.
+        print("|cFFFF5555Valuate|r: Deleting all eligible junk now...")
+        Valuate:AutoDeleteJunk({ force = true })
     elseif command == "accept" then
         local options = Valuate:GetOptions()
         options.autoAcceptQuests = not options.autoAcceptQuests
