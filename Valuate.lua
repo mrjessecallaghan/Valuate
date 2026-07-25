@@ -3427,21 +3427,10 @@ local bagUpgradePending = false      -- upgrade found during combat; recheck on 
 local lastNotifiedSignature = nil    -- "oncePerUpgrade" dedupe
 local pendingEquipScale = nil        -- scale the popup's Equip button will act on
 
-StaticPopupDialogs = StaticPopupDialogs or {}
-StaticPopupDialogs["VALUATE_EQUIP_UPGRADE"] = {
-    text = "|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags.\nEquip the best set now?",
-    button1 = "Equip Best Set",
-    button2 = "Dismiss",
-    OnAccept = function()
-        if pendingEquipScale and Valuate.EquipBestSet then
-            Valuate:EquipBestSet(pendingEquipScale)
-        end
-    end,
-    timeout = 0,
-    whileDead = false,      -- can't equip while dead
-    hideOnEscape = true,
-    preferredIndex = 3,     -- reduce taint risk vs the default dialog stack
-}
+-- NOTE: this prompt deliberately does NOT use Blizzard's StaticPopup system.
+-- Those frames are recycled, and showing an addon dialog on one taints it; when
+-- Blizzard later reuses that frame for a secure dialog (e.g. USE_BIND) the secure
+-- call gets tainted and blocked. Valuate:ShowConfirmDialog is our own frame.
 
 -- Counts slots whose best-in-slot item for scaleName is NOT the one currently worn -
 -- i.e. an equippable upgrade is in the bags. best[slot] only ever holds an
@@ -3490,7 +3479,7 @@ function Valuate:CheckBagUpgradeNotify(trigger)
     local count, sig = Valuate:CountEquippableUpgrades(scaleName)
     if count == 0 then
         lastNotifiedSignature = nil
-        if StaticPopup_Hide then StaticPopup_Hide("VALUATE_EQUIP_UPGRADE") end
+        if Valuate.HideConfirmDialog then Valuate:HideConfirmDialog() end
         return
     end
 
@@ -3505,8 +3494,18 @@ function Valuate:CheckBagUpgradeNotify(trigger)
 
     lastNotifiedSignature = sig
     pendingEquipScale = scaleName
-    if StaticPopup_Show then
-        StaticPopup_Show("VALUATE_EQUIP_UPGRADE", count, scale.DisplayName or scaleName)
+    if Valuate.ShowConfirmDialog then
+        Valuate:ShowConfirmDialog({
+            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags.\nEquip the best set now?",
+                count, scale.DisplayName or scaleName),
+            acceptText = "Equip Best Set",
+            cancelText = "Dismiss",
+            onAccept = function()
+                if pendingEquipScale and Valuate.EquipBestSet then
+                    Valuate:EquipBestSet(pendingEquipScale)
+                end
+            end,
+        })
     end
     -- Celebratory cue on the minimap button so the upgrade is noticed even if the
     -- popup is off-screen or dismissed.
