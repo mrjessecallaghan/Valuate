@@ -7288,6 +7288,75 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Auto Sell Junk checkbox (Column 1, below Dry Run; -16 undoes its indent)
+    local autoSellCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoSellCheckbox:SetSize(24, 24)
+    autoSellCheckbox:SetPoint("TOPLEFT", dryRunCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
+
+    local autoSellLabel = autoSellCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoSellLabel:SetPoint("LEFT", autoSellCheckbox, "RIGHT", 5, 0)
+    autoSellLabel:SetText("Auto Sell Junk At Merchants")
+    autoSellCheckbox:SetChecked(Valuate:GetOptions().autoSellJunk == true)
+    autoSellCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoSellJunk = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoSellCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Sell Junk At Merchants", 1, 1, 1)
+            GameTooltip:AddLine("When you open a vendor, sells everything the Junk rules match - the same classification and the same protections as auto-delete.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Safer than deleting: you get the gold, and the vendor's Buyback tab can recover a mistake.", 0.6, 0.9, 0.6, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoSellCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Auto Repair checkbox (Column 1, below Auto Sell Junk)
+    local autoRepairCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    autoRepairCheckbox:SetSize(24, 24)
+    autoRepairCheckbox:SetPoint("TOPLEFT", autoSellCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local autoRepairLabel = autoRepairCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoRepairLabel:SetPoint("LEFT", autoRepairCheckbox, "RIGHT", 5, 0)
+    autoRepairLabel:SetText("Auto Repair")
+    autoRepairCheckbox:SetChecked(Valuate:GetOptions().autoRepair == true)
+    autoRepairCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoRepair = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoRepairCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Auto Repair", 1, 1, 1)
+            GameTooltip:AddLine("Repairs all your gear when you open a merchant that offers repairs, and reports the cost.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Won't repair if you can't afford it.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoRepairCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
+    -- Guild-funds sub-toggle (indented under Auto Repair)
+    local guildRepairCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    guildRepairCheckbox:SetSize(24, 24)
+    guildRepairCheckbox:SetPoint("TOPLEFT", autoRepairCheckbox, "BOTTOMLEFT", 16, -ELEMENT_SPACING)
+
+    local guildRepairLabel = guildRepairCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    guildRepairLabel:SetPoint("LEFT", guildRepairCheckbox, "RIGHT", 5, 0)
+    guildRepairLabel:SetText("Use Guild Funds First")
+    guildRepairCheckbox:SetChecked(Valuate:GetOptions().autoRepairGuildFirst == true)
+    guildRepairCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoRepairGuildFirst = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    guildRepairCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Use Guild Funds First", 1, 1, 1)
+            GameTooltip:AddLine("Try the guild bank's repair funds before your own money. Falls back to your gold if guild repair isn't available.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    guildRepairCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================

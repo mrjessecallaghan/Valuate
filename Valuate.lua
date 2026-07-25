@@ -346,6 +346,16 @@ local function OnEvent(self, event, addonName, ...)
                 end
             end)
         end
+    elseif event == "MERCHANT_SHOW" then
+        -- Sell junk / repair on arrival at a vendor (both opt-in). Small delay so the
+        -- merchant frame is fully up before we start selling.
+        local options = Valuate:GetOptions()
+        if options.autoRepair and Valuate.AutoRepair then
+            ValuateAfter(0.3, function() Valuate:AutoRepair() end)
+        end
+        if options.autoSellJunk and Valuate.AutoSellJunk then
+            ValuateAfter(0.5, function() Valuate:AutoSellJunk() end)
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- Left combat: show any bag-upgrade prompt that was deferred while fighting.
         -- Rescan first, since the deferred check may have been made on stale data.
@@ -421,6 +431,9 @@ local DEFAULT_OPTIONS = {
     autoDeleteMaxValue = 100000,          -- ceiling: never delete a stack worth MORE than this (copper)
     autoDeleteMinValue = 0,               -- floor: never delete a stack worth LESS than this (0 = no floor)
     autoDeleteValueSource = "vendor",     -- "vendor", or a TSM price source e.g. "DBMarket"
+    autoSellJunk = false,                 -- sell junk automatically when a merchant opens
+    autoRepair = false,                   -- repair automatically when a merchant can repair
+    autoRepairGuildFirst = false,         -- try guild funds before your own money
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
@@ -4210,6 +4223,38 @@ local function IsProtectedFromDelete(bag, slot, link)
     return false
 end
 
+-- Resolves AdiBags and its Junk module once. Shared by the delete and sell paths so
+-- there is a single junk classification in the addon (duplicating it is how the
+-- "0 junk found" bug happened).
+local function ResolveAdiBagsJunk()
+    local AdiBags, junkModule
+    if LibStub then
+        local ace = LibStub("AceAddon-3.0", true)
+        AdiBags = ace and ace:GetAddon("AdiBags", true)
+        if AdiBags and AdiBags.GetModule then
+            junkModule = AdiBags:GetModule("Junk", true)
+        end
+    end
+    return AdiBags, junkModule
+end
+
+-- True when the item counts as junk. Prefers the AdiBags Junk module's CheckItem
+-- (authoritative, honours include/exclude), then addon:IsJunk, then grey/Poor quality
+-- when AdiBags isn't installed at all.
+local function IsItemJunk(AdiBags, junkModule, itemId, quality)
+    local numId = tonumber(itemId)
+    if junkModule and junkModule.CheckItem and numId then
+        local ok, res = pcall(function() return junkModule:CheckItem(numId) end)
+        return (ok and res) and true or false
+    elseif AdiBags and AdiBags.IsJunk and numId then
+        local ok, res = pcall(function() return AdiBags:IsJunk(numId) end)
+        return (ok and res) and true or false
+    elseif not AdiBags then
+        return (quality == ITEM_QUALITY_POOR) or (quality == 0)
+    end
+    return false
+end
+
 -- Deletes the least valuable junk until the configured number of bag slots is free.
 -- Only ever considers items AdiBags classes as Junk (which honours its own
 -- include/exclude lists) or, without AdiBags, poor/grey quality.
@@ -4250,19 +4295,8 @@ function Valuate:AutoDeleteJunk(opts)
     -- How often the configured price source actually resolved vs fell back to vendor.
     local nSourceHits, nSourceFallback = 0, 0
 
-    -- AdiBags' own junk classification if it's loaded (respects its include/exclude).
-    -- We query the Junk MODULE's CheckItem directly rather than the AceHook-wrapped
-    -- addon:IsJunk - CheckItem is the authoritative, include/exclude-aware check with a
-    -- clean signature (mod:CheckItem(itemId)), so items you marked as junk in AdiBags
-    -- are recognised. IsJunk is kept only as a fallback.
-    local AdiBags, junkModule
-    if LibStub then
-        local ace = LibStub("AceAddon-3.0", true)
-        AdiBags = ace and ace:GetAddon("AdiBags", true)
-        if AdiBags and AdiBags.GetModule then
-            junkModule = AdiBags:GetModule("Junk", true)
-        end
-    end
+    -- Shared AdiBags junk classification (see ResolveAdiBagsJunk / IsItemJunk).
+    local AdiBags, junkModule = ResolveAdiBagsJunk()
 
     -- Collect candidates
     local candidates = {}
@@ -4284,21 +4318,8 @@ function Valuate:AutoDeleteJunk(opts)
                     nSourceFallback = nSourceFallback + 1
                 end
 
-                -- Deletable set = exactly what AdiBags' Junk filter classifies as junk,
-                -- honouring your include/exclude lists. Prefer the Junk module's
-                -- CheckItem (authoritative + clean signature); fall back to addon:IsJunk,
-                -- then to grey/Poor quality only when AdiBags isn't present.
-                local isJunk = false
-                local numId = tonumber(itemId)
-                if junkModule and junkModule.CheckItem and numId then
-                    local ok, res = pcall(function() return junkModule:CheckItem(numId) end)
-                    isJunk = (ok and res) and true or false
-                elseif AdiBags and AdiBags.IsJunk and numId then
-                    local ok, res = pcall(function() return AdiBags:IsJunk(numId) end)
-                    isJunk = (ok and res) and true or false
-                elseif not AdiBags then
-                    isJunk = (quality == ITEM_QUALITY_POOR) or (quality == 0)
-                end
+                -- Deletable set = exactly what AdiBags' Junk filter classifies as junk.
+                local isJunk = IsItemJunk(AdiBags, junkModule, itemId, quality)
 
                 local value = unitValue * stackCount
 
@@ -4427,6 +4448,133 @@ function Valuate:AutoDeleteJunk(opts)
     end
 end
 
+-- ========================================
+-- Merchant: auto-sell junk + auto-repair
+-- ========================================
+-- Selling is strictly better than deleting - you get the gold and the vendor's buyback
+-- tab can recover a mistake - so this runs on the same junk classification and the same
+-- hard protections as auto-delete, and should mean deletion is rarely needed.
+
+-- Sells one batch of junk, then reschedules itself. The server rejects rapid-fire
+-- sells, so we go in small batches with a short gap rather than one tight loop.
+local sellQueue, sellTotal = nil, 0
+
+local function SellNextBatch()
+    if not MerchantFrame or not MerchantFrame:IsShown() then
+        sellQueue = nil
+        return
+    end
+    if not sellQueue or #sellQueue == 0 then
+        if sellTotal > 0 then
+            print(string.format("|cFF00FF00[Valuate]|r Sold junk for %s.",
+                GetCoinTextureString and GetCoinTextureString(sellTotal) or (sellTotal .. "c")))
+        end
+        sellQueue = nil
+        return
+    end
+
+    for _ = 1, 6 do
+        local c = table.remove(sellQueue, 1)
+        if not c then break end
+        -- Re-verify the slot still holds what we vetted before selling it.
+        if GetContainerItemLink(c.bag, c.slot) == c.link then
+            UseContainerItem(c.bag, c.slot)   -- at a merchant this sells the item
+            sellTotal = sellTotal + (c.value or 0)
+        end
+    end
+
+    ValuateAfter(0.3, SellNextBatch)
+end
+
+-- Collects junk (same classification + protections as auto-delete) and sells it.
+function Valuate:AutoSellJunk(verbose)
+    local options = Valuate:GetOptions()
+    if not MerchantFrame or not MerchantFrame:IsShown() then
+        if verbose then print("|cFFFF8800[Valuate]|r No merchant window open.") end
+        return 0
+    end
+    if equipmentSwapPending or recentEquipmentChange then return 0 end
+
+    local AdiBags, junkModule = ResolveAdiBagsJunk()
+    local maxQuality = options.autoDeleteMaxQuality or 2
+    local valueSource = options.autoDeleteValueSource or "vendor"
+
+    local queue, count = {}, 0
+    for bag = 0, 4 do
+        local numSlots = GetContainerNumSlots(bag) or 0
+        for slot = 1, numSlots do
+            local link = GetContainerItemLink(bag, slot)
+            if link then
+                local itemId = GetItemIdFromLink(link)
+                local _, _, quality = GetItemInfo(link)
+                local _, stackCount = GetContainerItemInfo(bag, slot)
+                stackCount = stackCount or 1
+
+                if IsItemJunk(AdiBags, junkModule, itemId, quality)
+                   and quality and quality <= maxQuality then
+                    -- Same hard protections as deleting: never sell best-in-slot,
+                    -- weapon-set members, future upgrades, quest or equipment-set items.
+                    local protected = IsProtectedFromDelete(bag, slot, link)
+                    if not protected then
+                        -- Sale price is the VENDOR price regardless of the ranking
+                        -- source - that's what the merchant actually pays.
+                        local unit = select(11, GetItemInfo(link)) or 0
+                        count = count + 1
+                        queue[#queue + 1] = {
+                            bag = bag, slot = slot, link = link,
+                            value = unit * stackCount,
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    if count == 0 then
+        if verbose then print("|cFFFF8800[Valuate]|r No sellable junk found (after protections).") end
+        return 0
+    end
+
+    sellQueue, sellTotal = queue, 0
+    SellNextBatch()
+    return count
+end
+
+-- Repairs at merchants that offer it, optionally trying guild funds first.
+function Valuate:AutoRepair(verbose)
+    local options = Valuate:GetOptions()
+    if not CanMerchantRepair or not CanMerchantRepair() then
+        if verbose then print("|cFFFF8800[Valuate]|r This merchant can't repair.") end
+        return false
+    end
+
+    local cost = GetRepairAllCost and GetRepairAllCost() or 0
+    if not cost or cost <= 0 then
+        if verbose then print("|cFF00FF00[Valuate]|r Nothing to repair.") end
+        return false
+    end
+
+    local money = GetCoinTextureString and GetCoinTextureString(cost) or (cost .. "c")
+
+    -- Guild funds first when asked and permitted.
+    if options.autoRepairGuildFirst and CanGuildBankRepair and CanGuildBankRepair() then
+        local ok = pcall(function() RepairAllItems(1) end)
+        if ok then
+            print("|cFF00FF00[Valuate]|r Repaired using guild funds (" .. money .. ").")
+            return true
+        end
+    end
+
+    if GetMoney() < cost then
+        print("|cFFFF5555[Valuate]|r Not enough money to repair (" .. money .. ").")
+        return false
+    end
+
+    RepairAllItems()
+    print("|cFF00FF00[Valuate]|r Repaired for " .. money .. ".")
+    return true
+end
+
 -- Auto-rolls on a group loot roll when options.autoRollLoot is enabled.
 -- Need when the item is an upgrade for ANY configured scale (active or not), Greed
 -- otherwise. Never rolls Need on something that isn't an upgrade.
@@ -4541,6 +4689,7 @@ frame:RegisterEvent("LOOT_BIND_CONFIRM")
 -- USE_BIND_CONFIRM intentionally NOT registered - see HandleBindConfirm (taints the
 -- protected item-use path and gets the addon blocked).
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+frame:RegisterEvent("MERCHANT_SHOW")
 frame:SetScript("OnEvent", OnEvent)
 
 -- Re-evaluate the bag-upgrade prompt whenever best-equipment data changes (any scan).
@@ -4745,6 +4894,16 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "sell" then
+        local options = Valuate:GetOptions()
+        options.autoSellJunk = not options.autoSellJunk
+        print("|cFF00FF00Valuate|r: Auto sell junk at merchants " .. (options.autoSellJunk and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+    elseif command == "sellnow" then
+        Valuate:AutoSellJunk(true)
+    elseif command == "repair" then
+        local options = Valuate:GetOptions()
+        options.autoRepair = not options.autoRepair
+        print("|cFF00FF00Valuate|r: Auto repair " .. (options.autoRepair and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "autodelete" then
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk
