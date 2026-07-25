@@ -6225,6 +6225,10 @@ local function CreateBestEquipmentPanel(parent)
 
                         local scoreValue = bestItem.score or 0
                         scoreText:SetText("|cFF" .. color .. string.format(formatStr, scoreValue) .. "|r")
+                        -- Remember the final value so the tab-open reveal can count up to
+                        -- it. Cleared on rows that have no score (below), so a pooled row
+                        -- can't animate a stale number.
+                        r.animScore, r.animColor = scoreValue, color
 
                         local itemName = bestItem.itemName or "Unknown"
                         if itemQuality and itemQuality > 0 then
@@ -6333,6 +6337,7 @@ local function CreateBestEquipmentPanel(parent)
 
                             itemNameText:SetText("|cFF888888" .. (futureItem.itemName or "Unknown") .. "|r")
                             scoreText:SetText("|cFF888888" .. string.format(formatStr, futureItem.score or 0) .. "|r")
+                            r.animScore, r.animColor = nil, nil  -- dimmed future row: no count-up
                             if futureItem.reqLevel and futureItem.reqLevel > 0 then
                                 comparisonText:SetText("|cFF808080Lv " .. futureItem.reqLevel .. "|r")
                             else
@@ -6361,6 +6366,7 @@ local function CreateBestEquipmentPanel(parent)
                             itemNameText:SetText("|cFF888888No item found|r")
                             scoreText:SetText("--")
                             comparisonText:SetText("")
+                            r.animScore, r.animColor = nil, nil  -- empty slot: no count-up
                             slotFrame:SetScript("OnEnter", nil)
                             slotFrame:SetScript("OnLeave", nil)
                             slotFrame:SetScript("OnClick", nil)
@@ -6439,14 +6445,37 @@ local function CreateBestEquipmentPanel(parent)
     -- every background refresh), so the effect stays a flourish rather than a nag:
     -- each column rises + fades in slightly after the previous one.
     Valuate.RevealBestEquipmentColumns = function()
+        local decimals = Valuate:GetOptions().decimalPlaces or 1
+        local fmt = "%." .. decimals .. "f"
         for i, col in ipairs(columnBundles) do
             if col.frame and col.frame:IsShown() then
                 local f = col.frame
+                local colDelay = (i - 1) * 0.06
                 f:SetAlpha(0)
                 Anim.tween({
-                    duration = 0.34, delay = (i - 1) * 0.06, ease = "outCubic",
+                    duration = 0.34, delay = colDelay, ease = "outCubic",
                     onUpdate = function(e) f:SetAlpha(e) end,
                 })
+
+                -- Score count-up: each row's number rolls from 0 to its value, staggered
+                -- down the column so the numbers cascade. Only rows with a real score
+                -- animate (future/empty rows cleared animScore), and the tween always
+                -- lands exactly on the final value.
+                for rowIndex, r in ipairs(col.rows) do
+                    if r.animScore and r.animScore > 0 and r.scoreText then
+                        local target, hex, label = r.animScore, r.animColor or "FFFFFF", r.scoreText
+                        local function render(v)
+                            label:SetText("|cFF" .. hex .. string.format(fmt, v) .. "|r")
+                        end
+                        render(0)
+                        Anim.tween({
+                            duration = 0.55, ease = "outCubic",
+                            delay = colDelay + (rowIndex - 1) * 0.025,
+                            onUpdate = function(e) render(target * e) end,
+                            onDone = function() render(target) end,
+                        })
+                    end
+                end
             end
         end
     end
