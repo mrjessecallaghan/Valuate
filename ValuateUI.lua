@@ -7210,6 +7210,30 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
 
+    -- Reduce Motion checkbox (Column 2, below Show Minimap Button)
+    local reduceMotionCheckbox = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
+    reduceMotionCheckbox:SetSize(24, 24)
+    reduceMotionCheckbox:SetPoint("TOPLEFT", minimapButtonCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local reduceMotionLabel = reduceMotionCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    reduceMotionLabel:SetPoint("LEFT", reduceMotionCheckbox, "RIGHT", 5, 0)
+    reduceMotionLabel:SetText("Reduce Motion")
+    reduceMotionCheckbox:SetChecked(Valuate:GetOptions().reduceMotion == true)
+    reduceMotionCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().reduceMotion = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    reduceMotionCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Reduce Motion", 1, 1, 1)
+            GameTooltip:AddLine("Collapse all Valuate UI animations - window open/close, tab and column reveals, hovers, flashes - to instant. For a calmer UI or a small performance saving.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    reduceMotionCheckbox:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- Auto Delete tuning (Column 2)
     -- ========================================
