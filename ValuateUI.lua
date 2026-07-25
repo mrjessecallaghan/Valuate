@@ -5747,11 +5747,39 @@ local function CreateBestEquipmentPanel(parent)
         col.iconBorder = iconBorder
 
         local headerName = headerContainer:CreateFontString(nil, "OVERLAY", FONT_BODY)
-        headerName:SetPoint("LEFT", scaleIcon, "RIGHT", 8, 0)
+        headerName:SetPoint("LEFT", scaleIcon, "RIGHT", 8, 4)
         headerName:SetWidth(120)
         headerName:SetJustifyH("LEFT")
         headerName:SetTextColor(unpack(COLORS.textHeader))
         col.headerName = headerName
+
+        -- Active-spec indicator: a gold ring around the scale icon plus a caption under
+        -- the name. The "active spec" is the scale that quest rewards, auto-roll and the
+        -- bag-upgrade popup all use (Valuate:GetPrimaryScale).
+        local activeRing = headerContainer:CreateTexture(nil, "OVERLAY")
+        activeRing:SetSize(iconSize + 12, iconSize + 12)
+        activeRing:SetPoint("CENTER", scaleIcon, "CENTER", 0, 0)
+        activeRing:SetTexture("Interface\\Common\\WhiteIconFrame")
+        activeRing:SetVertexColor(1, 0.82, 0.1, 1)
+        activeRing:Hide()
+        col.activeRing = activeRing
+
+        local activeLabel = headerContainer:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        activeLabel:SetPoint("TOPLEFT", headerName, "BOTTOMLEFT", 0, -2)
+        activeLabel:SetWidth(130)
+        activeLabel:SetJustifyH("LEFT")
+        col.activeLabel = activeLabel
+
+        -- Clickable region over the icon + name that makes this scale the active spec.
+        -- Only a hover highlight, so the icon and name stay visible underneath.
+        local activeButton = CreateFrame("Button", nil, headerContainer)
+        activeButton:SetPoint("TOPLEFT", headerContainer, "TOPLEFT", 2, -2)
+        activeButton:SetSize(BE_SCALE_WIDTH - 95, BE_HEADER_HEIGHT - 4)
+        activeButton:RegisterForClicks("LeftButtonUp")
+        local abHL = activeButton:CreateTexture(nil, "HIGHLIGHT")
+        abHL:SetAllPoints(activeButton)
+        abHL:SetColorTexture(1, 0.82, 0.1, 0.10)
+        col.activeButton = activeButton
 
         -- Three stacked action buttons fill the 60px header: Equip All / Save Set / Clear.
         local clearButton = CreateFrame("Button", nil, headerContainer)
@@ -6053,6 +6081,9 @@ local function CreateBestEquipmentPanel(parent)
         local decimals = Valuate:GetOptions().decimalPlaces or 1
         local formatStr = "%." .. decimals .. "f"
 
+        -- Resolve the active spec once (honours the fallback when none is set).
+        local _, primaryScaleName = Valuate:GetPrimaryScale()
+
         for i, scaleName in ipairs(activeScales) do
             local scale = scales[scaleName]
             if scale then
@@ -6077,6 +6108,46 @@ local function CreateBestEquipmentPanel(parent)
                 if col.accentBar then col.accentBar:SetColorTexture(cr, cg, cb, 0.95) end
                 if col.headerBg then col.headerBg:SetColorTexture(cr, cg, cb, 0.12) end
                 col.headerName:SetText("|cFF" .. color .. displayName .. "|r")
+
+                -- Active-spec state. Compare against the RESOLVED primary scale so the
+                -- indicator is right even when characterWindowScale is unset (in which
+                -- case GetPrimaryScale falls back to the first active scale).
+                local isActiveSpec = (scaleName == primaryScaleName)
+                if col.activeRing then
+                    if isActiveSpec then col.activeRing:Show() else col.activeRing:Hide() end
+                end
+                if col.activeLabel then
+                    col.activeLabel:SetText(isActiveSpec
+                        and "|cFFFFD100* ACTIVE SPEC|r"
+                        or "|cFF707070click to activate|r")
+                end
+                if col.activeButton then
+                    col.activeButton:SetScript("OnClick", function()
+                        if isActiveSpec then return end
+                        Valuate:GetOptions().characterWindowScale = scaleName
+                        -- Keep every consumer in sync: character window, its dropdown,
+                        -- tooltips, and this panel's indicators.
+                        if Valuate.RefreshCharacterWindowDisplay then Valuate:RefreshCharacterWindowDisplay() end
+                        if Valuate.RefreshCharacterWindowScaleDropdown then Valuate:RefreshCharacterWindowScaleDropdown() end
+                        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+                        if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end
+                        print("|cFF00FF00Valuate|r: Active spec set to |cFF" .. color .. displayName .. "|r.")
+                    end)
+                    col.activeButton:SetScript("OnEnter", function(self)
+                        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                            GameTooltip:AddLine(displayName, 1, 1, 1)
+                            if isActiveSpec then
+                                GameTooltip:AddLine("This is your ACTIVE SPEC.", 1, 0.82, 0.1, true)
+                            else
+                                GameTooltip:AddLine("Click to make this your active spec.", 0.8, 0.8, 0.8, true)
+                            end
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine("The active spec is the scale used for quest-reward picks, loot rolls, the bag-upgrade prompt, and the character-window score.", 0.7, 0.7, 0.7, true)
+                            GameTooltip:Show()
+                        end
+                    end)
+                    col.activeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                end
                 col.clearButton:SetScript("OnClick", function()
                     Valuate:ClearBestEquipmentForScale(scaleName)
                 end)
