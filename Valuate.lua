@@ -229,6 +229,20 @@ local function ScheduleScan(delay, reason)
     end)
 end
 
+-- Debounced junk cleanup. Bags fill from every acquisition path, not just looting, so
+-- this runs on any inventory addition. Debounced because ITEM_PUSH fires once per item.
+local pendingDeleteTimer
+local function ScheduleJunkCleanup(delay)
+    if not Valuate.GetOptions or not Valuate:GetOptions().autoDeleteJunk then return end
+    if pendingDeleteTimer and pendingDeleteTimer.Cancel then
+        pendingDeleteTimer:Cancel()
+    end
+    pendingDeleteTimer = ValuateAfter(delay or 1.0, function()
+        pendingDeleteTimer = nil
+        if Valuate.AutoDeleteJunk then Valuate:AutoDeleteJunk() end
+    end)
+end
+
 -- Debounced "something entered your bags -> is it an upgrade?" check. Shared by every
 -- inventory-addition trigger (loot, quest rewards, mail, trade, crafting, vendor buys),
 -- since ITEM_PUSH can fire many times in quick succession when a batch of items lands.
@@ -346,18 +360,13 @@ local function OnEvent(self, event, addonName, ...)
             Valuate:AutoAcceptQuests(event)
         end
     elseif event == "LOOT_CLOSED" then
-        -- Prune junk to keep bag space free (opt-in). Delayed so looted items have
-        -- actually landed in the bags before we count free slots.
-        if Valuate.AutoDeleteJunk then
-            ValuateAfter(0.5, function() Valuate:AutoDeleteJunk() end)
-        end
-        -- Bag-upgrade notify (opt-in): loot may have brought in an upgrade, so refresh
-        -- best-equipment data and prompt. Own scan since it must work regardless of the
-        -- autoScan setting; ScanBestEquipment is synchronous so data is fresh right after.
+        -- Prune junk to keep bag space free, and check for upgrades (both opt-in).
+        ScheduleJunkCleanup(1.0)
         ScheduleUpgradeNotifyCheck(1.5)
     elseif event == "ITEM_PUSH" then
         -- ANY item entering your bags - quest reward, mail, trade, craft, vendor buy,
-        -- loot - should be considered for the upgrade prompt, not just looting.
+        -- loot - can both fill your bags and be an upgrade, so run both checks.
+        ScheduleJunkCleanup(1.0)
         ScheduleUpgradeNotifyCheck(1.5)
     elseif event == "MERCHANT_SHOW" then
         -- Sell junk / repair on arrival at a vendor (both opt-in). Small delay so the
@@ -4293,9 +4302,16 @@ function Valuate:AutoDeleteJunk(opts)
 
     local keepFree = options.autoDeleteKeepFree or 4
     local free = CountFreeBagSlots()
-    -- Preview and force ALWAYS run (preview to inspect, force for on-demand cleanup);
-    -- the normal live path only acts once bags are actually below the target.
-    if not preview and not force and free >= keepFree then return end
+    -- Preview always runs so you can inspect the rules at any time. Everything else only
+    -- acts when bags are actually below the target - including on-demand, which reports
+    -- rather than failing silently.
+    if not preview and free >= keepFree then
+        if force then
+            print(string.format("|cFF00FF00[Valuate]|r Nothing to do - %d free slot(s), target is %d. "
+                .. "Junk is only removed when you drop below the target.", free, keepFree))
+        end
+        return
+    end
 
     local maxQuality = options.autoDeleteMaxQuality or 2
     local maxValue = options.autoDeleteMaxValue or 0
@@ -4403,13 +4419,13 @@ function Valuate:AutoDeleteJunk(opts)
     -- Cheapest first, so anything worth keeping survives longest.
     table.sort(candidates, function(a, b) return a.value < b.value end)
 
-    -- Preview: list the ranked queue (capped). Force: remove ALL eligible junk now.
-    -- Live: only remove what's needed to get back to the free-slot target.
+    -- Preview: list the ranked queue (capped). Otherwise - including on-demand (force) -
+    -- only ever remove enough to reach the free-slot target. "Delete now" means "run the
+    -- normal cleanup immediately", NOT "delete all my junk": deletion is irreversible, so
+    -- it should never remove more than the setting asks for.
     local needed
     if preview then
         needed = math.min(#candidates, opts.limit or 15)
-    elseif force then
-        needed = #candidates
     else
         needed = keepFree - free
     end
