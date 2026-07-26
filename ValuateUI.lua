@@ -5838,10 +5838,11 @@ local function CreateBestEquipmentPanel(parent)
                 end)
                 col.equipAllButton:SetScript("OnClick", function()
                     if Valuate.EquipBestSet then Valuate:EquipBestSet(scaleName) end
-                    -- EquipBestSet pins the set it just equipped as active; pulse that
-                    -- row so it's obvious which configuration is now current.
-                    local sc = Valuate:GetScales()[scaleName]
-                    FlashWeaponSetRow(col, sc and sc.ActiveWeaponSet)
+                    -- Pulse the set that was actually equipped. Read the RESOLVED key
+                    -- from the scan data, not scale.ActiveWeaponSet - on an "auto" scale
+                    -- that field is literally "auto" and would match no row.
+                    local be = Valuate:GetBestEquipment()[scaleName]
+                    FlashWeaponSetRow(col, be and be.activeWeaponSet)
                 end)
                 col.equipAllButton:SetScript("OnEnter", function(self)
                     if ShowTooltipSafe(self, "ANCHOR_RIGHT") then

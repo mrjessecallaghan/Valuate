@@ -3005,13 +3005,29 @@ function Valuate:ScanBestEquipment()
             if next(weaponSets) then
                 bestEquipment[scaleName].weaponSets = weaponSets
 
-                -- Resolve the active set: honor an explicit choice, else "auto" =
-                -- match the player's currently-equipped weapons, else highest total.
+                -- Resolve the active set. An explicit choice always wins. Otherwise
+                -- "auto" = the HIGHEST-SCORING set.
+                --
+                -- It used to prefer whichever set matched your currently-equipped
+                -- weapons, which caused lock-in: equip a 1H and the active set flipped
+                -- to OneHandShield, so a better 2H sitting in your bags disappeared from
+                -- Main Hand and stopped counting as an upgrade - invisible precisely
+                -- because you weren't using it. "Best" must mean best available, so the
+                -- equipped setup is now only a tie-break between equal-scoring sets.
                 local activeKey = scale.ActiveWeaponSet
                 if not (activeKey and activeKey ~= "auto" and weaponSets[activeKey]) then
                     activeKey = nil
-                    local mhLink = GetInventoryItemLink("player", 16)
+                    local bestTotal
+                    for key, set in pairs(weaponSets) do
+                        if not bestTotal or set.total > bestTotal then
+                            bestTotal, activeKey = set.total, key
+                        end
+                    end
+
+                    -- Tie-break: if what you're wearing scores the same as the winner,
+                    -- keep it, so an equal-value swap doesn't churn your gear.
                     local ohLink = GetInventoryItemLink("player", 17)
+                    local mhLink = GetInventoryItemLink("player", 16)
                     local mhLoc = mhLink and select(9, GetItemInfo(mhLink)) or nil
                     local ohLoc = ohLink and select(9, GetItemInfo(ohLink)) or nil
                     local detected
@@ -3024,15 +3040,9 @@ function Valuate:ScanBestEquipment()
                     elseif ohLoc == "INVTYPE_WEAPON" or ohLoc == "INVTYPE_WEAPONMAINHAND" then
                         detected = "DualWield"
                     end
-                    if detected and weaponSets[detected] then
+                    if detected and weaponSets[detected] and bestTotal
+                       and weaponSets[detected].total >= bestTotal then
                         activeKey = detected
-                    else
-                        local bestTotal
-                        for key, set in pairs(weaponSets) do
-                            if not bestTotal or set.total > bestTotal then
-                                bestTotal, activeKey = set.total, key
-                            end
-                        end
                     end
                 end
 
@@ -3669,13 +3679,14 @@ function Valuate:EquipBestSet(scaleName)
         end
     end
 
-    -- Mark the set we just put on as this scale's active set. If the scale was on
-    -- "auto" this pins it to an explicit choice so a later rescan can't drift it to a
-    -- different configuration behind your back.
-    local activatedKey = be.activeWeaponSet
-    if scale and activatedKey then
-        scale.ActiveWeaponSet = activatedKey
-    end
+    -- Deliberately does NOT pin the active set. Equipping is not the same as choosing:
+    -- pinning an "auto" scale here froze it on whatever you happened to equip, so a
+    -- better configuration found later (e.g. a stronger 2H in your bags) could never
+    -- become active again - it silently stopped being offered as an upgrade.
+    -- An explicit choice still sticks: clicking a weapon-set row in the Best Equipment
+    -- panel, or the scale editor's Active-set button, sets scale.ActiveWeaponSet.
+    -- On "auto" the set we just equipped IS the highest-scoring one, so the panel's
+    -- marker and flash already point at it.
 
     if options.chatMessages then
         local label = (scale and (scale.DisplayName or scaleName)) or scaleName
