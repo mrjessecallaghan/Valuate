@@ -19,6 +19,7 @@ ImportExport.lua
 ui\Shared.lua
 ui\Animations.lua
 ui\Widgets.lua
+ui\Dialog.lua
 
 ValuateUI.lua
 MinimapButton.lua
