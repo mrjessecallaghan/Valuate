@@ -29,128 +29,31 @@ local BORDER_TOOLTIP, BORDER_EDGE_SIZE = ns.BORDER_TOOLTIP, ns.BORDER_EDGE_SIZE
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_INPUT, BACKDROP_BUTTON =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_INPUT, ns.BACKDROP_BUTTON
 
+-- Widgets and helpers (defined in ui/Widgets.lua)
+local ValidateStatValueInput, ValidateWholeNumberInput =
+    ns.ValidateStatValueInput, ns.ValidateWholeNumberInput
+local ApplyStatValueValidation, ApplyWholeNumberValidation =
+    ns.ApplyStatValueValidation, ns.ApplyWholeNumberValidation
+local ShowTooltipSafe, CreateStyledButton = ns.ShowTooltipSafe, ns.CreateStyledButton
+local HexToRGB, RGBToHex = ns.HexToRGB, ns.RGBToHex
+-- NOTE: IsDraggingFrame is shared MUTABLE state and is therefore always accessed as
+-- ns.IsDraggingFrame - a re-localised copy would never see updates from other files.
+
 -- ========================================
 -- Input Validation Functions
 -- ========================================
-
--- Validates and cleans numeric stat value input
--- Allows: up to 5 digits, one decimal point, minus sign at start only
--- Returns: cleaned string that meets validation rules
-local function ValidateStatValueInput(text)
-    if not text or text == "" then return "" end
-    
-    -- Allow lone minus sign temporarily (for better UX when typing)
-    if text == "-" then return "-" end
-    
-    -- Check if starts with minus
-    local hasNegative = text:sub(1, 1) == "-"
-    local workingText = hasNegative and text:sub(2) or text
-    
-    -- Remove all invalid characters (keep only digits and one decimal)
-    local cleaned = ""
-    local decimalCount = 0
-    local digitCount = 0
-    
-    for i = 1, #workingText do
-        local char = workingText:sub(i, i)
-        
-        if char == "." then
-            -- Only allow one decimal point
-            if decimalCount == 0 then
-                cleaned = cleaned .. char
-                decimalCount = decimalCount + 1
-            end
-        elseif char:match("%d") then
-            -- Only allow up to 5 digits total
-            if digitCount < 5 then
-                cleaned = cleaned .. char
-                digitCount = digitCount + 1
-            end
-        end
-        -- Silently skip any other characters
-    end
-    
-    -- Prevent malformed inputs like ".", ".5" without leading zero is ok, but lone "." is not
-    if cleaned == "." then
-        cleaned = ""
-    end
-    
-    -- Add back negative sign if it was present
-    if hasNegative and cleaned ~= "" then
-        cleaned = "-" .. cleaned
-    end
-    
-    return cleaned
-end
-
--- Validates whole number input (for decimal places setting)
--- Allows: only digits 0-9, no decimals or signs
--- Returns: cleaned string with only digits
-local function ValidateWholeNumberInput(text)
-    if not text or text == "" then return "" end
-    
-    -- Remove all non-digit characters
-    local cleaned = text:gsub("[^0-9]", "")
-    
-    return cleaned
-end
-
--- Applies validation to an EditBox for stat values
-local function ApplyStatValueValidation(editBox)
-    -- Intercept text changes (handles both typing and pasting)
-    editBox:SetScript("OnTextChanged", function(self, userInput)
-        if userInput then
-            local text = self:GetText()
-            local validText = ValidateStatValueInput(text)
-            
-            if text ~= validText then
-                local cursorPos = self:GetCursorPosition()
-                self:SetText(validText)
-                -- Adjust cursor position to stay at roughly the same place
-                self:SetCursorPosition(math.min(cursorPos, #validText))
-            end
-        end
-    end)
-end
-
--- Applies validation to an EditBox for whole numbers
-local function ApplyWholeNumberValidation(editBox)
-    -- Intercept text changes (handles both typing and pasting)
-    editBox:SetScript("OnTextChanged", function(self, userInput)
-        if userInput then
-            local text = self:GetText()
-            local validText = ValidateWholeNumberInput(text)
-            
-            if text ~= validText then
-                local cursorPos = self:GetCursorPosition()
-                self:SetText(validText)
-                -- Adjust cursor position to stay at roughly the same place
-                self:SetCursorPosition(math.min(cursorPos, #validText))
-            end
-        end
-    end)
-end
 
 -- Font Standards (all use white/highlight fonts for modern look)
 -- Font styles (defined in ui/Shared.lua, re-localised here)
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
     ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
 
--- Helper function: Safe tooltip display (checks if dragging)
-local function ShowTooltipSafe(frame, anchorType)
-    if not IsDraggingFrame then
-        GameTooltip:SetOwner(frame, anchorType or "ANCHOR_RIGHT")
-        return true
-    end
-    return false
-end
 
 -- Main UI Frame
 local ValuateUIFrame = nil
 local CurrentSelectedScale = nil
 local EditingScaleName = nil
 local OriginalScaleData = nil
-local IsDraggingFrame = false  -- Track if any frame is being dragged
 
 -- Icon Picker state
 local IconPickerFrame = nil
@@ -1875,26 +1778,6 @@ local function GetRoleName(role)
     return roleNames[role] or "Damage"
 end
 
--- ========================================
--- Utility Functions
--- ========================================
-
-local function HexToRGB(hex)
-    if not hex or #hex ~= 6 then
-        return 1, 1, 1
-    end
-    local r = tonumber(string.sub(hex, 1, 2), 16) / 255
-    local g = tonumber(string.sub(hex, 3, 4), 16) / 255
-    local b = tonumber(string.sub(hex, 5, 6), 16) / 255
-    return r, g, b
-end
-
-local function RGBToHex(r, g, b)
-    r = math.floor(math.max(0, math.min(1, r)) * 255)
-    g = math.floor(math.max(0, math.min(1, g)) * 255)
-    b = math.floor(math.max(0, math.min(1, b)) * 255)
-    return string.format("%02X%02X%02X", r, g, b)
-end
 
 -- Creates a styled button with consistent look
 -- ========================================
@@ -1906,39 +1789,6 @@ end
 local Anim, Easing = ns.Anim, ns.Easing
 local ReduceMotion, EaseOutQuad = ns.ReduceMotion, ns.EaseOutQuad
 local ColorLerp, ValuateTween, TweenBackdrop = ns.ColorLerp, ns.ValuateTween, ns.TweenBackdrop
-
-local function CreateStyledButton(parent, text, width, height)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetWidth(width or 100)
-    btn:SetHeight(height or BUTTON_HEIGHT)
-    btn:SetBackdrop(BACKDROP_BUTTON)
-    btn:SetBackdropColor(unpack(COLORS.buttonBg))
-    btn:SetBackdropBorderColor(unpack(COLORS.border))
-    
-    local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
-    label:SetText(text or "")
-    label:SetTextColor(unpack(COLORS.textBody))
-    btn.label = label
-    
-    -- Hover fades in/out; the press is instant so clicks still feel snappy, then
-    -- the release eases back to the hover state.
-    btn:SetScript("OnEnter", function(self)
-        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.12)
-    end)
-    btn:SetScript("OnLeave", function(self)
-        TweenBackdrop(self, COLORS.buttonBg, COLORS.border, 0.18)
-    end)
-    btn:SetScript("OnMouseDown", function(self)
-        self:SetScript("OnUpdate", nil)  -- cancel any running fade
-        self:SetBackdropColor(unpack(COLORS.buttonPressed))
-    end)
-    btn:SetScript("OnMouseUp", function(self)
-        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.10)
-    end)
-    
-    return btn
-end
 
 -- ========================================
 -- Custom confirm dialog (taint-free)
@@ -2045,13 +1895,13 @@ local function CreateIconPickerFrame()
     
     -- Make draggable
     frame:SetScript("OnDragStart", function(self)
-        IsDraggingFrame = true
+        ns.IsDraggingFrame = true
         GameTooltip:Hide()
         self:StartMoving()
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        IsDraggingFrame = false
+        ns.IsDraggingFrame = false
     end)
     
     -- Title
@@ -2278,13 +2128,13 @@ local function CreateClassSpecificPickerFrame()
     
     -- Make draggable
     frame:SetScript("OnDragStart", function(self)
-        IsDraggingFrame = true
+        ns.IsDraggingFrame = true
         GameTooltip:Hide()
         self:StartMoving()
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        IsDraggingFrame = false
+        ns.IsDraggingFrame = false
     end)
     
     -- ESC key to close
@@ -2528,13 +2378,13 @@ local function CreateTemplatePickerFrame()
     
     -- Make draggable
     frame:SetScript("OnDragStart", function(self)
-        IsDraggingFrame = true
+        ns.IsDraggingFrame = true
         GameTooltip:Hide()
         self:StartMoving()
     end)
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        IsDraggingFrame = false
+        ns.IsDraggingFrame = false
     end)
     
     -- ESC key to close
@@ -2846,14 +2696,14 @@ local function CreateMainWindow()
     
     -- Save position on move
     frame:SetScript("OnDragStart", function(self)
-        IsDraggingFrame = true
+        ns.IsDraggingFrame = true
         GameTooltip:Hide()  -- Hide any visible tooltips
         self:StartMoving()
     end)
     
     frame:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        IsDraggingFrame = false
+        ns.IsDraggingFrame = false
         local options = Valuate:GetOptions()
         if options then
             if not options.uiPosition then
@@ -4390,13 +4240,13 @@ local function CreateImportExportDialog()
     dialog:SetMovable(true)
     dialog:RegisterForDrag("LeftButton")
     dialog:SetScript("OnDragStart", function(self)
-        IsDraggingFrame = true
+        ns.IsDraggingFrame = true
         GameTooltip:Hide()
         self:StartMoving()
     end)
     dialog:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        IsDraggingFrame = false
+        ns.IsDraggingFrame = false
     end)
     dialog:Hide()
     
@@ -7953,7 +7803,7 @@ end
 
 -- Show breakdown tooltip
 local function ShowBreakdownTooltip(self)
-    if IsDraggingFrame then return end  -- Skip if dragging
+    if ns.IsDraggingFrame then return end  -- Skip if dragging
     
     local selectedScaleName = Valuate:GetOptions().characterWindowScale
     local scales = Valuate:GetScales()

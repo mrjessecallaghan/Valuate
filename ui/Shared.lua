@@ -14,6 +14,13 @@
 local _, ns = ...
 
 -- ========================================
+-- Shared mutable UI state
+-- ========================================
+-- True while any Valuate frame is being dragged; suppresses tooltips. MUTABLE, so it
+-- must always be read/written as ns.IsDraggingFrame - never re-localised.
+ns.IsDraggingFrame = false
+
+-- ========================================
 -- Spacing / sizing
 -- ========================================
 ns.PADDING = 12              -- Outer padding from window edges
