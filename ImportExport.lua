@@ -6,7 +6,11 @@
 -- ========================================
 
 -- Current scale tag format version
-local SCALE_TAG_VERSION = 1
+-- v2 added weapon-set configuration (WeaponSet.<key>, ActiveWeaponSet).
+-- Bumped so an older Valuate rejects the tag with a clear "update the addon" message
+-- instead of silently importing "WeaponSet.TwoHand=1" as a bogus stat weight.
+-- Older (v1) tags still import into this version - only NEWER tags are refused.
+local SCALE_TAG_VERSION = 2
 
 -- Import result status codes
 Valuate.ImportResult = {
@@ -85,6 +89,22 @@ function Valuate:GetScaleTag(scaleName)
         end
     end
     
+    -- Add weapon-set configuration. A scale with no WeaponSets table means "all
+    -- enabled", so only an explicit table is exported - that way an older scale keeps
+    -- its implicit default instead of being frozen into whatever it resolved to.
+    if scale.WeaponSets then
+        local defs = Valuate.GetWeaponSetDefinitions and Valuate:GetWeaponSetDefinitions()
+        if defs then
+            for _, def in ipairs(defs) do
+                table.insert(parts, string.format("WeaponSet.%s=%d",
+                    def.key, scale.WeaponSets[def.key] and 1 or 0))
+            end
+        end
+    end
+    if scale.ActiveWeaponSet and scale.ActiveWeaponSet ~= "" then
+        table.insert(parts, string.format("ActiveWeaponSet=%s", scale.ActiveWeaponSet))
+    end
+
     -- Concatenate all parts with commas
     tag = tag .. table.concat(parts, ",")
     
@@ -229,16 +249,28 @@ function Valuate:ParseScaleTag(scaleTag)
                 scaleData.Visible = (tonumber(value) == 1)
             elseif key == "Icon" then
                 scaleData.Icon = value
+            elseif key == "ActiveWeaponSet" then
+                scaleData.ActiveWeaponSet = value
             else
                 -- Check if this is an Unusable stat (e.g., "Unusable.Intellect")
                 local statName = string.match(key, "^Unusable%.(.+)$")
                 if statName and statName ~= "" then
                     scaleData.Unusable[statName] = true
                 else
-                    -- Regular stat weight
-                    local numValue = tonumber(value)
-                    if numValue then
-                        scaleData.Values[key] = numValue
+                    -- Weapon-set toggle, e.g. "WeaponSet.TwoHand=1". Only create the
+                    -- table when the tag actually carries one, so a tag without them
+                    -- keeps the "nil = all enabled" default rather than importing as
+                    -- all-disabled.
+                    local wsKey = string.match(key, "^WeaponSet%.(.+)$")
+                    if wsKey and wsKey ~= "" then
+                        scaleData.WeaponSets = scaleData.WeaponSets or {}
+                        scaleData.WeaponSets[wsKey] = (tonumber(value) == 1) or nil
+                    else
+                        -- Regular stat weight
+                        local numValue = tonumber(value)
+                        if numValue then
+                            scaleData.Values[key] = numValue
+                        end
                     end
                 end
             end
