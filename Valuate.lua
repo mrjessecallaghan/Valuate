@@ -4831,6 +4831,59 @@ function Valuate:RunSelfTest()
         print("|cFFAAAAAA  (skipped item-API checks - no chest equipped)|r")
     end
 
+    -- Integration sanity: not "did it error" but "is the answer plausible". AdiBags
+    -- being loaded while classifying ZERO of a full bag as junk is the exact signature
+    -- of the CheckItem/IsJunk contract bug - a crash-free wrong answer that cost days.
+    do
+        local AdiBags, junkModule
+        if LibStub then
+            local ace = LibStub("AceAddon-3.0", true)
+            AdiBags = ace and ace:GetAddon("AdiBags", true)
+            if AdiBags and AdiBags.GetModule then
+                junkModule = AdiBags:GetModule("Junk", true)
+            end
+        end
+        if AdiBags then
+            check(junkModule ~= nil, "AdiBags Junk module resolves",
+                "GetModule('Junk') returned nil - junk detection will fall back")
+            if junkModule and junkModule.CheckItem then
+                -- Deliberately goes through IsItemJunk - the same helper the delete and
+                -- sell paths use - so this tests the REAL classification, not a parallel
+                -- probe that could drift from it.
+                local scanned, junk = 0, 0
+                for bag = 0, 4 do
+                    for slot = 1, (GetContainerNumSlots(bag) or 0) do
+                        local link = GetContainerItemLink(bag, slot)
+                        if link then
+                            scanned = scanned + 1
+                            local id = GetItemIdFromLink(link)
+                            local _, _, quality = GetItemInfo(link)
+                            if IsItemJunk(AdiBags, junkModule, id, quality) then
+                                junk = junk + 1
+                            end
+                        end
+                    end
+                end
+                print(string.format("|cFFAAAAAA  AdiBags junk: %d of %d bag item(s) classified|r", junk, scanned))
+                -- Not a hard failure (a genuinely junk-free bag is possible), but loud:
+                -- a full bag with zero junk almost always means a broken contract.
+                if scanned >= 20 and junk == 0 then
+                    print("|cFFFF8800  WARN|r AdiBags classified 0 junk across " .. scanned ..
+                        " items - verify the Junk filter, or the CheckItem contract may have changed.")
+                end
+            end
+        else
+            print("|cFFAAAAAA  (AdiBags not loaded - junk falls back to grey quality)|r")
+        end
+    end
+
+    -- Every automation option should have a diagnostic command (CLAUDE.md convention),
+    -- and the dialog path must exist or prompts silently vanish.
+    check(type(Valuate.ShowConfirmDialog) == "function", "ShowConfirmDialog exists (upgrade prompt path)")
+    check(type(Valuate.CheckBagUpgradeNotify) == "function", "CheckBagUpgradeNotify exists")
+    check(type(Valuate.AutoSellJunk) == "function", "AutoSellJunk exists")
+    check(type(Valuate.AutoRepair) == "function", "AutoRepair exists")
+
     -- Non-destructive exercise of the scan-dependent helpers.
     do
         local sc, sn = Valuate:GetPrimaryScale()
