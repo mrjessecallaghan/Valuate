@@ -4489,8 +4489,11 @@ local function SellNextBatch()
     for _ = 1, 6 do
         local c = table.remove(sellQueue, 1)
         if not c then break end
-        -- Re-verify the slot still holds what we vetted before selling it.
-        if GetContainerItemLink(c.bag, c.slot) == c.link then
+        -- Re-verify the slot still holds what we vetted, and that it's still sellable
+        -- and unlocked, before acting. Bags can shift between queueing and selling, and
+        -- UseContainerItem on the wrong/unsellable item would use it instead.
+        local _, _, locked = GetContainerItemInfo(c.bag, c.slot)
+        if GetContainerItemLink(c.bag, c.slot) == c.link and not locked then
             UseContainerItem(c.bag, c.slot)   -- at a merchant this sells the item
             sellTotal = sellTotal + (c.value or 0)
         end
@@ -4520,18 +4523,25 @@ function Valuate:AutoSellJunk(verbose)
             if link then
                 local itemId = GetItemIdFromLink(link)
                 local _, _, quality = GetItemInfo(link)
-                local _, stackCount = GetContainerItemInfo(bag, slot)
+                local _, stackCount, locked = GetContainerItemInfo(bag, slot)
                 stackCount = stackCount or 1
 
-                if IsItemJunk(AdiBags, junkModule, itemId, quality)
+                -- Sale price is the VENDOR price regardless of the ranking source -
+                -- that's what the merchant actually pays.
+                local unit = select(11, GetItemInfo(link)) or 0
+
+                -- CRITICAL: only queue items the vendor will actually BUY. At a merchant
+                -- UseContainerItem sells the item, but an item with no sell price can't
+                -- be sold - and the call can fall through to USING it instead, which
+                -- would consume a junk-classified consumable. Requiring a sell price
+                -- makes that impossible. Locked slots (mid-move) are skipped too.
+                if unit > 0 and not locked
+                   and IsItemJunk(AdiBags, junkModule, itemId, quality)
                    and quality and quality <= maxQuality then
                     -- Same hard protections as deleting: never sell best-in-slot,
                     -- weapon-set members, future upgrades, quest or equipment-set items.
                     local protected = IsProtectedFromDelete(bag, slot, link)
                     if not protected then
-                        -- Sale price is the VENDOR price regardless of the ranking
-                        -- source - that's what the merchant actually pays.
-                        local unit = select(11, GetItemInfo(link)) or 0
                         count = count + 1
                         queue[#queue + 1] = {
                             bag = bag, slot = slot, link = link,
