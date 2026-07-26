@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /*
- * Valuate syntax gate.
+ * Valuate syntax + lint gate.
  *
- * Parses every Lua file in the addon (and the sibling integration modules) with a
- * Lua 5.1 parser and reports the first parse error per file as file:line:col. A WoW
- * addon with a Lua *syntax* error simply fails to load, so this catches the worst
- * failure mode that code review can miss. It does NOT verify behaviour.
+ * 1. Parses every Lua file with a Lua 5.1 parser. A WoW addon with a syntax error
+ *    simply fails to load, so this catches the worst failure mode review can miss.
+ * 2. Enforces lint rules that encode bugs we actually shipped (see CLAUDE.md).
+ *
+ * Neither step proves BEHAVIOUR - there is no Lua runtime here.
  *
  * Usage:  node tools/check.js
- * Exits non-zero if any file fails to parse.
+ * Exits non-zero if any file fails to parse or violates a rule.
+ * Bypass a rule on one line with:  -- valuate-lint-ignore: <rule-name>
  */
 "use strict";
 
@@ -23,14 +25,10 @@ try {
   process.exit(2);
 }
 
-// tools/ lives inside the addon folder; the addon root is its parent, and the
-// integration modules are siblings of the addon root.
 const TOOLS_DIR = __dirname;
 const ADDON_ROOT = path.resolve(TOOLS_DIR, "..");
 const ADDONS_DIR = path.resolve(ADDON_ROOT, "..");
 
-// Scan the main addon plus the integration modules, skipping vendored libraries
-// (they're third-party and already ship working) and node_modules.
 const SCAN_ROOTS = [
   ADDON_ROOT,
   path.join(ADDONS_DIR, "Valuate-AdiBags"),
@@ -38,12 +36,57 @@ const SCAN_ROOTS = [
 ];
 const SKIP_DIR = /(^|[\\/])(libs|node_modules|\.git|_Valuate_Original_Archive.*|_Valuate_Handoff)([\\/]|$)/i;
 
+/*
+ * Lint rules. Each encodes a real defect - see CLAUDE.md for the full story.
+ * `test(line, file)` returns true when the line VIOLATES the rule.
+ */
+const RULES = [
+  {
+    name: "no-staticpopup",
+    why: "StaticPopup frames are recycled; showing ours taints them and blocks secure dialogs (e.g. ConfirmBindOnUse). Use Valuate:ShowConfirmDialog.",
+    test: (l) => /\bStaticPopup_(Show|Hide)\s*\(|\bStaticPopupDialogs\s*\[/.test(l),
+  },
+  {
+    name: "no-blizzard-ui-writes",
+    why: "Writing Blizzard UI fields or calling their handlers taints the frame; the client then blocks actions like Complete Quest. Draw your own highlight instead.",
+    test: (l) =>
+      /\b(QuestInfoFrame|QuestRewardScrollFrame|MerchantFrame|CharacterFrame)\s*\.\s*\w+\s*=[^=]/.test(l) ||
+      /\bQuestInfoItem_OnClick\s*\(/.test(l),
+  },
+  {
+    name: "no-protected-calls",
+    why: "Automating item use is a protected path; the client blocks the use and blames Valuate. Let the user answer that popup.",
+    test: (l) => /\bConfirmBindOnUse\s*\(/.test(l),
+  },
+  {
+    name: "no-duplicate-junk-logic",
+    why: "Junk classification must go through the single IsItemJunk() helper - duplicating it is how the '0 junk found' bug survived two fixes.",
+    test: (l, file) =>
+      path.basename(file) === "Valuate.lua" &&
+      /:CheckItem\s*\(|:IsJunk\s*\(/.test(l) &&
+      !/function\s+IsItemJunk|IsItemJunk\s*\(/.test(l),
+  },
+];
+
+// Rules that are allowed to match inside the shared helper / rule definitions
+// themselves. Keyed by rule name -> regex describing an exempt context line.
+// An ignore directive may sit on the offending line or on the line directly above it
+// (kinder to long lines). Format: -- valuate-lint-ignore: <rule-name>  [reason]
+function isIgnored(line, prevLine, ruleName) {
+  const re = /--\s*valuate-lint-ignore:\s*([\w-]+)/;
+  for (const l of [line, prevLine || ""]) {
+    const m = l.match(re);
+    if (m && m[1] === ruleName) return true;
+  }
+  return false;
+}
+
 function collectLuaFiles(root, out) {
   let entries;
   try {
     entries = fs.readdirSync(root, { withFileTypes: true });
   } catch (e) {
-    return; // missing optional module dir is fine
+    return;
   }
   for (const entry of entries) {
     const full = path.join(root, entry.name);
@@ -59,7 +102,9 @@ const files = [];
 for (const root of SCAN_ROOTS) collectLuaFiles(root, files);
 files.sort();
 
-let failed = 0;
+let parseFailures = 0;
+let lintFailures = 0;
+
 for (const file of files) {
   const rel = path.relative(ADDONS_DIR, file);
   let src;
@@ -67,22 +112,67 @@ for (const file of files) {
     src = fs.readFileSync(file, "utf8");
   } catch (e) {
     console.error(`ERROR  ${rel}: cannot read (${e.message})`);
-    failed++;
+    parseFailures++;
     continue;
   }
+
+  // --- 1. Syntax ---
   try {
-    // WoW runs Lua 5.1; luaparse must match, and WoW allows the vararg/`...`
-    // addon-table idiom at chunk scope, which luaTable-5.1 mode accepts.
     luaparse.parse(src, { luaVersion: "5.1" });
   } catch (e) {
     const loc = e.line ? `:${e.line}:${e.column || 0}` : "";
     console.error(`FAIL   ${rel}${loc}  ${e.message}`);
-    failed++;
+    parseFailures++;
+    continue; // don't lint a file that doesn't parse
   }
+
+  // --- 2. Lint ---
+  const lines = src.split(/\r?\n/);
+  const anchorTargets = new Map(); // settings-anchor-chain
+
+  lines.forEach((line, i) => {
+    const lineNo = i + 1;
+    const prevLine = i > 0 ? lines[i - 1] : "";
+
+    // Comments are documentation, not code - don't lint them.
+    const code = line.replace(/--.*$/, "");
+    if (!code.trim()) return;
+
+    for (const rule of RULES) {
+      if (isIgnored(line, prevLine, rule.name)) continue;
+      if (rule.test(code, file)) {
+        console.error(`LINT   ${rel}:${lineNo}  [${rule.name}] ${rule.why}`);
+        console.error(`         ${line.trim()}`);
+        lintFailures++;
+      }
+    }
+
+    // settings-anchor-chain: two controls anchored to the same frame+point overlap.
+    const anchor = code.match(
+      /:SetPoint\(\s*"TOPLEFT"\s*,\s*(\w+)\s*,\s*"BOTTOMLEFT"/
+    );
+    if (anchor && !isIgnored(line, prevLine, "settings-anchor-chain")) {
+      const key = anchor[1];
+      if (anchorTargets.has(key)) {
+        console.error(
+          `LINT   ${rel}:${lineNo}  [settings-anchor-chain] "${key}" is already used as an anchor at line ${anchorTargets.get(
+            key
+          )} - two controls on one anchor render on top of each other. Anchor to the PREVIOUS control.`
+        );
+        lintFailures++;
+      } else {
+        anchorTargets.set(key, lineNo);
+      }
+    }
+  });
 }
 
-if (failed > 0) {
-  console.error(`\n${failed} file(s) failed to parse.`);
+if (parseFailures || lintFailures) {
+  console.error(
+    `\n${parseFailures} parse failure(s), ${lintFailures} lint violation(s).`
+  );
   process.exit(1);
 }
-console.log(`OK  ${files.length} Lua file(s) parsed cleanly.`);
+console.log(
+  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 1} lint rules passed.`
+);

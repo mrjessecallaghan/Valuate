@@ -4266,9 +4266,11 @@ end
 local function IsItemJunk(AdiBags, junkModule, itemId, quality)
     local numId = tonumber(itemId)
     if junkModule and junkModule.CheckItem and numId then
+        -- valuate-lint-ignore: no-duplicate-junk-logic (this IS the canonical helper)
         local ok, res = pcall(function() return junkModule:CheckItem(numId) end)
         return (ok and res) and true or false
     elseif AdiBags and AdiBags.IsJunk and numId then
+        -- valuate-lint-ignore: no-duplicate-junk-logic (this IS the canonical helper)
         local ok, res = pcall(function() return AdiBags:IsJunk(numId) end)
         return (ok and res) and true or false
     elseif not AdiBags then
