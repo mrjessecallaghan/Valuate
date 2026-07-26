@@ -15,8 +15,9 @@ Valuate.lua
 StatDefinitions.lua
 ImportExport.lua
 
-# Shared UI design tokens - must load BEFORE ValuateUI.lua, which re-localises them.
+# Shared UI modules - must load BEFORE ValuateUI.lua, which re-localises them.
 ui\Shared.lua
+ui\Animations.lua
 
 ValuateUI.lua
 MinimapButton.lua
