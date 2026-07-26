@@ -17,6 +17,7 @@ ImportExport.lua
 
 # Shared UI modules - must load BEFORE ValuateUI.lua, which re-localises them.
 ui\Shared.lua
+ui\Data.lua
 ui\Animations.lua
 ui\Widgets.lua
 ui\Dialog.lua
