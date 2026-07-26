@@ -7,107 +7,27 @@ if not Valuate then
 end
 
 -- ========================================
--- UI Constants
+-- UI Constants (defined in ui/Shared.lua)
 -- ========================================
+-- Separate .lua files cannot see each other's locals, so the design tokens live on the
+-- addon private table and are re-localised here. Every existing reference below keeps
+-- working unchanged, and local lookups stay as fast as before.
+local _, ns = ...
 
--- Window dimensions
--- Standardized spacing
-local PADDING = 12              -- Outer padding from window edges
-local ELEMENT_SPACING = 8       -- Between major UI sections
-local INNER_SPACING = 4         -- Within elements
-local COLUMN_GAP = 6            -- Gap between stat columns
+local PADDING, ELEMENT_SPACING, INNER_SPACING, COLUMN_GAP =
+    ns.PADDING, ns.ELEMENT_SPACING, ns.INNER_SPACING, ns.COLUMN_GAP
+local BUTTON_HEIGHT, ENTRY_HEIGHT, SCROLLBAR_WIDTH =
+    ns.BUTTON_HEIGHT, ns.ENTRY_HEIGHT, ns.SCROLLBAR_WIDTH
+local NUM_COLUMNS, COLUMN_WIDTH, ROW_HEIGHT, ROW_SPACING, HEADER_HEIGHT, HEADER_SPACING =
+    ns.NUM_COLUMNS, ns.COLUMN_WIDTH, ns.ROW_HEIGHT, ns.ROW_SPACING, ns.HEADER_HEIGHT, ns.HEADER_SPACING
+local SCALE_LIST_WIDTH, EDITOR_CONTENT_WIDTH, WINDOW_WIDTH =
+    ns.SCALE_LIST_WIDTH, ns.EDITOR_CONTENT_WIDTH, ns.WINDOW_WIDTH
+local MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT = ns.MIN_WINDOW_HEIGHT, ns.MAX_WINDOW_HEIGHT
 
--- Component sizing
-local BUTTON_HEIGHT = 24
-local ENTRY_HEIGHT = 24
-local SCROLLBAR_WIDTH = 20      -- Width reserved for scrollbars (18px bar + 2px gap)
-
--- Stat editor sizing (5-column layout)
-local NUM_COLUMNS = 5           -- Number of stat columns
-local COLUMN_WIDTH = 160        -- Each stat column width
-local ROW_HEIGHT = 16           -- Stat row height
-local ROW_SPACING = 1           -- Spacing between stat rows
-local HEADER_HEIGHT = 14        -- Category header height
-local HEADER_SPACING = 6        -- Spacing above headers
-
--- Scale list sizing
-local SCALE_LIST_WIDTH = 200    -- Left panel width for scale list
-
--- Dynamic window sizing based on layout requirements
--- Window width calculation: Content padding + Scale list + Gap + Editor content (columns + gaps) + Content padding
-local EDITOR_CONTENT_WIDTH = NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP
-local WINDOW_WIDTH = PADDING + SCALE_LIST_WIDTH + PADDING + EDITOR_CONTENT_WIDTH + PADDING
--- Result: 12 + 200 + 12 + (5*160 + 4*6) + 12 = 12 + 200 + 12 + 824 + 12 = 1060
-
-local MIN_WINDOW_HEIGHT = 600
-local MAX_WINDOW_HEIGHT = 900
-
--- ========================================
--- Color Palette (Modern, clean look)
--- ========================================
-local COLORS = {
-    -- Backgrounds (near-black with a subtle cool slate tint for depth)
-    windowBg = { 0.055, 0.060, 0.075, 0.98 },
-    panelBg = { 0.035, 0.040, 0.052, 0.96 },
-    inputBg = { 0.090, 0.100, 0.120, 1 },
-    buttonBg = { 0.145, 0.155, 0.185, 1 },
-    buttonHover = { 0.240, 0.270, 0.340, 1 },
-    buttonPressed = { 0.100, 0.110, 0.140, 1 },
-
-    -- Borders (cool, subtle, crisp)
-    border = { 0.26, 0.29, 0.36, 1 },
-    borderLight = { 0.42, 0.48, 0.60, 1 },
-    borderDark = { 0.14, 0.16, 0.20, 1 },
-
-    -- Text (crisp, cool-neutral hierarchy)
-    textTitle = { 0.96, 0.97, 1.00, 1 },
-    textHeader = { 0.70, 0.77, 0.90, 1 },
-    textBody = { 0.85, 0.87, 0.92, 1 },
-    textDim = { 0.46, 0.50, 0.60, 1 },
-    textAccent = { 0.38, 0.72, 1.00, 1 },   -- vivid azure accent
-
-    -- States
-    selected = { 0.16, 0.32, 0.52, 1 },
-    selectedBorder = { 0.36, 0.62, 0.95, 1 },
-    disabled = { 0.24, 0.25, 0.30, 0.6 },
-}
-
--- Standardized Border Styles
-local BORDER_TOOLTIP = "Interface\\Tooltips\\UI-Tooltip-Border"  -- Clean, minimal border
-local BORDER_EDGE_SIZE = 12
-
--- Backdrop presets for consistent styling
-local BACKDROP_WINDOW = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = BORDER_TOOLTIP,
-    edgeSize = 16,
-    tile = false,
-    insets = { left = 4, right = 4, top = 4, bottom = 4 }
-}
-
-local BACKDROP_PANEL = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = BORDER_TOOLTIP,
-    edgeSize = BORDER_EDGE_SIZE,
-    tile = false,
-    insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
-
-local BACKDROP_INPUT = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = BORDER_TOOLTIP,
-    edgeSize = 10,
-    tile = false,
-    insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
-
-local BACKDROP_BUTTON = {
-    bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = BORDER_TOOLTIP,
-    edgeSize = BORDER_EDGE_SIZE,
-    tile = false,
-    insets = { left = 2, right = 2, top = 2, bottom = 2 }
-}
+local COLORS = ns.COLORS
+local BORDER_TOOLTIP, BORDER_EDGE_SIZE = ns.BORDER_TOOLTIP, ns.BORDER_EDGE_SIZE
+local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_INPUT, BACKDROP_BUTTON =
+    ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_INPUT, ns.BACKDROP_BUTTON
 
 -- ========================================
 -- Input Validation Functions
@@ -212,12 +132,9 @@ local function ApplyWholeNumberValidation(editBox)
 end
 
 -- Font Standards (all use white/highlight fonts for modern look)
-local FONT_TITLE = "GameFontHighlightLarge"    -- ~16pt, white
-local FONT_H1 = "GameFontHighlight"            -- ~12pt, white  
-local FONT_H2 = "GameFontHighlightSmall"       -- ~10pt, white
-local FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
-local FONT_BODY = "GameFontHighlight"          -- ~12pt, white
-local FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
+-- Font styles (defined in ui/Shared.lua, re-localised here)
+local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
+    ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
 
 -- Helper function: Safe tooltip display (checks if dragging)
 local function ShowTooltipSafe(frame, anchorType)
