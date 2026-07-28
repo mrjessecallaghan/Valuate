@@ -21,6 +21,7 @@ ui\Data.lua
 ui\Animations.lua
 ui\Widgets.lua
 ui\Dialog.lua
+ui\Pickers.lua
 ui\InfoPanels.lua
 
 ValuateUI.lua
