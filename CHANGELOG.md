@@ -4,6 +4,71 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.11.0a] - 2026-07-19 — Merchant automation, upgrade prompts, and a rebuilt UI
+
+**Still untested in-game at release** except where noted — no Lua runtime is available on
+the dev machine, so changes are review- and lint-verified only.
+
+### Added
+- **Bag-upgrade prompt.** When an equippable upgrade for your current spec is sitting in
+  your bags, Valuate offers a one-click "Equip Best Set". Triggers on **any** item
+  entering your bags — loot, quest rewards, mail, trade, crafting, vendor purchases — and
+  defers politely until you're out of combat. Two modes: re-prompt every loot, or only
+  when the available upgrades actually change. `/valuate notify`, `/valuate notifycheck`.
+- **Auto-sell junk and auto-repair at merchants.** Selling uses the *same* junk rules and
+  the same hard protections as auto-delete, and is strictly safer — you get the gold, and
+  the vendor's Buyback tab can undo a mistake. Optional guild-funds-first repair.
+  `/valuate sell`, `/valuate sellnow`, `/valuate repair`.
+- **`/valuate deletenow`** — run junk cleanup on demand instead of waiting for a loot
+  event. Respects your Keep Free Slots target; it is not a "delete everything" button.
+- **Animation system.** One shared ticker driving window open/close, tab crossfades, a
+  staggered Best Equipment reveal with score count-ups, hover transitions, an Equip All
+  flash, and a minimap pulse when an upgrade lands. **Reduce Motion** collapses all of it
+  to instant.
+- **Selectable active spec** per Best Equipment column, with a visual indicator.
+- **Import/export now carries weapon-set configuration** (scale tag v2). Older tags still
+  import; a v2 tag is refused by older Valuate with a clear message rather than silently
+  importing junk.
+
+### Fixed
+- **Bind-on-use items were being blocked** (e.g. Ascension's vanity sync), reporting
+  *"Valuate tainted the call of the secure function ConfirmBindOnUse()"*. Valuate was
+  never the caller: showing our own prompts through Blizzard's shared StaticPopup frames
+  poisoned one, and the taint surfaced when the game later reused that frame for a secure
+  dialog. Valuate now uses its own dialog frame and contains **no** StaticPopup usage at
+  all. A second, latent case in the quest-reward code (which would have blocked "Complete
+  Quest") was fixed the same way.
+- **Junk was not being detected at all** — the delete preview reported 0 junk from a full
+  bag. Valuate was calling AdiBags' hooked `IsJunk`, which returns false when called from
+  outside; it now asks the Junk module directly and honours your include/exclude lists.
+  Grey vendor trash and items you mark as junk are both recognised.
+- **A better weapon set could become invisible.** "Auto" picked whichever set matched the
+  weapons you were *wearing*, so equipping a 1H hid a stronger 2H in your bags — from the
+  Best Equipment panel *and* from the upgrade prompt. "Auto" now means highest-scoring;
+  what you're wearing is only a tie-break. Equip All no longer pins the active set either.
+- **The upgrade prompt often never appeared.** A combat check wrapped the whole path, so
+  looting mid-fight skipped it entirely *and* skipped the deferral, losing the prompt.
+- **Auto-delete ignored non-loot sources** (quest rewards, mail, crafting) and refused to
+  run in combat, which is exactly when bags fill during AoE farming.
+- **Overlapping text in Settings**, plus a build-time guard so two controls can never
+  again be anchored to the same position unnoticed.
+- **Tooltips appeared while dragging** the window — a check that had silently never worked.
+- Auto-sell can no longer *use* an item instead of selling it (unsellable/locked items are
+  skipped), and both selling and deleting now re-verify a slot still holds the vetted item
+  immediately before acting.
+
+### Changed
+- **The UI was split into 11 focused modules** under `ui/` — `ValuateUI.lua` went from
+  8,967 lines to ~1,376. No behaviour change intended; it makes the code navigable and
+  edits precise.
+- **Developer tooling**: a syntax + lint gate (`tools/check.js`) enforcing six rules, each
+  derived from a bug that actually shipped here; a `.toc` sync check; and `/valuate
+  selftest`, which now also sanity-checks the AdiBags integration rather than merely
+  checking that nothing errored. `CLAUDE.md` and `ARCHITECTURE.md` document the
+  constraints and data model.
+- Performance: the per-frame tooltip hook and the stat parser both short-circuit far
+  earlier on the common path.
+
 ## [0.10.0a] - 2026-07-19 — Weapon sets, loot & bag automation
 
 Large release. Valuate now tracks gear as **weapon configurations** rather than one

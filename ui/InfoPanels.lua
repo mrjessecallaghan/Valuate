@@ -405,8 +405,45 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.10.0a (Current) - weapon sets, loot & bag automation
-    local v0100Header = CreateVersionHeader("Version 0.10.0a (Current) - weapon sets, loot & bag automation", currentY)
+    -- Version 0.11.0a (Current) - merchant automation, upgrade prompts, rebuilt UI
+    local v0110Header = CreateVersionHeader("Version 0.11.0a (Current) - merchant automation & upgrade prompts", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0110Text = CreateChangeText(
+        "|cFFFFD700Mostly UNTESTED in-game - verify before relying on it.|r\n" ..
+        "\n" ..
+        "• NEW: bag-upgrade prompt - when an upgrade for your current spec is in your\n" ..
+        "   bags, offers one-click 'Equip Best Set'. Fires on ANY item entering your\n" ..
+        "   bags (loot, quest reward, mail, trade, craft) and waits until out of combat.\n" ..
+        "   /valuate notify, /valuate notifycheck\n" ..
+        "• NEW: auto-sell junk + auto-repair at merchants. Same junk rules and same\n" ..
+        "   protections as auto-delete, but safer - you get gold and Buyback can undo it.\n" ..
+        "   /valuate sell, /valuate sellnow, /valuate repair\n" ..
+        "• NEW: /valuate deletenow - clean junk on demand (still respects Keep Free Slots).\n" ..
+        "• NEW: animations - window open/close, tab crossfade, Best Equipment reveal with\n" ..
+        "   score count-ups, upgrade pulse on the minimap. Reduce Motion turns it all off.\n" ..
+        "• NEW: pick the active spec per Best Equipment column.\n" ..
+        "• NEW: import/export now carries your weapon-set setup (scale tag v2).\n" ..
+        "• |cFFFF5555FIX|r: bind-on-use items (e.g. vanity sync) were being BLOCKED by\n" ..
+        "   Valuate tainting Blizzard's shared popup frames. Valuate now uses its own\n" ..
+        "   dialog and never touches StaticPopup.\n" ..
+        "• |cFFFF5555FIX|r: junk was not detected at all (0 junk from a full bag) - now\n" ..
+        "   asks the AdiBags Junk module directly and honours your include/exclude lists.\n" ..
+        "• |cFFFF5555FIX|r: a better weapon set could go invisible - 'Auto' followed what\n" ..
+        "   you were WEARING, hiding a stronger 2H in your bags. Auto now means best.\n" ..
+        "• |cFFFF5555FIX|r: the upgrade prompt often never appeared (a combat check ate it).\n" ..
+        "• |cFFFF5555FIX|r: auto-delete ignored quest rewards/mail and refused to run in\n" ..
+        "   combat - exactly when bags fill while AoE farming.\n" ..
+        "• |cFFFF5555FIX|r: overlapping text in Settings; tooltips showing while dragging.\n" ..
+        "• CHANGED: the UI was split into 11 modules (ValuateUI.lua 8,967 -> ~1,400 lines)\n" ..
+        "   with a lint gate and /valuate selftest to keep it honest.",
+        currentY
+    )
+    local v0110Height = v0110Text:GetStringHeight()
+    currentY = currentY - v0110Height - versionSpacing
+
+    -- Version 0.10.0a - weapon sets, loot & bag automation
+    local v0100Header = CreateVersionHeader("Version 0.10.0a - weapon sets, loot & bag automation", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0100Text = CreateChangeText(
