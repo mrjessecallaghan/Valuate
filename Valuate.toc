@@ -24,6 +24,7 @@ ui\Dialog.lua
 ui\Pickers.lua
 ui\ScaleList.lua
 ui\BestEquipment.lua
+ui\Settings.lua
 ui\InfoPanels.lua
 
 ValuateUI.lua
