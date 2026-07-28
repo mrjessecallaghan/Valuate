@@ -53,10 +53,6 @@ local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
 
 
 -- Main UI Frame
-local ValuateUIFrame = nil
-local CurrentSelectedScale = nil
-local EditingScaleName = nil
-local OriginalScaleData = nil
 
 -- Icon Picker state
 local IconPickerFrame = nil
@@ -67,7 +63,6 @@ local TemplatePickerFrame = nil  -- Full picker (all classes)
 local ClassSpecificPickerFrame = nil  -- Class-specific picker
 
 -- Forward declaration for overwrite callback
-local ValuateUI_OnTemplateOverwrite = nil
 
 
 -- ValuateOptions and ValuateScales are per-character SavedVariablesPerCharacter
@@ -912,8 +907,8 @@ end
 -- ========================================
 
 local function CreateMainWindow()
-    if ValuateUIFrame then
-        return ValuateUIFrame
+    if ns.ValuateUIFrame then
+        return ns.ValuateUIFrame
     end
     
     -- Main frame
@@ -1012,7 +1007,7 @@ local function CreateMainWindow()
     frame.contentFrame = contentFrame
     
     -- Store reference
-    ValuateUIFrame = frame
+    ns.ValuateUIFrame = frame
     frame:Hide()
     
     return frame
@@ -1051,18 +1046,18 @@ local function CreateTabSystem(mainFrame, contentFrame)
         end
         
         -- Adjust window height based on tab
-        if ValuateUIFrame then
+        if ns.ValuateUIFrame then
             if tabName == "scales" then
                 -- Scales tab: Restore dynamic height if a scale is already selected
                 local scales = Valuate:GetScales()
-                if EditingScaleName and scales[EditingScaleName] then
+                if ns.EditingScaleName and scales[ns.EditingScaleName] then
                     -- Trigger resize by refreshing the scale editor
-                    ValuateUI_UpdateScaleEditor(EditingScaleName, scales[EditingScaleName])
+                    ValuateUI_UpdateScaleEditor(ns.EditingScaleName, scales[ns.EditingScaleName])
                 end
             elseif tabName == "bestEquipment" then
                 -- Best Equipment tab sizes itself to fit rows + weapon-sets + summary
                 -- (the panel is already shown above, so the refresh will resize).
-                ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
                 if Valuate.RefreshBestEquipmentDisplay then
                     Valuate:RefreshBestEquipmentDisplay()
                 end
@@ -1072,7 +1067,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 end
             else
                 -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
-                ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
             end
         end
         
@@ -1308,17 +1303,16 @@ end
 -- ========================================
 
 local ScaleListFrame = nil
-local ScaleListButtons = {}
 
 local function UpdateScaleList()
     if not ScaleListFrame then return end
     
     -- Clear existing buttons
-    for _, btn in pairs(ScaleListButtons) do
+    for _, btn in pairs(ns.ScaleListButtons) do
         btn:Hide()
         btn:SetParent(nil)
     end
-    ScaleListButtons = {}
+    ns.ScaleListButtons = {}
     
     -- Get all scales
     local scales = {}
@@ -1518,11 +1512,11 @@ local function UpdateScaleList()
             -- If Shift key is held down, delete immediately without confirmation
             if IsShiftKeyDown() then
                 Valuate:GetScales()[scaleName] = nil
-                if CurrentSelectedScale == scaleName then
-                    CurrentSelectedScale = nil
-                    EditingScaleName = nil
-                    if ScaleEditorFrame and ScaleEditorFrame.container then
-                        ScaleEditorFrame.container:Hide()
+                if ns.CurrentSelectedScale == scaleName then
+                    ns.CurrentSelectedScale = nil
+                    ns.EditingScaleName = nil
+                    if ns.ScaleEditorFrame and ns.ScaleEditorFrame.container then
+                        ns.ScaleEditorFrame.container:Hide()
                     end
                 end
                 UpdateScaleList()
@@ -1535,11 +1529,11 @@ local function UpdateScaleList()
                     cancelText = "Cancel",
                     onAccept = function()
                         Valuate:GetScales()[scaleName] = nil
-                        if CurrentSelectedScale == scaleName then
-                            CurrentSelectedScale = nil
-                            EditingScaleName = nil
-                            if ScaleEditorFrame and ScaleEditorFrame.container then
-                                ScaleEditorFrame.container:Hide()
+                        if ns.CurrentSelectedScale == scaleName then
+                            ns.CurrentSelectedScale = nil
+                            ns.EditingScaleName = nil
+                            if ns.ScaleEditorFrame and ns.ScaleEditorFrame.container then
+                                ns.ScaleEditorFrame.container:Hide()
                             end
                         end
                         UpdateScaleList()
@@ -1633,7 +1627,7 @@ local function UpdateScaleList()
         
         -- Highlight on mouseover (only if visible)
         btn:SetScript("OnEnter", function(self)
-            if CurrentSelectedScale ~= scaleData.name then
+            if ns.CurrentSelectedScale ~= scaleData.name then
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
                 if vis then
@@ -1642,7 +1636,7 @@ local function UpdateScaleList()
             end
         end)
         btn:SetScript("OnLeave", function(self)
-            if CurrentSelectedScale ~= scaleData.name then
+            if ns.CurrentSelectedScale ~= scaleData.name then
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
                 if vis then
@@ -1656,9 +1650,9 @@ local function UpdateScaleList()
         -- Click to select
         btn:SetScript("OnClick", function(self)
             -- Deselect previous
-            if CurrentSelectedScale and ScaleListButtons[CurrentSelectedScale] then
-                local prevBtn = ScaleListButtons[CurrentSelectedScale]
-                local prevScale = Valuate:GetScales()[CurrentSelectedScale]
+            if ns.CurrentSelectedScale and ns.ScaleListButtons[ns.CurrentSelectedScale] then
+                local prevBtn = ns.ScaleListButtons[ns.CurrentSelectedScale]
+                local prevScale = Valuate:GetScales()[ns.CurrentSelectedScale]
                 local prevVis = prevScale and prevScale.Visible ~= false
                 if prevVis then
                     prevBtn:SetBackdropColor(unpack(COLORS.buttonBg))
@@ -1670,7 +1664,7 @@ local function UpdateScaleList()
             end
             
             -- Select this one
-            CurrentSelectedScale = scaleData.name
+            ns.CurrentSelectedScale = scaleData.name
             self:SetBackdropColor(unpack(COLORS.selected))
             self:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
             
@@ -1678,8 +1672,8 @@ local function UpdateScaleList()
             ValuateUI_UpdateScaleEditor(scaleData.name, Valuate:GetScales()[scaleData.name])
         end)
         
-        ScaleListButtons[scaleData.name] = btn
-        tinsert(ScaleListButtons, btn)
+        ns.ScaleListButtons[scaleData.name] = btn
+        tinsert(ns.ScaleListButtons, btn)
     end
     
     -- Update scroll frame content height (account for spacing between entries)
@@ -1731,7 +1725,7 @@ local function UpdateScaleList()
 end
 
 -- Setup the template overwrite callback now that we have access to UpdateScaleList
-ValuateUI_OnTemplateOverwrite = function(template)
+ns.ValuateUI_OnTemplateOverwrite = function(template)
     if not template then return end
     
     local scaleName = template.name
@@ -1756,8 +1750,8 @@ ValuateUI_OnTemplateOverwrite = function(template)
         
         -- Refresh list and select the scale
         UpdateScaleList()
-        if ScaleListButtons[scaleName] then
-            ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+        if ns.ScaleListButtons[scaleName] then
+            ns.ScaleListButtons[scaleName]:GetScript("OnClick")(ns.ScaleListButtons[scaleName])
         end
         
         -- Reset all tooltips to show the updated scale immediately
@@ -1868,7 +1862,6 @@ end
 -- Scale Editor (Right Panel)
 -- ========================================
 
-local ScaleEditorFrame = nil
 local StatWeightRows = {}
 
 -- Helper to create a stat row
@@ -1906,8 +1899,8 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     editBox:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText()) or 0
-        if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
-            local scale = Valuate:GetScales()[EditingScaleName]
+        if ns.EditingScaleName and Valuate:GetScales()[ns.EditingScaleName] then
+            local scale = Valuate:GetScales()[ns.EditingScaleName]
             if not scale.Values then scale.Values = {} end
             if value ~= 0 then
                 scale.Values[self.statName] = value
@@ -1971,8 +1964,8 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     unusableCheckbox:SetScript("OnClick", function(self)
         local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
         
-        if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
-            local currentScale = Valuate:GetScales()[EditingScaleName]
+        if ns.EditingScaleName and Valuate:GetScales()[ns.EditingScaleName] then
+            local currentScale = Valuate:GetScales()[ns.EditingScaleName]
             if not currentScale.Unusable then
                 currentScale.Unusable = {}
             end
@@ -2016,7 +2009,7 @@ local function CreateStatRow(parent, statName, scale, yOffset)
 end
 
 local function UpdateStatWeightsList(scaleName, scale)
-    if not ScaleEditorFrame then return end
+    if not ns.ScaleEditorFrame then return end
     
     -- Clear existing rows
     for _, row in pairs(StatWeightRows) do
@@ -2034,8 +2027,8 @@ local function UpdateStatWeightsList(scaleName, scale)
     -- ========================================
     -- Item Stats Container (top section with 5 columns)
     -- ========================================
-    local itemStatsContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
-    itemStatsContainer:SetPoint("TOPLEFT", ScaleEditorFrame, "TOPLEFT", 0, 0)
+    local itemStatsContainer = CreateFrame("Frame", nil, ns.ScaleEditorFrame)
+    itemStatsContainer:SetPoint("TOPLEFT", ns.ScaleEditorFrame, "TOPLEFT", 0, 0)
     itemStatsContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
     tinsert(StatWeightRows, itemStatsContainer)
     
@@ -2120,7 +2113,7 @@ local function UpdateStatWeightsList(scaleName, scale)
     
     if ValuateEquipmentCategories then
         -- Equipment Types container
-        local equipmentTypesContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
+        local equipmentTypesContainer = CreateFrame("Frame", nil, ns.ScaleEditorFrame)
         equipmentTypesContainer:SetPoint("TOPLEFT", itemStatsContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
         equipmentTypesContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
         tinsert(StatWeightRows, equipmentTypesContainer)
@@ -2218,7 +2211,7 @@ local function UpdateStatWeightsList(scaleName, scale)
         -- ========================================
         -- Which weapon configurations to track for this scale, and which one is active.
         local wsFullWidth = NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP
-        local weaponSetsContainer = CreateFrame("Frame", nil, ScaleEditorFrame)
+        local weaponSetsContainer = CreateFrame("Frame", nil, ns.ScaleEditorFrame)
         weaponSetsContainer:SetPoint("TOPLEFT", equipmentTypesContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
         weaponSetsContainer:SetWidth(wsFullWidth)
         tinsert(StatWeightRows, weaponSetsContainer)
@@ -2313,51 +2306,51 @@ local function UpdateStatWeightsList(scaleName, scale)
         local totalContentHeight = itemStatsMaxHeight + ELEMENT_SPACING * 2 + equipStartY + equipMaxHeight
                                    + ELEMENT_SPACING * 2 + weaponSetsHeight
         
-        -- Update ScaleEditorFrame height
-        if ScaleEditorFrame then
-            ScaleEditorFrame:SetHeight(math.max(totalContentHeight, 100))
+        -- Update ns.ScaleEditorFrame height
+        if ns.ScaleEditorFrame then
+            ns.ScaleEditorFrame:SetHeight(math.max(totalContentHeight, 100))
             
             -- Resize main window to fit content
-            if ValuateUIFrame then
+            if ns.ValuateUIFrame then
                 -- Calculate needed window height:
                 -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
                 local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + totalContentHeight + PADDING
                 local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
-                ValuateUIFrame:SetHeight(windowHeight)
+                ns.ValuateUIFrame:SetHeight(windowHeight)
             end
         end
         
         return -- Exit early since we've handled equipment types
     end
     
-    -- If no equipment categories, just set ScaleEditorFrame height based on Item Stats
-    if ScaleEditorFrame then
-        ScaleEditorFrame:SetHeight(math.max(itemStatsMaxHeight, 100))
+    -- If no equipment categories, just set ns.ScaleEditorFrame height based on Item Stats
+    if ns.ScaleEditorFrame then
+        ns.ScaleEditorFrame:SetHeight(math.max(itemStatsMaxHeight, 100))
         
         -- Resize main window to fit content
-        if ValuateUIFrame then
+        if ns.ValuateUIFrame then
             -- Calculate needed window height:
             -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
             local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + itemStatsMaxHeight + PADDING
             local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
-            ValuateUIFrame:SetHeight(windowHeight)
+            ns.ValuateUIFrame:SetHeight(windowHeight)
         end
     end
 end
 
 function ValuateUI_UpdateScaleEditor(scaleName, scale)
-    EditingScaleName = scaleName
+    ns.EditingScaleName = scaleName
     
-    if not ScaleEditorFrame then return end
+    if not ns.ScaleEditorFrame then return end
     
     -- Show the editor container
-    if ScaleEditorFrame.container then
-        ScaleEditorFrame.container:Show()
+    if ns.ScaleEditorFrame.container then
+        ns.ScaleEditorFrame.container:Show()
     end
     
     -- Update name field
-    if ScaleEditorFrame.nameEditBox then
-        ScaleEditorFrame.nameEditBox:SetText(scale.DisplayName or scaleName)
+    if ns.ScaleEditorFrame.nameEditBox then
+        ns.ScaleEditorFrame.nameEditBox:SetText(scale.DisplayName or scaleName)
     end
     
     
@@ -2382,8 +2375,8 @@ function ValuateUI_CreateScaleFromTemplate(template)
             acceptText = "Overwrite",
             cancelText = "Cancel",
             onAccept = function()
-                if ValuateUI_OnTemplateOverwrite then
-                    ValuateUI_OnTemplateOverwrite(template)
+                if ns.ValuateUI_OnTemplateOverwrite then
+                    ns.ValuateUI_OnTemplateOverwrite(template)
                 end
             end,
         })
@@ -2418,8 +2411,8 @@ function ValuateUI_CreateScaleFromTemplate(template)
     
     -- Refresh list and select new scale
     UpdateScaleList()
-    if ScaleListButtons[scaleName] then
-        ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+    if ns.ScaleListButtons[scaleName] then
+        ns.ScaleListButtons[scaleName]:GetScript("OnClick")(ns.ScaleListButtons[scaleName])
     end
     
     -- Refresh best equipment display to show new scale
@@ -2450,8 +2443,8 @@ function ValuateUI_NewScale()
     
     -- Refresh list and select new scale
     UpdateScaleList()
-    if ScaleListButtons[name] then
-        ScaleListButtons[name]:GetScript("OnClick")(ScaleListButtons[name])
+    if ns.ScaleListButtons[name] then
+        ns.ScaleListButtons[name]:GetScript("OnClick")(ns.ScaleListButtons[name])
     end
     
     -- Refresh best equipment display to show new scale
@@ -2634,10 +2627,10 @@ function Valuate:ShowImportDialog()
                         print("|cFF00FF00Valuate|r: Successfully overwrote scale |cFFFFFFFF" .. overwriteScaleName .. "|r")
 
                         -- Refresh the UI
-                        if ValuateUIFrame and ValuateUIFrame:IsShown() then
+                        if ns.ValuateUIFrame and ns.ValuateUIFrame:IsShown() then
                             UpdateScaleList()
-                            if ScaleListButtons[overwriteScaleName] then
-                                ScaleListButtons[overwriteScaleName]:GetScript("OnClick")(ScaleListButtons[overwriteScaleName])
+                            if ns.ScaleListButtons[overwriteScaleName] then
+                                ns.ScaleListButtons[overwriteScaleName]:GetScript("OnClick")(ns.ScaleListButtons[overwriteScaleName])
                             end
                         end
                     end
@@ -2650,11 +2643,11 @@ function Valuate:ShowImportDialog()
             print("|cFF00FF00Valuate|r: Successfully imported scale |cFFFFFFFF" .. scaleName .. "|r")
             
             -- Refresh the UI if it's open
-            if ValuateUIFrame and ValuateUIFrame:IsShown() then
+            if ns.ValuateUIFrame and ns.ValuateUIFrame:IsShown() then
                 UpdateScaleList()
                 -- Select the imported scale
-                if ScaleListButtons[scaleName] then
-                    ScaleListButtons[scaleName]:GetScript("OnClick")(ScaleListButtons[scaleName])
+                if ns.ScaleListButtons[scaleName] then
+                    ns.ScaleListButtons[scaleName]:GetScript("OnClick")(ns.ScaleListButtons[scaleName])
                 end
             end
         elseif status == Valuate.ImportResult.VERSION_ERROR then
@@ -2694,22 +2687,22 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetTextInsets(6, 6, 0, 0)
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self)
-        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
+        if not ns.EditingScaleName or not Valuate:GetScales()[ns.EditingScaleName] then
             self:ClearFocus()
             return
         end
         
         local newName = self:GetText()
         if newName and newName ~= "" then
-            local scale = Valuate:GetScales()[EditingScaleName]
+            local scale = Valuate:GetScales()[ns.EditingScaleName]
             scale.DisplayName = newName
             
             -- If the name changed, update the scale key
-            if newName ~= EditingScaleName then
+            if newName ~= ns.EditingScaleName then
                 Valuate:GetScales()[newName] = scale
-                Valuate:GetScales()[EditingScaleName] = nil
-                EditingScaleName = newName
-                CurrentSelectedScale = newName
+                Valuate:GetScales()[ns.EditingScaleName] = nil
+                ns.EditingScaleName = newName
+                ns.CurrentSelectedScale = newName
                 UpdateScaleList()
             end
         end
@@ -2737,10 +2730,10 @@ local function CreateScaleEditor(parent)
     local exportButton = CreateStyledButton(headerFrame, "Export", 80, 22)
     exportButton:SetPoint("LEFT", importButton, "RIGHT", ELEMENT_SPACING, 0)
     exportButton:SetScript("OnClick", function(self)
-        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
+        if not ns.EditingScaleName or not Valuate:GetScales()[ns.EditingScaleName] then
             return
         end
-        Valuate:ShowExportDialog(EditingScaleName)
+        Valuate:ShowExportDialog(ns.EditingScaleName)
     end)
     exportButton:SetScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_TOP") then
@@ -2757,11 +2750,11 @@ local function CreateScaleEditor(parent)
     local resetButton = CreateStyledButton(headerFrame, "Reset Values", 90, 22)
     resetButton:SetPoint("LEFT", exportButton, "RIGHT", ELEMENT_SPACING, 0)
     resetButton:SetScript("OnClick", function(self)
-        if not EditingScaleName or not Valuate:GetScales()[EditingScaleName] then
+        if not ns.EditingScaleName or not Valuate:GetScales()[ns.EditingScaleName] then
             return
         end
         
-        local scaleName = EditingScaleName
+        local scaleName = ns.EditingScaleName
         local scale = Valuate:GetScales()[scaleName]
         
         Valuate:ShowConfirmDialog({
@@ -2793,9 +2786,9 @@ local function CreateScaleEditor(parent)
     contentFrame:SetBackdropBorderColor(unpack(COLORS.borderDark))
     
     -- Store references
-    ScaleEditorFrame = contentFrame
-    ScaleEditorFrame.container = parent
-    ScaleEditorFrame.nameEditBox = nameEditBox
+    ns.ScaleEditorFrame = contentFrame
+    ns.ScaleEditorFrame.container = parent
+    ns.ScaleEditorFrame.nameEditBox = nameEditBox
     
     
     parent:Hide()
@@ -3949,7 +3942,7 @@ local function CreateBestEquipmentPanel(parent)
         -- Skip the (expensive) rebuild while the window is closed. ScanBestEquipment
         -- calls this on every scan; there's no point rebuilding rows nobody can see.
         -- Valuate:ShowUI refreshes the panel when the window opens.
-        if not ValuateUIFrame or not ValuateUIFrame:IsShown() then
+        if not ns.ValuateUIFrame or not ns.ValuateUIFrame:IsShown() then
             return
         end
 
@@ -3980,11 +3973,11 @@ local function CreateBestEquipmentPanel(parent)
         -- Grow the window to fit the taller content (rows + weapon-sets + summary),
         -- but only while this tab is actually visible so we don't fight the scale
         -- editor's own sizing when a config toggle refreshes us from another tab.
-        if ValuateUIFrame and parent:IsShown() then
+        if ns.ValuateUIFrame and parent:IsShown() then
             -- title + tabs + scan row + content + generous chrome/margin so the
             -- summary lines never clip (a slightly tall window is harmless; clipping isn't).
             local neededHeight = 40 + 30 + 40 + calculatedHeight + PADDING + 60
-            ValuateUIFrame:SetHeight(math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight)))
+            ns.ValuateUIFrame:SetHeight(math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight)))
         end
 
         -- Parse each equipped item's SCALED stats once per rebuild, cached by slot
@@ -6261,8 +6254,8 @@ end
 
 -- Export ValuateUI_UpdateScaleEditor for use by ImportExport  
 function Valuate:RefreshStatEditor()
-    if EditingScaleName and Valuate:GetScales()[EditingScaleName] then
-        ValuateUI_UpdateScaleEditor(EditingScaleName, Valuate:GetScales()[EditingScaleName])
+    if ns.EditingScaleName and Valuate:GetScales()[ns.EditingScaleName] then
+        ValuateUI_UpdateScaleEditor(ns.EditingScaleName, Valuate:GetScales()[ns.EditingScaleName])
     end
 end
 
@@ -6732,12 +6725,12 @@ end
 
 function Valuate:ShowUI()
     local success, err = pcall(function()
-        if not ValuateUIFrame then
+        if not ns.ValuateUIFrame then
             CreateMainWindow()
             
             -- Create tab system (tabs outside window, panels inside content)
-            local tabs = CreateTabSystem(ValuateUIFrame, ValuateUIFrame.contentFrame)
-            ValuateUIFrame.tabs = tabs
+            local tabs = CreateTabSystem(ns.ValuateUIFrame, ns.ValuateUIFrame.contentFrame)
+            ns.ValuateUIFrame.tabs = tabs
             
             -- Create scale list using the proper container hierarchy
             local scaleList = CreateScaleList(tabs.scalesPanel.scaleListContainer)
@@ -6747,19 +6740,19 @@ function Valuate:ShowUI()
             
             -- Create instructions panel
             local instructionsPanel = CreateInstructionsPanel(tabs.instructionsPanel)
-            ValuateUIFrame.instructionsPanel = instructionsPanel
+            ns.ValuateUIFrame.instructionsPanel = instructionsPanel
             
             -- Create about panel
             local aboutPanel = CreateAboutPanel(tabs.aboutPanel)
-            ValuateUIFrame.aboutPanel = aboutPanel
+            ns.ValuateUIFrame.aboutPanel = aboutPanel
             
             -- Create changelog panel
             local changelogPanel = CreateChangelogPanel(tabs.changelogPanel)
-            ValuateUIFrame.changelogPanel = changelogPanel
+            ns.ValuateUIFrame.changelogPanel = changelogPanel
             
             -- Create settings panel
             local settingsPanel = CreateSettingsPanel(tabs.settingsPanel)
-            ValuateUIFrame.settingsPanel = settingsPanel
+            ns.ValuateUIFrame.settingsPanel = settingsPanel
             
             -- Create best equipment panel
             CreateBestEquipmentPanel(tabs.bestEquipmentPanel)
@@ -6767,15 +6760,15 @@ function Valuate:ShowUI()
         
         -- Show first, then refresh: the best-equipment panel skips rebuilding
         -- while the window is hidden, so it must be shown before we refresh it.
-        ValuateUIFrame:Show()
+        ns.ValuateUIFrame:Show()
 
         -- Open animation: a quick fade-in plus a spring scale-pop. Under Reduce
         -- Motion the Anim.* calls apply the final state instantly (no flash of 0).
-        ValuateUIFrame.closing = false
-        ValuateUIFrame:SetAlpha(0)
-        ValuateUIFrame:SetScale(0.94)
-        Anim.fade(ValuateUIFrame, 1, 0.22, "outQuad")
-        Anim.scaleTo(ValuateUIFrame, 1, 0.30, "outBack")
+        ns.ValuateUIFrame.closing = false
+        ns.ValuateUIFrame:SetAlpha(0)
+        ns.ValuateUIFrame:SetScale(0.94)
+        Anim.fade(ns.ValuateUIFrame, 1, 0.22, "outQuad")
+        Anim.scaleTo(ns.ValuateUIFrame, 1, 0.30, "outBack")
 
         -- Update dynamic lists now that the window is visible
         UpdateScaleList()
@@ -6791,33 +6784,33 @@ function Valuate:ShowUI()
 end
 
 function Valuate:HideUI()
-    if not ValuateUIFrame or not ValuateUIFrame:IsShown() then return end
+    if not ns.ValuateUIFrame or not ns.ValuateUIFrame:IsShown() then return end
 
     -- Reset helper so the window always reopens at full alpha/scale.
     local function finish()
-        ValuateUIFrame:Hide()
-        ValuateUIFrame:SetAlpha(1)
-        ValuateUIFrame:SetScale(1)
-        ValuateUIFrame.closing = false
+        ns.ValuateUIFrame:Hide()
+        ns.ValuateUIFrame:SetAlpha(1)
+        ns.ValuateUIFrame:SetScale(1)
+        ns.ValuateUIFrame.closing = false
     end
 
     if ReduceMotion() then finish(); return end
 
     -- Close animation: fade + shrink, then actually hide.
-    ValuateUIFrame.closing = true
-    Anim.fade(ValuateUIFrame, 0, 0.16, "outQuad")
-    Anim.scaleTo(ValuateUIFrame, 0.94, 0.16, "outQuad", finish)
+    ns.ValuateUIFrame.closing = true
+    Anim.fade(ns.ValuateUIFrame, 0, 0.16, "outQuad")
+    Anim.scaleTo(ns.ValuateUIFrame, 0.94, 0.16, "outQuad", finish)
 end
 
 function Valuate:ToggleUI()
-    if not ValuateUIFrame then
+    if not ns.ValuateUIFrame then
         Valuate:ShowUI()
         return
     end
 
     -- Treat a window mid-close-animation as already hidden, so a quick re-toggle
     -- reopens it rather than getting stuck.
-    if ValuateUIFrame:IsShown() and not ValuateUIFrame.closing then
+    if ns.ValuateUIFrame:IsShown() and not ns.ValuateUIFrame.closing then
         Valuate:HideUI()
     else
         Valuate:ShowUI()

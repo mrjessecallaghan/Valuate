@@ -16,9 +16,17 @@ local _, ns = ...
 -- ========================================
 -- Shared mutable UI state
 -- ========================================
--- True while any Valuate frame is being dragged; suppresses tooltips. MUTABLE, so it
--- must always be read/written as ns.IsDraggingFrame - never re-localised.
-ns.IsDraggingFrame = false
+-- All MUTABLE and shared across UI files, so they must always be read AND written as
+-- ns.X. Re-localising any of these would break them: assigning to the local copy
+-- would not propagate, and other files would keep seeing the old value.
+ns.IsDraggingFrame = false          -- true while a frame is being dragged (suppresses tooltips)
+ns.ValuateUIFrame = nil             -- the main window
+ns.CurrentSelectedScale = nil       -- scale highlighted in the list
+ns.EditingScaleName = nil           -- scale currently open in the editor
+ns.OriginalScaleData = nil          -- pre-edit snapshot (revert support)
+ns.ScaleEditorFrame = nil           -- the editor's content frame
+ns.ScaleListButtons = {}            -- scaleName -> list button
+ns.ValuateUI_OnTemplateOverwrite = nil  -- callback set by the template picker
 
 -- ========================================
 -- Spacing / sizing
