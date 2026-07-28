@@ -161,6 +161,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `BestEquipment.lua` | Best Equipment tab (**keeps the frame pool** — see below) |
 | `Settings.lua` | Settings tab + `CheckColumnAnchors` |
 | `InfoPanels.lua` | Instructions / About / Changelog |
+| `CharacterWindow.lua` | Score on Blizzard's character sheet + breakdown tooltip |
 
 **Adding a module:** create `ui/Name.lua` starting with `local _, ns = ...`, re-localise what it
 needs from `ns`, publish its entry points (`ns.CreateFoo = CreateFoo`), and add

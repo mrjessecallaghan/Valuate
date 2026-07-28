@@ -61,10 +61,33 @@ for (const line of toc.split(/\r?\n/)) {
   }
 }
 
+/*
+ * Doc drift: CLAUDE.md carries a table of the ui/ modules, and it has gone stale twice
+ * already - once when the split created it, once when CharacterWindow was added. Stale
+ * guidance is worse than none, because it is what a fresh session trusts instead of
+ * re-deriving. So the docs are checked like code.
+ */
+const claudeMd = path.join(ADDON_ROOT, "CLAUDE.md");
+if (fs.existsSync(claudeMd)) {
+  const doc = fs.readFileSync(claudeMd, "utf8");
+  const undocumented = onDisk.filter(
+    (f) => !doc.includes("`" + f + "`")
+  );
+  if (undocumented.length) {
+    for (const f of undocumented) {
+      console.error(
+        "  UNDOCUMENTED   ui/" + f + " is not listed in CLAUDE.md's module table"
+      );
+    }
+    ok = false;
+  }
+}
+
 if (!ok) {
-  console.error("\n.toc and ui/ are OUT OF SYNC.");
+  console.error("\n.toc / ui/ / CLAUDE.md are OUT OF SYNC.");
   process.exit(1);
 }
 console.log(
-  "OK  .toc and ui/ in sync (" + listed.length + " modules): " + listed.join(" -> ")
+  "OK  .toc, ui/ and CLAUDE.md in sync (" + listed.length + " modules): " +
+    listed.join(" -> ")
 );
