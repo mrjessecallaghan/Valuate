@@ -59,6 +59,18 @@ const RULES = [
     test: (l) => /\bConfirmBindOnUse\s*\(/.test(l),
   },
   {
+    // The nastiest bug class in the split: `local EditingScaleName = ns.EditingScaleName`
+    // looks identical to the (correct) pattern used for constants, but for MUTABLE
+    // state it silently breaks - the local copy gets assigned, other files keep reading
+    // the old value, and nothing ever errors. Must always be ns.X at every read/write.
+    name: "no-relocalised-shared-state",
+    why: "This is shared MUTABLE state - re-localising it silently desyncs files (the copy is assigned, others keep the old value, no error). Use ns.X directly at every read and write. See CLAUDE.md.",
+    test: (l) =>
+      /^\s*local\s+[\w,\s]*\b(ValuateUIFrame|EditingScaleName|CurrentSelectedScale|ScaleEditorFrame|ScaleListButtons|ValuateUI_OnTemplateOverwrite|IsDraggingFrame)\b/.test(
+        l
+      ) && /=/.test(l),
+  },
+  {
     name: "no-duplicate-junk-logic",
     why: "Junk classification must go through the single IsItemJunk() helper - duplicating it is how the '0 junk found' bug survived two fixes.",
     test: (l, file) =>

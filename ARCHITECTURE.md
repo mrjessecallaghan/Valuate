@@ -8,17 +8,41 @@ See `CLAUDE.md` for the rules and constraints when editing.
 ## Load order (`Valuate.toc`)
 
 ```
-libs/…            LibStub, CallbackHandler, AceDB
-Valuate.lua       core (defines the Valuate table)
+libs/…              LibStub, CallbackHandler, AceDB
+Valuate.lua         core (defines the Valuate table)
 StatDefinitions.lua
 ImportExport.lua
-ValuateUI.lua     all UI (depends on core)
+
+ui/Shared.lua       design tokens + shared mutable state   ─┐
+ui/Data.lua         icon list, class/spec templates         │
+ui/Animations.lua   tween engine                            │ each may use
+ui/Widgets.lua      buttons, validation, tooltip helper     │ anything ABOVE
+ui/Dialog.lua       confirm dialog (needs Widgets, Anim)    │ it, never below
+ui/Pickers.lua      icon + template pickers                 │
+ui/ScaleList.lua    left panel                              │
+ui/ScaleEditor.lua  stat grid, import/export dialogs        │
+ui/BestEquipment.lua                                        │
+ui/Settings.lua                                             │
+ui/InfoPanels.lua   Instructions / About / Changelog       ─┘
+
+ValuateUI.lua       window, tabs, character display, ShowUI/Refresh* API
 MinimapButton.lua
 ```
 
-Later files may call into earlier ones, not vice-versa — core guards UI calls with
-`if Valuate.X then`. This matters: `Valuate.lua` shows the upgrade prompt via
-`Valuate:ShowConfirmDialog`, which `ValuateUI.lua` defines later, hence the guard.
+**The `ui/` order is a dependency chain, not alphabetical.** Each module re-localises
+what it needs from the shared namespace (`local _, ns = ...`), so anything it uses must
+already be published by a file listed above it. `Dialog.lua` needing
+`ns.CreateStyledButton` from `Widgets.lua` is why Widgets precedes it.
+
+Two cross-file mechanisms:
+- **`ns` (the addon private table)** carries UI-internal things between `ui/` modules
+  and `ValuateUI.lua`.
+- **The `Valuate` table** carries the public API. Core loads *first*, so it guards UI
+  calls with `if Valuate.X then` — e.g. `Valuate.lua` shows the upgrade prompt through
+  `Valuate:ShowConfirmDialog`, which `ui/Dialog.lua` only defines later.
+
+A module missing from the `.toc` never loads and reports no error — run
+`node tools/tocsync.js`.
 
 ---
 
