@@ -252,8 +252,55 @@ for (const [file, ast] of asts) {
   (ast.body || []).forEach((n) => walk(n, ast));
 }
 
-if (problems > 0) {
-  console.error("\n" + problems + " undefined global read(s).");
+/*
+ * Pass 3: the namespace contract.
+ *
+ * `local Foo = ns.Foo` when nothing ever assigns ns.Foo yields nil - silently, exactly
+ * like the global case above, but invisible to scope analysis because `ns.Foo` is a
+ * member expression rather than a bare identifier. Since the whole UI split is built on
+ * publish-then-re-localise, a typo or a forgotten `ns.X = X` line breaks a module with
+ * no error at all. So: every ns.<name> that is READ must be assigned somewhere.
+ */
+const nsAssigned = new Set();
+const nsRead = [];
+
+for (const file of asts.keys()) {
+  const src = fs.readFileSync(file, "utf8");
+  const rel = path.relative(ADDONS_DIR, file);
+  src.split(/\r?\n/).forEach((line, i) => {
+    const code = line.replace(/--.*$/, "");
+    // Assignment: `ns.Foo = ...` (but not `==`)
+    let m;
+    const assignRe = /\bns\.(\w+)\s*=(?!=)/g;
+    while ((m = assignRe.exec(code))) nsAssigned.add(m[1]);
+    // Read: any other ns.Foo occurrence
+    const readRe = /\bns\.(\w+)/g;
+    while ((m = readRe.exec(code))) {
+      const after = code.slice(m.index + m[0].length);
+      if (/^\s*=(?!=)/.test(after)) continue; // that's the assignment itself
+      nsRead.push({ name: m[1], file: rel, line: i + 1 });
+    }
+  });
+}
+
+const nsProblems = [];
+for (const r of nsRead) {
+  if (!nsAssigned.has(r.name)) nsProblems.push(r);
+}
+for (const r of nsProblems) {
+  console.error(
+    "  " + r.file + ":" + r.line + "  reads ns." + r.name +
+    " which is never assigned - it will be nil. Publish it (ns." + r.name +
+    " = ...) in the module that defines it, and load that module first in the .toc."
+  );
+}
+
+if (problems > 0 || nsProblems.length > 0) {
+  if (problems) console.error("\n" + problems + " undefined global read(s).");
+  if (nsProblems.length) console.error(nsProblems.length + " unpublished ns.* read(s).");
   process.exit(1);
 }
-console.log("OK  no undefined globals read across " + asts.size + " file(s).");
+console.log(
+  "OK  no undefined globals across " + asts.size + " file(s); " +
+  nsAssigned.size + " ns.* symbols all published before use."
+);
