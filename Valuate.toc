@@ -23,6 +23,7 @@ ui\Widgets.lua
 ui\Dialog.lua
 ui\Pickers.lua
 ui\ScaleList.lua
+ui\ScaleEditor.lua
 ui\BestEquipment.lua
 ui\Settings.lua
 ui\InfoPanels.lua
