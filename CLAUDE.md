@@ -11,12 +11,17 @@ classless server. Branch: `claude-fork`.
 ## 1. Verification: what to run, and what it proves
 
 ```bash
-cd tools && node check.js
+cd tools && node check.js && node tocsync.js
 ```
 
-Run this **before every commit**. It parses every Lua file with `luaparse` (Lua 5.1) and
-enforces the lint rules in §4. A Lua *syntax* error means the addon silently fails to
-load — this is the guard against shipping that.
+Run both **before every commit**.
+
+- `check.js` parses every Lua file with `luaparse` (Lua 5.1) and enforces the lint rules
+  in §4. A Lua *syntax* error means the addon silently fails to load — this is the guard
+  against shipping that.
+- `tocsync.js` checks the `.toc`'s `ui\*.lua` list against what's on disk. A module that
+  exists but isn't listed **never loads**, and a stripped backslash (`uiDialog.lua`)
+  looks fine to a parser — both are invisible to `check.js` and were real bugs here.
 
 In-game, after a `/reload`:
 
@@ -126,10 +131,48 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | File | Contents |
 |---|---|
 | `Valuate.lua` | Core: options, scanning, scoring, weapon sets, all automation, slash commands |
-| `ValuateUI.lua` | All UI: window, tabs, scale editor, Best Equipment, Settings, animation engine, dialog |
 | `StatDefinitions.lua` | Stat list, tooltip parse patterns |
-| `ImportExport.lua` | Scale import/export strings |
+| `ImportExport.lua` | Scale import/export strings (tag v2 carries weapon sets) |
+| `ValuateUI.lua` | Main window, tab system, character-window display, `Valuate:ShowUI`/`Refresh*` API |
+| `ui/*.lua` | The UI panels — see below |
 | `MinimapButton.lua` | Minimap button + upgrade pulse |
 | `tools/check.js` | Syntax + lint gate |
+
+### `ui/` modules (load order matters — see the `.toc`)
+
+| File | Contents |
+|---|---|
+| `Shared.lua` | Design tokens (spacing, `COLORS`, backdrops, fonts) **and shared mutable state** |
+| `Data.lua` | Icon list, class/spec templates |
+| `Animations.lua` | Shared-ticker tween engine, easing, Reduce Motion |
+| `Widgets.lua` | Validation, colour conversion, `CreateStyledButton`, `ShowTooltipSafe` |
+| `Dialog.lua` | `Valuate:ShowConfirmDialog` — the StaticPopup replacement (§3) |
+| `Pickers.lua` | Icon picker, template pickers, role-icon helpers |
+| `ScaleList.lua` | Left-hand scale list, `UpdateScaleList` |
+| `ScaleEditor.lua` | Stat-weight grid, weapon-set group, import/export dialogs |
+| `BestEquipment.lua` | Best Equipment tab (**keeps the frame pool** — see below) |
+| `Settings.lua` | Settings tab + `CheckColumnAnchors` |
+| `InfoPanels.lua` | Instructions / About / Changelog |
+
+**Adding a module:** create `ui/Name.lua` starting with `local _, ns = ...`, re-localise what it
+needs from `ns`, publish its entry points (`ns.CreateFoo = CreateFoo`), and add
+`ui\Name.lua` to the `.toc` **before** `ValuateUI.lua`. A file missing from the `.toc`
+simply never loads — silently. Run `node tools/tocsync.js` to catch that.
+
+### The one rule that makes the split work
+
+- **Immutable** (constants, colours, plain functions): re-localise —
+  `local COLORS = ns.COLORS`. Cheap, and call sites are unchanged.
+- **Shared mutable state**: always `ns.X` at *every* read and write.
+  Currently: `ValuateUIFrame`, `EditingScaleName`, `CurrentSelectedScale`,
+  `ScaleEditorFrame`, `ScaleListButtons`, `ValuateUI_OnTemplateOverwrite`,
+  `IsDraggingFrame`. Re-localising one of these silently breaks it — the local copy is
+  assigned, other files keep reading the old value, and nothing errors.
+- **Panel-local state stays local.** Most state is (each panel's frames, widget pools).
+  Only promote a variable when a second file genuinely needs it.
+
+Also preserved by design: `BestEquipment.lua` reuses a **frame pool** (structure built
+once, content updated per refresh). WoW never frees `CreateFrame` widgets, so rebuilding
+rows each refresh leaks them — don't "simplify" that away.
 
 See `ARCHITECTURE.md` for the data model and event flow.
