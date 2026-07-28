@@ -27,6 +27,7 @@ ui\ScaleEditor.lua
 ui\BestEquipment.lua
 ui\Settings.lua
 ui\InfoPanels.lua
+ui\CharacterWindow.lua
 
 ValuateUI.lua
 MinimapButton.lua
