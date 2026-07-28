@@ -11,10 +11,10 @@ classless server. Branch: `claude-fork`.
 ## 1. Verification: what to run, and what it proves
 
 ```bash
-cd tools && node check.js && node tocsync.js
+cd tools && node check.js && node tocsync.js && node globals.js
 ```
 
-Run both **before every commit**.
+Run all three **before every commit**.
 
 - `check.js` parses every Lua file with `luaparse` (Lua 5.1) and enforces the lint rules
   in §4. A Lua *syntax* error means the addon silently fails to load — this is the guard
@@ -22,6 +22,14 @@ Run both **before every commit**.
 - `tocsync.js` checks the `.toc`'s `ui\*.lua` list against what's on disk. A module that
   exists but isn't listed **never loads**, and a stripped backslash (`uiDialog.lua`)
   looks fine to a parser — both are invisible to `check.js` and were real bugs here.
+- `globals.js` does **scope analysis** and reports identifiers read as globals that
+  aren't a known API. This is the guard against the worst bug class here: a reference
+  that resolves to a nil global instead of the local you meant — Lua raises no error, the
+  code just silently misbehaves. It has already caught a missing `HEADER_HEIGHT`
+  (arithmetic on nil → the Settings panel would have failed to build), missing
+  `ValuateTween`/`EaseOutQuad` in BestEquipment, and a function reading a local declared
+  *below* it. **When you move code between files, this is the check that matters.**
+  If it flags a legitimate WoW API, add the name to `KNOWN` in `globals.js`.
 
 In-game, after a `/reload`:
 

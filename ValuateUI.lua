@@ -485,7 +485,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
     SelectTab("scales")
     
     return {
-        frame = tabFrame,
+        -- (no `frame` field: it referenced an undefined `tabFrame`, so it was always
+        -- nil, and nothing ever read it. Removed rather than left as a nil trap.)
         scalesPanel = scalesPanel,
         instructionsPanel = instructionsPanel,
         aboutPanel = aboutPanel,

@@ -24,6 +24,9 @@ local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
 local CreateStyledButton, ShowTooltipSafe = ns.CreateStyledButton, ns.ShowTooltipSafe
 local HexToRGB = ns.HexToRGB
 local Anim = ns.Anim
+-- Used by the weapon-set activation flash; missed when this panel was extracted, so
+-- clicking Equip All would have errored on a nil call.
+local ValuateTween, EaseOutQuad = ns.ValuateTween, ns.EaseOutQuad
 
 
 -- ========================================
