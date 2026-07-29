@@ -34,6 +34,7 @@ const SCAN = [
   ADDON_ROOT,
   path.join(ADDONS_DIR, "Valuate-AdiBags"),
   path.join(ADDONS_DIR, "Valuate-PassLoot"),
+  path.join(ADDONS_DIR, "Valuate-TSM"),
 ];
 const SKIP = /(^|[\\/])(libs|node_modules|\.git|_Valuate_Original_Archive.*|_Valuate_Handoff|tools)([\\/]|$)/i;
 
@@ -80,6 +81,7 @@ Valuate ValuateOptions ValuateScales ValuateBestEquipment
 ValuateStatPatterns ValuateStatNames ValuateStatCategories ValuateEquipmentCategories
 ValuateWeaponSlotPatterns ValuateWeaponTypePatterns ValuateUIFrame
 PassLoot Scrap BrainDead AdiBags TSM_API TSMAPI
+GetNumAuctionItems GetAuctionItemLink GetAuctionItemInfo
 NORMAL_FONT_COLOR HIGHLIGHT_FONT_COLOR RED_FONT_COLOR GREEN_FONT_COLOR
 DEFAULT_CHAT_FRAME ChatFrame1 UIErrorsFrame
 GameFontNormal GameFontHighlight GameFontHighlightSmall GameFontHighlightLarge
@@ -273,6 +275,9 @@ for (const file of asts.keys()) {
     let m;
     const assignRe = /\bns\.(\w+)\s*=(?!=)/g;
     while ((m = assignRe.exec(code))) nsAssigned.add(m[1]);
+    // `function ns.Foo(...)` is the same assignment written the other way round.
+    const declRe = /\bfunction\s+ns\.(\w+)\s*\(/g;
+    while ((m = declRe.exec(code))) nsAssigned.add(m[1]);
     // Read: any other ns.Foo occurrence
     const readRe = /\bns\.(\w+)/g;
     while ((m = readRe.exec(code))) {

@@ -2890,6 +2890,7 @@ function Valuate:ScanBestEquipment()
                                 reqLevel = itemMinLevel or 0,
                                 -- An equipped item is by definition currently equippable.
                                 equippableNow = true,
+                                source = "equipped",
                             }
                             itemsProcessed = itemsProcessed + 1
                         end
@@ -2949,6 +2950,7 @@ function Valuate:ScanBestEquipment()
                                         itemQuality = itemQuality or 0,
                                         reqLevel = reqLevel,
                                         equippableNow = equippableNow,
+                                        source = "bags",
                                     }
                                     itemsProcessed = itemsProcessed + 1
                                 end
@@ -2960,6 +2962,37 @@ function Valuate:ScanBestEquipment()
         end
     end
     
+    -- Merge the bank snapshot. Banked gear is genuinely owned, so it belongs in
+    -- best-in-slot - it just isn't reachable right now, which is what `source`
+    -- records so Equip All can skip it and the panel can badge it.
+    --
+    -- Deliberately conservative: an item already seen in bags or equipped is NOT
+    -- topped up with its banked copies. `source` describes a whole itemId, not an
+    -- individual copy, so counting a banked duplicate here would let the scan fill
+    -- a second ring/trinket slot with an item it would then wrongly report as
+    -- reachable. Understating what you own is the safe direction; overstating it
+    -- produces an Equip All that silently half-works.
+    if Valuate:GetOptions().includeBankItems then
+        for itemId, cached in pairs(Valuate:GetBankCache().items) do
+            if not itemData[itemId] then
+                itemData[itemId] = {
+                    itemLink = cached.itemLink,
+                    itemName = cached.itemName,
+                    itemEquipLoc = cached.itemEquipLoc,
+                    stats = cached.stats,
+                    itemTexture = cached.itemTexture,
+                    itemQuality = cached.itemQuality or 0,
+                    reqLevel = cached.reqLevel or 0,
+                    equippableNow = cached.equippableNow,
+                    source = "bank",
+                }
+                itemCounts[itemId] = (itemCounts[itemId] or 0) + (cached.count or 1)
+                itemsScanned = itemsScanned + (cached.count or 1)
+                itemsProcessed = itemsProcessed + 1
+            end
+        end
+    end
+
     -- Second pass: For each scale, assign items to slots, tracking usage
     for _, scaleName in ipairs(activeScales) do
         local scale = scales[scaleName]
@@ -3054,7 +3087,8 @@ function Valuate:ScanBestEquipment()
                                             score = score,
                                             itemName = data.itemName,
                                             itemTexture = data.itemTexture,
-                                            itemQuality = data.itemQuality
+                                            itemQuality = data.itemQuality,
+                                            source = data.source,
                                         }
                                         -- Mark this item as used for this slot
                                         itemUsage[itemId] = (itemUsage[itemId] or 0) + 1
@@ -3081,6 +3115,7 @@ function Valuate:ScanBestEquipment()
                     itemTexture = d.itemTexture,
                     itemQuality = d.itemQuality,
                     itemId = itemInfo.itemId,
+                    source = d.source,
                 }
             end
 
@@ -3267,6 +3302,7 @@ function Valuate:ScanBestEquipment()
                                         itemTexture = data.itemTexture,
                                         itemQuality = data.itemQuality,
                                         reqLevel = data.reqLevel or 0,
+                                        source = data.source,
                                     }
                                 end
                             end
@@ -3452,9 +3488,16 @@ function Valuate:PlayerOwnsItem(itemLink)
         end
     end
     
-    -- Note: Bank checking is not included as it requires the bank to be open
-    -- and would add significant overhead
-    
+    -- The bank can't be read unless it's open, so consult the snapshot taken on
+    -- the last visit instead. It may be stale (gear withdrawn since), which is the
+    -- right trade here: this answers "do I already own one?", and a false positive
+    -- only means we don't flag a duplicate as new.
+    if Valuate:GetOptions().includeBankItems then
+        if Valuate:GetBankCache().items[itemId] then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -3821,12 +3864,17 @@ function Valuate:EquipBestSet(scaleName)
     -- on the "this will bind to you" popup. Generous window: equips are asynchronous.
     Valuate:MarkEquipIntent(8)
 
-    local equipped = 0
+    local equipped, inBank = 0, 0
     for slotId = 1, 18 do
         -- Skip shirt (4) and any slot the user locked.
         if slotId ~= 4 and not locks[slotId] then
             local item = be[slotId]
-            if item and item.itemLink then
+            if item and item.source == "bank" then
+                -- Best-in-slot, but sitting in the bank: EquipItemByName can't reach
+                -- it. Count it so we can say so instead of quietly equipping less
+                -- than the panel shows.
+                inBank = inBank + 1
+            elseif item and item.itemLink then
                 local cur = GetInventoryItemLink("player", slotId)
                 local curId = cur and GetItemIdFromLink(cur)
                 if curId ~= GetItemIdFromLink(item.itemLink) then
@@ -3848,13 +3896,20 @@ function Valuate:EquipBestSet(scaleName)
     -- On "auto" the set we just equipped IS the highest-scoring one, so the panel's
     -- marker and flash already point at it.
 
+    local label = (scale and (scale.DisplayName or scaleName)) or scaleName
     if options.chatMessages then
-        local label = (scale and (scale.DisplayName or scaleName)) or scaleName
         if equipped > 0 then
             print(string.format("|cFF00FF00[Valuate]|r Equipping %d best item(s) for %s.", equipped, label))
-        else
+        elseif inBank == 0 then
             print("|cFF00FF00[Valuate]|r Already wearing the best items for " .. label .. ".")
         end
+    end
+    -- Always reported, even with chat messages off: "Equip All did nothing" with no
+    -- explanation is precisely the silent failure this addon is not allowed to have.
+    if inBank > 0 then
+        print(string.format(
+            "|cFFFF8800[Valuate]|r %d best item(s) for %s are in your bank - withdraw them, then Equip All again.",
+            inBank, label))
     end
 
     -- NOTE: saving a WoW equipment set is deliberately NOT done here. Equipping and

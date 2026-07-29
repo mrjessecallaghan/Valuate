@@ -33,6 +33,7 @@ const SCAN_ROOTS = [
   ADDON_ROOT,
   path.join(ADDONS_DIR, "Valuate-AdiBags"),
   path.join(ADDONS_DIR, "Valuate-PassLoot"),
+  path.join(ADDONS_DIR, "Valuate-TSM"),
 ];
 const SKIP_DIR = /(^|[\\/])(libs|node_modules|\.git|_Valuate_Original_Archive.*|_Valuate_Handoff)([\\/]|$)/i;
 
