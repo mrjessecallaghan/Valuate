@@ -407,8 +407,30 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.11.1a (Current) - weapon-set correctness, /valuate report
-    local v0111Header = CreateVersionHeader("Version 0.11.1a (Current) - weapon-set fixes & /valuate report", currentY)
+    -- Version 0.12.0a (Current) - bank-aware best-in-slot, deterministic results
+    local v0120Header = CreateVersionHeader("Version 0.12.0a (Current) - bank-aware best-in-slot", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0120Text = CreateChangeText(
+        "• NEW: your BANK now counts towards best-in-slot. Valuate snapshots it when\n" ..
+        "   you visit a bank. Banked items get a bag icon, and Equip All skips them\n" ..
+        "   and says how many - it can't reach the bank. Toggle in Settings.\n" ..
+        "• NEW: /valuate bank - shows the snapshot, and when it contributes nothing\n" ..
+        "   says which reason applies (never visited, option off, no gear found).\n" ..
+        "• |cFFFF5555FIX|r: results could change between scans. Six sorts had no\n" ..
+        "   tiebreaker, so equal-ranked items fell back on undefined ordering:\n" ..
+        "   equal-scoring items swapped places (flipping 'Best for', the equipment\n" ..
+        "   set and the AdiBags tag), the reported best scale varied, and\n" ..
+        "   deletepreview could rank a different item than deletenow removed.\n" ..
+        "• SAFETY: auto-delete, auto-sell and 'keep N slots free' stay strictly\n" ..
+        "   bags-only and can never see your bank - now enforced by the build.",
+        currentY
+    )
+    local v0120Height = v0120Text:GetStringHeight()
+    currentY = currentY - v0120Height - versionSpacing
+
+    -- Version 0.11.1a - weapon-set correctness, /valuate report
+    local v0111Header = CreateVersionHeader("Version 0.11.1a - weapon-set fixes & /valuate report", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0111Text = CreateChangeText(

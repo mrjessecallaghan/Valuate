@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.12.0a] - 2026-07-29 — Bank-aware best-in-slot, deterministic results
+
+### Added
+- **Your bank now counts towards best-in-slot.** Valuate snapshots your bank whenever you
+  visit one, and that gear is considered when working out the best item for each slot.
+  Banked items are marked with a bag icon in the Best Equipment panel, and **Equip All
+  skips them and tells you how many it skipped** — it can't reach the bank, and an Equip
+  All that quietly equips less than the panel shows would be worse than useless.
+  Toggle with **Include Bank Items** in Settings.
+- **`/valuate bank`** — shows the snapshot and, when it contributes nothing, says which of
+  the three reasons applies: never visited, the option is off, or no equippable gear found.
+
+### Fixed
+- **Results no longer change between scans.** `table.sort` isn't stable, so six comparators
+  that had no tiebreaker were leaving equal-ranked items in an order that ultimately came
+  from `pairs()` — which is undefined. In practice that meant:
+  - equal-scoring items could **swap places between scans**, flipping "Best for" tooltips,
+    the generated equipment set, and which item AdiBags tagged;
+  - the **reported "best" scale** for an upgrade could differ run to run;
+  - **`/valuate deletepreview` could rank a different item than `deletenow` deleted**, since
+    equal vendor values are very common among junk. Deletion is irreversible, so preview
+    now predicts it exactly.
+
+### Safety
+- Auto-delete, auto-sell and the "keep N slots free" count remain **strictly bags-only** and
+  can never see the bank. This is now enforced by the build: a new `no-bank-in-destructive-path`
+  rule fails the build if bank data is ever referenced from those functions.
+- A new `sort-needs-tiebreaker` rule fails the build on any comparator without a tiebreaker,
+  so the non-determinism class above can't come back.
+- `/valuate selftest` now checks the bank snapshot is well-formed and that every item the
+  panel badges as banked actually exists in the snapshot.
+
 ## [0.11.1a] - 2026-07-29 — Weapon-set correctness, `/valuate report`
 
 ### Added

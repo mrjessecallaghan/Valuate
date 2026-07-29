@@ -436,6 +436,18 @@ local function CreateBestEquipmentPanel(parent)
             qualityBorder:SetTexture("Interface\\Common\\WhiteIconFrame")
             r.qualityBorder = qualityBorder
 
+            -- Corner marker for gear that lives in the bank. Such an item can still be
+            -- best-in-slot, but Equip All cannot reach it, so it must be visibly
+            -- different from something sitting in your bags. Created AFTER
+            -- qualityBorder so it draws above it (same layer = creation order).
+            local bankBadge = slotFrame:CreateTexture(nil, "OVERLAY")
+            bankBadge:SetTexture("Interface\\Icons\\INV_Misc_Bag_10_Blue")
+            bankBadge:SetWidth(11)
+            bankBadge:SetHeight(11)
+            bankBadge:SetPoint("BOTTOMLEFT", slotFrame, "BOTTOMLEFT", 1, 1)
+            bankBadge:Hide()
+            r.bankBadge = bankBadge
+
             local infoFrame = CreateFrame("Frame", nil, slotRow)
             infoFrame:SetPoint("LEFT", slotFrame, "RIGHT", 2, 0)
             infoFrame:SetPoint("RIGHT", slotRow, "RIGHT", 0, 0)
@@ -735,6 +747,9 @@ local function CreateBestEquipmentPanel(parent)
                     -- the "future" branch dims/desaturates the icon, so undo that here).
                     if icon.SetDesaturated then icon:SetDesaturated(false) end
                     icon:SetAlpha(1)
+                    -- Cleared unconditionally here so a pooled row can never keep a
+                    -- stale bank badge; only the current-best branch turns it back on.
+                    r.bankBadge:Hide()
 
                     local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
                     local equippedStats = GetEquippedStatsForSlot(slotId)
@@ -828,6 +843,10 @@ local function CreateBestEquipmentPanel(parent)
                             qualityBorder:Hide()
                         end
 
+                        if bestItem.source == "bank" then
+                            r.bankBadge:Show()
+                        end
+
                         local scoreValue = bestItem.score or 0
                         scoreText:SetText("|cFF" .. color .. string.format(formatStr, scoreValue) .. "|r")
                         -- Remember the final value so the tab-open reveal can count up to
@@ -875,6 +894,11 @@ local function CreateBestEquipmentPanel(parent)
                                         GameTooltip:AddLine(" ")
                                         GameTooltip:AddLine(bestForLine, 1, 1, 1)
                                     end
+                                end
+                                if bestItem.source == "bank" then
+                                    GameTooltip:AddLine(" ")
+                                    GameTooltip:AddLine("|cFFFF8800In your bank|r", 1, 1, 1)
+                                    GameTooltip:AddLine("Counted as best-in-slot, but Equip All can't reach it - withdraw it first.", 0.8, 0.8, 0.8, true)
                                 end
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine("Score for |cFF" .. color .. displayName .. "|r: |cFF" .. color .. string.format(formatStr, scoreValue) .. "|r", 1, 1, 1)

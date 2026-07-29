@@ -5136,6 +5136,7 @@ function Valuate:RunSelfTest()
         "IsWeaponSetEnabled", "GetUpgradeBaseline", "GetStatsForTooltipSetter",
         "GetPrimaryScale", "GetPrivateTooltip", "AutoRollOnLoot", "AutoDeleteJunk",
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
+        "ScanBankContents", "GetBankCache",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)
@@ -5145,6 +5146,37 @@ function Valuate:RunSelfTest()
     check(type(Valuate:GetScales()) == "table", "GetScales structure")
     check(type(Valuate:GetActiveScales()) == "table", "GetActiveScales structure")
     check(type(Valuate:GetBestEquipment()) == "table", "GetBestEquipment structure")
+
+    -- Bank snapshot: well-formed, and consistent with what the panel claims.
+    -- A best-in-slot entry flagged "bank" that is NOT in the snapshot means the two
+    -- have desynced - the panel would badge an item Equip All then can't explain.
+    local bankCache = Valuate:GetBankCache()
+    check(type(bankCache) == "table" and type(bankCache.items) == "table", "bank cache structure")
+    if type(bankCache.items) == "table" then
+        local malformed = 0
+        for _, entry in pairs(bankCache.items) do
+            if type(entry) ~= "table" or not entry.itemLink or type(entry.stats) ~= "table" then
+                malformed = malformed + 1
+            end
+        end
+        check(malformed == 0, "bank cache entries well-formed",
+              malformed > 0 and (malformed .. " malformed entr(ies)") or nil)
+
+        local orphaned = 0
+        for _, slots in pairs(Valuate:GetBestEquipment()) do
+            if type(slots) == "table" then
+                for slotId = 1, 18 do
+                    local item = slots[slotId]
+                    if type(item) == "table" and item.source == "bank" and item.itemLink then
+                        local id = GetItemIdFromLink(item.itemLink)
+                        if id and not bankCache.items[id] then orphaned = orphaned + 1 end
+                    end
+                end
+            end
+        end
+        check(orphaned == 0, "bank-sourced best items exist in the snapshot",
+              orphaned > 0 and (orphaned .. " orphaned; re-visit a bank to refresh") or nil)
+    end
 
     -- Weapon-set metadata is the expected shape.
     local defs = Valuate:GetWeaponSetDefinitions()

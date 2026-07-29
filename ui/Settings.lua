@@ -759,6 +759,34 @@ local function CreateSettingsPanel(parent)
     guildRepairCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Include Bank Items checkbox (Column 1, below Guild Repair; -16 x-offset undoes
+    -- the guild-repair indent to return to the base column)
+    local includeBankCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    includeBankCheckbox:SetSize(24, 24)
+    includeBankCheckbox:SetPoint("TOPLEFT", guildRepairCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
+
+    local includeBankLabel = includeBankCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    includeBankLabel:SetPoint("LEFT", includeBankCheckbox, "RIGHT", 5, 0)
+    includeBankLabel:SetText("Include Bank Items")
+    includeBankCheckbox:SetChecked(Valuate:GetOptions().includeBankItems ~= false)
+    includeBankCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().includeBankItems = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    end)
+    includeBankCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Include Bank Items", 1, 1, 1)
+            GameTooltip:AddLine("Counts gear stored in your bank when working out best-in-slot. Banked items are marked with a bag icon, and Equip All skips them - you must withdraw them first.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("The bank is only readable while it is open, so Valuate uses a snapshot taken on your last visit. Run /valuate bank to see it.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Auto-delete and auto-sell never touch the bank.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    includeBankCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================
