@@ -179,6 +179,46 @@ for (const file of files) {
     }
   });
 
+  // --- no-bank-in-destructive-path ---------------------------------------
+  // The bank snapshot exists so banked gear can be considered for best-in-slot.
+  // It must NEVER reach a path that deletes, sells, or counts free space:
+  //   - deletion is irreversible, and bank slots are where people store the gear
+  //     they most care about;
+  //   - "keep N slots free" is a promise about BAGS, and counting bank slots
+  //     towards it would silently stop the cleanup that promise depends on.
+  // Bank containers are also unreadable unless the bank frame is open, so any
+  // such code would misbehave differently depending on where the player stood.
+  const GUARDED_FNS = /\b(?:function\s+Valuate:(AutoDeleteJunk|AutoSellJunk)|local\s+function\s+(CountFreeBagSlots))\s*\(/g;
+  let gm;
+  while ((gm = GUARDED_FNS.exec(src))) {
+    const fnName = gm[1] || gm[2];
+    const kw = /\b(function|if|while|for|end)\b/g;
+    kw.lastIndex = gm.index + gm[0].length;
+    let depth = 1;
+    let body = null;
+    let km;
+    while ((km = kw.exec(src))) {
+      if (km[1] === "end") {
+        if (--depth === 0) {
+          body = src.slice(gm.index, km.index);
+          break;
+        }
+      } else depth++;
+    }
+    if (body === null) continue;
+
+    const offender = body
+      .replace(/--.*$/gm, "")
+      .match(/\b(GetBankCache|ValuateBankCache|BANK_CONTAINER\w*|FIRST_BANK_BAG|LAST_BANK_BAG)\b/);
+    if (!offender) continue;
+
+    const lineNo = src.slice(0, gm.index + body.indexOf(offender[0])).split(/\r?\n/).length;
+    console.error(
+      `LINT   ${rel}:${lineNo}  [no-bank-in-destructive-path] ${fnName} references '${offender[0]}'. The bank snapshot must never reach a delete/sell/free-slot path - deletion is irreversible and "keep N slots free" is a promise about BAGS.`
+    );
+    lintFailures++;
+  }
+
   // --- sort-needs-tiebreaker ---------------------------------------------
   // table.sort is NOT stable. A comparator that answers a tie with "false"
   // leaves equal elements in whatever order they arrived in - and that order
@@ -229,5 +269,5 @@ if (parseFailures || lintFailures) {
   process.exit(1);
 }
 console.log(
-  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 2} lint rules passed.`
+  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 3} lint rules passed.`
 );

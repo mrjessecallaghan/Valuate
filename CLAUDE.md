@@ -96,6 +96,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
 | `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
+| `no-bank-in-destructive-path` | bank-cache reads inside delete/sell/free-slot code | §8 |
 
 ### §7 — Sorting must define a TOTAL order
 
@@ -112,6 +113,24 @@ table.sort(items, function(a, b)
     return a.itemId < b.itemId   -- unique tiebreaker
 end)
 ```
+
+### §8 — The bank is read-only, and only for scoring
+
+`Valuate:ScanBankContents` snapshots bank containers (`-1`, and bank bags `5-11`)
+whenever the player visits a bank, into `ValuateBankCache`. Stats are parsed **at
+snapshot time** — `SetBagItem` gives real scaled stats only while the container is
+live; a later `SetHyperlink` silently returns base stats instead.
+
+That snapshot may be read **only** by scoring and ownership code
+(`ScanBestEquipment`, `PlayerOwnsItem`, the panel, `/valuate bank`). It must never
+reach `AutoDeleteJunk`, `AutoSellJunk`, or `CountFreeBagSlots`:
+
+- deletion is irreversible, and the bank is where people keep gear they care about;
+- "keep N slots free" is a promise about **bags** — counting bank slots towards it
+  would silently stop the cleanup that promise depends on.
+
+Items sourced from the bank carry `source = "bank"`, and `EquipBestSet` skips them
+and says so, because they cannot be reached by `EquipItemByName`.
 
 ---
 
