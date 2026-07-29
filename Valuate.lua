@@ -385,6 +385,19 @@ local function OnEvent(self, event, addonName, ...)
         if options.autoSellJunk and Valuate.AutoSellJunk then
             ValuateAfter(0.5, function() Valuate:AutoSellJunk() end)
         end
+    elseif event == "BANKFRAME_OPENED" or event == "PLAYERBANKSLOTS_CHANGED"
+           or event == "PLAYERBANKBAGSLOTS_CHANGED" then
+        -- The bank is the only time its containers are readable, so snapshot it now.
+        -- Delayed slightly on open so every bank bag has reported its contents, and
+        -- re-run on change so moving gear in or out updates the snapshot. This only
+        -- feeds best-in-slot; nothing destructive ever reads the bank.
+        if Valuate.ScanBankContents then
+            ValuateAfter(0.4, function()
+                if Valuate:ScanBankContents() then
+                    ScheduleScan(0.6, "bank")  -- fold new candidates into best-in-slot
+                end
+            end)
+        end
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- Left combat: show any bag-upgrade prompt that was deferred while fighting.
         -- Rescan first, since the deferred check may have been made on stale data.
@@ -467,6 +480,7 @@ local DEFAULT_OPTIONS = {
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
+    includeBankItems = true,              -- count banked gear as best-in-slot candidates (Equip All still skips it)
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -2709,6 +2723,96 @@ function Valuate:GetActiveWeaponSetShort(scaleName)
     return nil
 end
 
+-- ============================================================================
+-- Bank cache
+-- ============================================================================
+-- Bank containers (-1, and bank bags 5-11) are only readable while the bank
+-- frame is open. So we snapshot them whenever the player visits a bank, and the
+-- rest of the addon reads that snapshot. Stats are parsed HERE, at snapshot
+-- time, because SetBagItem gives the real (scaled) stats only while the
+-- container is live - SetHyperlink later would return base stats instead.
+--
+-- Cached items are candidates for best-in-slot, NOT for anything destructive:
+-- auto-delete, auto-sell and the free-slot count stay strictly bags-only.
+local BANK_CONTAINER_ID = -1
+local FIRST_BANK_BAG, LAST_BANK_BAG = 5, 11
+
+function Valuate:GetBankCache()
+    if not ValuateBankCache then
+        ValuateBankCache = { items = {}, scannedAt = 0 }
+    end
+    ValuateBankCache.items = ValuateBankCache.items or {}
+    return ValuateBankCache
+end
+
+-- Snapshots every equippable item in the bank. Called on BANKFRAME_OPENED and
+-- whenever bank contents change while it is open.
+function Valuate:ScanBankContents()
+    -- Same in-transit guard as ScanBestEquipment: touching a tooltip mid-swap
+    -- can make items vanish.
+    if equipmentSwapPending or recentEquipmentChange then return false end
+
+    local tooltip = _G["ValuatePrivateTooltip"]
+    if not tooltip then return false end
+
+    local playerLevel = UnitLevel("player") or 1
+    local items, scanned = {}, 0
+
+    local containers = { BANK_CONTAINER_ID }
+    for bagId = FIRST_BANK_BAG, LAST_BANK_BAG do tinsert(containers, bagId) end
+
+    for _, bagId in ipairs(containers) do
+        local numSlots = GetContainerNumSlots(bagId) or 0
+        for slotId = 1, numSlots do
+            local itemLink = GetContainerItemLink(bagId, slotId)
+            if itemLink then
+                scanned = scanned + 1
+                local itemId = GetItemIdFromLink(itemLink)
+                if itemId then
+                    if items[itemId] then
+                        items[itemId].count = items[itemId].count + 1
+                    else
+                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        if itemEquipLoc and itemEquipLoc ~= ""
+                           and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
+                            local ok, stats, hasUnmetReq = pcall(function()
+                                tooltip:ClearLines()
+                                tooltip:SetBagItem(bagId, slotId)
+                                local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                                return parsed, TooltipHasUnmetRequirement("ValuatePrivateTooltip")
+                            end)
+                            if ok and stats then
+                                local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
+                                local reqLevel = itemMinLevel or 0
+                                items[itemId] = {
+                                    itemLink = itemLink,
+                                    itemName = itemName or "Unknown",
+                                    itemEquipLoc = itemEquipLoc,
+                                    stats = stats,
+                                    itemTexture = itemTexture,
+                                    itemQuality = itemQuality or 0,
+                                    reqLevel = reqLevel,
+                                    -- "Equippable" here means the character MEETS the
+                                    -- requirements - not that it can be reached right
+                                    -- now. Reachability is the `source` field's job.
+                                    equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq),
+                                    count = 1,
+                                }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local cache = Valuate:GetBankCache()
+    cache.items = items
+    cache.scannedAt = time()
+    cache.slotsScanned = scanned
+    return true
+end
+
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
 -- Items the character can't equip yet (too high level / unlearned proficiency) are
@@ -4810,6 +4914,9 @@ frame:RegisterEvent("LOOT_BIND_CONFIRM")
 -- protected item-use path and gets the addon blocked).
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:RegisterEvent("MERCHANT_SHOW")
+frame:RegisterEvent("BANKFRAME_OPENED")
+frame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+frame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
 frame:RegisterEvent("ITEM_PUSH")
 frame:SetScript("OnEvent", OnEvent)
 
@@ -5148,6 +5255,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
+        print("  /valuate bank - Show the bank snapshot used for best-in-slot")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -5272,6 +5380,30 @@ SlashCmdList["VALUATE"] = function(msg)
         if options.autoQuestTurnIn and not options.autoQuestReward then
             print("|cFFFFAA00Valuate|r: Note - also enable Auto Quest Reward (/valuate quest) for turn-in to work.")
         end
+    elseif command == "bank" then
+        -- Diagnostic: says WHY the bank contributes nothing, rather than silently
+        -- contributing nothing. The three reasons are: never visited, the option is
+        -- off, or the visit found no equippable gear.
+        local options = Valuate:GetOptions()
+        local cache = Valuate:GetBankCache()
+        local n = 0
+        for _ in pairs(cache.items) do n = n + 1 end
+
+        print("|cFF00FF00Valuate|r: Bank snapshot")
+        if not options.includeBankItems then
+            print("  |cFFFF8800Disabled|r - 'Include bank items' is off in Settings, so nothing below is used.")
+        end
+        if (cache.scannedAt or 0) == 0 then
+            print("  |cFFFF8800Never scanned.|r Visit a bank once - the snapshot is taken automatically when the bank frame opens.")
+        else
+            print(string.format("  Last scanned: %s ago (%d slots seen)",
+                SecondsToTime(math.max(1, time() - cache.scannedAt)), cache.slotsScanned or 0))
+            print(string.format("  Equippable items cached: |cFFFFFFFF%d|r", n))
+            if n == 0 then
+                print("  |cFFFF8800No equippable gear found|r - the bank holds only non-gear, or everything was excluded (e.g. profession tools).")
+            end
+        end
+        print("  Bank items can be best-in-slot, but Equip All skips them - you must withdraw them first.")
     elseif command == "scales" then
         local activeScales = Valuate:GetActiveScales()
         if #activeScales > 0 then
