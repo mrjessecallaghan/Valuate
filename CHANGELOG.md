@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.11.1a] - 2026-07-29 — Weapon-set correctness, `/valuate report`
+
+### Added
+- **`/valuate report`** — one digest of where your gear stands: per scale, your equipped
+  total vs the best achievable, how many upgrades are waiting in bags and what they're
+  worth; the current spec's weapon sets with totals and which is active; free bag slots
+  against the auto-delete target; and **which automation is actually switched on**. That
+  last line is deliberate — most "nothing happened" confusion comes from a feature being
+  off, or acting only under conditions you can't see.
+- **`/valuate selftest` now verifies every UI module actually loaded**, naming any that
+  failed. The UI is split across twelve files; previously a module that errored while
+  loading only showed up later as a broken tab.
+
+### Fixed
+- **The active weapon set could change by itself.** Auto-selection iterated an unordered
+  table, and ties are common — before you own a shield or off-hand, `1H+Shield`,
+  `1H+Off-Hand` and `Dual Wield` all form from the same lone one-hander and score
+  identically. The winner was arbitrary and could differ between scans, so your Main/Off
+  Hand display and the upgrade prompt's baseline could flip with no gear change. Selection
+  is now deterministic, and ties break toward the set with more positions actually filled.
+- **Future upgrades ignored weapons for other setups.** A not-yet-usable weapon was judged
+  against whatever occupied the main-hand slot — the *active* set's weapon. While running a
+  two-hander, a one-hander that would greatly improve your `1H+Shield` set was never
+  recorded as a future upgrade, never appeared in "Soon", and wasn't kept by AdiBags. It's
+  now measured against the weakest position it could take across your enabled sets.
+- **Three latent nil-reference bugs in the split UI**, found by new scope-analysis
+  tooling: a missing constant that would have errored while the Settings panel built, two
+  missing animation functions behind the Equip All flash, and a long-dead `nil` field.
+- Tooltips no longer appear while dragging the window (that check had silently never
+  worked — it referenced a variable declared below it).
+
+### Changed
+- README and the in-game About panel rewritten; both still described the v0.7.0 feature
+  set. The UI split is complete: `ValuateUI.lua` went 8,967 → 618 lines across twelve
+  modules.
+- Developer tooling now also does **scope analysis** (catching references that silently
+  resolve to `nil`), verifies the namespace contract, and checks the docs for drift.
+
 ## [0.11.0a] - 2026-07-19 — Merchant automation, upgrade prompts, and a rebuilt UI
 
 **Still untested in-game at release** except where noted — no Lua runtime is available on

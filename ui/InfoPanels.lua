@@ -407,8 +407,32 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.11.0a (Current) - merchant automation, upgrade prompts, rebuilt UI
-    local v0110Header = CreateVersionHeader("Version 0.11.0a (Current) - merchant automation & upgrade prompts", currentY)
+    -- Version 0.11.1a (Current) - weapon-set correctness, /valuate report
+    local v0111Header = CreateVersionHeader("Version 0.11.1a (Current) - weapon-set fixes & /valuate report", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0111Text = CreateChangeText(
+        "• NEW: /valuate report - one summary of your gear: upgrades waiting and what\n" ..
+        "   they're worth, weapon sets with the active one marked, bag space, and\n" ..
+        "   which automation is actually switched on.\n" ..
+        "• NEW: /valuate selftest now checks every UI module actually loaded.\n" ..
+        "• |cFFFF5555FIX|r: the active weapon set could change by itself. Ties (common\n" ..
+        "   before you own a shield/off-hand) were resolved in arbitrary order, so your\n" ..
+        "   Main/Off Hand and the upgrade prompt's baseline could flip with no gear\n" ..
+        "   change. Now deterministic, preferring the set with more slots filled.\n" ..
+        "• |cFFFF5555FIX|r: future upgrades ignored weapons for your OTHER setups - a 1H\n" ..
+        "   that would improve your 1H+Shield set was invisible while you ran a 2H.\n" ..
+        "• |cFFFF5555FIX|r: three nil-reference bugs in the split UI (one would have\n" ..
+        "   errored building the Settings panel), and tooltips showing while dragging.\n" ..
+        "• CHANGED: README and About refreshed; UI split finished (ValuateUI.lua is now\n" ..
+        "   618 lines across 12 modules).",
+        currentY
+    )
+    local v0111Height = v0111Text:GetStringHeight()
+    currentY = currentY - v0111Height - versionSpacing
+
+    -- Version 0.11.0a - merchant automation, upgrade prompts, rebuilt UI
+    local v0110Header = CreateVersionHeader("Version 0.11.0a - merchant automation & upgrade prompts", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0110Text = CreateChangeText(
