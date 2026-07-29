@@ -250,6 +250,46 @@ local function ScheduleJunkCleanup(delay)
     end)
 end
 
+-- Periodic junk cleanup, backing up the event-driven triggers above.
+--
+-- Those only fire on loot and bag updates, which misses plenty of ways bags fill:
+-- mail, trade, crafting, vendor buys, disenchanting, or simply an event arriving
+-- while a scan guard was up. A slow ticker closes that gap.
+--
+-- Cheap by construction: AutoDeleteJunk returns immediately unless free slots are
+-- below the keep-free target, so a tick with nothing to do costs one comparison.
+--
+-- ONE frame, created once and reused. ValuateAfter's no-C_Timer fallback creates a
+-- frame per call and WoW never frees frames, so re-arming a timer every interval
+-- would leak steadily on those clients.
+local junkTicker = CreateFrame("Frame")
+junkTicker.elapsed = 0
+junkTicker.poll = 0
+junkTicker:SetScript("OnUpdate", function(self, e)
+    -- OnUpdate fires every frame (60+/sec), so the per-frame cost here is one add
+    -- and one compare. The options lookup happens at most every POLL seconds; at a
+    -- 60s cleanup interval that granularity is irrelevant.
+    local POLL = 2
+    self.poll = self.poll + (e or 0)
+    if self.poll < POLL then return end
+    self.elapsed = self.elapsed + self.poll
+    self.poll = 0
+
+    local options = Valuate.GetOptions and Valuate:GetOptions()
+    local interval = options and tonumber(options.autoDeleteIntervalSecs) or 0
+    if not options or not options.autoDeleteJunk or interval <= 0 then
+        self.elapsed = 0
+        return
+    end
+    if self.elapsed < interval then return end
+    self.elapsed = 0
+    -- Deliberately NOT gated on combat: bags filling up mid-fight is exactly when
+    -- this matters, and deletion is not a protected action in 3.3.5.
+    -- Safe to call unconditionally - AutoDeleteJunk returns silently unless free
+    -- slots are already below the keep-free target.
+    if Valuate.AutoDeleteJunk then Valuate:AutoDeleteJunk() end
+end)
+
 -- Debounced "something entered your bags -> is it an upgrade?" check. Shared by every
 -- inventory-addition trigger (loot, quest rewards, mail, trade, crafting, vendor buys),
 -- since ITEM_PUSH can fire many times in quick succession when a batch of items lands.
@@ -476,6 +516,7 @@ local DEFAULT_OPTIONS = {
     autoDeleteMaxValue = 100000,          -- ceiling: never delete a stack worth MORE than this (copper)
     autoDeleteMinValue = 0,               -- floor: never delete a stack worth LESS than this (0 = no floor)
     autoDeleteValueSource = "vendor",     -- "vendor", or a TSM price source e.g. "DBMarket"
+    autoDeleteIntervalSecs = 60,          -- also run cleanup every N seconds (0 = only on loot/bag events)
     autoSellJunk = false,                 -- sell junk automatically when a merchant opens
     autoRepair = false,                   -- repair automatically when a merchant can repair
     autoRepairGuildFirst = false,         -- try guild funds before your own money
@@ -5408,6 +5449,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate scales - List all stat weight scales")
         print("  /valuate bank - Show the bank snapshot used for best-in-slot")
         print("  /valuate equip - Equip the best set for the active scale")
+        print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -5484,6 +5526,11 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoDeleteJunk = not options.autoDeleteJunk
         print("|cFF00FF00Valuate|r: Auto delete junk " .. (options.autoDeleteJunk and "|cFFFF5555ENABLED|r - deletions are permanent" or "|cFF00FF00disabled|r"))
+        if options.autoDeleteJunk then
+            local iv = tonumber(options.autoDeleteIntervalSecs) or 0
+            print("  Runs on loot/bag events" .. (iv > 0 and (", and every " .. iv .. "s") or " only - /valuate junkinterval <secs> to also run on a timer")
+                .. ". Only ever deletes while free slots are under " .. tostring(options.autoDeleteKeepFree or 0) .. ".")
+        end
     elseif command:match("^valuesource") then
         -- /valuate valuesource <vendor|TSM price source>
         local options = Valuate:GetOptions()
@@ -5494,6 +5541,24 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFF00FF00Valuate|r: Value source is '" .. (options.autoDeleteValueSource or "vendor")
                 .. "'. Usage: /valuate valuesource <vendor|DBMarket|...>")
+        end
+    elseif command:match("^junkinterval") then
+        -- /valuate junkinterval <secs> - how often cleanup runs on its own (0 = off)
+        local options = Valuate:GetOptions()
+        local n = tonumber(command:match("^junkinterval%s+(%d+)$"))
+        if n then
+            n = math.max(0, math.min(3600, n))
+            options.autoDeleteIntervalSecs = n
+            if n == 0 then
+                print("|cFF00FF00Valuate|r: Periodic junk cleanup OFF - it will only run on loot and bag events.")
+            else
+                print("|cFF00FF00Valuate|r: Junk cleanup will also run every " .. n .. "s.")
+            end
+        else
+            local cur = tonumber(options.autoDeleteIntervalSecs) or 0
+            print("|cFF00FF00Valuate|r: Periodic junk cleanup is "
+                .. (cur > 0 and ("every " .. cur .. "s") or "OFF")
+                .. ". Usage: /valuate junkinterval <seconds, 0 to disable>")
         end
     elseif command:match("^keepfree") then
         -- /valuate keepfree <n> - how many bag slots auto-delete keeps free

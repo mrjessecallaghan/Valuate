@@ -1157,14 +1157,26 @@ local function CreateSettingsPanel(parent)
     sourceBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[2] = columnHeights[2] + 16 + ELEMENT_SPACING
 
+    -- How often cleanup runs on its own, on top of the loot/bag-event triggers.
+    local intervalLabel = CreateCol2NumberRow(
+        "Run Every (s):", sourceLabel, ELEMENT_SPACING + 4,
+        tostring(Valuate:GetOptions().autoDeleteIntervalSecs or 60),
+        ApplyWholeNumberValidation,
+        function(self)
+            local v = math.max(0, math.min(3600, tonumber(self:GetText()) or 60))
+            Valuate:GetOptions().autoDeleteIntervalSecs = v
+            self:SetText(tostring(v))
+        end,
+        function() return tostring(Valuate:GetOptions().autoDeleteIntervalSecs or 60) end)
+
     -- Explain the two bounds, since "floor" is the non-obvious one.
     local valueHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    valueHint:SetPoint("TOPLEFT", sourceLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    valueHint:SetPoint("TOPLEFT", intervalLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     valueHint:SetWidth(settingsColumnWidth)
     valueHint:SetJustifyH("LEFT")
-    valueHint:SetText("Only stacks worth between Min and Max are deletable.\nMax 0 = no ceiling, Min 0 = no floor.\nA tiny Min (0.0001 = 1c) skips unsellable items.")
+    valueHint:SetText("Only stacks worth between Min and Max are deletable.\nMax 0 = no ceiling, Min 0 = no floor.\nA tiny Min (0.0001 = 1c) skips unsellable items.\nRun Every 0 = only clean up on loot and bag events.")
     valueHint:SetTextColor(unpack(COLORS.textDim))
-    columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
+    columnHeights[2] = columnHeights[2] + 52 + ELEMENT_SPACING
 
     -- ========================================
     -- COLUMN 3: Character Window, Keybindings, Advanced
