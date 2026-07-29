@@ -464,6 +464,8 @@ local DEFAULT_OPTIONS = {
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     notifyBagUpgrade = false,             -- popup when an equippable upgrade for the current scale is in bags
     notifyBagUpgradeMode = "everyLoot",   -- "everyLoot" (re-prompt each loot) | "oncePerUpgrade"
+    notifyBagUpgradeStyle = "dialog",     -- "dialog" (popup with Equip button) | "chat" (message only)
+    notifyUpgradeSound = false,           -- play a sound cue when an upgrade is found
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
@@ -3698,7 +3700,7 @@ function Valuate:CountEquippableUpgrades(scaleName)
     local be = Valuate:GetBestEquipment()[scaleName]
     if not be then return 0, "" end
     local locks = be.locks or {}
-    local count, sig = 0, {}
+    local count, sig, bankCount = 0, {}, 0
     for slotId = 1, 18 do
         if slotId ~= 4 and not locks[slotId] then
             local best = be[slotId]
@@ -3707,13 +3709,22 @@ function Valuate:CountEquippableUpgrades(scaleName)
                 local curLink = GetInventoryItemLink("player", slotId)
                 local curId = curLink and GetItemIdFromLink(curLink)
                 if bestId and bestId ~= curId then
-                    count = count + 1
-                    sig[#sig + 1] = slotId .. ":" .. bestId
+                    -- Banked gear is a real upgrade but NOT an equippable one:
+                    -- EquipItemByName can't reach the bank. Counting it here would
+                    -- make the notify prompt offer "Equip Best Set" for something
+                    -- EquipBestSet then skips - a prompt whose button does nothing.
+                    -- Reported separately so the message can still mention it.
+                    if best.source == "bank" then
+                        bankCount = bankCount + 1
+                    else
+                        count = count + 1
+                        sig[#sig + 1] = slotId .. ":" .. bestId
+                    end
                 end
             end
         end
     end
-    return count, table.concat(sig, ",")
+    return count, table.concat(sig, ","), bankCount
 end
 
 -- Shows/refreshes the bag-upgrade popup for the current scale. trigger is "loot" or
@@ -3748,12 +3759,20 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         return
     end
 
-    local count, sig = Valuate:CountEquippableUpgrades(scaleName)
+    local count, sig, bankCount = Valuate:CountEquippableUpgrades(scaleName)
     say("equippable upgrades in bags: " .. count)
+    if bankCount > 0 then
+        say("upgrades sitting in your bank (not equippable from here): " .. bankCount)
+    end
     if count == 0 then
         lastNotifiedSignature = nil
         if Valuate.HideConfirmDialog then Valuate:HideConfirmDialog() end
-        say("nothing to prompt about (you're already wearing the best equippable items).")
+        if bankCount > 0 then
+            -- Don't claim they're wearing the best when better gear is banked.
+            say(bankCount .. " upgrade(s) are in your bank - withdraw them, then this will prompt.")
+        else
+            say("nothing to prompt about (you're already wearing the best equippable items).")
+        end
         say("if you expect an upgrade, run /valuate scan first - the prompt uses scan results.")
         return
     end
@@ -3772,10 +3791,22 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
 
     lastNotifiedSignature = sig
     pendingEquipScale = scaleName
-    if Valuate.ShowConfirmDialog then
+
+    local label = scale.DisplayName or scaleName
+    local bankNote = bankCount > 0
+        and string.format(" (%d more in your bank)", bankCount)
+        or ""
+
+    if (options.notifyBagUpgradeStyle or "dialog") == "chat" then
+        -- Chat-only: same detection, no popup. For players who want to know without
+        -- a dialog stealing focus mid-fight.
+        print(string.format(
+            "|cFF00FF00[Valuate]|r %d upgrade(s) for %s are in your bags%s - /valuate equip to wear them.",
+            count, label, bankNote))
+    elseif Valuate.ShowConfirmDialog then
         Valuate:ShowConfirmDialog({
-            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags.\nEquip the best set now?",
-                count, scale.DisplayName or scaleName),
+            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags%s.\nEquip the best set now?",
+                count, label, bankNote),
             acceptText = "Equip Best Set",
             cancelText = "Dismiss",
             onAccept = function()
@@ -3784,6 +3815,12 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
                 end
             end,
         })
+    end
+
+    if options.notifyUpgradeSound then
+        -- PlaySound is unprotected and safe from an addon; guarded because Ascension
+        -- clients have been known to trim FrameXML globals.
+        if type(PlaySound) == "function" then PlaySound("igQuestListComplete") end
     end
     -- Celebratory cue on the minimap button so the upgrade is noticed even if the
     -- popup is off-screen or dismissed.
@@ -5343,6 +5380,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  /valuate scales - List all stat weight scales")
         print("  /valuate bank - Show the bank snapshot used for best-in-slot")
+        print("  /valuate equip - Equip the best set for the active scale")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -5466,6 +5504,15 @@ SlashCmdList["VALUATE"] = function(msg)
         print("|cFF00FF00Valuate|r: Auto quest turn-in " .. (options.autoQuestTurnIn and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
         if options.autoQuestTurnIn and not options.autoQuestReward then
             print("|cFFFFAA00Valuate|r: Note - also enable Auto Quest Reward (/valuate quest) for turn-in to work.")
+        end
+    elseif command == "equip" then
+        -- Equips the best set for the active scale. Referenced by the chat-style
+        -- upgrade notification, which has no button to click.
+        local scale, scaleName = Valuate:GetPrimaryScale()
+        if not scale then
+            print("|cFFFF0000Valuate|r: No active scale - activate one first.")
+        else
+            Valuate:EquipBestSet(scaleName)
         end
     elseif command == "bank" then
         -- Diagnostic: says WHY the bank contributes nothing, rather than silently

@@ -66,6 +66,7 @@ UnitClass UnitLevel UnitName UnitIsDeadOrGhost UnitStat GetRealmName
 InCombatLockdown IsSpellKnown CanDualWield IsDualWielding
 GetMacroIconInfo GetNumMacroIcons GetMacroItemIconInfo GetNumMacroItemIcons
 GetCoinTextureString GetTime SecondsToTime ReloadUI IsAddOnLoaded GetAddOnMetadata
+PlaySound PlaySoundFile
 hooksecurefunc issecurevariable securecall
 StaticPopupDialogs StaticPopup_Show StaticPopup_Hide StaticPopup1
 CharacterFrame CharacterModelFrame PaperDollFrame

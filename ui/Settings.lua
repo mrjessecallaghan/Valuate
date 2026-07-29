@@ -787,6 +787,52 @@ local function CreateSettingsPanel(parent)
     includeBankCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Upgrade alert presentation (Column 1, below Include Bank Items).
+    -- Style and sound are stored as two independent options but share ONE control:
+    -- the column is a third of the window wide, so a second button on the notify
+    -- row would have overflowed - the layout failure this panel already suffered.
+    local alertLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    alertLabel:SetPoint("TOPLEFT", includeBankCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    alertLabel:SetText("Upgrade Alert")
+
+    local function AlertStyleText()
+        local o = Valuate:GetOptions()
+        local base = (o.notifyBagUpgradeStyle == "chat") and "Chat" or "Popup"
+        return o.notifyUpgradeSound and (base .. " + Sound") or base
+    end
+    local alertStyleButton = CreateStyledButton(col1, AlertStyleText(), 120, 18)
+    alertStyleButton:SetPoint("LEFT", alertLabel, "RIGHT", 8, 0)
+    alertStyleButton:SetScript("OnClick", function(self)
+        local o = Valuate:GetOptions()
+        -- Cycle: Popup -> Popup + Sound -> Chat -> Chat + Sound -> Popup
+        if o.notifyBagUpgradeStyle == "chat" then
+            if o.notifyUpgradeSound then
+                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "dialog", false
+            else
+                o.notifyUpgradeSound = true
+            end
+        else
+            if o.notifyUpgradeSound then
+                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "chat", false
+            else
+                o.notifyUpgradeSound = true
+            end
+        end
+        self.label:SetText(AlertStyleText())
+    end)
+    alertStyleButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Upgrade Alert", 1, 1, 1)
+            GameTooltip:AddLine("Popup: a dialog with an Equip button.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Chat: a message only - nothing steals focus mid-fight. Use /valuate equip to wear the set.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Applies to the 'Notify Bag Upgrades' alert above.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    alertStyleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================
