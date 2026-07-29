@@ -282,16 +282,18 @@ local function CreateAboutPanel(parent)
     
     -- Features list
     local features = CreateText(
-        "• Per-character profiles - each character has independent scales and settings\n" ..
-        "• Customizable stat weight scales for different builds and roles\n" ..
-        "• Real-time tooltip integration showing item scores\n" ..
-        "• Multiple scale support with individual visibility toggles\n" ..
-        "• Color-coded scale identification for quick recognition\n" ..
-        "• Stat banning system for hybrid builds and class restrictions\n" ..
-        "• Import/Export functionality for sharing scales\n" ..
+        -- NOTE: this panel has a FIXED 400px height and no scroll frame, so keep this
+        -- list to roughly its current length or it will overflow the panel.
+        "• Per-character profiles - independent scales and settings\n" ..
+        "• Customizable stat weight scales, with stat banning for hybrid builds\n" ..
+        "• Real-time tooltip scores, comparisons and 'Best for' markers\n" ..
+        "• Best Equipment panel - best-in-slot per scale, deltas, Equip All\n" ..
+        "• Weapon sets - 2H, 1H+Shield, 1H+Off-Hand and Dual Wield tracked separately\n" ..
+        "• Opt-in automation: quest rewards, loot rolls, upgrade prompt\n" ..
+        "• Junk auto-delete and merchant sell/repair, with hard protections\n" ..
+        "• Import/Export for sharing scales (carries weapon-set config)\n" ..
         "• Support for Ascension-specific stats (PvE Power, PvP Power, etc.)\n" ..
-        "• Character window integration for at-a-glance gear evaluation\n" ..
-        "• Minimap button for quick access",
+        "• Character window integration and a minimap button",
         FONT_BODY, COLORS.textBody, currentY, "LEFT"
     )
     currentY = currentY - features:GetStringHeight() - sectionSpacing
