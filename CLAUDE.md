@@ -132,6 +132,29 @@ reach `AutoDeleteJunk`, `AutoSellJunk`, or `CountFreeBagSlots`:
 Items sourced from the bank carry `source = "bank"`, and `EquipBestSet` skips them
 and says so, because they cannot be reached by `EquipItemByName`.
 
+### §9 — Debounced work must be capped, and gated work must retry
+
+All three schedulers (`ScheduleScan`, `ScheduleJunkCleanup`,
+`ScheduleUpgradeNotifyCheck`) had the same pair of defects. Both are silent, so
+neither shows up as an error — only as "it just doesn't happen very often".
+
+**1. Uncapped debounce starves itself.** Cancel-and-re-arm on every event means a
+continuous event stream pushes the deadline back forever. `ITEM_PUSH` fires once per
+looted item and `BAG_UPDATE` fires constantly while looting — so the work never ran
+during exactly the activity that requested it. Every scheduler now records when the
+burst started and stops re-arming after `MAX_*_DEFER` seconds, letting the armed
+timer fire.
+
+**2. A blocked callback must reschedule, not return.** When the timer fired into the
+in-transit guard or the bag-quiet window, the work was **dropped**, not deferred.
+Those guards mean "not safe *yet*", so returning loses the request entirely. They now
+retry on a short delay, **bounded** (≤5 attempts) — `ValuateAfter`'s no-`C_Timer`
+fallback allocates a frame per call and WoW never frees frames, so an unbounded retry
+would leak.
+
+When adding a scheduler: cap the debounce, and make every early-return in the
+callback either reschedule or be genuinely final.
+
 ---
 
 ## 5. External contracts (do not re-guess these)

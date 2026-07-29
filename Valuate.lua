@@ -191,7 +191,9 @@ local function ValuateAfter(delay, callback)
 end
 
 -- Schedule a scan with proper delays
-local function ScheduleScan(delay, reason)
+local scanBurstStartedAt
+local MAX_SCAN_DEFER = 6
+local function ScheduleScan(delay, reason, retries)
     delay = delay or 3.0  -- Default delay increased significantly to ensure items are in bags
     
     -- Check autoScan setting
@@ -214,7 +216,16 @@ local function ScheduleScan(delay, reason)
         return
     end
     
-    -- Cancel any pending scan
+    -- Cap the debounce. A plain cancel-and-re-arm starves itself: BAG_UPDATE fires
+    -- constantly while looting, and each one pushed the deadline back, so a scan
+    -- requested mid-burst never ran.
+    local now = GetTime()
+    if not pendingScanTimer then
+        scanBurstStartedAt = now
+    elseif scanBurstStartedAt and (now - scanBurstStartedAt) >= MAX_SCAN_DEFER then
+        return  -- let the already-armed timer fire
+    end
+
     if pendingScanTimer then
         pendingScanTimer:Cancel()
         pendingScanTimer = nil
@@ -222,15 +233,30 @@ local function ScheduleScan(delay, reason)
     -- Schedule new scan
     pendingScanTimer = ValuateAfter(delay, function()
         pendingScanTimer = nil
-        -- Only scan if not in swap and bag update cooldown has passed
+        scanBurstStartedAt = nil
         local currentTime = GetTime()
-        if not equipmentSwapPending and (currentTime - bagUpdateCooldown) >= 2.0 then
-            if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
-                lastAutoScanTime = currentTime
-                recentEquipmentChange = false
-                if Valuate.ScanBestEquipment then
-                    Valuate:ScanBestEquipment()
-                end
+
+        -- A swap is in flight; EQUIPMENT_SWAP_FINISHED schedules the next scan.
+        if equipmentSwapPending then return end
+
+        if (currentTime - bagUpdateCooldown) < 2.0 then
+            -- Bags are still settling. This used to DROP the scan outright, so
+            -- during continuous looting a scan requested mid-burst simply never
+            -- happened - items sat in your bags unscanned. Retry instead, bounded
+            -- so we can't re-arm forever (ValuateAfter's no-C_Timer fallback
+            -- allocates a frame per call, and WoW never frees frames).
+            retries = (retries or 0) + 1
+            if retries <= 5 then
+                ScheduleScan(2.0, reason, retries)
+            end
+            return
+        end
+
+        if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
+            lastAutoScanTime = currentTime
+            recentEquipmentChange = false
+            if Valuate.ScanBestEquipment then
+                Valuate:ScanBestEquipment()
             end
         end
     end)
@@ -238,14 +264,32 @@ end
 
 -- Debounced junk cleanup. Bags fill from every acquisition path, not just looting, so
 -- this runs on any inventory addition. Debounced because ITEM_PUSH fires once per item.
+--
+-- The debounce is CAPPED, because a plain cancel-and-re-arm starves itself: every
+-- ITEM_PUSH pushed the deadline back another second, so while you were looting
+-- continuously - precisely when bags fill up - cleanup never actually ran. Once a
+-- burst has been deferred MAX_CLEANUP_DEFER seconds we stop re-arming and let the
+-- pending timer fire, so a long farming session still gets cleaned up mid-burst.
 local pendingDeleteTimer
+local deleteBurstStartedAt
+local MAX_CLEANUP_DEFER = 5
 local function ScheduleJunkCleanup(delay)
     if not Valuate.GetOptions or not Valuate:GetOptions().autoDeleteJunk then return end
+
+    local now = GetTime()
+    if not pendingDeleteTimer then
+        deleteBurstStartedAt = now
+    elseif deleteBurstStartedAt and (now - deleteBurstStartedAt) >= MAX_CLEANUP_DEFER then
+        -- Burst is still going; leave the armed timer alone so it gets to fire.
+        return
+    end
+
     if pendingDeleteTimer and pendingDeleteTimer.Cancel then
         pendingDeleteTimer:Cancel()
     end
     pendingDeleteTimer = ValuateAfter(delay or 1.0, function()
         pendingDeleteTimer = nil
+        deleteBurstStartedAt = nil
         if Valuate.AutoDeleteJunk then Valuate:AutoDeleteJunk() end
     end)
 end
@@ -295,19 +339,42 @@ end)
 -- since ITEM_PUSH can fire many times in quick succession when a batch of items lands.
 -- Each call restarts the timer, so we scan and prompt once after things settle.
 local pendingNotifyTimer
-local function ScheduleUpgradeNotifyCheck(delay)
+local notifyBurstStartedAt
+local MAX_NOTIFY_DEFER = 5
+local function ScheduleUpgradeNotifyCheck(delay, retries)
     if not Valuate.GetOptions or not Valuate:GetOptions().notifyBagUpgrade then return end
+
+    -- Capped debounce, same reasoning as the scan and cleanup schedulers: ITEM_PUSH
+    -- fires once per looted item, and an uncapped re-arm meant a long loot burst
+    -- postponed the check indefinitely.
+    local now = GetTime()
+    if not pendingNotifyTimer then
+        notifyBurstStartedAt = now
+    elseif notifyBurstStartedAt and (now - notifyBurstStartedAt) >= MAX_NOTIFY_DEFER then
+        return  -- let the already-armed timer fire
+    end
+
     if pendingNotifyTimer and pendingNotifyTimer.Cancel then
         pendingNotifyTimer:Cancel()
     end
     pendingNotifyTimer = ValuateAfter(delay or 1.5, function()
         pendingNotifyTimer = nil
+        notifyBurstStartedAt = nil
         -- Not gated on combat: CheckBagUpgradeNotify defers to PLAYER_REGEN_ENABLED
         -- itself. Only the in-transit guard applies (don't read bag slots mid-move).
-        if not equipmentSwapPending and not recentEquipmentChange then
-            if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
-            if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("loot") end
+        if equipmentSwapPending or recentEquipmentChange then
+            -- Previously this DROPPED the check, so an upgrade that landed while
+            -- gear was in transit never prompted at all - a big part of why the
+            -- popup appeared only sometimes. Retry instead, bounded so we can't
+            -- re-arm forever on clients without C_Timer (each call makes a frame).
+            retries = (retries or 0) + 1
+            if retries <= 5 then
+                ScheduleUpgradeNotifyCheck(2.0, retries)
+            end
+            return
         end
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+        if Valuate.CheckBagUpgradeNotify then Valuate:CheckBagUpgradeNotify("loot") end
     end)
 end
 
