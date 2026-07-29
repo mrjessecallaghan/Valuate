@@ -92,8 +92,26 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-staticpopup` | `StaticPopup_Show/Hide`, `StaticPopupDialogs[` | taint (§3) |
 | `no-blizzard-ui-writes` | writes to Blizzard frame fields, `*_OnClick(` calls | taint (§3) |
 | `no-protected-calls` | `ConfirmBindOnUse` | blocks item use |
+| `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
+| `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
+
+### §7 — Sorting must define a TOTAL order
+
+`table.sort` is **not stable**, and `pairs()` order is **undefined**. A comparator that
+answers a tie with `false` therefore leaves equal elements in an arbitrary order that can
+change between runs — which has produced flipping "Best for" tooltips, a varying reported
+"best" scale, and a `deletepreview` that disagreed with what `deletenow` deleted.
+
+Always fall through to a unique key:
+
+```lua
+table.sort(items, function(a, b)
+    if a.score ~= b.score then return a.score > b.score end
+    return a.itemId < b.itemId   -- unique tiebreaker
+end)
+```
 
 ---
 
