@@ -3023,11 +3023,26 @@ function Valuate:ScanBestEquipment()
                 -- equipped setup is now only a tie-break between equal-scoring sets.
                 local activeKey = scale.ActiveWeaponSet
                 if not (activeKey and activeKey ~= "auto" and weaponSets[activeKey]) then
+                    -- Iterate in DEFINITION order, not pairs(): Lua's table order is
+                    -- undefined, and ties are common (with no shield or off-hand yet,
+                    -- OneHandShield / OneHandOffhand / DualWield all form from the same
+                    -- lone 1H and score identically). With pairs() the winner was
+                    -- arbitrary AND could change between scans, so Main/Off Hand - and
+                    -- what the upgrade prompt compares against - flipped around on its own.
+                    --
+                    -- Ties break toward the set with more positions actually filled, so a
+                    -- real 1H+Shield beats a "set" that is just a bare main hand.
                     activeKey = nil
-                    local bestTotal
-                    for key, set in pairs(weaponSets) do
-                        if not bestTotal or set.total > bestTotal then
-                            bestTotal, activeKey = set.total, key
+                    local bestTotal, bestFilled
+                    for _, def in ipairs(WEAPON_SET_DEFS) do
+                        local set = weaponSets[def.key]
+                        if set then
+                            local filled = (set.mh and 1 or 0) + (set.oh and 1 or 0)
+                            if not bestTotal
+                               or set.total > bestTotal
+                               or (set.total == bestTotal and filled > bestFilled) then
+                                bestTotal, bestFilled, activeKey = set.total, filled, def.key
+                            end
                         end
                     end
 
