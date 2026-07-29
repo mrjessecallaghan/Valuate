@@ -4,6 +4,13 @@
 -- Addon namespace
 Valuate = {}
 
+-- The addon's private table, shared by every file in this addon. The ui/ modules
+-- publish onto it and re-localise from it. This file loads FIRST, so `ns` is empty
+-- here at load time - only read it at runtime (see the ui-module check in
+-- Valuate:RunSelfTest), never during this file's own execution.
+local _, ns = ...
+ns = ns or {}
+
 -- Version info (read from .toc file automatically)
 Valuate.version = GetAddOnMetadata("Valuate", "Version") or "Unknown"
 Valuate.interface = 30300
@@ -4998,6 +5005,32 @@ function Valuate:RunSelfTest()
         else
             print("|cFFAAAAAA  (AdiBags not loaded - junk falls back to grey quality)|r")
         end
+    end
+
+    -- The UI is split across ui/*.lua, each of which publishes its entry points onto the
+    -- shared namespace. tools/tocsync.js proves a module is LISTED in the .toc; only this
+    -- proves it actually LOADED and published. A module that errors while loading, or is
+    -- missing from the .toc on this machine, shows up here as a missing symbol instead of
+    -- as a broken tab discovered later.
+    do
+        local uiExports = {
+            ["ui/Shared.lua"] = "COLORS",
+            ["ui/Data.lua"] = "CLASS_SPEC_TEMPLATES",
+            ["ui/Animations.lua"] = "Anim",
+            ["ui/Widgets.lua"] = "CreateStyledButton",
+            ["ui/Pickers.lua"] = "ShowIconPicker",
+            ["ui/ScaleList.lua"] = "CreateScaleList",
+            ["ui/ScaleEditor.lua"] = "CreateScaleEditor",
+            ["ui/BestEquipment.lua"] = "CreateBestEquipmentPanel",
+            ["ui/Settings.lua"] = "CreateSettingsPanel",
+            ["ui/InfoPanels.lua"] = "CreateInstructionsPanel",
+        }
+        for file, symbol in pairs(uiExports) do
+            check(ns[symbol] ~= nil, "loaded " .. file,
+                "ns." .. symbol .. " is nil - that module did not load or did not publish")
+        end
+        -- ui/Dialog.lua and ui/CharacterWindow.lua publish onto the Valuate table rather
+        -- than the namespace, so they are covered by the method checks above.
     end
 
     -- Every automation option should have a diagnostic command (CLAUDE.md convention),
