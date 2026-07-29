@@ -4755,6 +4755,118 @@ if Valuate.RegisterBestEquipmentListener then
 end
 
 -- ========================================
+-- Status report (/valuate report)
+-- ========================================
+-- One digest of where your gear stands and what the automation is actually set to do.
+-- Deliberately answers the questions that otherwise need three separate commands:
+-- what upgrades are waiting, how much they're worth, which weapon set is live, whether
+-- bags are under pressure, and which automation is armed.
+function Valuate:PrintReport()
+    local options = Valuate:GetOptions()
+    local scales = Valuate:GetScales()
+    local activeScales = Valuate:GetActiveScales()
+    local decimals = options.decimalPlaces or 1
+    local fmt = "%." .. decimals .. "f"
+
+    print("|cFF00FF00[Valuate]|r Report  |cFFAAAAAA(v" .. (Valuate.version or "?") .. ")|r")
+
+    if #activeScales == 0 then
+        print("  |cFFFF8800No active scales.|r Activate one in the Scales tab.")
+        return
+    end
+
+    -- Equipped score per slot, parsed once and shared across scales.
+    local equippedStats = {}
+    for slotId = 1, 18 do
+        if slotId ~= 4 and GetInventoryItemLink("player", slotId) then
+            equippedStats[slotId] =
+                Valuate:GetStatsForTooltipSetter("SetInventoryItem", "player", slotId)
+        end
+    end
+
+    local _, primaryName = Valuate:GetPrimaryScale()
+
+    for _, scaleName in ipairs(activeScales) do
+        local scale = scales[scaleName]
+        if scale then
+            local be = Valuate:GetBestEquipment()[scaleName]
+            local color = scale.Color or "FFFFFF"
+            local label = scale.DisplayName or scaleName
+            local isPrimary = (scaleName == primaryName)
+
+            -- Equipped vs best-achievable, and what the upgrades are worth.
+            local equippedTotal, bestTotal, gain = 0, 0, 0
+            if be then
+                local locks = be.locks or {}
+                for slotId = 1, 18 do
+                    if slotId ~= 4 then
+                        local eq = equippedStats[slotId]
+                            and Valuate:CalculateItemScore(equippedStats[slotId], scale) or 0
+                        local best = (not locks[slotId]) and be[slotId] and be[slotId].score or 0
+                        equippedTotal = equippedTotal + eq
+                        bestTotal = bestTotal + math.max(eq, best)
+                        if best > eq then gain = gain + (best - eq) end
+                    end
+                end
+            end
+
+            local count = be and Valuate:CountEquippableUpgrades(scaleName) or 0
+            print(string.format("  |cFF%s%s|r%s  equipped " .. fmt .. " / best " .. fmt,
+                color, label, isPrimary and " |cFFFFD700(current spec)|r" or "",
+                equippedTotal, bestTotal))
+
+            if not be then
+                print("      |cFFAAAAAAno scan data - run /valuate scan|r")
+            elseif count > 0 then
+                print(string.format("      |cFF00FF00%d upgrade(s) in bags, +" .. fmt .. " available|r",
+                    count, gain))
+            else
+                print("      |cFFAAAAAAwearing the best equippable items|r")
+            end
+
+            -- Weapon sets, primary scale only (keeps the digest readable).
+            if isPrimary and be and be.weaponSets then
+                for _, def in ipairs(Valuate:GetWeaponSetDefinitions()) do
+                    local set = be.weaponSets[def.key]
+                    if set then
+                        print(string.format("      %s%-13s|r " .. fmt,
+                            def.key == be.activeWeaponSet and "|cFFFFD700> " or "|cFFAAAAAA  ",
+                            def.label, set.total or 0))
+                    end
+                end
+            end
+        end
+    end
+
+    -- Bag pressure - the number auto-delete actually acts on.
+    local free = CountFreeBagSlots()
+    local keepFree = options.autoDeleteKeepFree or 4
+    print(string.format("  Bags: %d free (target %d)%s", free, keepFree,
+        free < keepFree and " |cFFFF8800- below target|r" or ""))
+
+    -- What is actually armed. Silence here is why "nothing happened" is confusing.
+    local on = {}
+    local toggles = {
+        { options.autoAcceptQuests, "accept quests" },
+        { options.autoQuestReward, "pick quest reward" },
+        { options.autoQuestTurnIn, "turn in quests" },
+        { options.autoRollLoot, "roll on loot" },
+        { options.notifyBagUpgrade, "upgrade prompt" },
+        { options.autoDeleteJunk, "delete junk" },
+        { options.autoSellJunk, "sell junk" },
+        { options.autoRepair, "repair" },
+    }
+    for _, t in ipairs(toggles) do
+        if t[1] then on[#on + 1] = t[2] end
+    end
+    if #on > 0 then
+        print("  Automation on: |cFF00FF00" .. table.concat(on, ", ") .. "|r")
+    else
+        print("  Automation: |cFFAAAAAAall off|r")
+    end
+end
+
+-- ========================================
 -- Self-test (/valuate selftest)
 -- ========================================
 -- Fast in-game sanity check of the plumbing: options completeness, core methods
@@ -4935,6 +5047,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate help - Show this help")
         print("  /valuate version - Show version info")
         print("  /valuate scan - Scan bags/equipped now for best-in-slot items")
+        print("  /valuate report - Gear status: upgrades waiting, weapon sets, bag space, automation")
+        print("  /valuate selftest - Check the addon's own plumbing and integrations")
         print("  /valuate quest - Toggle auto-choosing the best quest reward")
         print("  /valuate turnin - Toggle auto-completing quests (takes best reward)")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
@@ -4945,6 +5059,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate ui - Open the configuration UI")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
+    elseif command == "report" then
+        Valuate:PrintReport()
     elseif command == "selftest" then
         Valuate:RunSelfTest()
     elseif command == "pulse" then
