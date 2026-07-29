@@ -49,7 +49,9 @@ local function UpdateScaleList()
     
     -- Sort by display name
     table.sort(scales, function(a, b)
-        return (a.scale.DisplayName or a.name) < (b.scale.DisplayName or b.name)
+        local da, db = (a.scale.DisplayName or a.name), (b.scale.DisplayName or b.name)
+        if da ~= db then return da < db end
+        return a.name < b.name  -- unique key breaks duplicate display names
     end)
     
     -- Create button for each scale

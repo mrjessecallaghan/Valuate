@@ -177,6 +177,48 @@ for (const file of files) {
       }
     }
   });
+
+  // --- sort-needs-tiebreaker ---------------------------------------------
+  // table.sort is NOT stable. A comparator that answers a tie with "false"
+  // leaves equal elements in whatever order they arrived in - and that order
+  // usually traces back to pairs(), which is undefined. The result is a "best"
+  // item, a tooltip line order, or a deletion queue that changes between runs.
+  // Every comparator must define a TOTAL order: compare the primary key, then
+  // fall through to a unique tiebreaker (itemId, bag/slot, scale name).
+  // Detected shape: a comparator whose body is a single `return` with no branch.
+  const SORT_CALL = /\b(?:table\.sort|tsort)\s*\(\s*[^,()]+,\s*function\s*\([^)]*\)/g;
+  let sm;
+  while ((sm = SORT_CALL.exec(src))) {
+    const bodyStart = sm.index + sm[0].length;
+    // Walk to the comparator's own `end`, tracking nested block keywords.
+    const kw = /\b(function|if|while|for|end)\b/g;
+    kw.lastIndex = bodyStart;
+    let depth = 1;
+    let body = null;
+    let km;
+    while ((km = kw.exec(src))) {
+      if (km[1] === "end") {
+        if (--depth === 0) {
+          body = src.slice(bodyStart, km.index);
+          break;
+        }
+      } else depth++;
+    }
+    if (body === null) continue;
+
+    const bodyCode = body.replace(/--.*$/gm, "");
+    const returns = (bodyCode.match(/\breturn\b/g) || []).length;
+    if (returns > 1 || /\bif\b/.test(bodyCode)) continue; // has a tiebreaker
+
+    const lineNo = src.slice(0, sm.index).split(/\r?\n/).length;
+    const line = lines[lineNo - 1] || "";
+    if (isIgnored(line, lines[lineNo - 2] || "", "sort-needs-tiebreaker")) continue;
+    console.error(
+      `LINT   ${rel}:${lineNo}  [sort-needs-tiebreaker] Comparator has no tiebreaker, so equal elements sort in an arbitrary (pairs-derived) order and the result changes between runs. Compare the primary key, then fall through to a unique key.`
+    );
+    console.error(`         ${line.trim()}`);
+    lintFailures++;
+  }
 }
 
 if (parseFailures || lintFailures) {
@@ -186,5 +228,5 @@ if (parseFailures || lintFailures) {
   process.exit(1);
 }
 console.log(
-  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 1} lint rules passed.`
+  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 2} lint rules passed.`
 );

@@ -1212,7 +1212,9 @@ local function CreateSettingsPanel(parent)
             end
         end
         table.sort(scales, function(a, b)
-            return (a.scale.DisplayName or a.name) < (b.scale.DisplayName or b.name)
+            local da, db = (a.scale.DisplayName or a.name), (b.scale.DisplayName or b.name)
+            if da ~= db then return da < db end
+            return a.name < b.name  -- unique key breaks duplicate display names
         end)
         for _, scaleData in ipairs(scales) do
             info.text = GetCharScaleDisplayText(scaleData.name, true)

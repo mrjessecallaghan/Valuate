@@ -2363,7 +2363,9 @@ function Valuate:CalculateStatBreakdown(stats, scale)
     
     -- Sort by contribution (descending)
     table.sort(breakdown, function(a, b)
-        return math.abs(a.contribution) > math.abs(b.contribution)
+        local ca, cb = math.abs(a.contribution), math.abs(b.contribution)
+        if ca ~= cb then return ca > cb end
+        return a.statName < b.statName  -- stable tooltip line order on equal weight
     end)
     
     return breakdown
@@ -2448,7 +2450,9 @@ function Valuate:CalculateStatBreakdownWithComparison(hoverStats, equippedStats,
     
     -- Sort by hover contribution (descending)
     table.sort(breakdown, function(a, b)
-        return math.abs(a.hoverContribution) > math.abs(b.hoverContribution)
+        local ca, cb = math.abs(a.hoverContribution), math.abs(b.hoverContribution)
+        if ca ~= cb then return ca > cb end
+        return a.statName < b.statName  -- stable tooltip line order on equal weight
     end)
     
     return breakdown
@@ -2907,8 +2911,15 @@ function Valuate:ScanBestEquipment()
                 end
             end
             
-            -- Sort by score (descending) so we assign best items first
-            table.sort(itemsWithScores, function(a, b) return a.score > b.score end)
+            -- Sort by score (descending) so we assign best items first.
+            -- itemId breaks ties: table.sort is not stable and the input order comes
+            -- from pairs(itemData), which is undefined. Without this, two items with
+            -- an identical score swap places between scans, so "Best for" tooltips,
+            -- the equipment set and the AdiBags tag all flip at random.
+            table.sort(itemsWithScores, function(a, b)
+                if a.score ~= b.score then return a.score > b.score end
+                return a.itemId < b.itemId
+            end)
             
             -- Pass 1: assign the CURRENT best-in-slot from items the character can
             -- equip right now. These drive tooltips ("Best for"), the panel, and
@@ -4017,7 +4028,11 @@ function Valuate:GetItemUpgradeInfo(itemLink, stats, opts)
     -- Candidate scale names: every configured scale, or just the active ones.
     local candidates = {}
     if opts.includeInactive then
+        -- Sorted because pairs() order is undefined and the caller
+        -- (IsUpgradeForAnyScale) resolves an equal delta by taking the first entry,
+        -- so an unsorted list reports a different "best" scale run to run.
         for scaleName in pairs(scales) do tinsert(candidates, scaleName) end
+        table.sort(candidates)
     else
         for _, scaleName in ipairs(Valuate:GetActiveScales()) do tinsert(candidates, scaleName) end
     end
@@ -4475,7 +4490,15 @@ function Valuate:AutoDeleteJunk(opts)
     end
 
     -- Cheapest first, so anything worth keeping survives longest.
-    table.sort(candidates, function(a, b) return a.value < b.value end)
+    -- bag/slot break ties: table.sort is not stable and equal vendor values are very
+    -- common among junk (whole stacks, many greys share a price). Without a total
+    -- order, `deletepreview` can rank a different item than `deletenow` removes -
+    -- and deletion is irreversible, so preview must predict it exactly.
+    table.sort(candidates, function(a, b)
+        if a.value ~= b.value then return a.value < b.value end
+        if a.bag ~= b.bag then return a.bag < b.bag end
+        return a.slot < b.slot
+    end)
 
     -- Preview: list the ranked queue (capped). Otherwise - including on-demand (force) -
     -- only ever remove enough to reach the free-slot target. "Delete now" means "run the
