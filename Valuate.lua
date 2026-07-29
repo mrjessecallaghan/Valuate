@@ -3107,6 +3107,19 @@ function Valuate:ScanBestEquipment()
             -- "Best for" on tooltips. Only items that would actually beat the current
             -- best in that slot are worth keeping. No copy accounting: a future item
             -- may show for every slot it fits (e.g. both rings).
+            -- Weapons need a set-aware baseline here. Slots 16/17 hold the ACTIVE set's
+            -- weapons, so judging a future weapon against them asks the wrong question:
+            -- while you run a 2H, a one-hander that would hugely improve your 1H+Shield
+            -- set scores below that 2H and was never recorded as a future upgrade - so
+            -- AdiBags never kept it. GetUpgradeBaseline measures an item against the
+            -- weakest position it could actually take across your enabled sets, which is
+            -- the same rule quest rewards and auto-roll already use.
+            local WEAPON_LOCS = {
+                INVTYPE_2HWEAPON = true, INVTYPE_WEAPON = true,
+                INVTYPE_WEAPONMAINHAND = true, INVTYPE_WEAPONOFFHAND = true,
+                INVTYPE_SHIELD = true, INVTYPE_HOLDABLE = true,
+            }
+
             local futureBest = {}
             for _, itemInfo in ipairs(itemsWithScores) do
                 if not itemInfo.data.equippableNow then
@@ -3114,12 +3127,22 @@ function Valuate:ScanBestEquipment()
                     local data = itemInfo.data
                     local targetSlots = EquipSlotToInvNumber[data.itemEquipLoc]
 
+                    -- Computed once per item; it does not vary by target slot.
+                    local weaponBaseline
+                    if WEAPON_LOCS[data.itemEquipLoc] and Valuate.GetUpgradeBaseline then
+                        local ok, base = pcall(function()
+                            return Valuate:GetUpgradeBaseline(data.itemLink, scale, scaleName)
+                        end)
+                        if ok and type(base) == "number" then weaponBaseline = base end
+                    end
+
                     if targetSlots then
                         for _, targetSlotId in ipairs(targetSlots) do
                             if not locks[targetSlotId]
                                and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not wantsDualWield) then
                                 local currentBest = bestEquipment[scaleName][targetSlotId]
-                                local currentScore = currentBest and currentBest.score or 0
+                                local currentScore = weaponBaseline
+                                    or (currentBest and currentBest.score or 0)
                                 local existingFuture = futureBest[targetSlotId]
                                 if score > currentScore and (not existingFuture or score > existingFuture.score) then
                                     futureBest[targetSlotId] = {
