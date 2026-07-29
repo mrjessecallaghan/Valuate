@@ -407,8 +407,27 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.12.0a (Current) - bank-aware best-in-slot, deterministic results
-    local v0120Header = CreateVersionHeader("Version 0.12.0a (Current) - bank-aware best-in-slot", currentY)
+    -- Version 0.12.1a (Current) - upgrade alert options
+    local v0121Header = CreateVersionHeader("Version 0.12.1a (Current) - upgrade alert options", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0121Text = CreateChangeText(
+        "• NEW: upgrade alerts can be a chat message instead of a popup, with an\n" ..
+        "   optional sound. One Settings control cycles Popup / +Sound / Chat.\n" ..
+        "• NEW: 'Alert For Other Specs' - also lists your other active scales that\n" ..
+        "   have upgrades waiting, so a drop for a spec you aren't running now\n" ..
+        "   doesn't get vendored without you noticing.\n" ..
+        "• NEW: /valuate equip - equips the best set for the active scale.\n" ..
+        "• |cFFFF5555FIX|r: the upgrade prompt could offer to equip gear sitting in\n" ..
+        "   your BANK - the button would then skip it. Banked upgrades are now\n" ..
+        "   counted separately and named as such.",
+        currentY
+    )
+    local v0121Height = v0121Text:GetStringHeight()
+    currentY = currentY - v0121Height - versionSpacing
+
+    -- Version 0.12.0a - bank-aware best-in-slot, deterministic results
+    local v0120Header = CreateVersionHeader("Version 0.12.0a - bank-aware best-in-slot", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0120Text = CreateChangeText(

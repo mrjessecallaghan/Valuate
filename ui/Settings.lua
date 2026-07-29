@@ -833,6 +833,30 @@ local function CreateSettingsPanel(parent)
     alertStyleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Other-spec upgrades checkbox (Column 1, below the Upgrade Alert row)
+    local otherSpecCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    otherSpecCheckbox:SetSize(24, 24)
+    otherSpecCheckbox:SetPoint("TOPLEFT", alertLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local otherSpecLabel = otherSpecCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    otherSpecLabel:SetPoint("LEFT", otherSpecCheckbox, "RIGHT", 5, 0)
+    otherSpecLabel:SetText("Alert For Other Specs")
+    otherSpecCheckbox:SetChecked(Valuate:GetOptions().notifyOtherSpecUpgrades == true)
+    otherSpecCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().notifyOtherSpecUpgrades = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    otherSpecCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Alert For Other Specs", 1, 1, 1)
+            GameTooltip:AddLine("The upgrade alert normally only considers your active scale. With this on it also lists your other active scales that have upgrades waiting.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Useful on a classless server, where a drop often suits a spec you aren't currently running - and would otherwise be vendored without you noticing.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    otherSpecCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================

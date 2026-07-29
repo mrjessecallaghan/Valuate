@@ -466,6 +466,7 @@ local DEFAULT_OPTIONS = {
     notifyBagUpgradeMode = "everyLoot",   -- "everyLoot" (re-prompt each loot) | "oncePerUpgrade"
     notifyBagUpgradeStyle = "dialog",     -- "dialog" (popup with Equip button) | "chat" (message only)
     notifyUpgradeSound = false,           -- play a sound cue when an upgrade is found
+    notifyOtherSpecUpgrades = false,      -- also mention upgrades for your NON-active scales
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
@@ -3797,16 +3798,42 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         and string.format(" (%d more in your bank)", bankCount)
         or ""
 
+    -- Upgrades for your OTHER specs. The primary-scale check above cannot see these
+    -- at all, so on a classless server - where one drop often suits a spec you aren't
+    -- currently running - they would otherwise be silently vendored or left behind.
+    -- Scales are listed in GetActiveScales order, which is already deterministic.
+    local otherNote = ""
+    if options.notifyOtherSpecUpgrades then
+        local scales = Valuate:GetScales()
+        local others = {}
+        for _, otherName in ipairs(Valuate:GetActiveScales()) do
+            if otherName ~= scaleName then
+                local n = Valuate:CountEquippableUpgrades(otherName)
+                if n > 0 then
+                    local s = scales[otherName]
+                    others[#others + 1] = string.format("%s (%d)", (s and s.DisplayName) or otherName, n)
+                end
+            end
+        end
+        if #others > 0 then
+            otherNote = "Also upgrades for: " .. table.concat(others, ", ")
+            say("other specs with upgrades: " .. table.concat(others, ", "))
+        end
+    end
+
     if (options.notifyBagUpgradeStyle or "dialog") == "chat" then
         -- Chat-only: same detection, no popup. For players who want to know without
         -- a dialog stealing focus mid-fight.
         print(string.format(
             "|cFF00FF00[Valuate]|r %d upgrade(s) for %s are in your bags%s - /valuate equip to wear them.",
             count, label, bankNote))
+        -- Separate print: chat frames don't break on \n, so an appended line would
+        -- run together with the one above.
+        if otherNote ~= "" then print("|cFF00FF00[Valuate]|r " .. otherNote) end
     elseif Valuate.ShowConfirmDialog then
         Valuate:ShowConfirmDialog({
-            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags%s.\nEquip the best set now?",
-                count, label, bankNote),
+            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags%s.%s\nEquip the best set now?",
+                count, label, bankNote, otherNote ~= "" and ("\n" .. otherNote) or ""),
             acceptText = "Equip Best Set",
             cancelText = "Dismiss",
             onAccept = function()

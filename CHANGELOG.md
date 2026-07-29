@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.12.1a] - 2026-07-29 — Upgrade alert options
+
+### Added
+- **Upgrade alerts can be a chat message instead of a popup**, with an optional sound cue —
+  for when you don't want a dialog taking focus mid-fight. One Settings control cycles
+  **Popup → Popup + Sound → Chat → Chat + Sound**.
+- **Alert For Other Specs** — the upgrade alert normally only considers your active scale.
+  With this on, it also lists your other active scales that have upgrades waiting. On a
+  classless server a drop often suits a spec you aren't currently running, and would
+  otherwise get vendored without you noticing.
+- **`/valuate equip`** — equips the best set for the active scale. Needed because the chat
+  alert has no button to click.
+
+### Fixed
+- **The upgrade prompt could offer to equip gear sitting in your bank.** Introduced in
+  0.12.0a: the upgrade count didn't check reachability, so once banked gear became a
+  best-in-slot candidate the prompt could appear with an "Equip Best Set" button that then
+  skipped the item. Banked upgrades are now counted separately and reported as such, and
+  `/valuate notifycheck` no longer claims you're wearing the best when better gear is banked.
+
 ## [0.12.0a] - 2026-07-29 — Bank-aware best-in-slot, deterministic results
 
 ### Added
