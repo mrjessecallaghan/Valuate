@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.0a] - 2026-07-30 — Automation that actually runs, and proof that it does
+
+### Fixed
+- **Auto-delete, scanning and upgrade alerts could all go long stretches without running.**
+  Each was debounced by cancelling and re-arming its timer on every event — but `ITEM_PUSH`
+  fires once per looted item and `BAG_UPDATE` fires constantly while looting, so every event
+  pushed the deadline back another second and the work never happened *during the exact
+  activity that requested it*. All three now stop deferring after a few seconds and let the
+  pending run fire.
+- **Work that hit a safety guard was thrown away instead of retried.** When a scan fired
+  while bags were still settling, it was abandoned — the likely cause of "the scan didn't
+  pick up the item in my bag". The upgrade check did the same on the in-transit guard, which
+  is much of why the popup only appeared sometimes. Both now retry (bounded).
+
+### Added
+- **Junk cleanup also runs on a timer** — every 60s by default, independent of loot events.
+  Set it in Settings (**Run Every (s)**) or with `/valuate junkinterval <secs>`; `0` restores
+  event-only behaviour.
+- **`/valuate report` now shows when each automation last ran and what it concluded** — gear
+  scan, junk cleanup, junk selling, upgrade alert, bank snapshot. It records "ran and
+  correctly did nothing" too, because a cleanup that skipped while bags were above target is
+  a completely different diagnosis from one that never fired, and both used to look the same.
+- **Skip Trivial Quests** — with auto-accept on, don't take quests 8+ levels below you. Also,
+  auto-accept now picks the first *non-trivial* quest an NPC offers instead of always the
+  first in the list, so a grey quest no longer blocks the real one behind it.
+- **`/valuate profile`** — times the gear scan, per-item scoring, and tooltip parsing. There
+  was no measurement before, so any claim about the addon being heavy or light was guesswork.
+
 ## [0.12.1a] - 2026-07-29 — Upgrade alert options
 
 ### Added

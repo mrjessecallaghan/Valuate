@@ -407,8 +407,32 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.12.1a (Current) - upgrade alert options
-    local v0121Header = CreateVersionHeader("Version 0.12.1a (Current) - upgrade alert options", currentY)
+    -- Version 0.13.0a (Current) - automation reliability
+    local v0130Header = CreateVersionHeader("Version 0.13.0a (Current) - automation that actually runs", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0130Text = CreateChangeText(
+        "• |cFFFF5555FIX|r: auto-delete, scanning and upgrade alerts could all go long\n" ..
+        "   stretches without running. Each re-armed its timer on every event, and\n" ..
+        "   ITEM_PUSH/BAG_UPDATE fire constantly while looting - so the deadline kept\n" ..
+        "   moving and the work never ran during the very activity that wanted it.\n" ..
+        "• |cFFFF5555FIX|r: work blocked by a safety guard was discarded, not retried.\n" ..
+        "   A scan firing while bags settled was abandoned - the likely cause of\n" ..
+        "   'the scan didn't pick up my new item'. Same for the upgrade popup.\n" ..
+        "• NEW: junk cleanup also runs on a timer (60s default, /valuate junkinterval).\n" ..
+        "• NEW: /valuate report shows when each automation last ran and what it did -\n" ..
+        "   including 'ran and correctly did nothing', which used to look identical\n" ..
+        "   to never running at all.\n" ..
+        "• NEW: Skip Trivial Quests, and auto-accept now picks the first non-trivial\n" ..
+        "   quest instead of always the first in the list.\n" ..
+        "• NEW: /valuate profile - times the scan, scoring and tooltip parsing.",
+        currentY
+    )
+    local v0130Height = v0130Text:GetStringHeight()
+    currentY = currentY - v0130Height - versionSpacing
+
+    -- Version 0.12.1a - upgrade alert options
+    local v0121Header = CreateVersionHeader("Version 0.12.1a - upgrade alert options", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0121Text = CreateChangeText(
