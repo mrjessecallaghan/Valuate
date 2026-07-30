@@ -857,6 +857,32 @@ local function CreateSettingsPanel(parent)
     otherSpecCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Skip Trivial Quests checkbox (Column 1, below Alert For Other Specs)
+    local skipTrivialCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    skipTrivialCheckbox:SetSize(24, 24)
+    skipTrivialCheckbox:SetPoint("TOPLEFT", otherSpecCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local skipTrivialLabel = skipTrivialCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    skipTrivialLabel:SetPoint("LEFT", skipTrivialCheckbox, "RIGHT", 5, 0)
+    skipTrivialLabel:SetText("Skip Trivial Quests")
+    skipTrivialCheckbox:SetChecked(Valuate:GetOptions().autoAcceptSkipTrivial == true)
+    skipTrivialCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoAcceptSkipTrivial = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    skipTrivialCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Skip Trivial Quests", 1, 1, 1)
+            GameTooltip:AddLine("With Auto Accept Quests on, don't accept quests 8 or more levels below you - useful while levelling back through old content.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Valuate now picks the first non-trivial quest an NPC offers instead of always the first in the list.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("If a quest's level can't be read, it is accepted anyway - silently declining a quest you wanted would be worse than accepting a grey one.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    skipTrivialCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================

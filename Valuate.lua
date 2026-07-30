@@ -613,6 +613,8 @@ local DEFAULT_OPTIONS = {
     autoRepair = false,                   -- repair automatically when a merchant can repair
     autoRepairGuildFirst = false,         -- try guild funds before your own money
     autoAcceptQuests = false,             -- auto-accept quests offered by NPCs
+    autoAcceptSkipTrivial = false,        -- skip quests far below your level
+    autoAcceptTrivialBelow = 8,           -- "far below" = this many levels under you
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
@@ -5136,6 +5138,42 @@ end
 --   GOSSIP_SHOW          - gossip NPC that also offers quests -> open the first available
 -- Opening an available quest fires QUEST_DETAIL, which accepts it; the greeting/
 -- gossip then re-fires for the next, so multi-quest NPCs clear one at a time.
+-- Is a quest trivial (far below your level) and therefore skippable?
+-- questLevel of nil means "couldn't tell" - never skip in that case, because
+-- silently declining a quest you wanted is far worse than accepting a grey one.
+local function IsTrivialQuestLevel(questLevel)
+    local options = Valuate:GetOptions()
+    if not options.autoAcceptSkipTrivial then return false end
+    if type(questLevel) ~= "number" or questLevel <= 0 then return false end
+    local playerLevel = UnitLevel("player") or 1
+    local margin = tonumber(options.autoAcceptTrivialBelow) or 8
+    return (playerLevel - questLevel) >= margin
+end
+
+-- Reads the gossip quest list without hard-coding its stride.
+--
+-- Addons on this client disagree about the layout: AutoQuest reads 5 values per
+-- quest, Zygor reads 3 (its older-client path). Rather than pick one and hope,
+-- derive the stride from the actual return count. Title is always first and level
+-- second, which is the only part every layout agrees on - so that is all we use.
+-- Returns a table of { title, level } or nil if the shape can't be trusted.
+local function ReadGossipQuests()
+    if not GetGossipAvailableQuests or not GetNumGossipAvailableQuests then return nil end
+    local num = GetNumGossipAvailableQuests() or 0
+    if num < 1 then return nil end
+
+    local packed = { GetGossipAvailableQuests() }
+    local stride = math.floor(#packed / num)
+    if stride < 2 then return nil end  -- no level field available; caller must not filter
+
+    local out = {}
+    for i = 1, num do
+        local base = (i - 1) * stride
+        out[i] = { title = packed[base + 1], level = tonumber(packed[base + 2]) }
+    end
+    return out
+end
+
 function Valuate:AutoAcceptQuests(event)
     local options = Valuate:GetOptions()
     if not options.autoAcceptQuests then return end
@@ -5151,12 +5189,34 @@ function Valuate:AutoAcceptQuests(event)
     elseif event == "QUEST_GREETING" then
         local numAvail = GetNumAvailableQuests and GetNumAvailableQuests() or 0
         if numAvail > 0 and SelectAvailableQuest then
-            SelectAvailableQuest(1)
+            -- Pick the first non-trivial quest rather than always index 1, so a grey
+            -- quest at the top of the list no longer blocks the real one behind it.
+            for i = 1, numAvail do
+                local lvl = GetAvailableLevel and GetAvailableLevel(i) or nil
+                if not IsTrivialQuestLevel(lvl) then
+                    SelectAvailableQuest(i)
+                    return
+                end
+            end
+            Valuate:MarkAutomation("questAccept", "all offered quests were trivial - skipped")
         end
     elseif event == "GOSSIP_SHOW" then
         local numAvail = GetNumGossipAvailableQuests and GetNumGossipAvailableQuests() or 0
         if numAvail > 0 and SelectGossipAvailableQuest then
-            SelectGossipAvailableQuest(1)
+            local quests = ReadGossipQuests()
+            if not quests then
+                -- Layout wasn't recognised, so we can't judge level. Accept as before -
+                -- never silently decline a quest just because we couldn't read it.
+                SelectGossipAvailableQuest(1)
+                return
+            end
+            for i = 1, numAvail do
+                if not IsTrivialQuestLevel(quests[i] and quests[i].level) then
+                    SelectGossipAvailableQuest(i)
+                    return
+                end
+            end
+            Valuate:MarkAutomation("questAccept", "all offered quests were trivial - skipped")
         end
     end
 end
