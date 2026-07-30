@@ -5435,6 +5435,7 @@ function Valuate:RunSelfTest()
         "GetPrimaryScale", "GetPrivateTooltip", "AutoRollOnLoot", "AutoDeleteJunk",
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
+        "RunProfile",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)
@@ -5610,6 +5611,85 @@ function Valuate:RunSelfTest()
     return fail == 0
 end
 
+-- ========================================
+-- Profiler (/valuate profile)
+-- ========================================
+-- Measures the paths that run often enough to matter: the full gear scan, the
+-- per-item scoring called once per item per scale, and tooltip stat parsing which
+-- runs on every mouseover. Until now there was no measurement at all, so any claim
+-- about Valuate being heavy or light was guesswork.
+--
+-- Uses debugprofilestop() (millisecond resolution, confirmed present on this
+-- client); GetTime() is frame-quantised and would report 0 for everything here.
+function Valuate:RunProfile()
+    if not debugprofilestop then
+        print("|cFFFF5555[Valuate]|r debugprofilestop() unavailable - can't profile on this client.")
+        return false
+    end
+    if equipmentSwapPending or recentEquipmentChange then
+        print("|cFFFF8800[Valuate]|r Items are still settling - try again in a moment.")
+        return false
+    end
+
+    print("|cFF00FF00[Valuate]|r Profile (v" .. (Valuate.version or "?") .. ")...")
+
+    local function timeIt(label, iterations, fn)
+        local ok, err = pcall(fn, 1)  -- warm up: first call pays cache/JIT costs
+        if not ok then
+            print(string.format("|cFFFF5555  %s: errored|r - %s", label, tostring(err)))
+            return
+        end
+        local t0 = debugprofilestop()
+        for i = 1, iterations do fn(i) end
+        local total = debugprofilestop() - t0
+        print(string.format("  %-22s |cFFFFFFFF%7.3f ms|r each  |cFFAAAAAA(%d run%s, %.1f ms total)|r",
+            label, total / iterations, iterations, iterations == 1 and "" or "s", total))
+    end
+
+    -- Full scan: heavy and infrequent, so a single run is the honest measure.
+    timeIt("Full gear scan", 1, function() Valuate:ScanBestEquipment() end)
+
+    -- Scoring: called once per item per scale inside the scan, so its cost is
+    -- multiplied by both. Sampled from a real equipped item.
+    local scale = Valuate:GetPrimaryScale()
+    local sampleStats
+    for slotId = 1, 18 do
+        if slotId ~= 4 and GetInventoryItemLink("player", slotId) then
+            local tooltip = Valuate:GetPrivateTooltip()
+            if tooltip then
+                tooltip:ClearLines()
+                tooltip:SetInventoryItem("player", slotId)
+                sampleStats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                if sampleStats then break end
+            end
+        end
+    end
+
+    if scale and sampleStats then
+        timeIt("Score one item", 1000, function()
+            Valuate:CalculateItemScore(sampleStats, scale)
+        end)
+    else
+        print("  |cFFAAAAAAScore one item: skipped - no equipped item to sample.|r")
+    end
+
+    -- Tooltip parsing runs on every gear mouseover, so it is the most
+    -- user-perceptible path of the three.
+    local tooltip = Valuate:GetPrivateTooltip()
+    if tooltip and GetInventoryItemLink("player", 16) then
+        timeIt("Parse tooltip stats", 200, function()
+            tooltip:ClearLines()
+            tooltip:SetInventoryItem("player", 16)
+            Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+        end)
+    else
+        print("  |cFFAAAAAAParse tooltip stats: skipped - nothing in main hand.|r")
+    end
+
+    print("  |cFFAAAAAAScan runs on loot/equipment changes; scoring and parsing run per item.|r")
+    return true
+end
+
 -- Slash command handler (basic)
 SLASH_VALUATE1 = "/valuate"
 SLASH_VALUATE2 = "/val"
@@ -5643,6 +5723,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate bank - Show the bank snapshot used for best-in-slot")
         print("  /valuate equip - Equip the best set for the active scale")
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
+        print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -5790,6 +5871,8 @@ SlashCmdList["VALUATE"] = function(msg)
         if options.autoQuestTurnIn and not options.autoQuestReward then
             print("|cFFFFAA00Valuate|r: Note - also enable Auto Quest Reward (/valuate quest) for turn-in to work.")
         end
+    elseif command == "profile" then
+        Valuate:RunProfile()
     elseif command == "equip" then
         -- Equips the best set for the active scale. Referenced by the chat-style
         -- upgrade notification, which has no button to click.
