@@ -262,6 +262,31 @@ local function ScheduleScan(delay, reason, retries)
     end)
 end
 
+-- ============================================================================
+-- Automation heartbeat
+-- ============================================================================
+-- Purely diagnostic. Records when each automated path last ran and what it
+-- concluded, so "is this even working?" has an answer that doesn't depend on
+-- catching it in the act. Every silent-automation bug found so far - the starved
+-- debounces, the dropped scans, the swallowed notify - looked identical from the
+-- outside: nothing happening, no error, nothing to point at.
+--
+-- Session-scoped on purpose, and NOT saved: a timestamp from three days ago would
+-- be more misleading than no timestamp at all.
+local automationHeartbeat = {}
+
+function Valuate:MarkAutomation(name, outcome)
+    if not name then return end
+    automationHeartbeat[name] = { at = GetTime(), outcome = outcome }
+end
+
+-- Returns secondsAgo, outcome - or nil if it has not run this session.
+function Valuate:GetAutomationHeartbeat(name)
+    local h = automationHeartbeat[name]
+    if not h then return nil end
+    return GetTime() - h.at, h.outcome
+end
+
 -- Debounced junk cleanup. Bags fill from every acquisition path, not just looting, so
 -- this runs on any inventory addition. Debounced because ITEM_PUSH fires once per item.
 --
@@ -2921,6 +2946,10 @@ function Valuate:ScanBankContents()
     cache.items = items
     cache.scannedAt = time()
     cache.slotsScanned = scanned
+    local cached = 0
+    for _ in pairs(items) do cached = cached + 1 end
+    Valuate:MarkAutomation("bankSnapshot",
+        string.format("%d equippable item(s) from %d slot(s)", cached, scanned))
     return true
 end
 
@@ -3438,6 +3467,7 @@ function Valuate:ScanBestEquipment()
     -- Tell integration modules (AdiBags/PassLoot) the data changed so they re-filter
     -- instead of showing the previous scan's categorisation.
     Valuate:NotifyBestEquipmentChanged()
+    Valuate:MarkAutomation("scan", string.format("%d of %d items processed", itemsProcessed, itemsScanned))
     return true
 end
 
@@ -3896,8 +3926,13 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         if not shouldShow then say("mode 'every loot': only prompts on a loot event (this was a '" .. tostring(trigger) .. "' check).") end
     end
     if verbose then shouldShow = true end  -- an explicit check always shows the prompt
-    if not shouldShow then return end
+    if not shouldShow then
+        Valuate:MarkAutomation("upgradeNotify",
+            string.format("%d upgrade(s) found, prompt suppressed by '%s' mode", count, mode))
+        return
+    end
 
+    Valuate:MarkAutomation("upgradeNotify", string.format("prompted for %d upgrade(s)", count))
     lastNotifiedSignature = sig
     pendingEquipScale = scaleName
 
@@ -4710,6 +4745,10 @@ function Valuate:AutoDeleteJunk(opts)
     -- acts when bags are actually below the target - including on-demand, which reports
     -- rather than failing silently.
     if not preview and free >= keepFree then
+        -- Recorded even though nothing was deleted: "ran, and correctly did nothing"
+        -- is the answer people actually need when cleanup seems idle.
+        Valuate:MarkAutomation("junkCleanup",
+            string.format("no action - %d free, target %d", free, keepFree))
         if force then
             print(string.format("|cFF00FF00[Valuate]|r Nothing to do - %d free slot(s), target is %d. "
                 .. "Junk is only removed when you drop below the target.", free, keepFree))
@@ -4883,9 +4922,13 @@ function Valuate:AutoDeleteJunk(opts)
         if #candidates > removed then
             print(string.format("|cFFAAAAAA[Valuate]|r ...and %d more deletable item(s) not shown.", #candidates - removed))
         end
-    elseif removed > 0 and options.chatMessages then
-        print(string.format("|cFF00FF00[Valuate]|r %s %d item(s); %d free slot(s). Session total: %d.",
-            dryRun and "Would remove" or "Removed", removed, CountFreeBagSlots(), autoDeleteSessionCount))
+    else
+        Valuate:MarkAutomation("junkCleanup", string.format("%s %d item(s)",
+            dryRun and "would remove" or "removed", removed))
+        if removed > 0 and options.chatMessages then
+            print(string.format("|cFF00FF00[Valuate]|r %s %d item(s); %d free slot(s). Session total: %d.",
+                dryRun and "Would remove" or "Removed", removed, CountFreeBagSlots(), autoDeleteSessionCount))
+        end
     end
 end
 
@@ -4982,10 +5025,12 @@ function Valuate:AutoSellJunk(verbose)
     end
 
     if count == 0 then
+        Valuate:MarkAutomation("junkSell", "no sellable junk found")
         if verbose then print("|cFFFF8800[Valuate]|r No sellable junk found (after protections).") end
         return 0
     end
 
+    Valuate:MarkAutomation("junkSell", string.format("selling %d item(s)", count))
     sellQueue, sellTotal = queue, 0
     SellNextBatch()
     return count
@@ -5266,6 +5311,27 @@ function Valuate:PrintReport()
     else
         print("  Automation: |cFFAAAAAAall off|r")
     end
+
+    -- Heartbeat: when each automated path last ran and what it concluded. This is
+    -- the line that answers "is it even running?" - the question every silent
+    -- automation bug so far has forced people to guess at.
+    local HEARTBEATS = {
+        { key = "scan",          label = "Gear scan" },
+        { key = "junkCleanup",   label = "Junk cleanup" },
+        { key = "junkSell",      label = "Junk selling" },
+        { key = "upgradeNotify", label = "Upgrade alert" },
+        { key = "bankSnapshot",  label = "Bank snapshot" },
+    }
+    print("  |cFFAAAAAALast run this session:|r")
+    for _, hb in ipairs(HEARTBEATS) do
+        local ago, outcome = Valuate:GetAutomationHeartbeat(hb.key)
+        if ago then
+            print(string.format("    %s: |cFFFFFFFF%s ago|r |cFFAAAAAA(%s)|r",
+                hb.label, SecondsToTime(math.max(1, math.floor(ago))), outcome or "ran"))
+        else
+            print(string.format("    %s: |cFFAAAAAAnot yet this session|r", hb.label))
+        end
+    end
 end
 
 -- ========================================
@@ -5308,7 +5374,7 @@ function Valuate:RunSelfTest()
         "IsWeaponSetEnabled", "GetUpgradeBaseline", "GetStatsForTooltipSetter",
         "GetPrimaryScale", "GetPrivateTooltip", "AutoRollOnLoot", "AutoDeleteJunk",
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
-        "ScanBankContents", "GetBankCache",
+        "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)
