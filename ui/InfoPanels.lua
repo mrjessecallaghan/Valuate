@@ -407,8 +407,27 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.15.0a (Current) - upgrade popup
-    local v0150Header = CreateVersionHeader("Version 0.15.0a (Current) - upgrades get their own popup", currentY)
+    -- Version 0.15.1a (Current) - surplus gear as junk
+    local v0151Header = CreateVersionHeader("Version 0.15.1a (Current) - mark surplus gear as junk", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0151Text = CreateChangeText(
+        "• NEW (AdiBags): 'Mark surplus gear as junk'. Equippable gear that is not\n" ..
+        "   best-in-slot and not a future upgrade goes to the Junk section.\n" ..
+        "• It re-evaluates itself - if an item later becomes your best it stops\n" ..
+        "   being marked on the next scan. No stale marks, no cleanup pass.\n" ..
+        "• |cFFFF5555Off by default and capped at green.|r Auto-delete uses the\n" ..
+        "   AdiBags junk filter as its deletable list, so anything marked here can\n" ..
+        "   be deleted automatically if you also run auto-delete.\n" ..
+        "• Never marks best-in-slot items, future upgrades or profession tools, and\n" ..
+        "   leaves alone anything it is unsure about.",
+        currentY
+    )
+    local v0151Height = v0151Text:GetStringHeight()
+    currentY = currentY - v0151Height - versionSpacing
+
+    -- Version 0.15.0a - upgrade popup
+    local v0150Header = CreateVersionHeader("Version 0.15.0a - upgrades get their own popup", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0150Text = CreateChangeText(

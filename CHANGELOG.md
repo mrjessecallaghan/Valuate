@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.1a] - 2026-07-31 — Mark surplus gear as junk (optional)
+
+### Added
+- **AdiBags option: "Mark surplus gear as junk".** Equippable gear that is not best-in-slot
+  and not a future upgrade gets routed into the Junk section, so surplus drops collect in one
+  place instead of spreading through your bags.
+- **It re-evaluates itself.** This is not a tag written once — if an item later becomes your
+  best, it stops being marked on the next scan. No cleanup pass, no stale marks.
+
+### Safety
+- **Off by default, and capped at uncommon (green).** Valuate auto-delete uses the AdiBags
+  junk filter as its deletable list, so anything marked here can be deleted automatically if
+  you also run auto-delete. The option says so plainly.
+- Never marks best-in-slot items, future upgrades, or profession tools. Anything it is unsure
+  about (including items the client has not cached yet) is left alone.
+- **Known limit, stated in the option:** Valuate only computes best-in-slot for *active*
+  scales, so gear that is best for a spec whose scale you switched off is not protected.
+
 ## [0.15.0a] - 2026-07-31 — Upgrades get their own popup
 
 ### Added
