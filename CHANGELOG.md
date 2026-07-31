@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.2a] - 2026-07-31 — Surplus-gear junk marking hardened
+
+### Safety
+- **It now refuses to mark anything until it has trustworthy data.** The feature reasons
+  "not in the best list, therefore surplus" — which is only true once the best list exists.
+  Before the first scan, after a failed scan, or with no active scales, *nothing* is
+  best-in-slot, so everything in your bags would have been marked at once. It now requires a
+  completed scan, an active scale, and real best-in-slot entries before marking anything.
+- **Gear in a saved equipment set is protected.** Building a set says you want that gear, and
+  a PvP or fishing set generally is not best-in-slot.
+- **Slots Valuate has no opinion about are left alone.** If there is no best-in-slot entry for
+  an item's slot, its absence from the list means nothing.
+- **New `/valuate junkmarks`** reports which guard is holding it back, so "nothing is being
+  marked" is never ambiguous. It also points at `/valuate deletepreview`.
+
 ## [0.15.1a] - 2026-07-31 — Mark surplus gear as junk (optional)
 
 ### Added

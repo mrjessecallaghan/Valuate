@@ -2887,6 +2887,15 @@ function Valuate:NotifyBestEquipmentChanged()
 end
 
 -- Returns the ordered list of weapon-set definitions ({key, label}).
+-- Which inventory slot IDs an equip location maps to (rings/trinkets/weapons give
+-- two). Exposed because integrations need to ask "does Valuate actually have an
+-- opinion about this item's slot?" before acting on its absence from best-in-slot.
+-- Returns the shared table, so callers must treat it as read-only.
+function Valuate:GetInventorySlotsForEquipLoc(equipLoc)
+    if not equipLoc or equipLoc == "" then return nil end
+    return EquipSlotToInvNumber[equipLoc]
+end
+
 function Valuate:GetWeaponSetDefinitions()
     return WEAPON_SET_DEFS
 end
@@ -5883,6 +5892,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate equip - Equip the best set for the active scale")
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
+        print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -6040,6 +6050,17 @@ SlashCmdList["VALUATE"] = function(msg)
             print("|cFFFF0000Valuate|r: No active scale - activate one first.")
         else
             Valuate:EquipBestSet(scaleName)
+        end
+    elseif command == "junkmarks" then
+        -- Diagnostic for the AdiBags "mark surplus gear as junk" option. Lives here
+        -- because that is where every other Valuate diagnostic lives, and because
+        -- the feature feeds auto-delete, which is a Valuate feature.
+        local ab = _G.AdiBags
+        local m = ab and ab.GetModule and select(2, pcall(ab.GetModule, ab, "ValuateBestItems", true))
+        if type(m) == "table" and m.PrintJunkStatus then
+            m:PrintJunkStatus()
+        else
+            print("|cFFFF8800[Valuate]|r The Valuate-AdiBags module isn't loaded, so nothing is being marked as junk.")
         end
     elseif command == "bank" then
         -- Diagnostic: says WHY the bank contributes nothing, rather than silently

@@ -407,8 +407,28 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.15.1a (Current) - surplus gear as junk
-    local v0151Header = CreateVersionHeader("Version 0.15.1a (Current) - mark surplus gear as junk", currentY)
+    -- Version 0.15.2a (Current) - junk marking hardened
+    local v0152Header = CreateVersionHeader("Version 0.15.2a (Current) - junk marking hardened", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0152Text = CreateChangeText(
+        "• SAFETY: surplus-gear marking now refuses to mark anything until it has\n" ..
+        "   trustworthy data. It reasons 'not in the best list, so surplus' - true\n" ..
+        "   only once that list exists. Before the first scan, after a failed one,\n" ..
+        "   or with no active scale, NOTHING is best-in-slot, so everything in your\n" ..
+        "   bags would have been marked at once.\n" ..
+        "• SAFETY: gear in a saved equipment set is protected - a PvP or fishing set\n" ..
+        "   generally isn't best-in-slot, but you clearly want it.\n" ..
+        "• SAFETY: slots Valuate has no opinion about are left alone.\n" ..
+        "• NEW: /valuate junkmarks says which guard is holding it back, so 'nothing\n" ..
+        "   is being marked' is never ambiguous.",
+        currentY
+    )
+    local v0152Height = v0152Text:GetStringHeight()
+    currentY = currentY - v0152Height - versionSpacing
+
+    -- Version 0.15.1a - surplus gear as junk
+    local v0151Header = CreateVersionHeader("Version 0.15.1a - mark surplus gear as junk", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0151Text = CreateChangeText(
