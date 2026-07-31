@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.14.5a] - 2026-07-31 — "Always" auto-scan actually means always
 
 ### Changed
+- **Equipping or unequipping anything re-scans much sooner** — about 1.2 seconds on "Always"
+  instead of 3.5. Both directions were already covered; they were just slow. The settle
+  window is shortened, not removed: an equip moves an item *between* a bag slot and an
+  equipment slot, which is precisely what the in-transit guard protects against, so it keeps
+  a real (if shorter) delay. Bulk equipment-set swaps still use the longest window, since
+  that's when the most items are in flight at once.
 - **Auto Scan set to "Always" now reacts to bag changes in about a second**, instead of
   several. Four separate delays were stacking up before a scan could run — the scheduled
   delay, a bag-quiet window, a minimum gap between scans, and the burst cap that stops a

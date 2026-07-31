@@ -418,8 +418,11 @@ local function CreateChangelogPanel(parent)
         "   scans, and the burst cap - all sharing one conservative set of numbers.\n" ..
         "   During sustained looting a scan could be six seconds behind your bags.\n" ..
         "   Those numbers are now per-mode; the other modes keep the cautious ones.\n" ..
+        "• CHANGED: equipping or unequipping anything re-scans in ~1.2s on Always\n" ..
+        "   instead of 3.5s. Both directions were already covered, just slow.\n" ..
         "• The in-transit guards are unchanged - they are what stop a scan reading\n" ..
-        "   a bag slot while an item is mid-move.",
+        "   a bag slot while an item is mid-move. Equip keeps a real settle window\n" ..
+        "   (shorter, not removed), and bulk set swaps keep the longest one.",
         currentY
     )
     local v0145Height = v0145Text:GetStringHeight()

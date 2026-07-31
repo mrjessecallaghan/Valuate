@@ -155,8 +155,13 @@ local lastAutoScanTime = 0
 -- These do NOT relax the in-transit guards (equipmentSwapPending /
 -- recentEquipmentChange). Those are what stop a scan reading a bag slot mid-move,
 -- and they stay exactly as they were.
-local SCAN_TIMING_ALWAYS  = { delay = 0.7, quiet = 0.4, throttle = 0.75, defer = 2.0 }
-local SCAN_TIMING_DEFAULT = { delay = 2.5, quiet = 2.0, throttle = 2.0,  defer = 6.0 }
+-- `equip` is deliberately longer than `delay` even in the fast profile. A bag
+-- change is just contents moving; an equip/unequip moves an item BETWEEN a bag
+-- slot and an equipment slot, which is the exact situation the in-transit guard
+-- exists for - reading a bag slot mid-move is what used to make items vanish. So
+-- it gets a real settle window, just not the original 3.5 seconds.
+local SCAN_TIMING_ALWAYS  = { delay = 0.7, quiet = 0.4, throttle = 0.75, defer = 2.0, equip = 1.2 }
+local SCAN_TIMING_DEFAULT = { delay = 2.5, quiet = 2.0, throttle = 2.0,  defer = 6.0, equip = 3.5 }
 
 local function ScanTiming()
     local mode = Valuate.GetOptions and Valuate:GetOptions().autoScan
@@ -499,9 +504,11 @@ local function OnEvent(self, event, addonName, ...)
             return
         end
 
-        -- Wait much longer after equipment changes to ensure items are in bags
-        -- Use longer delay to ensure items are fully moved to bags
-        ScheduleScan(3.5, "equipment")
+        -- Every equip AND unequip lands here (PLAYER_EQUIPMENT_CHANGED covers both),
+        -- so best-in-slot re-evaluates against what you're actually wearing.
+        -- Still a real settle window so the item has finished moving between the
+        -- bag and the equipment slot - just a much shorter one in "always" mode.
+        ScheduleScan(ScanTiming().equip, "equipment")
     elseif event == "LOOT_OPENED" then
         -- Loot window opened - schedule scan after loot is collected
         -- Wait a bit to ensure items are in bags
