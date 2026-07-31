@@ -39,25 +39,95 @@ local function ResolveArrowTexture(tex)
     return arrowTexturePath, arrowNeedsFlip
 end
 
-local function GetArrow(button)
-    local arrow = arrows[button]
-    if arrow then return arrow end
+-- 18px against a ~37px item button: large enough to read at a glance without
+-- burying the icon it is describing.
+local ARROW_SIZE = 18
 
-    arrow = button:CreateTexture(nil, "OVERLAY")
+-- Arrows currently on screen, for the pulse driver to walk. Kept as a set so the
+-- driver never touches hidden ones.
+local shownArrows = {}
+
+-- One driver for every arrow, not one per arrow: a bag full of gear would
+-- otherwise mean dozens of OnUpdate handlers doing identical work.
+local pulseDriver = CreateFrame("Frame")
+pulseDriver.t = 0
+pulseDriver:SetScript("OnUpdate", function(self, e)
+    if not next(shownArrows) then return end
+
+    -- Respect the accessibility option: a static, fully-opaque arrow is still
+    -- perfectly visible, it just doesn't move.
+    if Valuate.GetOptions and Valuate:GetOptions().reduceMotion then
+        for rec in pairs(shownArrows) do
+            rec.arrow:SetAlpha(1)
+            rec.glow:SetAlpha(0.55)
+        end
+        return
+    end
+
+    self.t = self.t + (e or 0)
+    -- ~1.3s cycle. The arrow itself stays near full opacity so it never reads as
+    -- "fading out"; most of the movement is in the glow behind it.
+    local phase = math.sin(self.t * (2 * math.pi / 1.3))
+    local arrowAlpha = 0.88 + 0.12 * phase
+    local glowAlpha = 0.45 + 0.35 * phase
+    for rec in pairs(shownArrows) do
+        -- Self-pruning: a closed bag or merchant hides the whole parent without
+        -- our update ever running, and animating textures nobody can see would
+        -- carry on forever. They re-register the next time they're drawn.
+        if rec.arrow:IsVisible() then
+            rec.arrow:SetAlpha(arrowAlpha)
+            rec.glow:SetAlpha(glowAlpha)
+        else
+            shownArrows[rec] = nil
+        end
+    end
+end)
+
+local function GetArrow(button)
+    local rec = arrows[button]
+    if rec then return rec end
+
+    -- Soft green glow behind the arrow. Without it the arrow disappears against
+    -- bright or busy item art, which is most of what sits in a bag.
+    local glow = button:CreateTexture(nil, "ARTWORK")
+    glow:SetTexture("Interface\\Cooldown\\star4")
+    glow:SetWidth(ARROW_SIZE * 2.1)
+    glow:SetHeight(ARROW_SIZE * 2.1)
+    glow:SetBlendMode("ADD")
+    glow:SetVertexColor(0.2, 1.0, 0.2, 1)
+
+    local arrow = button:CreateTexture(nil, "OVERLAY")
     local path, flip = ResolveArrowTexture(arrow)
     arrow:SetTexture(path)
     if flip then
         arrow:SetTexCoord(0, 1, 1, 0)
     end
-    arrow:SetWidth(14)
-    arrow:SetHeight(14)
-    -- Top-right, nudged slightly outside so it doesn't cover the item's own art.
-    arrow:SetPoint("TOPRIGHT", button, "TOPRIGHT", 2, 2)
-    arrow:SetVertexColor(0.1, 1.0, 0.1, 1)
-    arrow:Hide()
+    arrow:SetWidth(ARROW_SIZE)
+    arrow:SetHeight(ARROW_SIZE)
+    -- Top-right, nudged outside the icon so it breaks the square silhouette
+    -- instead of blending into the art.
+    arrow:SetPoint("TOPRIGHT", button, "TOPRIGHT", 4, 4)
+    arrow:SetVertexColor(0.25, 1.0, 0.25, 1)
+    glow:SetPoint("CENTER", arrow, "CENTER", 0, 0)
 
-    arrows[button] = arrow
-    return arrow
+    rec = { arrow = arrow, glow = glow }
+    arrows[button] = rec
+    return rec
+end
+
+local function ShowArrow(button)
+    local rec = GetArrow(button)
+    rec.arrow:Show()
+    rec.glow:Show()
+    shownArrows[rec] = true
+end
+
+local function HideArrow(button)
+    local rec = arrows[button]
+    if not rec then return end
+    rec.arrow:Hide()
+    rec.glow:Hide()
+    shownArrows[rec] = nil
 end
 
 -- The single entry point: show or hide the arrow for one button.
@@ -65,24 +135,15 @@ local function SetArrow(button, itemLink)
     if not button then return end
 
     local options = Valuate:GetOptions()
-    if not options.showUpgradeArrows then
-        local existing = arrows[button]
-        if existing then existing:Hide() end
+    if not options.showUpgradeArrows or not itemLink then
+        HideArrow(button)
         return
     end
 
-    if not itemLink then
-        local existing = arrows[button]
-        if existing then existing:Hide() end
-        return
-    end
-
-    local isUpgrade = Valuate:IsItemLinkUpgrade(itemLink)
-    if isUpgrade then
-        GetArrow(button):Show()
+    if Valuate:IsItemLinkUpgrade(itemLink) then
+        ShowArrow(button)
     else
-        local existing = arrows[button]
-        if existing then existing:Hide() end
+        HideArrow(button)
     end
 end
 ns.SetUpgradeArrow = SetArrow
