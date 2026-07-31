@@ -68,26 +68,57 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     -- Apply input validation (max 5 digits, one decimal, minus at start only)
     ApplyStatValueValidation(editBox)
     
-    -- Focus handling
-    editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    editBox:SetScript("OnEnterPressed", function(self)
-        local value = tonumber(self:GetText()) or 0
-        if ns.EditingScaleName and Valuate:GetScales()[ns.EditingScaleName] then
-            local scale = Valuate:GetScales()[ns.EditingScaleName]
-            if not scale.Values then scale.Values = {} end
-            if value ~= 0 then
-                scale.Values[self.statName] = value
-            else
-                scale.Values[self.statName] = nil
-            end
-            
+    -- A row with a weight set reads differently from an empty one. With ~60 stats
+    -- across five columns, the handful you actually care about were impossible to
+    -- pick out at a glance - every row looked identical.
+    --
+    -- Declared HERE, above every function that calls it (CommitValue below,
+    -- UpdateBannedState further down). A local declared beneath its callers
+    -- compiles to a nil global and errors on first use - the scope checker caught
+    -- exactly that when this sat lower in the file.
+    local function ApplyWeightedLook()
+        local v = tonumber(editBox:GetText()) or 0
+        if v ~= 0 then
+            label:SetTextColor(unpack(COLORS.textAccent))
+            editBox:SetBackdropBorderColor(unpack(COLORS.borderLight))
+        else
+            label:SetTextColor(unpack(COLORS.textBody))
+            editBox:SetBackdropBorderColor(unpack(COLORS.border))
+        end
+    end
+
+    -- Single commit path, shared by Enter and focus-loss.
+    --
+    -- Only Enter used to save. Typing a weight and then clicking another field -
+    -- the obvious way to fill in several stats - discarded it silently: the number
+    -- stayed on screen, so the edit looked accepted, but it never reached the scale
+    -- and vanished on the next refresh.
+    local function CommitValue()
+        local value = tonumber(editBox:GetText()) or 0
+        local editing = ns.EditingScaleName
+        local currentScale = editing and Valuate:GetScales()[editing]
+        if currentScale then
+            if not currentScale.Values then currentScale.Values = {} end
+            currentScale.Values[editBox.statName] = (value ~= 0) and value or nil
+
             -- Reset all tooltips to reflect the change immediately
             if Valuate.ResetTooltips then
                 Valuate:ResetTooltips()
             end
         end
+        ApplyWeightedLook()
+        -- Read through ns at call time: this file defines the summary further down,
+        -- so a local copy here would be nil.
+        if ns.UpdateScaleEditorSummary then ns.UpdateScaleEditorSummary() end
+    end
+
+    -- Focus handling
+    editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    editBox:SetScript("OnEnterPressed", function(self)
+        CommitValue()
         self:ClearFocus()
     end)
+    editBox:SetScript("OnEditFocusLost", CommitValue)
     
     -- Unusable checkbox (ban stat) - smaller for compact layout
     local unusableCheckbox = CreateFrame("CheckButton", nil, row)
@@ -109,11 +140,13 @@ local function CreateStatRow(parent, statName, scale, yOffset)
             editBox:SetBackdropColor(unpack(COLORS.disabled))
             editBox:SetBackdropBorderColor(unpack(COLORS.borderDark))
         else
-            label:SetTextColor(unpack(COLORS.textBody))
             editBox:EnableMouse(true)
             editBox:EnableKeyboard(true)
             editBox:SetBackdropColor(unpack(COLORS.inputBg))
-            editBox:SetBackdropBorderColor(unpack(COLORS.border))
+            -- Label colour and border now come from ApplyWeightedLook, so unbanning
+            -- a stat that still holds a weight restores the highlight rather than
+            -- flattening it back to the default look.
+            ApplyWeightedLook()
         end
     end
     
@@ -131,6 +164,7 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         else
             editBox:SetText("")
         end
+        ApplyWeightedLook()
     end
     
     -- OnClick handler for ban checkbox
@@ -159,6 +193,7 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         end
         
         UpdateBannedState(checked)
+        if ns.UpdateScaleEditorSummary then ns.UpdateScaleEditorSummary() end
     end)
     
     -- Tooltip for unusable checkbox
@@ -529,6 +564,9 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
     
     -- Update stat weights
     UpdateStatWeightsList(scaleName, scale)
+
+    -- Refresh the header summary for the scale just loaded.
+    if ns.UpdateScaleEditorSummary then ns.UpdateScaleEditorSummary() end
 end
 
 -- ========================================
@@ -881,7 +919,18 @@ local function CreateScaleEditor(parent)
         end
         self:ClearFocus()
     end)
-    
+    -- Renames deliberately commit on Enter ONLY - clicking away should never rename
+    -- a scale by accident. But the box used to keep displaying the typed text after
+    -- focus was lost, so it showed a name the scale did not actually have. Restore
+    -- the real one instead of leaving the field lying about it.
+    nameEditBox:SetScript("OnEditFocusLost", function(self)
+        local editing = ns.EditingScaleName
+        local scale = editing and Valuate:GetScales()[editing]
+        if scale then
+            self:SetText(scale.DisplayName or editing)
+        end
+    end)
+
     -- Import button
     local importButton = CreateStyledButton(headerFrame, "Import", 80, 22)
     importButton:SetPoint("LEFT", nameEditBox, "RIGHT", 10, 0)
@@ -950,6 +999,56 @@ local function CreateScaleEditor(parent)
         })
     end)
     
+    -- At-a-glance summary of what this scale actually contains. Anchored to the
+    -- header's RIGHT edge, so it can't collide with the button row growing from the
+    -- left however long the scale name gets.
+    local summaryText = headerFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    summaryText:SetPoint("RIGHT", headerFrame, "RIGHT", -4, 0)
+    summaryText:SetJustifyH("RIGHT")
+    summaryText:SetTextColor(unpack(COLORS.textDim))
+
+    -- Published on ns because CreateStatRow is defined ABOVE this function and so
+    -- cannot see a local declared here. Callers read ns at call time, never
+    -- re-localise it.
+    local function UpdateEditorSummary()
+        local editing = ns.EditingScaleName
+        local scale = editing and Valuate:GetScales()[editing]
+        if not scale then
+            summaryText:SetText("")
+            return
+        end
+
+        local weighted, banned = 0, 0
+        if scale.Values then
+            for _, v in pairs(scale.Values) do
+                if type(v) == "number" and v ~= 0 then weighted = weighted + 1 end
+            end
+        end
+        if scale.Unusable then
+            for _, v in pairs(scale.Unusable) do
+                if v then banned = banned + 1 end
+            end
+        end
+
+        if weighted == 0 then
+            -- The most useful thing an empty scale can say is why it scores nothing.
+            summaryText:SetText("|cFFFF8800No stats weighted|r - this scale won't score any item")
+        else
+            local parts = string.format("|cFFFFFFFF%d|r stat%s weighted", weighted, weighted == 1 and "" or "s")
+            if banned > 0 then
+                parts = parts .. string.format("  ·  |cFFFFFFFF%d|r banned", banned)
+            end
+            local total = Valuate.CalculateTotalEquippedScore
+                and Valuate:CalculateTotalEquippedScore(scale) or nil
+            if total and total > 0 then
+                local decimals = Valuate:GetOptions().decimalPlaces or 1
+                parts = parts .. string.format("  ·  gear " .. "|cFFFFFFFF%." .. decimals .. "f|r", total)
+            end
+            summaryText:SetText(parts)
+        end
+    end
+    ns.UpdateScaleEditorSummary = UpdateEditorSummary
+
     -- Content frame for stat weights (below header) - no scrollbar needed as everything fits
     local contentFrame = CreateFrame("Frame", nil, parent)
     contentFrame:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
