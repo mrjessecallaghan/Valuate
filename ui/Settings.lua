@@ -792,156 +792,6 @@ local function CreateSettingsPanel(parent)
     guildRepairCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
-    -- Include Bank Items checkbox (Column 1, below Guild Repair; -16 x-offset undoes
-    -- the guild-repair indent to return to the base column)
-    local includeBankCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
-    includeBankCheckbox:SetSize(24, 24)
-    includeBankCheckbox:SetPoint("TOPLEFT", guildRepairCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
-
-    local includeBankLabel = includeBankCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    includeBankLabel:SetPoint("LEFT", includeBankCheckbox, "RIGHT", 5, 0)
-    includeBankLabel:SetText("Include Bank Items")
-    includeBankCheckbox:SetChecked(Valuate:GetOptions().includeBankItems ~= false)
-    includeBankCheckbox:SetScript("OnClick", function(self)
-        Valuate:GetOptions().includeBankItems = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
-    end)
-    includeBankCheckbox:SetScript("OnEnter", function(self)
-        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Include Bank Items", 1, 1, 1)
-            GameTooltip:AddLine("Counts gear stored in your bank when working out best-in-slot. Banked items are marked with a bag icon, and Equip All skips them - you must withdraw them first.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("The bank is only readable while it is open, so Valuate uses a snapshot taken on your last visit. Run /valuate bank to see it.", 0.7, 0.7, 0.7, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Auto-delete and auto-sell never touch the bank.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
-    end)
-    includeBankCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
-
-    -- Upgrade alert presentation (Column 1, below Include Bank Items).
-    -- Style and sound are stored as two independent options but share ONE control:
-    -- the column is a third of the window wide, so a second button on the notify
-    -- row would have overflowed - the layout failure this panel already suffered.
-    local alertLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    alertLabel:SetPoint("TOPLEFT", includeBankCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    alertLabel:SetText("Upgrade Alert")
-
-    local function AlertStyleText()
-        local o = Valuate:GetOptions()
-        local base = (o.notifyBagUpgradeStyle == "chat") and "Chat" or "Popup"
-        return o.notifyUpgradeSound and (base .. " + Sound") or base
-    end
-    local alertStyleButton = CreateStyledButton(col1, AlertStyleText(), 120, 18)
-    alertStyleButton:SetPoint("LEFT", alertLabel, "RIGHT", 8, 0)
-    alertStyleButton:SetScript("OnClick", function(self)
-        local o = Valuate:GetOptions()
-        -- Cycle: Popup -> Popup + Sound -> Chat -> Chat + Sound -> Popup
-        if o.notifyBagUpgradeStyle == "chat" then
-            if o.notifyUpgradeSound then
-                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "dialog", false
-            else
-                o.notifyUpgradeSound = true
-            end
-        else
-            if o.notifyUpgradeSound then
-                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "chat", false
-            else
-                o.notifyUpgradeSound = true
-            end
-        end
-        self.label:SetText(AlertStyleText())
-    end)
-    alertStyleButton:SetScript("OnEnter", function(self)
-        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Upgrade Alert", 1, 1, 1)
-            GameTooltip:AddLine("Popup: a dialog with an Equip button.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine("Chat: a message only - nothing steals focus mid-fight. Use /valuate equip to wear the set.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Applies to the 'Notify Bag Upgrades' alert above.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
-    end)
-    alertStyleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
-
-    -- Other-spec upgrades checkbox (Column 1, below the Upgrade Alert row)
-    local otherSpecCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
-    otherSpecCheckbox:SetSize(24, 24)
-    otherSpecCheckbox:SetPoint("TOPLEFT", alertLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-
-    local otherSpecLabel = otherSpecCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    otherSpecLabel:SetPoint("LEFT", otherSpecCheckbox, "RIGHT", 5, 0)
-    otherSpecLabel:SetText("Alert For Other Specs")
-    otherSpecCheckbox:SetChecked(Valuate:GetOptions().notifyOtherSpecUpgrades == true)
-    otherSpecCheckbox:SetScript("OnClick", function(self)
-        Valuate:GetOptions().notifyOtherSpecUpgrades = (self:GetChecked() == 1) or (self:GetChecked() == true)
-    end)
-    otherSpecCheckbox:SetScript("OnEnter", function(self)
-        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Alert For Other Specs", 1, 1, 1)
-            GameTooltip:AddLine("The upgrade alert normally only considers your active scale. With this on it also lists your other active scales that have upgrades waiting.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Useful on a classless server, where a drop often suits a spec you aren't currently running - and would otherwise be vendored without you noticing.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
-    end)
-    otherSpecCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
-
-    -- Skip Trivial Quests checkbox (Column 1, below Alert For Other Specs)
-    local skipTrivialCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
-    skipTrivialCheckbox:SetSize(24, 24)
-    skipTrivialCheckbox:SetPoint("TOPLEFT", otherSpecCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-
-    local skipTrivialLabel = skipTrivialCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    skipTrivialLabel:SetPoint("LEFT", skipTrivialCheckbox, "RIGHT", 5, 0)
-    skipTrivialLabel:SetText("Skip Trivial Quests")
-    skipTrivialCheckbox:SetChecked(Valuate:GetOptions().autoAcceptSkipTrivial == true)
-    skipTrivialCheckbox:SetScript("OnClick", function(self)
-        Valuate:GetOptions().autoAcceptSkipTrivial = (self:GetChecked() == 1) or (self:GetChecked() == true)
-    end)
-    skipTrivialCheckbox:SetScript("OnEnter", function(self)
-        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Skip Trivial Quests", 1, 1, 1)
-            GameTooltip:AddLine("With Auto Accept Quests on, don't accept quests 8 or more levels below you - useful while levelling back through old content.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Valuate now picks the first non-trivial quest an NPC offers instead of always the first in the list.", 0.7, 0.7, 0.7, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("If a quest's level can't be read, it is accepted anyway - silently declining a quest you wanted would be worse than accepting a grey one.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
-    end)
-    skipTrivialCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
-
-    -- Upgrade Arrows checkbox (Column 1, below Skip Trivial Quests)
-    local arrowsCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
-    arrowsCheckbox:SetSize(24, 24)
-    arrowsCheckbox:SetPoint("TOPLEFT", skipTrivialCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-
-    local arrowsLabel = arrowsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    arrowsLabel:SetPoint("LEFT", arrowsCheckbox, "RIGHT", 5, 0)
-    arrowsLabel:SetText("Upgrade Arrows")
-    arrowsCheckbox:SetChecked(Valuate:GetOptions().showUpgradeArrows ~= false)
-    arrowsCheckbox:SetScript("OnClick", function(self)
-        Valuate:GetOptions().showUpgradeArrows = (self:GetChecked() == 1) or (self:GetChecked() == true)
-        -- Repaint whatever is open so the change is visible immediately.
-        if ns.RefreshUpgradeArrows then ns.RefreshUpgradeArrows() end
-    end)
-    arrowsCheckbox:SetScript("OnEnter", function(self)
-        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Upgrade Arrows", 1, 1, 1)
-            GameTooltip:AddLine("Pins a green arrow to the top-right of any item icon that would be an upgrade for your CURRENT spec.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Shown in your bags, at vendors, and on the loot window.", 0.7, 0.7, 0.7, true)
-            GameTooltip:AddLine("Deliberately NOT on the character or wardrobe panels - an arrow on gear you're already wearing is just noise.", 0.7, 0.7, 0.7, true)
-            GameTooltip:Show()
-        end
-    end)
-    arrowsCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
@@ -1626,10 +1476,171 @@ local function CreateSettingsPanel(parent)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
     
     -- ========================================
+    -- Alerts & Extras Section
+    -- ========================================
+    local alertsHeader = col3:CreateFontString(nil, "OVERLAY", FONT_H1)
+    alertsHeader:SetPoint("TOPLEFT", keybindLabel, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
+    alertsHeader:SetText("Alerts & Extras")
+    alertsHeader:SetTextColor(unpack(COLORS.textAccent))
+    columnHeights[3] = columnHeights[3] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING
+
+    -- Alerts, bank and quest options (Column 3).
+    -- Moved here from column 1, which had grown to 25 rows against 9 and 7 and was
+    -- running off the bottom of the window.
+    local includeBankCheckbox = CreateFrame("CheckButton", nil, col3, "UICheckButtonTemplate")
+    includeBankCheckbox:SetSize(24, 24)
+    includeBankCheckbox:SetPoint("TOPLEFT", alertsHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local includeBankLabel = includeBankCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    includeBankLabel:SetPoint("LEFT", includeBankCheckbox, "RIGHT", 5, 0)
+    includeBankLabel:SetText("Include Bank Items")
+    includeBankCheckbox:SetChecked(Valuate:GetOptions().includeBankItems ~= false)
+    includeBankCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().includeBankItems = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    end)
+    includeBankCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Include Bank Items", 1, 1, 1)
+            GameTooltip:AddLine("Counts gear stored in your bank when working out best-in-slot. Banked items are marked with a bag icon, and Equip All skips them - you must withdraw them first.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("The bank is only readable while it is open, so Valuate uses a snapshot taken on your last visit. Run /valuate bank to see it.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Auto-delete and auto-sell never touch the bank.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    includeBankCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Upgrade alert presentation (Column 3, below Include Bank Items).
+    -- Style and sound are stored as two independent options but share ONE control:
+    -- the column is a third of the window wide, so a second button on the notify
+    -- row would have overflowed - the layout failure this panel already suffered.
+    local alertLabel = col3:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    alertLabel:SetPoint("TOPLEFT", includeBankCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    alertLabel:SetText("Upgrade Alert")
+
+    local function AlertStyleText()
+        local o = Valuate:GetOptions()
+        local base = (o.notifyBagUpgradeStyle == "chat") and "Chat" or "Popup"
+        return o.notifyUpgradeSound and (base .. " + Sound") or base
+    end
+    local alertStyleButton = CreateStyledButton(col3, AlertStyleText(), 120, 18)
+    alertStyleButton:SetPoint("LEFT", alertLabel, "RIGHT", 8, 0)
+    alertStyleButton:SetScript("OnClick", function(self)
+        local o = Valuate:GetOptions()
+        -- Cycle: Popup -> Popup + Sound -> Chat -> Chat + Sound -> Popup
+        if o.notifyBagUpgradeStyle == "chat" then
+            if o.notifyUpgradeSound then
+                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "dialog", false
+            else
+                o.notifyUpgradeSound = true
+            end
+        else
+            if o.notifyUpgradeSound then
+                o.notifyBagUpgradeStyle, o.notifyUpgradeSound = "chat", false
+            else
+                o.notifyUpgradeSound = true
+            end
+        end
+        self.label:SetText(AlertStyleText())
+    end)
+    alertStyleButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Upgrade Alert", 1, 1, 1)
+            GameTooltip:AddLine("Popup: a dialog with an Equip button.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Chat: a message only - nothing steals focus mid-fight. Use /valuate equip to wear the set.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Applies to the 'Notify Bag Upgrades' alert above.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    alertStyleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Other-spec upgrades checkbox (Column 3, below the Upgrade Alert row)
+    local otherSpecCheckbox = CreateFrame("CheckButton", nil, col3, "UICheckButtonTemplate")
+    otherSpecCheckbox:SetSize(24, 24)
+    otherSpecCheckbox:SetPoint("TOPLEFT", alertLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local otherSpecLabel = otherSpecCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    otherSpecLabel:SetPoint("LEFT", otherSpecCheckbox, "RIGHT", 5, 0)
+    otherSpecLabel:SetText("Alert For Other Specs")
+    otherSpecCheckbox:SetChecked(Valuate:GetOptions().notifyOtherSpecUpgrades == true)
+    otherSpecCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().notifyOtherSpecUpgrades = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    otherSpecCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Alert For Other Specs", 1, 1, 1)
+            GameTooltip:AddLine("The upgrade alert normally only considers your active scale. With this on it also lists your other active scales that have upgrades waiting.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Useful on a classless server, where a drop often suits a spec you aren't currently running - and would otherwise be vendored without you noticing.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    otherSpecCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Skip Trivial Quests checkbox (Column 3, below Alert For Other Specs)
+    local skipTrivialCheckbox = CreateFrame("CheckButton", nil, col3, "UICheckButtonTemplate")
+    skipTrivialCheckbox:SetSize(24, 24)
+    skipTrivialCheckbox:SetPoint("TOPLEFT", otherSpecCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local skipTrivialLabel = skipTrivialCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    skipTrivialLabel:SetPoint("LEFT", skipTrivialCheckbox, "RIGHT", 5, 0)
+    skipTrivialLabel:SetText("Skip Trivial Quests")
+    skipTrivialCheckbox:SetChecked(Valuate:GetOptions().autoAcceptSkipTrivial == true)
+    skipTrivialCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoAcceptSkipTrivial = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    skipTrivialCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Skip Trivial Quests", 1, 1, 1)
+            GameTooltip:AddLine("With Auto Accept Quests on, don't accept quests 8 or more levels below you - useful while levelling back through old content.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Valuate now picks the first non-trivial quest an NPC offers instead of always the first in the list.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("If a quest's level can't be read, it is accepted anyway - silently declining a quest you wanted would be worse than accepting a grey one.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    skipTrivialCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Upgrade Arrows checkbox (Column 3, below Skip Trivial Quests)
+    local arrowsCheckbox = CreateFrame("CheckButton", nil, col3, "UICheckButtonTemplate")
+    arrowsCheckbox:SetSize(24, 24)
+    arrowsCheckbox:SetPoint("TOPLEFT", skipTrivialCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local arrowsLabel = arrowsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    arrowsLabel:SetPoint("LEFT", arrowsCheckbox, "RIGHT", 5, 0)
+    arrowsLabel:SetText("Upgrade Arrows")
+    arrowsCheckbox:SetChecked(Valuate:GetOptions().showUpgradeArrows ~= false)
+    arrowsCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().showUpgradeArrows = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        -- Repaint whatever is open so the change is visible immediately.
+        if ns.RefreshUpgradeArrows then ns.RefreshUpgradeArrows() end
+    end)
+    arrowsCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Upgrade Arrows", 1, 1, 1)
+            GameTooltip:AddLine("Pins a green arrow to the top-right of any item icon that would be an upgrade for your CURRENT spec.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Shown in your bags, at vendors, and on the loot window.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Deliberately NOT on the character or wardrobe panels - an arrow on gear you're already wearing is just noise.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    arrowsCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- ========================================
     -- Advanced Section
     -- ========================================
     local advancedHeader = col3:CreateFontString(nil, "OVERLAY", FONT_H1)
-    advancedHeader:SetPoint("TOPLEFT", keybindLabel, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
+    advancedHeader:SetPoint("TOPLEFT", arrowsCheckbox, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
     advancedHeader:SetText("Advanced")
     advancedHeader:SetTextColor(unpack(COLORS.textAccent))
     columnHeights[3] = columnHeights[3] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING

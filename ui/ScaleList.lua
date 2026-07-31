@@ -278,12 +278,32 @@ local function UpdateScaleList()
             end
         end)
         
+        -- Marks the scale treated as your CURRENT SPEC. That scale drives the
+        -- character-sheet score, the upgrade prompt's baseline and the upgrade
+        -- arrows - but it was only discoverable through a Settings dropdown named
+        -- after the character window, so nothing here said which one it was.
+        local primaryMark = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        primaryMark:SetPoint("RIGHT", deleteBtn, "LEFT", -4, 0)
+        primaryMark:SetText("|cFFFFD100*|r")
+        primaryMark:Hide()
+
         -- Scale name
         local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
         nameLabel:SetPoint("LEFT", iconBtn, "RIGHT", 4, 0)
-        nameLabel:SetPoint("RIGHT", deleteBtn, "LEFT", -4, 0)
+        nameLabel:SetPoint("RIGHT", primaryMark, "LEFT", -2, 0)
         nameLabel:SetJustifyH("LEFT")
         nameLabel:SetText(scaleData.scale.DisplayName or scaleData.name)
+
+        do
+            local _, primaryName = Valuate:GetPrimaryScale()
+            if primaryName == scaleData.name then
+                primaryMark:Show()
+            end
+        end
+
+        -- NOTE: the row's OnEnter/OnLeave are set further down (the hover highlight).
+        -- Setting them here as well would silently replace that handler, so the
+        -- tooltip is added there instead.
         
         -- Helper to update visual state based on visibility
         local function UpdateVisualState(visible)
@@ -351,7 +371,7 @@ local function UpdateScaleList()
         btn.updateVisualState = UpdateVisualState
         btn.scaleColor = { r = r, g = g, b = b }
         
-        -- Highlight on mouseover (only if visible)
+        -- Highlight on mouseover (only if visible), plus the row tooltip
         btn:SetScript("OnEnter", function(self)
             if ns.CurrentSelectedScale ~= scaleData.name then
                 local scale = Valuate:GetScales()[scaleData.name]
@@ -360,8 +380,22 @@ local function UpdateScaleList()
                     self:SetBackdropColor(unpack(COLORS.buttonHover))
                 end
             end
+
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                local _, primaryName = Valuate:GetPrimaryScale()
+                GameTooltip:AddLine(scaleData.scale.DisplayName or scaleData.name, 1, 1, 1)
+                if primaryName == scaleData.name then
+                    GameTooltip:AddLine("|cFFFFD100Current spec|r", 1, 1, 1)
+                    GameTooltip:AddLine("Drives your character-sheet score, the upgrade prompt's baseline, and which items get a green upgrade arrow.", 0.8, 0.8, 0.8, true)
+                else
+                    GameTooltip:AddLine("Tick the box to include this scale in item tooltips.", 0.8, 0.8, 0.8, true)
+                    GameTooltip:AddLine("Make it your current spec from Settings > Character Window Scale.", 0.7, 0.7, 0.7, true)
+                end
+                GameTooltip:Show()
+            end
         end)
         btn:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
             if ns.CurrentSelectedScale ~= scaleData.name then
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
@@ -402,6 +436,24 @@ local function UpdateScaleList()
         tinsert(ns.ScaleListButtons, btn)
     end
     
+    -- Empty state. A default scale is created at load, so this only appears if you
+    -- delete your last one mid-session - which previously left a blank panel with
+    -- no indication of what to do next.
+    if not ScaleListFrame.emptyLabel then
+        local empty = ScaleListFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        empty:SetPoint("TOP", ScaleListFrame, "TOP", 0, -20)
+        empty:SetWidth(160)
+        empty:SetJustifyH("CENTER")
+        empty:SetText("No scales yet.\n\nUse |cFFFFFFFFNew Blank Scale|r below, or |cFFFFFFFF+|r to start from a template.")
+        empty:SetTextColor(unpack(COLORS.textDim))
+        ScaleListFrame.emptyLabel = empty
+    end
+    if #scales == 0 then
+        ScaleListFrame.emptyLabel:Show()
+    else
+        ScaleListFrame.emptyLabel:Hide()
+    end
+
     -- Update scroll frame content height (account for spacing between entries)
     if ScaleListFrame then
         local contentHeight = #scales * (ENTRY_HEIGHT + 2)
