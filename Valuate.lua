@@ -4409,9 +4409,16 @@ function Valuate:GetItemUpgradeInfo(itemLink, stats, opts)
     opts = opts or {}
     local scales = Valuate:GetScales()
 
-    -- Candidate scale names: every configured scale, or just the active ones.
+    -- Candidate scale names: one named scale, every configured scale, or the active ones.
     local candidates = {}
-    if opts.includeInactive then
+    if opts.scaleName then
+        -- Restrict to a single scale. Used by the upgrade arrows, which should only
+        -- flag gear that helps the spec you are actually playing - an arrow for a
+        -- spec you aren't running is indistinguishable from one for the spec you are.
+        if scales[opts.scaleName] then
+            candidates[1] = opts.scaleName
+        end
+    elseif opts.includeInactive then
         -- Sorted because pairs() order is undefined and the caller
         -- (IsUpgradeForAnyScale) resolves an equal delta by taking the first entry,
         -- so an unsorted list reports a different "best" scale run to run.
@@ -4454,6 +4461,7 @@ end
 -- equipping something changes the answer for everything else.
 local upgradeLinkCache = {}
 local upgradeLinkCacheCount = 0
+local upgradeCacheScale  -- which scale the cached answers were computed for
 local UPGRADE_CACHE_MAX = 500
 
 function Valuate:ResetUpgradeArrowCache()
@@ -4464,6 +4472,16 @@ end
 -- Returns isUpgrade, bestDelta, bestScaleName.
 function Valuate:IsItemLinkUpgrade(itemLink)
     if not itemLink then return false end
+
+    -- Answers are relative to the CURRENT spec, so switching spec invalidates all of
+    -- them. A scan usually clears this anyway, but changing the active scale doesn't
+    -- have to involve one, and a stale arrow for your previous spec is exactly the
+    -- thing this feature is supposed to avoid.
+    local _, currentScaleName = Valuate:GetPrimaryScale()
+    if currentScaleName ~= upgradeCacheScale then
+        Valuate:ResetUpgradeArrowCache()
+        upgradeCacheScale = currentScaleName
+    end
 
     local cached = upgradeLinkCache[itemLink]
     if cached ~= nil then
@@ -4477,7 +4495,14 @@ function Valuate:IsItemLinkUpgrade(itemLink)
     if equipLoc and equipLoc ~= "" and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
         local stats = Valuate:GetStatsForTooltipSetter("SetHyperlink", itemLink)
         if stats then
-            isUp, delta, scaleName = Valuate:IsUpgradeForAnyScale(itemLink, stats, { includeInactive = false })
+            -- Current spec only. Checking every active scale meant an arrow could be
+            -- flagging an upgrade for a spec you aren't playing, with no way to tell
+            -- which from the icon.
+            local _, primaryName = Valuate:GetPrimaryScale()
+            if primaryName then
+                isUp, delta, scaleName =
+                    Valuate:IsUpgradeForAnyScale(itemLink, stats, { scaleName = primaryName })
+            end
         end
     end
 

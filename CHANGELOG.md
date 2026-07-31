@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.14.2a] - 2026-07-31 — Arrows follow your spec; character score stays on the gear tab
+
+### Changed
+- **Upgrade arrows now only appear for your current spec.** They previously flagged an
+  upgrade for *any* active scale, which made them ambiguous — an arrow for a spec you
+  weren't playing looked identical to one for the spec you were. Switching spec clears the
+  cached answers, so an arrow can't linger from your previous one.
+
+### Fixed
+- **The character-sheet gear score no longer shows on the Pets, Reputation, Skills or
+  Currency tabs.** It was parented to the whole character frame, so it stayed on screen over
+  every tab that frame hosts. It now belongs to the equipment view itself, so it hides
+  automatically — no tab list to keep in sync, and it stays correct for any other sub-panel
+  this client adds later.
+
 ## [0.14.0a] - 2026-07-31 — Upgrade arrows
 
 ### Added

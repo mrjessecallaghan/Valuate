@@ -407,8 +407,31 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.14.0a (Current) - upgrade arrows
-    local v0140Header = CreateVersionHeader("Version 0.14.0a (Current) - upgrade arrows", currentY)
+    -- Version 0.14.2a (Current) - spec-aware arrows, tidier character sheet
+    local v0142Header = CreateVersionHeader("Version 0.14.2a (Current) - spec-aware upgrade arrows", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0142Text = CreateChangeText(
+        "• CHANGED: upgrade arrows now only show for your CURRENT spec. They used\n" ..
+        "   to flag any active scale, so an arrow for a spec you weren't playing\n" ..
+        "   looked exactly like one for the spec you were. Switching spec clears\n" ..
+        "   the cached answers so no arrow lingers from the old one.\n" ..
+        "• |cFFFF5555FIX|r: the character-sheet gear score no longer appears on the\n" ..
+        "   Pets, Reputation, Skills or Currency tabs. It now belongs to the\n" ..
+        "   equipment view itself, so it hides with it automatically.\n" ..
+        "• |cFFFF5555FIX|r: tooltip totals now show what the percentage is measured\n" ..
+        "   against ('4.4 vs 3.7'). The equipped score was being calculated and\n" ..
+        "   then thrown away, which is why a better item could show a smaller\n" ..
+        "   percentage than a worse one.\n" ..
+        "• |cFFFF5555FIX|r: the Settings panel scrolls, so options can no longer\n" ..
+        "   run off the bottom of the window.",
+        currentY
+    )
+    local v0142Height = v0142Text:GetStringHeight()
+    currentY = currentY - v0142Height - versionSpacing
+
+    -- Version 0.14.0a - upgrade arrows
+    local v0140Header = CreateVersionHeader("Version 0.14.0a - upgrade arrows", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0140Text = CreateChangeText(

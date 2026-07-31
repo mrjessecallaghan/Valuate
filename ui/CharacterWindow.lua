@@ -376,7 +376,18 @@ function Valuate:RefreshCharacterWindowVisibility()
     -- Check if feature is enabled
     if Valuate:GetOptions().showCharacterWindowDisplay == false then
         CharacterWindowFrame:Hide()
-    elseif charFrame:IsVisible() then
+        return
+    end
+
+    -- Only on the equipment view. The frame hierarchy already hides us with the
+    -- paper-doll panel, but checking it here avoids recomputing a score nobody can
+    -- see every time the player clicks Pets, Reputation, Skills or Currency.
+    local host = CharacterWindowFrame:GetParent()
+    if host and not host:IsVisible() then
+        return
+    end
+
+    if charFrame:IsVisible() then
         CharacterWindowFrame:Show()
         UpdateCharacterWindowDisplay()
     end
@@ -400,11 +411,21 @@ local function CreateCharacterWindowUI()
         print("|cFF00FF00[Valuate]|r Creating character window UI on " .. frameName)
     end
     
+    -- Parent to the PAPER-DOLL panel, not the whole character frame.
+    --
+    -- The character frame also hosts Pets, Reputation, Skills and Currency. Parented
+    -- to it, the gear score stayed on screen over all of those, where it means
+    -- nothing. Parenting it to the equipment view instead lets the frame hierarchy
+    -- hide it automatically - no tab detection to keep in sync, and it keeps working
+    -- for any other sub-panel this client adds.
+    local dollPanel = AscensionPaperDollPanelModel or AscensionPaperDollPanel
+        or PaperDollFrame or charFrame
+
     -- Create sleek container button - compact size (Button so it's clickable)
-    local container = CreateFrame("Button", "ValuateCharacterWindowFrame", charFrame)
+    local container = CreateFrame("Button", "ValuateCharacterWindowFrame", dollPanel)
     container:SetWidth(200)  -- Initial width, will be adjusted dynamically
     container:SetHeight(22)
-    container:SetFrameLevel(charFrame:GetFrameLevel() + 10)
+    container:SetFrameLevel(dollPanel:GetFrameLevel() + 10)
     container:SetFrameStrata("HIGH")
     container:EnableMouse(true)  -- Enable mouse for tooltip and clicks
     container:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -558,13 +579,14 @@ local function CreateCharacterWindowUI()
         HideBreakdownTooltip()
     end)
     
-    -- Position centered at top of character model area
-    if AscensionPaperDollPanelModel then
-        container:SetPoint("TOP", AscensionPaperDollPanelModel, "TOP", 0, -5)
-    elseif AscensionPaperDollPanel then
-        container:SetPoint("TOP", AscensionPaperDollPanel, "TOP", 0, -35)
+    -- Position centered at top of character model area. Anchored to the same frame
+    -- it is parented to, so position and visibility can't disagree.
+    if dollPanel == AscensionPaperDollPanelModel then
+        container:SetPoint("TOP", dollPanel, "TOP", 0, -5)
+    elseif dollPanel == AscensionPaperDollPanel then
+        container:SetPoint("TOP", dollPanel, "TOP", 0, -35)
     else
-        container:SetPoint("TOP", charFrame, "TOP", 0, -75)
+        container:SetPoint("TOP", dollPanel, "TOP", 0, -75)
     end
     
     container:Show()

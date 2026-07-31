@@ -933,7 +933,7 @@ local function CreateSettingsPanel(parent)
     arrowsCheckbox:SetScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Upgrade Arrows", 1, 1, 1)
-            GameTooltip:AddLine("Pins a green arrow to the top-right of any item icon that would be an upgrade for one of your active scales.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Pins a green arrow to the top-right of any item icon that would be an upgrade for your CURRENT spec.", 0.8, 0.8, 0.8, true)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("Shown in your bags, at vendors, and on the loot window.", 0.7, 0.7, 0.7, true)
             GameTooltip:AddLine("Deliberately NOT on the character or wardrobe panels - an arrow on gear you're already wearing is just noise.", 0.7, 0.7, 0.7, true)
