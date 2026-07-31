@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.13.1a] - 2026-07-31 — Stat weight page polish, and edits that stick
+
+### Fixed
+- **Typed values were silently discarded unless you pressed Enter.** Clicking from one
+  field to the next — the obvious way to fill in several stat weights — threw the edit
+  away. The number stayed on screen, so it looked applied, but it never reached the scale
+  and vanished on the next refresh. Found by auditing every edit box in the UI; it affected
+  **stat weights** and **six Settings fields**: Keep Free Slots, Max Value, Min Value, Run
+  Every, Decimal Places and Value Source. Enter and click-away now share one commit path.
+- **The scale name box kept showing text you typed but never applied.** Renames still commit
+  on Enter only — clicking away must not rename a scale by accident — but the field now
+  restores the real name instead of displaying one the scale doesn't have.
+- **Decimal Places** only refreshed tooltips on Enter; it now does so however you commit.
+
+### Added
+- **Stat rows with a weight set stand out.** With ~60 stats across five columns every row
+  looked identical, so the handful you'd actually configured were impossible to spot.
+- **A summary in the scale editor header** — how many stats are weighted, how many are
+  banned, and what your current gear scores for that scale. A scale with no weights now says
+  so outright ("this scale won't score any item") rather than leaving you to infer it from
+  everything scoring zero.
+
 ## [0.13.0a] - 2026-07-30 — Automation that actually runs, and proof that it does
 
 ### Fixed

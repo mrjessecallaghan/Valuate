@@ -407,8 +407,31 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.13.0a (Current) - automation reliability
-    local v0130Header = CreateVersionHeader("Version 0.13.0a (Current) - automation that actually runs", currentY)
+    -- Version 0.13.1a (Current) - stat weight page polish
+    local v0131Header = CreateVersionHeader("Version 0.13.1a (Current) - stat weight page polish", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0131Text = CreateChangeText(
+        "• |cFFFF5555FIX|r: typed values were thrown away unless you pressed Enter.\n" ..
+        "   Clicking from one field to the next - the obvious way to fill in\n" ..
+        "   several weights - discarded the edit. The number stayed on screen so\n" ..
+        "   it looked applied, but never reached the scale. Affected stat weights\n" ..
+        "   and six Settings fields (Keep Free Slots, Max/Min Value, Run Every,\n" ..
+        "   Decimal Places, Value Source).\n" ..
+        "• |cFFFF5555FIX|r: the scale name box showed text you typed but never\n" ..
+        "   applied. Renames still need Enter; the field now shows the real name.\n" ..
+        "• NEW: stat rows with a weight set stand out - with ~60 stats across five\n" ..
+        "   columns, the ones you'd configured were impossible to spot.\n" ..
+        "• NEW: editor header summary - stats weighted, stats banned, and your\n" ..
+        "   current gear score for that scale. An empty scale now says outright\n" ..
+        "   that it won't score anything.",
+        currentY
+    )
+    local v0131Height = v0131Text:GetStringHeight()
+    currentY = currentY - v0131Height - versionSpacing
+
+    -- Version 0.13.0a - automation reliability
+    local v0130Header = CreateVersionHeader("Version 0.13.0a - automation that actually runs", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0130Text = CreateChangeText(
