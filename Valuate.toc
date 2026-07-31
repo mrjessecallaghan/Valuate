@@ -29,6 +29,7 @@ ui\Settings.lua
 ui\InfoPanels.lua
 ui\CharacterWindow.lua
 ui\UpgradeArrows.lua
+ui\UpgradePopup.lua
 
 ValuateUI.lua
 MinimapButton.lua

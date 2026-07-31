@@ -3892,7 +3892,12 @@ function Valuate:CountEquippableUpgrades(scaleName)
     local be = Valuate:GetBestEquipment()[scaleName]
     if not be then return 0, "" end
     local locks = be.locks or {}
+    local scale = Valuate:GetScales()[scaleName]
     local count, sig, bankCount = 0, {}, 0
+    -- Biggest single equippable gain, so the popup can show WHICH item rather than
+    -- just a number. Only tracked for reachable gear - offering to equip something
+    -- in the bank is exactly the prompt-with-a-dead-button case below.
+    local top
     for slotId = 1, 18 do
         if slotId ~= 4 and not locks[slotId] then
             local best = be[slotId]
@@ -3911,12 +3916,29 @@ function Valuate:CountEquippableUpgrades(scaleName)
                     else
                         count = count + 1
                         sig[#sig + 1] = slotId .. ":" .. bestId
+
+                        if scale then
+                            local eq = Valuate:GetEquippedItemScoreBySlotId(slotId, scale) or 0
+                            local delta = (best.score or 0) - eq
+                            -- Strict >: ties keep the first slot, which is
+                            -- deterministic because slotId ascends.
+                            if delta > 0 and (not top or delta > top.delta) then
+                                top = {
+                                    itemLink = best.itemLink,
+                                    itemName = best.itemName,
+                                    itemTexture = best.itemTexture,
+                                    itemQuality = best.itemQuality,
+                                    slotId = slotId,
+                                    delta = delta,
+                                }
+                            end
+                        end
                     end
                 end
             end
         end
     end
-    return count, table.concat(sig, ","), bankCount
+    return count, table.concat(sig, ","), bankCount, top
 end
 
 -- Shows/refreshes the bag-upgrade popup for the current scale. trigger is "loot" or
@@ -3951,14 +3973,17 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         return
     end
 
-    local count, sig, bankCount = Valuate:CountEquippableUpgrades(scaleName)
+    local count, sig, bankCount, topUpgrade = Valuate:CountEquippableUpgrades(scaleName)
     say("equippable upgrades in bags: " .. count)
     if bankCount > 0 then
         say("upgrades sitting in your bank (not equippable from here): " .. bankCount)
     end
     if count == 0 then
         lastNotifiedSignature = nil
-        if Valuate.HideConfirmDialog then Valuate:HideConfirmDialog() end
+        -- Nothing left to equip: take the prompt down. Must target the UPGRADE popup
+        -- (the confirm dialog is a different frame), or it would linger on screen
+        -- offering to equip gear you are already wearing.
+        if Valuate.HideUpgradePopup then Valuate:HideUpgradePopup() end
         if bankCount > 0 then
             -- Don't claim they're wearing the best when better gear is banked.
             say(bankCount .. " upgrade(s) are in your bank - withdraw them, then this will prompt.")
@@ -4026,18 +4051,24 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         -- Separate print: chat frames don't break on \n, so an appended line would
         -- run together with the one above.
         if otherNote ~= "" then print("|cFF00FF00[Valuate]|r " .. otherNote) end
-    elseif Valuate.ShowConfirmDialog then
-        Valuate:ShowConfirmDialog({
-            text = string.format("|cFF00FF00Valuate|r: %d upgrade(s) for %s are in your bags%s.%s\nEquip the best set now?",
-                count, label, bankNote, otherNote ~= "" and ("\n" .. otherNote) or ""),
-            acceptText = "Equip Best Set",
-            cancelText = "Dismiss",
-            onAccept = function()
+    elseif Valuate.ShowUpgradePopup then
+        Valuate:ShowUpgradePopup({
+            count = count,
+            bankCount = bankCount,
+            scale = scale,
+            scaleName = scaleName,
+            top = topUpgrade,
+            onEquip = function()
                 if pendingEquipScale and Valuate.EquipBestSet then
                     Valuate:EquipBestSet(pendingEquipScale)
                 end
             end,
         })
+        -- Other-spec upgrades don't belong in a compact popup about THIS spec, so
+        -- they go to chat where the detail has room.
+        if otherNote ~= "" then
+            print("|cFF00FF00[Valuate]|r " .. otherNote)
+        end
     end
 
     if options.notifyUpgradeSound then
@@ -5562,6 +5593,7 @@ function Valuate:RunSelfTest()
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
         "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
+        "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }
     for _, m in ipairs(methods) do
