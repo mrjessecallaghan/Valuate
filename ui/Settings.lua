@@ -140,18 +140,24 @@ local function CreateSettingsPanel(parent)
     -- Apply whole number validation (digits only, no decimals or signs)
     ApplyWholeNumberValidation(decimalEditBox)
     
-    decimalEditBox:SetScript("OnEnterPressed", function(self)
+    -- Shared by Enter and click-away, so the two can't drift apart.
+    local function CommitDecimalPlaces(self)
         local text = self:GetText()
         local value = tonumber(text) or 1
         value = math.max(0, math.min(4, value))
         Valuate:GetOptions().decimalPlaces = value
         self:SetText(tostring(value))
-        self:ClearFocus()
-        
-        -- Reset all tooltips to show new decimal places immediately
+
+        -- Reset all tooltips to show new decimal places immediately. Inside the
+        -- shared commit so click-away refreshes them too, not just Enter.
         if Valuate.ResetTooltips then
             Valuate:ResetTooltips()
         end
+    end
+    decimalEditBox:SetScript("OnEditFocusLost", CommitDecimalPlaces)
+    decimalEditBox:SetScript("OnEnterPressed", function(self)
+        CommitDecimalPlaces(self)
+        self:ClearFocus()
     end)
     decimalEditBox:SetScript("OnEscapePressed", function(self)
         self:SetText(tostring(Valuate:GetOptions().decimalPlaces or 1))
@@ -1065,6 +1071,13 @@ local function CreateSettingsPanel(parent)
             onCommit(self)
             self:ClearFocus()
         end)
+        -- Commit on click-away too. Enter alone silently discarded the edit: the
+        -- typed number stayed visible so it looked applied, but the option kept its
+        -- old value. This helper backs Keep Free Slots, Max/Min Value and Run
+        -- Every, so the bug affected all four.
+        box:SetScript("OnEditFocusLost", function(self)
+            onCommit(self)
+        end)
         box:SetScript("OnEscapePressed", function(self)
             self:SetText(resetText())
             self:ClearFocus()
@@ -1157,13 +1170,22 @@ local function CreateSettingsPanel(parent)
     sourceBox:SetBackdropBorderColor(unpack(COLORS.border))
     sourceBox:SetTextInsets(2, 2, 0, 0)
     sourceBox:SetText(Valuate:GetOptions().autoDeleteValueSource or "vendor")
-    sourceBox:SetScript("OnEnterPressed", function(self)
+    -- announce=false on click-away: the value still commits, but confirming it in
+    -- chat every time focus moves would be noise.
+    local function CommitValueSource(self, announce)
         local v = strtrim(self:GetText() or "")
         if v == "" then v = "vendor" end
+        local changed = (Valuate:GetOptions().autoDeleteValueSource ~= v)
         Valuate:GetOptions().autoDeleteValueSource = v
         self:SetText(v)
+        if announce and changed then
+            print("|cFF00FF00Valuate|r: Value source set to '" .. v .. "'. Run /valuate deletepreview to confirm it resolves.")
+        end
+    end
+    sourceBox:SetScript("OnEditFocusLost", function(self) CommitValueSource(self, false) end)
+    sourceBox:SetScript("OnEnterPressed", function(self)
+        CommitValueSource(self, true)
         self:ClearFocus()
-        print("|cFF00FF00Valuate|r: Value source set to '" .. v .. "'. Run /valuate deletepreview to confirm it resolves.")
     end)
     sourceBox:SetScript("OnEscapePressed", function(self)
         self:SetText(Valuate:GetOptions().autoDeleteValueSource or "vendor")
