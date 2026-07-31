@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.14.4a] - 2026-07-31 — Tab polish
+
+### Added
+- **The Scales list marks your current spec.** That scale drives your character-sheet score,
+  the upgrade prompt's baseline, and which items get a green arrow — but the only way to
+  find out which one it was involved a Settings dropdown named after the character window.
+  Hovering any scale now explains what it does and how to change it.
+- **Empty state for the Scales list**, instead of a blank panel, if you delete your last scale.
+- **Bigger, glowing upgrade arrow** with a slow pulse, so it reads against bright item art.
+  Respects Reduce Motion.
+
+### Fixed
+- **"Upgrades in bags" counted gear that was in your bank.** Banked upgrades are now reported
+  separately, so the line stops claiming something untrue — and "no upgrades in bags" no
+  longer appears when the upgrade is simply sitting in the bank.
+
+### Changed
+- **Settings columns rebalanced.** Column 1 had grown to 25 rows against 9 and 7, which is
+  why options ran off the bottom. Bank, alert, quest and arrow options moved to a new
+  **Alerts & Extras** section in column 3.
+
 ## [0.14.2a] - 2026-07-31 — Arrows follow your spec; character score stays on the gear tab
 
 ### Changed

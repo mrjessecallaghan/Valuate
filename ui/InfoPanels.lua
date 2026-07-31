@@ -407,8 +407,30 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.14.2a (Current) - spec-aware arrows, tidier character sheet
-    local v0142Header = CreateVersionHeader("Version 0.14.2a (Current) - spec-aware upgrade arrows", currentY)
+    -- Version 0.14.4a (Current) - tab polish
+    local v0144Header = CreateVersionHeader("Version 0.14.4a (Current) - tab polish", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0144Text = CreateChangeText(
+        "• NEW: the Scales list marks your CURRENT SPEC. That scale drives your\n" ..
+        "   character score, the upgrade prompt and the green arrows - but the only\n" ..
+        "   way to find out which it was involved a Settings dropdown named after\n" ..
+        "   the character window. Hover any scale to see what it does.\n" ..
+        "• NEW: empty state for the Scales list instead of a blank panel.\n" ..
+        "• NEW: the upgrade arrow is bigger, glows, and pulses slowly so it reads\n" ..
+        "   against bright item art. Respects Reduce Motion.\n" ..
+        "• |cFFFF5555FIX|r: 'Upgrades in bags' was counting gear in your BANK.\n" ..
+        "   Banked upgrades are now listed separately, and 'no upgrades in bags'\n" ..
+        "   no longer appears when the upgrade is sitting in the bank.\n" ..
+        "• CHANGED: Settings columns rebalanced - column 1 had 25 rows against 9\n" ..
+        "   and 7, which is why options ran off the bottom.",
+        currentY
+    )
+    local v0144Height = v0144Text:GetStringHeight()
+    currentY = currentY - v0144Height - versionSpacing
+
+    -- Version 0.14.2a - spec-aware arrows, tidier character sheet
+    local v0142Header = CreateVersionHeader("Version 0.14.2a - spec-aware upgrade arrows", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0142Text = CreateChangeText(

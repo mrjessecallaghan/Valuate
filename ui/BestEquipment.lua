@@ -733,6 +733,7 @@ local function CreateBestEquipmentPanel(parent)
 
                 -- Running totals for the summary block (accumulated in the row loop).
                 local equippedTotal, bestTotal, upgradeTotal = 0, 0, 0
+                local bankUpgradeTotal = 0
 
                 for rowIndex, slotInfo in ipairs(EquipmentSlots) do
                     local slotId = slotInfo.slotId
@@ -762,7 +763,14 @@ local function CreateBestEquipmentPanel(parent)
                     equippedTotal = equippedTotal + eqSlotScore
                     bestTotal = bestTotal + math.max(bestSlotScore, eqSlotScore)
                     if bestSlotScore > eqSlotScore then
-                        upgradeTotal = upgradeTotal + (bestSlotScore - eqSlotScore)
+                        -- Split by reachability. Banked gear is a real upgrade but is
+                        -- not "in bags", and Equip All can't take it - counting it in
+                        -- the same figure made this line say something untrue.
+                        if bestItem and bestItem.source == "bank" then
+                            bankUpgradeTotal = bankUpgradeTotal + (bestSlotScore - eqSlotScore)
+                        else
+                            upgradeTotal = upgradeTotal + (bestSlotScore - eqSlotScore)
+                        end
                     end
 
                     -- Lock state + closures (rebound each update for this scaleName/slotId)
@@ -1051,8 +1059,17 @@ local function CreateBestEquipmentPanel(parent)
 
                 col.summaryText:SetText("Equipped: |cFF" .. color .. string.format(formatStr, equippedTotal)
                     .. "|r   Best: |cFF" .. color .. string.format(formatStr, bestTotal) .. "|r")
+                local bankPart = ""
+                if bankUpgradeTotal > 0.01 then
+                    bankPart = "  |cFFFF8800+" .. string.format(formatStr, bankUpgradeTotal) .. " in bank|r"
+                end
                 if upgradeTotal > 0.01 then
-                    col.upgradesText:SetText("|cFF00FF00Upgrades in bags: +" .. string.format(formatStr, upgradeTotal) .. "|r")
+                    col.upgradesText:SetText("|cFF00FF00Upgrades in bags: +"
+                        .. string.format(formatStr, upgradeTotal) .. "|r" .. bankPart)
+                elseif bankPart ~= "" then
+                    -- Don't claim there is nothing to gain when the gain is simply
+                    -- sitting in the bank.
+                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r" .. bankPart)
                 else
                     col.upgradesText:SetText("|cFF888888No upgrades in bags|r")
                 end
