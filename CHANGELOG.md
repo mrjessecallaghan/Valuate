@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.14.5a] - 2026-07-31 — "Always" auto-scan actually means always
+
+### Changed
+- **Auto Scan set to "Always" now reacts to bag changes in about a second**, instead of
+  several. Four separate delays were stacking up before a scan could run — the scheduled
+  delay, a bag-quiet window, a minimum gap between scans, and the burst cap that stops a
+  stream of bag updates deferring forever. All four used one conservative set of numbers, so
+  "Always" behaved much like the other modes, and during sustained looting a scan could be
+  six seconds behind your bags.
+- Those numbers are now per-mode. "Always" is an explicit request to track your bags, so it
+  gets tight ones; the other modes keep the cautious values, since they only fire on discrete
+  events where latency doesn't matter.
+- The in-transit guards are **unchanged** — they're what stop a scan reading a bag slot while
+  an item is mid-move, and none of this relaxes them.
+
 ## [0.14.4a] - 2026-07-31 — Tab polish
 
 ### Added

@@ -407,8 +407,26 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.14.4a (Current) - tab polish
-    local v0144Header = CreateVersionHeader("Version 0.14.4a (Current) - tab polish", currentY)
+    -- Version 0.14.5a (Current) - responsive "Always" scanning
+    local v0145Header = CreateVersionHeader("Version 0.14.5a (Current) - responsive Always scanning", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0145Text = CreateChangeText(
+        "• CHANGED: Auto Scan 'Always' now reacts to bag changes in about a second\n" ..
+        "   instead of several. Four delays were stacking up before a scan could\n" ..
+        "   run - the scheduled delay, a bag-quiet window, a minimum gap between\n" ..
+        "   scans, and the burst cap - all sharing one conservative set of numbers.\n" ..
+        "   During sustained looting a scan could be six seconds behind your bags.\n" ..
+        "   Those numbers are now per-mode; the other modes keep the cautious ones.\n" ..
+        "• The in-transit guards are unchanged - they are what stop a scan reading\n" ..
+        "   a bag slot while an item is mid-move.",
+        currentY
+    )
+    local v0145Height = v0145Text:GetStringHeight()
+    currentY = currentY - v0145Height - versionSpacing
+
+    -- Version 0.14.4a - tab polish
+    local v0144Header = CreateVersionHeader("Version 0.14.4a - tab polish", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0144Text = CreateChangeText(

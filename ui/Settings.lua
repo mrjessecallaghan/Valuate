@@ -446,6 +446,8 @@ local function CreateSettingsPanel(parent)
             GameTooltip:AddLine("On Equipment Change: Scan when you change equipment", 0.7, 0.7, 0.7)
             GameTooltip:AddLine("On Loot: Scan when you loot items", 0.7, 0.7, 0.7)
             GameTooltip:AddLine("Always: Scan on equipment changes, loot, and bag updates", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Always also reacts much faster - roughly a second after your bags change, rather than several. Use /valuate profile if you want to see what a scan costs.", 0.7, 0.7, 0.7, true)
             GameTooltip:Show()
         end
     end)

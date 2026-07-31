@@ -138,7 +138,31 @@ local frame = CreateFrame("Frame")
 
 -- Auto-scan throttle
 local lastAutoScanTime = 0
-local AUTO_SCAN_THROTTLE = 2  -- seconds between auto-scans
+
+-- Scan responsiveness, per auto-scan mode.
+--
+-- Four separate delays stack up before a scan actually runs: the scheduled delay,
+-- the bag-quiet window the callback waits for, the minimum gap between scans, and
+-- the burst cap that stops a continuous stream of BAG_UPDATEs deferring forever.
+-- With one conservative set of numbers, "always" behaved almost like the other
+-- modes - a bag change took several seconds to show up, and during sustained
+-- looting closer to six.
+--
+-- "always" is an explicit request to track your bags closely, so it gets much
+-- tighter numbers. The other modes keep the cautious ones; they only scan on
+-- discrete events where latency doesn't matter.
+--
+-- These do NOT relax the in-transit guards (equipmentSwapPending /
+-- recentEquipmentChange). Those are what stop a scan reading a bag slot mid-move,
+-- and they stay exactly as they were.
+local SCAN_TIMING_ALWAYS  = { delay = 0.7, quiet = 0.4, throttle = 0.75, defer = 2.0 }
+local SCAN_TIMING_DEFAULT = { delay = 2.5, quiet = 2.0, throttle = 2.0,  defer = 6.0 }
+
+local function ScanTiming()
+    local mode = Valuate.GetOptions and Valuate:GetOptions().autoScan
+    if mode == "always" then return SCAN_TIMING_ALWAYS end
+    return SCAN_TIMING_DEFAULT
+end
 
 -- Track if equipment swap is in progress
 local equipmentSwapPending = false
@@ -192,7 +216,8 @@ end
 
 -- Schedule a scan with proper delays
 local scanBurstStartedAt
-local MAX_SCAN_DEFER = 6
+-- Burst cap now comes from ScanTiming().defer, so "always" mode isn't held to the
+-- conservative six seconds during sustained looting.
 local function ScheduleScan(delay, reason, retries)
     delay = delay or 3.0  -- Default delay increased significantly to ensure items are in bags
     
@@ -219,10 +244,11 @@ local function ScheduleScan(delay, reason, retries)
     -- Cap the debounce. A plain cancel-and-re-arm starves itself: BAG_UPDATE fires
     -- constantly while looting, and each one pushed the deadline back, so a scan
     -- requested mid-burst never ran.
+    local timing = ScanTiming()
     local now = GetTime()
     if not pendingScanTimer then
         scanBurstStartedAt = now
-    elseif scanBurstStartedAt and (now - scanBurstStartedAt) >= MAX_SCAN_DEFER then
+    elseif scanBurstStartedAt and (now - scanBurstStartedAt) >= timing.defer then
         return  -- let the already-armed timer fire
     end
 
@@ -239,7 +265,7 @@ local function ScheduleScan(delay, reason, retries)
         -- A swap is in flight; EQUIPMENT_SWAP_FINISHED schedules the next scan.
         if equipmentSwapPending then return end
 
-        if (currentTime - bagUpdateCooldown) < 2.0 then
+        if (currentTime - bagUpdateCooldown) < timing.quiet then
             -- Bags are still settling. This used to DROP the scan outright, so
             -- during continuous looting a scan requested mid-burst simply never
             -- happened - items sat in your bags unscanned. Retry instead, bounded
@@ -252,7 +278,7 @@ local function ScheduleScan(delay, reason, retries)
             return
         end
 
-        if currentTime - lastAutoScanTime >= AUTO_SCAN_THROTTLE then
+        if currentTime - lastAutoScanTime >= timing.throttle then
             lastAutoScanTime = currentTime
             recentEquipmentChange = false
             if Valuate.ScanBestEquipment then
@@ -453,8 +479,10 @@ local function OnEvent(self, event, addonName, ...)
         local options = Valuate:GetOptions()
         local autoScan = options.autoScan or "onEquipmentChange"
         if autoScan == "always" then
-            -- Schedule scan after bag updates settle (items need time to be placed)
-            ScheduleScan(2.5, "bag")
+            -- Short settle window in "always" mode: the point of the mode is that
+            -- best-in-slot tracks your bags, so a change should show up promptly
+            -- rather than several seconds later.
+            ScheduleScan(ScanTiming().delay, "bag")
         end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
         -- Equipment changed - mark that we had a change
