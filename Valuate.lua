@@ -1679,14 +1679,22 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     totalDiffSign = ""
                                 end
                                 
-                                -- Build total comparison text
+                                -- Build total comparison text.
+                                -- The equipped total is shown explicitly. It was previously
+                                -- computed and discarded, which made the percentage
+                                -- impossible to interpret: it is a percentage OF the equipped
+                                -- score, so two items compared while wearing different gear
+                                -- produce percentages that can't be compared to each other -
+                                -- a smaller upgrade over weak boots reads higher than a bigger
+                                -- upgrade over good ones.
+                                local vsPart = " |cFFAAAAAAvs " .. totalEquippedText .. "|r|cFF" .. color .. ""
                                 local totalComparisonPart = ""
                                 if compMode == "number" then
-                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
+                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
                                 elseif compMode == "percent" then
-                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                 elseif compMode == "both" then
-                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                 end
                                 
                                 if options.rightAlign then
@@ -1887,13 +1895,16 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                                     totalDiffSign = ""
                                                 end
                                                 
+                                                -- Same reasoning as the single-slot block above:
+                                                -- show what the percentage is a percentage OF.
+                                                local vsPart = " |cFFAAAAAAvs " .. totalEquippedText .. "|r|cFF" .. color .. ""
                                                 local totalComparisonPart = ""
                                                 if compMode == "number" then
-                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
+                                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. "|r|cFF" .. color .. ")"
                                                 elseif compMode == "percent" then
-                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                                 elseif compMode == "both" then
-                                                    totalComparisonPart = " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
+                                                    totalComparisonPart = vsPart .. " (|r|cFF" .. totalDiffColor .. totalDiffSign .. totalDiffText .. ", " .. totalDiffSign .. totalPercentText .. "%|r|cFF" .. color .. ")"
                                                 end
                                                 
                                                 if options.rightAlign then

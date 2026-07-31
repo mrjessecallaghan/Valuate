@@ -83,15 +83,42 @@ local function CreateSettingsPanel(parent)
     local settingsColumnWidth = (availableWidth - (2 * COLUMN_GAP)) / 3
     
     
-    -- Create 3 column frames directly in parent
+    -- The panel scrolls.
+    --
+    -- Each control anchors to the previous one, so a column grows as long as its
+    -- contents demand. The columns used to sit directly in `parent` at a fixed 500px,
+    -- which meant anything past that simply ran off the bottom of the window with no
+    -- way to reach it - and column 1 is now far taller than column 2 or 3.
+    --
+    -- columnHeights was already being tracked for exactly this and never used for
+    -- anything; it now sizes the scroll child, so the panel can never outgrow its
+    -- window again however many options get added.
+    local scrollFrame = CreateFrame("ScrollFrame", nil, parent)
+    scrollFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = self:GetVerticalScrollRange()
+        local newValue = self:GetVerticalScroll() - (delta * 40)
+        newValue = math.max(0, math.min(maxScroll, newValue))
+        self:SetVerticalScroll(newValue)
+        if self.scrollBar then self.scrollBar:SetValue(newValue) end
+    end)
+
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    content:SetWidth(availableWidth)
+    content:SetHeight(1)  -- real height set once the columns are built
+    scrollFrame:SetScrollChild(content)
+    parent.settingsScrollFrame = scrollFrame
+
     local columnFrames = {}
     local columnHeights = {0, 0, 0}
-    
+
     for i = 1, 3 do
-        local colFrame = CreateFrame("Frame", nil, parent)
+        local colFrame = CreateFrame("Frame", nil, content)
         colFrame:SetWidth(settingsColumnWidth)
-        colFrame:SetHeight(500)  -- FIX: Set explicit height
-        colFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", PADDING + (i - 1) * (settingsColumnWidth + COLUMN_GAP), -PADDING)
+        colFrame:SetHeight(1)  -- sized from columnHeights once the build finishes
+        colFrame:SetPoint("TOPLEFT", content, "TOPLEFT", PADDING + (i - 1) * (settingsColumnWidth + COLUMN_GAP), -PADDING)
         columnFrames[i] = colFrame
         columnHeights[i] = 0
     end
@@ -1667,6 +1694,48 @@ local function CreateSettingsPanel(parent)
     -- Store references for updating
     parent.charScaleDropdown = charScaleDropdown
     parent.GetCharScaleDisplayText = GetCharScaleDisplayText
+
+    -- Size the scroll child from the TALLEST column, so the scroll range covers
+    -- everything regardless of how unevenly the columns are filled.
+    local tallest = math.max(columnHeights[1], columnHeights[2], columnHeights[3])
+    local contentHeight = tallest + PADDING * 2
+    content:SetHeight(contentHeight)
+    for i = 1, 3 do
+        columnFrames[i]:SetHeight(tallest)
+    end
+
+    -- Slim scrollbar, matching the one on the Instructions panel. Hidden entirely
+    -- when everything fits, so the common case stays clean.
+    local scrollBar = CreateFrame("Slider", nil, scrollFrame)
+    scrollBar:SetWidth(SCROLLBAR_WIDTH - 6)
+    scrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 2, 0)
+    scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 2, 0)
+    scrollBar:SetOrientation("VERTICAL")
+    scrollBar:SetBackdrop(BACKDROP_INPUT)
+    scrollBar:SetBackdropColor(unpack(COLORS.inputBg))
+    scrollBar:SetBackdropBorderColor(unpack(COLORS.borderDark))
+
+    local thumb = scrollBar:CreateTexture(nil, "OVERLAY")
+    thumb:SetTexture("Interface\\Buttons\\WHITE8X8")
+    thumb:SetWidth(SCROLLBAR_WIDTH - 8)
+    thumb:SetHeight(40)
+    thumb:SetVertexColor(unpack(COLORS.borderLight))
+    scrollBar:SetThumbTexture(thumb)
+
+    scrollBar:SetScript("OnValueChanged", function(self, value)
+        scrollFrame:SetVerticalScroll(value)
+    end)
+    scrollFrame.scrollBar = scrollBar
+
+    -- The scroll range is only known once the frame has a real height, which is
+    -- after the tab panel lays out. Recomputing on show keeps the bar honest if the
+    -- window is resized between openings.
+    scrollFrame:SetScript("OnShow", function(self)
+        local range = math.max(0, contentHeight - self:GetHeight())
+        scrollBar:SetMinMaxValues(0, range)
+        scrollBar:SetValue(math.min(scrollBar:GetValue() or 0, range))
+        if range > 0 then scrollBar:Show() else scrollBar:Hide() end
+    end)
 
     -- Structural safeguard: warn immediately if any column has overlapping controls.
     CheckColumnAnchors(col1, "column 1")
