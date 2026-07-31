@@ -407,8 +407,30 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.14.5a (Current) - responsive "Always" scanning
-    local v0145Header = CreateVersionHeader("Version 0.14.5a (Current) - responsive Always scanning", currentY)
+    -- Version 0.15.0a (Current) - upgrade popup
+    local v0150Header = CreateVersionHeader("Version 0.15.0a (Current) - upgrades get their own popup", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0150Text = CreateChangeText(
+        "• NEW: a proper upgrade popup. It used to reuse the same dialog that asks\n" ..
+        "   'delete these 12 items?', so it could only be a block of text with two\n" ..
+        "   equal buttons - and it said '3 upgrade(s) in your bags' without saying\n" ..
+        "   which, or by how much.\n" ..
+        "• It is now compact and specific: the best upgrade's icon with its quality\n" ..
+        "   border, the item name, the actual score gain, and a headline in your\n" ..
+        "   spec's colour. Hover the icon for the full item tooltip.\n" ..
+        "• Dismiss is a quiet corner x, not a second full-width button.\n" ..
+        "• Entrance animation and a soft glow pulse, both skipped under Reduce\n" ..
+        "   Motion.\n" ..
+        "• |cFFFF5555FIX|r: the 'nothing left to equip' path hid the OLD dialog, so\n" ..
+        "   the new popup would have lingered offering gear you already wore.",
+        currentY
+    )
+    local v0150Height = v0150Text:GetStringHeight()
+    currentY = currentY - v0150Height - versionSpacing
+
+    -- Version 0.14.5a - responsive "Always" scanning
+    local v0145Header = CreateVersionHeader("Version 0.14.5a - responsive Always scanning", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0145Text = CreateChangeText(

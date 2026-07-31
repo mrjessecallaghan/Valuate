@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.0a] - 2026-07-31 — Upgrades get their own popup
+
+### Added
+- **A proper upgrade popup.** It was reusing the same dialog that asks *"delete these 12
+  items?"* — so it could only ever be a block of text with two equal buttons, and it told you
+  *"3 upgrade(s) are in your bags"* without saying which, or by how much.
+- Now it's compact (300×84 instead of 400×130) and specific: the best upgrade's **icon** with
+  its quality border, the **item name**, the **actual score gain**, and a headline in your
+  spec's own colour. Hover the icon for the full item tooltip.
+- Dismiss is a quiet corner **×** rather than a second full-width button — it's a
+  notification, so declining shouldn't carry equal visual weight.
+- Entrance animation (fade + a small spring overshoot) and a soft pulse on the icon glow.
+  Both are skipped entirely if you have **Reduce Motion** on.
+
+### Fixed
+- The "nothing left to equip" path was hiding the *old* dialog, which would have left the new
+  popup on screen offering to equip gear you were already wearing.
+
 ## [0.14.5a] - 2026-07-31 — "Always" auto-scan actually means always
 
 ### Changed
