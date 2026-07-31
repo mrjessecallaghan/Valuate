@@ -407,8 +407,24 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.13.1a (Current) - stat weight page polish
-    local v0131Header = CreateVersionHeader("Version 0.13.1a (Current) - stat weight page polish", currentY)
+    -- Version 0.14.0a (Current) - upgrade arrows
+    local v0140Header = CreateVersionHeader("Version 0.14.0a (Current) - upgrade arrows", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0140Text = CreateChangeText(
+        "• NEW: a green arrow pins to the top-right of any item icon that would be\n" ..
+        "   an upgrade for one of your active scales - in your bags, at vendors,\n" ..
+        "   and on the loot window. No more opening every tooltip to find out.\n" ..
+        "• Deliberately NOT on the character or wardrobe panels: an arrow on gear\n" ..
+        "   you're already wearing is noise.\n" ..
+        "• Toggle with 'Upgrade Arrows' in Settings.",
+        currentY
+    )
+    local v0140Height = v0140Text:GetStringHeight()
+    currentY = currentY - v0140Height - versionSpacing
+
+    -- Version 0.13.1a - stat weight page polish
+    local v0131Header = CreateVersionHeader("Version 0.13.1a - stat weight page polish", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0131Text = CreateChangeText(

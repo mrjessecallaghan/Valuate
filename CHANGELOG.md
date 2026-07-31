@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.14.0a] - 2026-07-31 — Upgrade arrows
+
+### Added
+- **A green arrow pins to the top-right of any item icon that would be an upgrade for one
+  of your active scales** — in your bags (AdiBags and the default bag frames), at vendors,
+  and on the loot window. No more opening every tooltip to find out.
+- Deliberately **not** shown on the character or wardrobe panels: an arrow on gear you're
+  already wearing is noise, and the point is to flag what you could acquire.
+- Toggle with **Upgrade Arrows** in Settings.
+
+### Notes
+- The answer is cached per item link and cleared on every scan, because equipping one thing
+  changes whether everything else is an upgrade. Without the cache this would rebuild a
+  tooltip and re-check every scale for each visible icon on every bag repaint.
+- Non-gear is rejected before any tooltip is built, which is most of a bag's contents.
+
 ## [0.13.1a] - 2026-07-31 — Stat weight page polish, and edits that stick
 
 ### Fixed

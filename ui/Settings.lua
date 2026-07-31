@@ -889,6 +889,33 @@ local function CreateSettingsPanel(parent)
     skipTrivialCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Upgrade Arrows checkbox (Column 1, below Skip Trivial Quests)
+    local arrowsCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    arrowsCheckbox:SetSize(24, 24)
+    arrowsCheckbox:SetPoint("TOPLEFT", skipTrivialCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local arrowsLabel = arrowsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    arrowsLabel:SetPoint("LEFT", arrowsCheckbox, "RIGHT", 5, 0)
+    arrowsLabel:SetText("Upgrade Arrows")
+    arrowsCheckbox:SetChecked(Valuate:GetOptions().showUpgradeArrows ~= false)
+    arrowsCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().showUpgradeArrows = (self:GetChecked() == 1) or (self:GetChecked() == true)
+        -- Repaint whatever is open so the change is visible immediately.
+        if ns.RefreshUpgradeArrows then ns.RefreshUpgradeArrows() end
+    end)
+    arrowsCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Upgrade Arrows", 1, 1, 1)
+            GameTooltip:AddLine("Pins a green arrow to the top-right of any item icon that would be an upgrade for one of your active scales.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Shown in your bags, at vendors, and on the loot window.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Deliberately NOT on the character or wardrobe panels - an arrow on gear you're already wearing is just noise.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    arrowsCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 2: Upgrade Comparison & Interface
     -- ========================================

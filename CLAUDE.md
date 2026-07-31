@@ -222,6 +222,7 @@ callback either reschedule or be genuinely final.
 | `Settings.lua` | Settings tab + `CheckColumnAnchors` |
 | `InfoPanels.lua` | Instructions / About / Changelog |
 | `CharacterWindow.lua` | Score on Blizzard's character sheet + breakdown tooltip |
+| `UpgradeArrows.lua` | Green upgrade arrow on merchant / loot / bag item icons |
 
 **Adding a module:** create `ui/Name.lua` starting with `local _, ns = ...`, re-localise what it
 needs from `ns`, publish its entry points (`ns.CreateFoo = CreateFoo`), and add

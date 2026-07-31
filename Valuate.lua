@@ -618,7 +618,9 @@ local DEFAULT_OPTIONS = {
     autoQuestReward = false,              -- auto-select best quest reward for the active scale
     autoQuestTurnIn = false,              -- also auto-complete the quest (requires autoQuestReward)
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
+    showUpgradeArrows = true,              -- green arrow on merchant/loot/bag icons that upgrade a scale
     includeBankItems = true,              -- count banked gear as best-in-slot candidates (Equip All still skips it)
+    showUpgradeArrows = true,             -- green arrow on merchant/loot/bag icons that upgrade a scale
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -2830,6 +2832,9 @@ function Valuate:RegisterBestEquipmentListener(fn)
 end
 
 function Valuate:NotifyBestEquipmentChanged()
+    -- Equipping or re-scoring anything changes whether every OTHER item is an
+    -- upgrade, so the arrow cache can't outlive a scan.
+    if Valuate.ResetUpgradeArrowCache then Valuate:ResetUpgradeArrowCache() end
     for _, fn in ipairs(bestEquipmentListeners) do
         pcall(fn)
     end
@@ -4426,6 +4431,56 @@ function Valuate:GetItemUpgradeInfo(itemLink, stats, opts)
     return #results > 0 and results or nil
 end
 
+-- ============================================================================
+-- Upgrade arrows
+-- ============================================================================
+-- Answers "is this link an upgrade for any of my scales?" from a link ALONE, for
+-- the icon overlays on merchant, loot and bag buttons.
+--
+-- Cached because this is called once per visible button every time a container
+-- repaints, and each miss costs a tooltip build plus a scan of every scale. The
+-- cache is cleared whenever gear or scales change (ResetUpgradeArrowCache), since
+-- equipping something changes the answer for everything else.
+local upgradeLinkCache = {}
+local upgradeLinkCacheCount = 0
+local UPGRADE_CACHE_MAX = 500
+
+function Valuate:ResetUpgradeArrowCache()
+    upgradeLinkCache = {}
+    upgradeLinkCacheCount = 0
+end
+
+-- Returns isUpgrade, bestDelta, bestScaleName.
+function Valuate:IsItemLinkUpgrade(itemLink)
+    if not itemLink then return false end
+
+    local cached = upgradeLinkCache[itemLink]
+    if cached ~= nil then
+        return cached.up, cached.delta, cached.scaleName
+    end
+
+    local isUp, delta, scaleName = false, 0, nil
+    local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemLink)
+    -- Only gear can be an upgrade; skip the tooltip build entirely otherwise, which
+    -- is most of a bag's contents.
+    if equipLoc and equipLoc ~= "" and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
+        local stats = Valuate:GetStatsForTooltipSetter("SetHyperlink", itemLink)
+        if stats then
+            isUp, delta, scaleName = Valuate:IsUpgradeForAnyScale(itemLink, stats, { includeInactive = false })
+        end
+    end
+
+    -- Bounded: a long session at a vendor would otherwise grow this without limit.
+    -- Dropping the whole table is fine - it refills from what is on screen.
+    if upgradeLinkCacheCount >= UPGRADE_CACHE_MAX then
+        Valuate:ResetUpgradeArrowCache()
+    end
+    upgradeLinkCache[itemLink] = { up = isUp, delta = delta or 0, scaleName = scaleName }
+    upgradeLinkCacheCount = upgradeLinkCacheCount + 1
+
+    return isUp, delta or 0, scaleName
+end
+
 -- Convenience wrapper: is this item an upgrade for ANY candidate scale?
 -- Returns isUpgrade, bestDelta, bestScaleName.
 function Valuate:IsUpgradeForAnyScale(itemLink, stats, opts)
@@ -5435,6 +5490,7 @@ function Valuate:RunSelfTest()
         "GetPrimaryScale", "GetPrivateTooltip", "AutoRollOnLoot", "AutoDeleteJunk",
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
+        "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
         "RunProfile",
     }
     for _, m in ipairs(methods) do
