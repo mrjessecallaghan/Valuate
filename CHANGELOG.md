@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.3a] - 2026-07-31 — Explain auto-roll decisions
+
+### Added
+- **`/valuate rollcheck [itemlink]`** walks the whole decision for an item and says exactly
+  where it stops. A recipe that Greeds when you expected Need has four possible causes that
+  look identical from outside: the profession list could not be read, the recipe is for a
+  profession another character has rather than this one, it is already known, or the client
+  never offered Need.
+- **The roll message now says when Need was wanted but unavailable.** The client commonly
+  disables Need for an item you cannot use yet — exactly the case for a recipe above your
+  skill — so a Greed on a learnable recipe no longer looks like the feature failing.
+
 ## [0.17.2a] - 2026-07-31 — Junk stops pretending to be new
 
 ### Added

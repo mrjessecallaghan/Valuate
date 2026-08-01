@@ -5544,8 +5544,16 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
         local reason
         if isRecipe then
             reason = string.format("unlearned %s recipe", recipeProfession or "profession")
+            -- Say so when we wanted Need and couldn't have it, rather than leaving a
+            -- Greed on a learnable recipe looking like the feature simply failed.
+            if not canNeed then
+                reason = reason .. ", |cFFFF8800Need not offered|r"
+            end
         elseif isMaterial then
             reason = string.format("%s material", materialProfession or "profession")
+            if not canNeed then
+                reason = reason .. ", |cFFFF8800Need not offered|r"
+            end
         elseif isUpgrade then
             reason = string.format("upgrade for %s, +%.1f", scaleName or "a scale", delta or 0)
         else
@@ -6163,6 +6171,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate rollcheck [itemlink] - Explain what auto-roll would do with an item")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -6175,6 +6184,63 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif command == "pulse" then
         -- Preview the minimap upgrade-pulse animation.
         if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
+    elseif strsub(command, 1, 9) == "rollcheck" then
+        -- Explains, step by step, what auto-roll would decide for an item and why.
+        -- Written because "it greeded on a recipe I can learn" has several possible
+        -- causes that look identical from outside: the profession list couldn't be
+        -- read, the recipe belongs to an alt's profession, it's already known, or
+        -- Need simply wasn't offered by the client.
+        local itemLink = strsub(command, 11)
+        if not itemLink or itemLink == "" then
+            print("|cFFFF0000Valuate|r: Usage: /valuate rollcheck [itemlink]")
+            print("  Shift-click an item in chat to get its link, then paste after 'rollcheck'")
+        else
+            local options = Valuate:GetOptions()
+            local name, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
+            print("|cFF00FF00[Valuate]|r Roll check: " .. (name or itemLink))
+            if not itemType then
+                print("  |cFFFF8800Item not cached yet|r - hover it once, then try again.")
+            else
+                print(string.format("  Type: |cFFFFFFFF%s|r / |cFFFFFFFF%s|r",
+                    itemType, itemSubType or "?"))
+
+                local profs = {}
+                for p in pairs(GetKnownProfessions()) do profs[#profs + 1] = p end
+                table.sort(profs)
+                if #profs > 0 then
+                    print("  Your professions: |cFFFFFFFF" .. table.concat(profs, ", ") .. "|r")
+                else
+                    print("  |cFFFF8800No professions detected|r - open your skills window once. Until then no recipe or material can roll Need.")
+                end
+
+                if itemType == "Recipe" then
+                    if not options.autoRollLoot then
+                        print("  |cFFFF8800Auto Roll Loot is off|r - nothing is rolled automatically.")
+                    elseif options.autoRollRecipes == false then
+                        print("  |cFFFF8800'Need Unlearned Recipes' is off.|r")
+                    elseif itemSubType and not GetKnownProfessions()[itemSubType] then
+                        print(string.format("  |cFFFF8800You don't have %s|r on THIS character, so it won't Need. (Another character being able to learn it doesn't count.)", itemSubType))
+                    else
+                        local learnable = Valuate:IsLearnableRecipe(itemLink, "SetHyperlink", itemLink)
+                        if learnable then
+                            print("  |cFF00FF00Would roll Need|r - unlearned recipe for a profession you have.")
+                            print("  |cFFAAAAAAIf it Greeded anyway, the client didn't offer Need for it (common when the skill requirement isn't met yet); Greed is the fallback so the item isn't lost.|r")
+                        else
+                            print("  |cFFFF8800Would NOT Need|r - the tooltip reports it as already known.")
+                        end
+                    end
+                elseif itemType == "Trade Goods" then
+                    local useful, prof = Valuate:IsUsefulTradeGood(itemLink)
+                    if useful then
+                        print(string.format("  |cFF00FF00Would roll Need|r - material used by %s.", prof))
+                    else
+                        print("  |cFFFF8800Would NOT Need|r - no profession of yours uses this subtype (or it's an unmapped one).")
+                    end
+                else
+                    print("  Not a recipe or trade good; only gear upgrades roll Need.")
+                end
+            end
+        end
     elseif strsub(command, 1, 4) == "test" then
         local itemLink = strsub(command, 6)
         if itemLink and itemLink ~= "" then
