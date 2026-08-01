@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.4a] - 2026-07-31 — Don't Need a recipe you already carry
+
+### Changed
+- **A recipe you already have a copy of no longer rolls Need.** A second copy teaches you
+  nothing, so it should not be taken off someone who could use it. Bank included — a spare in
+  the bank is still a spare.
+- **A skill requirement you cannot meet yet is still not a blocker** — that was already the
+  case and remains so. You train into it, so the recipe is worth winning now.
+
+### Added
+- `/valuate rollcheck` now names the exact reason a recipe would not Need: no professions
+  detected, wrong profession for this character, already known, or already carried.
+
 ## [0.17.3a] - 2026-07-31 — Explain auto-roll decisions
 
 ### Added

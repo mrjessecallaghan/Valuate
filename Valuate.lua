@@ -5451,7 +5451,9 @@ function Valuate:IsUsefulTradeGood(itemLink)
 end
 
 -- Is this a recipe for a profession we have, that we haven't learned yet?
--- Returns isLearnable, professionName.
+-- Returns isLearnable, professionName, blockReason.
+-- blockReason is set when the answer is false, so diagnostics can say WHY rather
+-- than leaving four different causes looking identical.
 --
 -- The required SKILL LEVEL is deliberately ignored: a recipe you can't use yet is
 -- still worth taking, because you will train into it. That is the whole point of
@@ -5465,14 +5467,27 @@ function Valuate:IsLearnableRecipe(itemLink, tooltipSetter, ...)
     -- itemType/itemSubType are localised strings; this client is enUS, and the
     -- subtype of a recipe is the profession name ("Blacksmithing", "Cooking", ...).
     local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
-    if itemType ~= "Recipe" or not itemSubType then return false end
+    if itemType ~= "Recipe" or not itemSubType then return false, nil, "not a recipe" end
 
     local professions = GetKnownProfessions()
     -- An empty list means we could not read the skills (collapsed headers, or the
     -- API is unavailable). Refuse rather than guess: rolling Need on a recipe for a
     -- profession you don't have is a rude thing to do to a group.
-    if not next(professions) then return false end
-    if not professions[itemSubType] then return false end
+    if not next(professions) then return false, nil, "no professions detected" end
+    if not professions[itemSubType] then
+        return false, nil, "you don't have " .. itemSubType .. " on this character"
+    end
+
+    -- Already carrying one? A second copy teaches you nothing, so don't take it off
+    -- someone who could use it. Bank included - a spare sitting in the bank is still
+    -- a spare. The item being rolled for isn't in your bags yet, so this only ever
+    -- counts copies you already had.
+    if GetItemCount then
+        local owned = GetItemCount(itemLink, true) or 0
+        if owned > 0 then
+            return false, nil, string.format("you already have %d in your bags/bank", owned)
+        end
+    end
 
     if tooltipSetter then
         local tooltip = GetPrivateTooltip()
@@ -5481,7 +5496,7 @@ function Valuate:IsLearnableRecipe(itemLink, tooltipSetter, ...)
             local args = { ... }
             local ok = pcall(function() tooltip[tooltipSetter](tooltip, unpack(args)) end)
             if ok and TooltipSaysAlreadyKnown("ValuatePrivateTooltip") then
-                return false
+                return false, nil, "already known"
             end
         end
     end
@@ -6218,15 +6233,18 @@ SlashCmdList["VALUATE"] = function(msg)
                         print("  |cFFFF8800Auto Roll Loot is off|r - nothing is rolled automatically.")
                     elseif options.autoRollRecipes == false then
                         print("  |cFFFF8800'Need Unlearned Recipes' is off.|r")
-                    elseif itemSubType and not GetKnownProfessions()[itemSubType] then
-                        print(string.format("  |cFFFF8800You don't have %s|r on THIS character, so it won't Need. (Another character being able to learn it doesn't count.)", itemSubType))
                     else
-                        local learnable = Valuate:IsLearnableRecipe(itemLink, "SetHyperlink", itemLink)
+                        local learnable, _, blockReason =
+                            Valuate:IsLearnableRecipe(itemLink, "SetHyperlink", itemLink)
                         if learnable then
                             print("  |cFF00FF00Would roll Need|r - unlearned recipe for a profession you have.")
-                            print("  |cFFAAAAAAIf it Greeded anyway, the client didn't offer Need for it (common when the skill requirement isn't met yet); Greed is the fallback so the item isn't lost.|r")
+                            print("  |cFFAAAAAA(A skill requirement you don't meet yet is fine - it Needs anyway.)|r")
+                            print("  |cFFAAAAAAIf it still Greeds, the CLIENT didn't offer Need - it withholds Need for items you can't use yet, and no addon can override that. Greed is the fallback so the item isn't lost.|r")
                         else
-                            print("  |cFFFF8800Would NOT Need|r - the tooltip reports it as already known.")
+                            print("  |cFFFF8800Would NOT Need|r - " .. (blockReason or "unknown reason") .. ".")
+                            if blockReason and blockReason:find("don't have") then
+                                print("  |cFFAAAAAANote: a tooltip line like \"could be learned by: <name>\" lists your OTHER characters too.|r")
+                            end
                         end
                     end
                 elseif itemType == "Trade Goods" then
