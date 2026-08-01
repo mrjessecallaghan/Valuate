@@ -407,8 +407,27 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.16.0a (Current) - unique-equipped, tabards, item names
-    local v0160Header = CreateVersionHeader("Version 0.16.0a (Current) - Unique-Equipped respected", currentY)
+    -- Version 0.16.1a (Current) - login scan
+    local v0161Header = CreateVersionHeader("Version 0.16.1a (Current) - scans on login", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0161Text = CreateChangeText(
+        "• NEW: best-in-slot refreshes when you log in. The saved data survives\n" ..
+        "   across sessions but can be stale - gear arriving by mail, or a session\n" ..
+        "   that ended mid-scan - and the panel, arrows and upgrade prompt were all\n" ..
+        "   reading it until something else triggered a scan.\n" ..
+        "• It runs TWICE, at 6s and 15s. Just after entering the world the client's\n" ..
+        "   item cache is cold, so items it hasn't loaded get skipped - one early\n" ..
+        "   scan can quietly give a WORSE result than not scanning. The second pass\n" ..
+        "   catches the stragglers.\n" ..
+        "• Runs in every Auto Scan mode except Off.",
+        currentY
+    )
+    local v0161Height = v0161Text:GetStringHeight()
+    currentY = currentY - v0161Height - versionSpacing
+
+    -- Version 0.16.0a - unique-equipped, tabards, item names
+    local v0160Header = CreateVersionHeader("Version 0.16.0a - Unique-Equipped respected", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0160Text = CreateChangeText(
