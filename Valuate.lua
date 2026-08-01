@@ -232,7 +232,12 @@ local function ScheduleScan(delay, reason, retries)
     
     -- Determine if we should scan based on reason and setting
     local shouldScan = false
-    if autoScan == "always" then
+    if reason == "login" then
+        -- The login refresh runs in every mode except "off": the other modes choose
+        -- WHEN to react to changes, whereas this is about not starting the session
+        -- on stale data. "off" means no automatic scans at all, and that is honoured.
+        shouldScan = (autoScan ~= "off")
+    elseif autoScan == "always" then
         shouldScan = true
     elseif autoScan == "onEquipmentChange" and (reason == "equipment" or reason == "swap") then
         shouldScan = true
@@ -440,8 +445,21 @@ local function OnEvent(self, event, addonName, ...)
         -- Addon loaded, initialize
         Valuate:Initialize()
     elseif event == "PLAYER_ENTERING_WORLD" then
-        -- Player entered world, can do additional setup here
         frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
+
+        -- Refresh best-in-slot on login. The saved data survives across sessions but
+        -- can be stale - gear arrives by mail, or the last session ended mid-scan -
+        -- and until something happened to trigger a scan, the panel and the arrows
+        -- were showing whatever was true when you last logged out.
+        --
+        -- TWO attempts, deliberately. Right after entering the world the client's
+        -- item cache is cold: GetItemInfo returns nil for items it hasn't loaded
+        -- yet, and the scan skips those, so a single early scan can quietly produce
+        -- a WORSE result than not scanning at all. The first pass covers the normal
+        -- case; the second catches anything still loading. A spare scan per session
+        -- is far cheaper than best-in-slot silently missing half your bags.
+        ValuateAfter(6.0, function() ScheduleScan(0, "login") end)
+        ValuateAfter(15.0, function() ScheduleScan(0, "login") end)
     elseif event == "EQUIPMENT_SWAP_PENDING" then
         -- Equipment swap is starting, pause scanning completely
         equipmentSwapPending = true

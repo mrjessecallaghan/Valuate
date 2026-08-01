@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.16.1a] - 2026-07-31 — Scans on login
+
+### Added
+- **Best-in-slot now refreshes when you log in.** The saved data survives across sessions but
+  can be stale — gear arrives by mail, or the last session ended mid-scan — and until
+  something happened to trigger a scan, the panel and the upgrade arrows showed whatever was
+  true when you logged out.
+- It runs **twice**, at 6s and 15s. Right after entering the world the client's item cache is
+  cold, so items it has not loaded yet get skipped — a single early scan can quietly produce a
+  *worse* result than not scanning. The second pass catches whatever was still loading.
+- Runs in every Auto Scan mode except **Off**, which means no automatic scans at all.
+
 ## [0.16.0a] - 2026-07-31 — Unique-Equipped respected; tabards no longer scored
 
 ### Fixed
