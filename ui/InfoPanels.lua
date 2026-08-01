@@ -407,8 +407,32 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.15.2a (Current) - junk marking hardened
-    local v0152Header = CreateVersionHeader("Version 0.15.2a (Current) - junk marking hardened", currentY)
+    -- Version 0.16.0a (Current) - unique-equipped, tabards, item names
+    local v0160Header = CreateVersionHeader("Version 0.16.0a (Current) - Unique-Equipped respected", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0160Text = CreateChangeText(
+        "• |cFFFF5555FIX|r: a Unique-Equipped ring was recommended for BOTH ring\n" ..
+        "   slots. The scan limited items by how many copies you OWN, but\n" ..
+        "   uniqueness limits how many you may WEAR - so the panel and the popup\n" ..
+        "   suggested gear the game won't let you equip.\n" ..
+        "• Uniqueness isn't exposed by the item API here, so it's read from the\n" ..
+        "   tooltip - including the 'Unique-Equipped: <name> (1)' form that other\n" ..
+        "   addons miss by matching the plain string exactly. Applied to\n" ..
+        "   best-in-slot, the dual-wield off-hand pick, and future upgrades.\n" ..
+        "• |cFFFF5555FIX|r: tabards and shirts are no longer scored - they can never\n" ..
+        "   carry stats, so the number was meaningless.\n" ..
+        "• |cFFFF5555FIX|r: item names were being stored as full item LINKS, which is\n" ..
+        "   why the upgrade popup showed a bracketed blue name and ran out of room.\n" ..
+        "   Fixing it also corrected three other displays whose colouring a link\n" ..
+        "   was silently overriding.",
+        currentY
+    )
+    local v0160Height = v0160Text:GetStringHeight()
+    currentY = currentY - v0160Height - versionSpacing
+
+    -- Version 0.15.2a - junk marking hardened
+    local v0152Header = CreateVersionHeader("Version 0.15.2a - junk marking hardened", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0152Text = CreateChangeText(

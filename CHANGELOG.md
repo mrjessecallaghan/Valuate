@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.16.0a] - 2026-07-31 — Unique-Equipped respected; tabards no longer scored
+
+### Fixed
+- **A Unique-Equipped ring was recommended for both ring slots.** The scan limited an item by
+  how many copies you *own*, but uniqueness limits how many you may *wear*. Both the Best
+  Equipment panel and the upgrade popup were suggesting gear the game will not let you equip.
+- Uniqueness is not exposed by the item API on this client, so it is read from the tooltip.
+  Three forms exist, and the one in play here — `Unique-Equipped: Protector's Band (1)` — is
+  the one other addons miss, because they match the plain `Unique-Equipped` string exactly.
+- The limit is now applied in three places: best-in-slot assignment, the dual-wield off-hand
+  pick (owning two copies of a unique one-hander still only lets you wield one), and the
+  future-upgrade list.
+- **Tabards and shirts are no longer scored.** They can never carry stats, so the number was
+  meaningless. This is independent of the profession-tools option.
+
 ## [0.15.3a] - 2026-07-31 — Item names were secretly item links
 
 ### Fixed
