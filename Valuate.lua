@@ -2970,7 +2970,7 @@ function Valuate:ScanBankContents()
                     if items[itemId] then
                         items[itemId].count = items[itemId].count + 1
                     else
-                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        local itemName, _, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
                         if itemEquipLoc and itemEquipLoc ~= ""
                            and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
                             local ok, stats, hasUnmetReq = pcall(function()
@@ -3073,7 +3073,7 @@ function Valuate:ScanBestEquipment()
                     
                     -- Store item data if not already stored
                     if not itemData[itemId] then
-                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        local itemName, _, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
                         tooltip:ClearLines()
                         -- Use SetInventoryItem for equipped items to get actual scaled stats
                         tooltip:SetInventoryItem("player", slotId)
@@ -3115,7 +3115,7 @@ function Valuate:ScanBestEquipment()
                     
                     -- Store item data if not already stored
                     if not itemData[itemId] then
-                        local _, itemName, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+                        local itemName, _, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
 
                         -- Only process equippable items, and never profession tools / fishing poles
                         if itemEquipLoc and itemEquipLoc ~= ""

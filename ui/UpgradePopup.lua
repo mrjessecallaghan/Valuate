@@ -20,7 +20,9 @@ local CreateStyledButton = ns.CreateStyledButton
 local Anim = ns.Anim
 local ShowTooltipSafe = ns.ShowTooltipSafe
 
-local POPUP_W, POPUP_H = 300, 84
+-- Wider and slightly taller than the first cut: item names are long ("Sentinel's
+-- Medallion of Blistering Fury"), and at 300px they ran out of room.
+local POPUP_W, POPUP_H = 356, 96
 local ICON = 40
 
 local popup
@@ -78,17 +80,28 @@ local function EnsurePopup()
     title:SetJustifyH("LEFT")
     f.title = title
 
-    -- Which item, and for which spec.
+    -- The item, on its own line so a long name has the full width to itself
+    -- instead of sharing it with the score and spec.
+    local itemLine = f:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    itemLine:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
+    itemLine:SetPoint("RIGHT", f, "RIGHT", -12, 0)
+    itemLine:SetJustifyH("LEFT")
+    itemLine:SetWordWrap(false)
+    f.itemLine = itemLine
+
+    -- Gain and spec, below it.
     local subtitle = f:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
+    subtitle:SetPoint("TOPLEFT", itemLine, "BOTTOMLEFT", 0, -2)
     subtitle:SetPoint("RIGHT", f, "RIGHT", -12, 0)
     subtitle:SetJustifyH("LEFT")
     subtitle:SetWordWrap(false)
     subtitle:SetTextColor(unpack(COLORS.textDim))
     f.subtitle = subtitle
 
-    local equip = CreateStyledButton(f, "Equip", 88, 20)
-    equip:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 10, -2)
+    -- Button spans the bottom rather than sitting beside the icon: the text column
+    -- now needs the whole width above it.
+    local equip = CreateStyledButton(f, "Equip", 104, 20)
+    equip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 10)
     f.equipButton = equip
 
     -- Dismiss is a small corner ×, not a second full-width button: this is a
@@ -175,15 +188,44 @@ function Valuate:ShowUpgradePopup(opts)
     -- Name the item and the gain; that is what makes this feel like a find rather
     -- than a counter ticking over.
     local decimals = Valuate:GetOptions().decimalPlaces or 1
-    local sub
+
     if top then
-        sub = string.format("|cFFFFFFFF%s|r  |cFF00FF00+%." .. decimals .. "f|r  for %s",
-            top.itemName or "an item", top.delta or 0, label)
+        -- Prefer the plain name over the item link. A link carries its own colour
+        -- and |h markers, so it can't be safely shortened and it ignores any colour
+        -- we set. GetItemInfo's FIRST return is the name (the second is the link).
+        local name = top.itemName
+        if top.itemLink then
+            local plain = GetItemInfo(top.itemLink)
+            if plain then name = plain end
+        end
+        name = name or "an item"
+
+        local qr, qg, qb = 1, 1, 1
+        if top.itemQuality and top.itemQuality > 0 then
+            qr, qg, qb = GetItemQualityColor(top.itemQuality)
+        end
+        f.itemLine:SetTextColor(qr, qg, qb, 1)
+        f.itemLine:SetText(name)
+
+        -- Trim only if it genuinely doesn't fit. Safe now that this is a plain
+        -- string: doing it to a link would corrupt the escape sequence.
+        local avail = f.itemLine:GetWidth() or 0
+        if avail > 0 and (f.itemLine:GetStringWidth() or 0) > avail then
+            local trimmed = name
+            while #trimmed > 4 and (f.itemLine:GetStringWidth() or 0) > avail do
+                trimmed = trimmed:sub(1, #trimmed - 2)
+                f.itemLine:SetText(trimmed .. "...")
+            end
+        end
     else
-        sub = string.format("Waiting in your bags for %s", label)
+        f.itemLine:SetTextColor(unpack(COLORS.textBody))
+        f.itemLine:SetText("Waiting in your bags")
     end
+
+    local sub = string.format("|cFF00FF00+%." .. decimals .. "f|r  for %s",
+        (top and top.delta) or 0, label)
     if (opts.bankCount or 0) > 0 then
-        sub = sub .. string.format("  |cFFFF8800(+%d in bank)|r", opts.bankCount)
+        sub = sub .. string.format("   |cFFFF8800+%d in bank|r", opts.bankCount)
     end
     f.subtitle:SetText(sub)
 
