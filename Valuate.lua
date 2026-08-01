@@ -1181,8 +1181,35 @@ local EXCLUDED_WEAPON_SUBTYPES = {
 -- the tooltip OnUpdate hook calls this every frame while hovering, and GetItemInfo
 -- isn't free.
 local professionToolCache = {}
+
+-- Purely cosmetic slots. These never carry stats, so scoring them produces a
+-- meaningless number on every tabard and shirt tooltip. Excluded unconditionally -
+-- unlike profession tools, this has nothing to do with the ignoreProfessionTools
+-- option, so it must not be gated behind it.
+local COSMETIC_EQUIP_LOCS = {
+    ["INVTYPE_TABARD"] = true,
+    ["INVTYPE_BODY"] = true,   -- shirt
+}
+-- Separate from professionToolCache on purpose: this answer depends only on the
+-- item, whereas the profession-tool answer depends on a setting the user can
+-- toggle, and the two must not share a cache entry.
+local cosmeticSlotCache = {}
 function Valuate:IsItemExcludedFromEvaluation(itemLink)
     if not itemLink then return false end
+
+    local cosmeticId = GetItemIdFromLink(itemLink)
+    local knownCosmetic = cosmeticId and cosmeticSlotCache[cosmeticId]
+    if knownCosmetic ~= nil then
+        if knownCosmetic then return true end
+    else
+        local equipLoc = select(9, GetItemInfo(itemLink))
+        if equipLoc then  -- nil means not cached yet; don't memoize a guess
+            local isCosmetic = COSMETIC_EQUIP_LOCS[equipLoc] and true or false
+            if cosmeticId then cosmeticSlotCache[cosmeticId] = isCosmetic end
+            if isCosmetic then return true end
+        end
+    end
+
     if Valuate:GetOptions().ignoreProfessionTools == false then
         return false
     end
@@ -2865,6 +2892,39 @@ local function TooltipHasUnmetRequirement(tooltipName)
     return false
 end
 
+-- How many of this item may be EQUIPPED at once, from its tooltip.
+-- Returns nil when unrestricted.
+--
+-- GetItemInfo does not expose uniqueness on 3.3.5, so the tooltip is the only
+-- source. Three shapes appear, and the third is the one that matters here:
+--   "Unique"                                -> 1
+--   "Unique (20)"                           -> 20
+--   "Unique-Equipped: Protector's Band (1)" -> 1   (unique CATEGORY)
+-- Other addons on this client test the first two with an exact match, which misses
+-- the category form entirely - and that is exactly the case that was assigning one
+-- ring to both ring slots. So we prefix-match and read any trailing "(N)".
+local function TooltipUniqueLimit(tooltipName)
+    local tooltip = _G[tooltipName]
+    if not tooltip then return nil end
+
+    local uniqueEquip = ITEM_UNIQUE_EQUIPPABLE or "Unique-Equipped"
+    local unique = ITEM_UNIQUE or "Unique"
+
+    for i = 2, tooltip:NumLines() do
+        local fs = getglobal(tooltipName .. "TextLeft" .. i)
+        local text = fs and fs.GetText and fs:GetText()
+        if text and text ~= "" then
+            -- Anchored to the start of the line so an item whose NAME contains
+            -- "Unique" can't trigger this.
+            if text:find(uniqueEquip, 1, true) == 1 or text:find(unique, 1, true) == 1 then
+                local n = tonumber(text:match("%((%d+)%)"))
+                return (n and n > 0) and n or 1
+            end
+        end
+    end
+    return nil
+end
+
 -- Integration modules (AdiBags, PassLoot, ...) can register a callback to be told
 -- when the best-equipment data changes, so they can invalidate their own caches.
 -- Without this an AdiBags filter keeps showing the PREVIOUS scan's categorisation
@@ -2973,11 +3033,13 @@ function Valuate:ScanBankContents()
                         local itemName, _, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
                         if itemEquipLoc and itemEquipLoc ~= ""
                            and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
-                            local ok, stats, hasUnmetReq = pcall(function()
+                            local ok, stats, hasUnmetReq, uniqueLimit = pcall(function()
                                 tooltip:ClearLines()
                                 tooltip:SetBagItem(bagId, slotId)
                                 local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-                                return parsed, TooltipHasUnmetRequirement("ValuatePrivateTooltip")
+                                return parsed,
+                                    TooltipHasUnmetRequirement("ValuatePrivateTooltip"),
+                                    TooltipUniqueLimit("ValuatePrivateTooltip")
                             end)
                             if ok and stats then
                                 local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
@@ -2994,6 +3056,7 @@ function Valuate:ScanBankContents()
                                     -- requirements - not that it can be reached right
                                     -- now. Reachability is the `source` field's job.
                                     equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq),
+                                    uniqueLimit = uniqueLimit,
                                     count = 1,
                                 }
                             end
@@ -3078,6 +3141,7 @@ function Valuate:ScanBestEquipment()
                         -- Use SetInventoryItem for equipped items to get actual scaled stats
                         tooltip:SetInventoryItem("player", slotId)
                         local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+                        local uniqueLimit = TooltipUniqueLimit("ValuatePrivateTooltip")
 
                         if stats and itemEquipLoc and itemEquipLoc ~= ""
                            and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
@@ -3093,6 +3157,7 @@ function Valuate:ScanBestEquipment()
                                 -- An equipped item is by definition currently equippable.
                                 equippableNow = true,
                                 source = "equipped",
+                                uniqueLimit = uniqueLimit,
                             }
                             itemsProcessed = itemsProcessed + 1
                         end
@@ -3130,10 +3195,12 @@ function Valuate:ScanBestEquipment()
                                 tooltip:ClearLines()
                                 -- Use SetBagItem for bag items to get actual scaled stats
                                 -- Use pcall to safely handle cases where item might be in transit
-                                local success, stats, hasUnmetReq = pcall(function()
+                                local success, stats, hasUnmetReq, uniqueLimit = pcall(function()
                                     tooltip:SetBagItem(bagId, slotId)
                                     local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-                                    return parsed, TooltipHasUnmetRequirement("ValuatePrivateTooltip")
+                                    return parsed,
+                                        TooltipHasUnmetRequirement("ValuatePrivateTooltip"),
+                                        TooltipUniqueLimit("ValuatePrivateTooltip")
                                 end)
 
                                 if success and stats then
@@ -3153,6 +3220,7 @@ function Valuate:ScanBestEquipment()
                                         reqLevel = reqLevel,
                                         equippableNow = equippableNow,
                                         source = "bags",
+                                        uniqueLimit = uniqueLimit,
                                     }
                                     itemsProcessed = itemsProcessed + 1
                                 end
@@ -3186,6 +3254,7 @@ function Valuate:ScanBestEquipment()
                     itemQuality = cached.itemQuality or 0,
                     reqLevel = cached.reqLevel or 0,
                     equippableNow = cached.equippableNow,
+                    uniqueLimit = cached.uniqueLimit,
                     source = "bank",
                 }
                 itemCounts[itemId] = (itemCounts[itemId] or 0) + (cached.count or 1)
@@ -3276,8 +3345,16 @@ function Valuate:ScanBestEquipment()
                             -- weapon in the off-hand (17) unless we can dual-wield.
                             if not locks[targetSlotId]
                                and not (targetSlotId == 17 and data.itemEquipLoc == "INVTYPE_WEAPON" and not wantsDualWield) then
-                                -- Calculate available copies each time
-                                local availableCopies = itemCounts[itemId] - (itemUsage[itemId] or 0)
+                                -- Calculate available copies each time.
+                                -- Unique-Equipped caps how many can be WORN at once,
+                                -- regardless of how many you own. Without this a single
+                                -- unique ring was recommended for BOTH ring slots -
+                                -- advice the game will not let you follow.
+                                local ownedCopies = itemCounts[itemId]
+                                if data.uniqueLimit and data.uniqueLimit < ownedCopies then
+                                    ownedCopies = data.uniqueLimit
+                                end
+                                local availableCopies = ownedCopies - (itemUsage[itemId] or 0)
 
                                 -- Only assign if we have copies available
                                 if availableCopies > 0 then
@@ -3332,9 +3409,13 @@ function Valuate:ScanBestEquipment()
                         if not bestMH1H then
                             bestMH1H = makeWeaponRec(itemInfo)
                             -- Owning 2+ of the top one-hander (and able to dual-wield)
-                            -- means a second copy wins the off-hand over any lesser 1H.
+                            -- means a second copy wins the off-hand over any lesser 1H -
+                            -- unless it is Unique-Equipped, where owning two still only
+                            -- lets you WEAR one.
+                            local uniq = itemInfo.data.uniqueLimit
                             if wantsDualWield and loc == "INVTYPE_WEAPON"
-                               and (itemCounts[id] or 0) >= 2 then
+                               and (itemCounts[id] or 0) >= 2
+                               and (not uniq or uniq >= 2) then
                                 bestOH1H = makeWeaponRec(itemInfo)
                             end
                         elseif wantsDualWield and not bestOH1H and loc == "INVTYPE_WEAPON" then
@@ -3473,6 +3554,9 @@ function Valuate:ScanBestEquipment()
             }
 
             local futureBest = {}
+            -- itemId -> how many future slots it already occupies, so a
+            -- Unique-Equipped item isn't listed as the future best for both rings.
+            local futureUsage = {}
             for _, itemInfo in ipairs(itemsWithScores) do
                 if not itemInfo.data.equippableNow then
                     local score = itemInfo.score
@@ -3496,7 +3580,19 @@ function Valuate:ScanBestEquipment()
                                 local currentScore = weaponBaseline
                                     or (currentBest and currentBest.score or 0)
                                 local existingFuture = futureBest[targetSlotId]
-                                if score > currentScore and (not existingFuture or score > existingFuture.score) then
+                                -- A unique item can only ever fill one of its slots.
+                                local uniqueOk = true
+                                if data.uniqueLimit then
+                                    local used = futureUsage[itemInfo.itemId] or 0
+                                    -- Re-placing it in a slot it already holds is fine;
+                                    -- taking an ADDITIONAL slot is what's capped.
+                                    local alreadyHere = existingFuture
+                                        and existingFuture.itemLink == data.itemLink
+                                    if not alreadyHere and used >= data.uniqueLimit then
+                                        uniqueOk = false
+                                    end
+                                end
+                                if uniqueOk and score > currentScore and (not existingFuture or score > existingFuture.score) then
                                     futureBest[targetSlotId] = {
                                         itemLink = data.itemLink,
                                         score = score,
@@ -3506,6 +3602,9 @@ function Valuate:ScanBestEquipment()
                                         reqLevel = data.reqLevel or 0,
                                         source = data.source,
                                     }
+                                    if data.uniqueLimit then
+                                        futureUsage[itemInfo.itemId] = (futureUsage[itemInfo.itemId] or 0) + 1
+                                    end
                                 end
                             end
                         end
