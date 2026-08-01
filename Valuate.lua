@@ -5003,6 +5003,15 @@ local function IsItemJunk(AdiBags, junkModule, itemId, quality)
     return false
 end
 
+-- Public wrapper so integrations classify junk through the SAME helper the delete
+-- and sell paths use, instead of re-implementing it. Duplicating this logic is what
+-- kept the "0 junk found" bug alive through two attempted fixes, which is why
+-- there is a lint rule against it.
+function Valuate:IsItemJunk(itemId, quality)
+    local AdiBags, junkModule = ResolveAdiBagsJunk()
+    return IsItemJunk(AdiBags, junkModule, itemId, quality)
+end
+
 -- Deletes the least valuable junk until the configured number of bag slots is free.
 -- Only ever considers items AdiBags classes as Junk (which honours its own
 -- include/exclude lists) or, without AdiBags, poor/grey quality.

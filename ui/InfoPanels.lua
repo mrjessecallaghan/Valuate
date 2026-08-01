@@ -407,8 +407,26 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.17.1a (Current) - auto-Need profession materials
-    local v0171Header = CreateVersionHeader("Version 0.17.1a (Current) - auto-Need profession materials", currentY)
+    -- Version 0.17.2a (Current) - junk isn't new
+    local v0172Header = CreateVersionHeader("Version 0.17.2a (Current) - junk stops pretending to be new", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0172Text = CreateChangeText(
+        "• NEW: junk no longer triggers the new-item highlight. AdiBags' own\n" ..
+        "   'ignore junk' setting only covers grey QUALITY, so anything junk for\n" ..
+        "   another reason - marked surplus, added to the Junk list by hand, or\n" ..
+        "   flagged by Scrap - still glowed as new.\n" ..
+        "• Uses the same junk classification as auto-delete and auto-sell, so all\n" ..
+        "   three always agree rather than each deciding separately.\n" ..
+        "• Toggle: \"Junk isn't new\" in the AdiBags Valuate options. On by default -\n" ..
+        "   the hook can only ever suppress a highlight.",
+        currentY
+    )
+    local v0172Height = v0172Text:GetStringHeight()
+    currentY = currentY - v0172Height - versionSpacing
+
+    -- Version 0.17.1a - auto-Need profession materials
+    local v0171Header = CreateVersionHeader("Version 0.17.1a - auto-Need profession materials", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0171Text = CreateChangeText(

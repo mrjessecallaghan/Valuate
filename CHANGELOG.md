@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.2a] - 2026-07-31 — Junk stops pretending to be new
+
+### Added
+- **Junk no longer triggers the new-item highlight.** AdiBags' own "ignore junk" setting only
+  covers grey *quality*, so anything junk for another reason — marked surplus, added to the
+  Junk list by hand, or flagged by Scrap — still glowed as new and sat in the New section.
+- It uses the **same junk classification** as auto-delete and auto-sell, via a new public
+  `Valuate:IsItemJunk`, so all three always agree rather than each deciding separately.
+- Toggle: **Junk isn't new**, in the AdiBags Valuate filter options. On by default — the hook
+  can only ever suppress a highlight.
+
 ## [0.17.1a] - 2026-07-31 — Auto-Need profession materials
 
 ### Added
