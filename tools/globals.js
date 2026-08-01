@@ -77,7 +77,8 @@ LibStub SlashCmdList SLASH_VALUATE1 SLASH_VALUATE2
 Minimap Minimap_ZoomIn GetMinimapShape
 ITEM_QUALITY_POOR ITEM_QUALITY_COMMON ITEM_QUALITY_UNCOMMON ITEM_QUALITY_RARE
 ITEM_QUALITY_EPIC OKAY YES NO CANCEL ACCEPT CLOSE
-ITEM_UNIQUE ITEM_UNIQUE_MULTIPLE ITEM_UNIQUE_EQUIPPABLE
+ITEM_UNIQUE ITEM_UNIQUE_MULTIPLE ITEM_UNIQUE_EQUIPPABLE ITEM_SPELL_KNOWN
+GetNumSkillLines GetSkillLineInfo
 strtrim strsplit strjoin strlower strupper strsub strlen strfind strmatch strrep
 tinsert tremove twipe wipe format gsub gmatch max min abs floor ceil
 date time difftime random

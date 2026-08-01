@@ -653,6 +653,7 @@ local DEFAULT_OPTIONS = {
     notifyUpgradeSound = false,           -- play a sound cue when an upgrade is found
     notifyOtherSpecUpgrades = false,      -- also mention upgrades for your NON-active scales
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
+    autoRollRecipes = true,               -- also Need unlearned recipes for professions you have
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
     autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
@@ -5360,6 +5361,78 @@ end
 -- Need when the item is an upgrade for ANY configured scale (active or not), Greed
 -- otherwise. Never rolls Need on something that isn't an upgrade.
 -- rollID: the roll being offered. isRetry guards the one-shot item-cache retry.
+-- ============================================================================
+-- Learnable recipes
+-- ============================================================================
+-- Professions the character actually has.
+--
+-- GetProfessions() is a later-expansion API - other addons on this client guard it
+-- before calling - so the skill list is the reliable source here. Headers
+-- ("Professions", "Secondary Skills") are skipped; only real skill lines count.
+local function GetKnownProfessions()
+    local out = {}
+    if not GetNumSkillLines or not GetSkillLineInfo then return out end
+    for i = 1, (GetNumSkillLines() or 0) do
+        local skillName, isHeader = GetSkillLineInfo(i)
+        if skillName and not isHeader then
+            out[skillName] = true
+        end
+    end
+    return out
+end
+
+-- Blizzard prints "Already known" on a recipe you have learned.
+local function TooltipSaysAlreadyKnown(tooltipName)
+    local tooltip = _G[tooltipName]
+    if not tooltip then return false end
+    local known = ITEM_SPELL_KNOWN or "Already known"
+    for i = 2, tooltip:NumLines() do
+        local fs = getglobal(tooltipName .. "TextLeft" .. i)
+        local text = fs and fs.GetText and fs:GetText()
+        if text == known then return true end
+    end
+    return false
+end
+
+-- Is this a recipe for a profession we have, that we haven't learned yet?
+-- Returns isLearnable, professionName.
+--
+-- The required SKILL LEVEL is deliberately ignored: a recipe you can't use yet is
+-- still worth taking, because you will train into it. That is the whole point of
+-- this feature, so the usual "can you use it right now" checks must not apply.
+--
+-- tooltipSetter/... let the caller point the private tooltip at the exact source
+-- (a loot roll, a bag slot), which is the only way to read "Already known".
+function Valuate:IsLearnableRecipe(itemLink, tooltipSetter, ...)
+    if not itemLink then return false end
+
+    -- itemType/itemSubType are localised strings; this client is enUS, and the
+    -- subtype of a recipe is the profession name ("Blacksmithing", "Cooking", ...).
+    local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
+    if itemType ~= "Recipe" or not itemSubType then return false end
+
+    local professions = GetKnownProfessions()
+    -- An empty list means we could not read the skills (collapsed headers, or the
+    -- API is unavailable). Refuse rather than guess: rolling Need on a recipe for a
+    -- profession you don't have is a rude thing to do to a group.
+    if not next(professions) then return false end
+    if not professions[itemSubType] then return false end
+
+    if tooltipSetter then
+        local tooltip = GetPrivateTooltip()
+        if tooltip and type(tooltip[tooltipSetter]) == "function" then
+            tooltip:ClearLines()
+            local args = { ... }
+            local ok = pcall(function() tooltip[tooltipSetter](tooltip, unpack(args)) end)
+            if ok and TooltipSaysAlreadyKnown("ValuatePrivateTooltip") then
+                return false
+            end
+        end
+    end
+
+    return true, itemSubType
+end
+
 function Valuate:AutoRollOnLoot(rollID, isRetry)
     local options = Valuate:GetOptions()
     if not options.autoRollLoot or not rollID then return end
@@ -5384,10 +5457,20 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
         end
     end
 
-    -- 0 = pass, 1 = need, 2 = greed. Only upgrades ever roll Need.
+    -- A recipe for one of your professions that you haven't learned. Checked after
+    -- the upgrade test because it uses the same private tooltip, and this call
+    -- repoints it.
+    local isRecipe, recipeProfession = false, nil
+    if link and options.autoRollRecipes ~= false then
+        isRecipe, recipeProfession = Valuate:IsLearnableRecipe(link, "SetLootRollItem", rollID)
+    end
+
+    -- 0 = pass, 1 = need, 2 = greed. Only upgrades and learnable recipes roll Need.
     local rollType, label
-    if isUpgrade then
+    if isUpgrade or isRecipe then
         if canNeed then rollType, label = 1, "Need"
+        -- Need is not always offered for something you can't use yet, which is
+        -- exactly the case for a recipe above your skill. Greed still wins it.
         elseif canGreed then rollType, label = 2, "Greed"
         else rollType, label = 0, "Pass" end
     else
@@ -5396,9 +5479,14 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
     end
 
     if options.chatMessages then
-        local reason = isUpgrade
-            and string.format("upgrade for %s, +%.1f", scaleName or "a scale", delta or 0)
-            or "not an upgrade"
+        local reason
+        if isRecipe then
+            reason = string.format("unlearned %s recipe", recipeProfession or "profession")
+        elseif isUpgrade then
+            reason = string.format("upgrade for %s, +%.1f", scaleName or "a scale", delta or 0)
+        else
+            reason = "not an upgrade"
+        end
         print(string.format("|cFF00FF00Valuate|r rolled |cFFFFD700%s|r on %s |cFFAAAAAA(%s)|r",
             label, link or name or "item", reason))
     end
@@ -6063,6 +6151,19 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoRollLoot = not options.autoRollLoot
         print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        if options.autoRollLoot and options.autoRollRecipes ~= false then
+            -- Report the professions we can see. An empty list is the one silent
+            -- failure mode here: no professions detected means no recipe will ever
+            -- roll Need, and nothing else would tell you that.
+            local names = {}
+            for prof in pairs(GetKnownProfessions()) do names[#names + 1] = prof end
+            table.sort(names)
+            if #names > 0 then
+                print("  Will Need unlearned recipes for: |cFFFFFFFF" .. table.concat(names, ", ") .. "|r")
+            else
+                print("  |cFFFF8800No professions detected|r - no recipe will roll Need. Open your skills window once, then try again.")
+            end
+        end
     elseif command == "notify" then
         local options = Valuate:GetOptions()
         options.notifyBagUpgrade = not options.notifyBagUpgrade

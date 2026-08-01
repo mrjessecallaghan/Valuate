@@ -407,8 +407,29 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.16.1a (Current) - login scan
-    local v0161Header = CreateVersionHeader("Version 0.16.1a (Current) - scans on login", currentY)
+    -- Version 0.17.0a (Current) - auto-Need learnable recipes
+    local v0170Header = CreateVersionHeader("Version 0.17.0a (Current) - auto-Need learnable recipes", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0170Text = CreateChangeText(
+        "• NEW: auto-roll now Needs recipes for professions you actually have.\n" ..
+        "   A recipe requiring more skill than you currently have STILL rolls Need -\n" ..
+        "   you'll train into it, so the usual 'can you use this now' test is\n" ..
+        "   deliberately skipped.\n" ..
+        "• Recipes you already know, and recipes for professions you don't have,\n" ..
+        "   are left alone.\n" ..
+        "• If Need isn't offered (the client often disables it for something you\n" ..
+        "   can't use yet), it falls back to Greed rather than passing.\n" ..
+        "• /valuate roll lists the professions it detected - an empty list is the\n" ..
+        "   one silent failure here, since no recipe would ever roll Need.\n" ..
+        "• Toggle: 'Need Unlearned Recipes', under Auto Roll Loot.",
+        currentY
+    )
+    local v0170Height = v0170Text:GetStringHeight()
+    currentY = currentY - v0170Height - versionSpacing
+
+    -- Version 0.16.1a - login scan
+    local v0161Header = CreateVersionHeader("Version 0.16.1a - scans on login", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0161Text = CreateChangeText(

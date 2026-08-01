@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.0a] - 2026-07-31 — Auto-Need learnable recipes
+
+### Added
+- **Auto-roll now Needs recipes for professions you actually have.** A recipe requiring more
+  skill than you currently have still rolls Need — you will train into it, so the usual
+  "can you use this right now" test is deliberately not applied.
+- Recipes you **already know**, and recipes for professions you **don't have**, are left alone.
+- If Need isn't offered (the client often disables it for something you can't use yet), it
+  falls back to Greed rather than passing.
+- `/valuate roll` now lists the professions it detected. An empty list is the one silent
+  failure here — no professions found means no recipe will ever roll Need.
+- Toggle: **Need Unlearned Recipes**, under Auto Roll Loot.
+
 ## [0.16.1a] - 2026-07-31 — Scans on login
 
 ### Added

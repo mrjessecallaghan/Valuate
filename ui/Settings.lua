@@ -594,10 +594,39 @@ local function CreateSettingsPanel(parent)
     end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Roll Need on unlearned recipes (Column 1, indented under Auto Roll since it
+    -- only does anything when that is on)
+    local rollRecipesCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    rollRecipesCheckbox:SetSize(24, 24)
+    rollRecipesCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 16, -ELEMENT_SPACING)
+
+    local rollRecipesLabel = rollRecipesCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    rollRecipesLabel:SetPoint("LEFT", rollRecipesCheckbox, "RIGHT", 5, 0)
+    rollRecipesLabel:SetText("Need Unlearned Recipes")
+    rollRecipesCheckbox:SetChecked(Valuate:GetOptions().autoRollRecipes ~= false)
+    rollRecipesCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoRollRecipes = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    rollRecipesCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Need Unlearned Recipes", 1, 1, 1)
+            GameTooltip:AddLine("Rolls Need on recipes for a profession you actually have and haven't learned yet.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Requiring a higher skill than you have is fine - you'll train into it, so it still rolls Need.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Recipes you already know, or for professions you don't have, are left alone.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Only applies while Auto Roll Loot is on.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    rollRecipesCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- Notify Bag Upgrades checkbox (Column 1, below Auto Roll On Loot)
     local notifyCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     notifyCheckbox:SetSize(24, 24)
-    notifyCheckbox:SetPoint("TOPLEFT", autoRollCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    -- -16 undoes the recipe checkbox's indent to return to the base column.
+    notifyCheckbox:SetPoint("TOPLEFT", rollRecipesCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
 
     local notifyLabel = notifyCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     notifyLabel:SetPoint("LEFT", notifyCheckbox, "RIGHT", 5, 0)
