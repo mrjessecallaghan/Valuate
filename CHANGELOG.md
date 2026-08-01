@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.17.1a] - 2026-07-31 — Auto-Need profession materials
+
+### Added
+- **Auto-roll now Needs crafting materials your professions use** — cloth for Tailoring, herbs
+  for Alchemy, metal for Blacksmithing, and so on. Trade goods do not say what they are for,
+  so this is driven by a subtype-to-profession mapping.
+- **Gathering professions are ignored.** Mining produces ore, so a miner is not short of it —
+  listing them would make every miner Need every piece of metal that drops.
+- Unmapped subtypes (the generic "Other"/"Materials" buckets) are left alone rather than
+  guessed at.
+- Toggle: **Need Profession Materials**, under Auto Roll Loot.
+
+### Worth knowing
+- Materials drop **far** more often than recipes, so this makes you roll Need on a lot of
+  ordinary loot. Some groups consider that poor etiquette. The option says so, and it is one
+  click to turn off.
+
 ## [0.17.0a] - 2026-07-31 — Auto-Need learnable recipes
 
 ### Added

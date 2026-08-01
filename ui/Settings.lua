@@ -622,11 +622,38 @@ local function CreateSettingsPanel(parent)
     rollRecipesCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Roll Need on crafting materials (Column 1, below Need Unlearned Recipes)
+    local rollMatsCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
+    rollMatsCheckbox:SetSize(24, 24)
+    rollMatsCheckbox:SetPoint("TOPLEFT", rollRecipesCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local rollMatsLabel = rollMatsCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    rollMatsLabel:SetPoint("LEFT", rollMatsCheckbox, "RIGHT", 5, 0)
+    rollMatsLabel:SetText("Need Profession Materials")
+    rollMatsCheckbox:SetChecked(Valuate:GetOptions().autoRollTradeGoods ~= false)
+    rollMatsCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoRollTradeGoods = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    rollMatsCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Need Profession Materials", 1, 1, 1)
+            GameTooltip:AddLine("Rolls Need on crafting materials used by a profession you have - cloth for Tailoring, herbs for Alchemy, metal for Blacksmithing, and so on.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("|cFFFF8800Worth knowing:|r materials drop far more often than recipes, so this makes you roll Need on a lot of common loot. Some groups consider that poor etiquette - turn it off if yours does.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Gathering professions are ignored: mining produces ore, so a miner isn't short of it.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Only applies while Auto Roll Loot is on.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    rollMatsCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
+
     -- Notify Bag Upgrades checkbox (Column 1, below Auto Roll On Loot)
     local notifyCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     notifyCheckbox:SetSize(24, 24)
-    -- -16 undoes the recipe checkbox's indent to return to the base column.
-    notifyCheckbox:SetPoint("TOPLEFT", rollRecipesCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
+    -- -16 undoes the indent of the two roll sub-options to return to the base column.
+    notifyCheckbox:SetPoint("TOPLEFT", rollMatsCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
 
     local notifyLabel = notifyCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     notifyLabel:SetPoint("LEFT", notifyCheckbox, "RIGHT", 5, 0)

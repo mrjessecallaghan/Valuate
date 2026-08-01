@@ -654,6 +654,7 @@ local DEFAULT_OPTIONS = {
     notifyOtherSpecUpgrades = false,      -- also mention upgrades for your NON-active scales
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoRollRecipes = true,               -- also Need unlearned recipes for professions you have
+    autoRollTradeGoods = true,            -- also Need crafting materials your professions use
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
     autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
@@ -5394,6 +5395,52 @@ local function TooltipSaysAlreadyKnown(tooltipName)
     return false
 end
 
+-- Which professions CONSUME each trade-goods subtype.
+--
+-- Trade goods don't say what they're for, so this mapping is the whole feature.
+-- Gathering professions are deliberately absent: a miner produces ore, they don't
+-- need to win it off a corpse, and listing them would make every miner Need every
+-- piece of metal. "Elemental" legitimately maps to almost everything - elementals
+-- are used across the crafting professions.
+--
+-- Subtype strings are localised; this client is enUS, matching the approach already
+-- taken for EXCLUDED_WEAPON_SUBTYPES.
+local TRADE_GOOD_PROFESSIONS = {
+    ["Cloth"]          = { "Tailoring", "First Aid" },
+    ["Leather"]        = { "Leatherworking" },
+    ["Metal & Stone"]  = { "Blacksmithing", "Engineering", "Jewelcrafting" },
+    ["Herb"]           = { "Alchemy", "Inscription" },
+    ["Elemental"]      = { "Alchemy", "Blacksmithing", "Engineering",
+                           "Leatherworking", "Tailoring", "Jewelcrafting" },
+    ["Enchanting"]     = { "Enchanting" },
+    ["Jewelcrafting"]  = { "Jewelcrafting" },
+    ["Parts"]          = { "Engineering" },
+    ["Devices"]        = { "Engineering" },
+    ["Explosives"]     = { "Engineering" },
+    ["Meat"]           = { "Cooking" },
+}
+
+-- Is this a trade good used by one of our professions?
+-- Returns isUseful, professionName.
+function Valuate:IsUsefulTradeGood(itemLink)
+    if not itemLink then return false end
+
+    local _, _, _, _, _, itemType, itemSubType = GetItemInfo(itemLink)
+    if itemType ~= "Trade Goods" or not itemSubType then return false end
+
+    local users = TRADE_GOOD_PROFESSIONS[itemSubType]
+    -- Unmapped subtypes ("Other", "Materials", the generic bucket) are left alone
+    -- rather than guessed at.
+    if not users then return false end
+
+    local professions = GetKnownProfessions()
+    if not next(professions) then return false end
+    for _, prof in ipairs(users) do
+        if professions[prof] then return true, prof end
+    end
+    return false
+end
+
 -- Is this a recipe for a profession we have, that we haven't learned yet?
 -- Returns isLearnable, professionName.
 --
@@ -5465,9 +5512,15 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
         isRecipe, recipeProfession = Valuate:IsLearnableRecipe(link, "SetLootRollItem", rollID)
     end
 
-    -- 0 = pass, 1 = need, 2 = greed. Only upgrades and learnable recipes roll Need.
+    -- Crafting materials for a profession we have.
+    local isMaterial, materialProfession = false, nil
+    if link and not isRecipe and options.autoRollTradeGoods ~= false then
+        isMaterial, materialProfession = Valuate:IsUsefulTradeGood(link)
+    end
+
+    -- 0 = pass, 1 = need, 2 = greed.
     local rollType, label
-    if isUpgrade or isRecipe then
+    if isUpgrade or isRecipe or isMaterial then
         if canNeed then rollType, label = 1, "Need"
         -- Need is not always offered for something you can't use yet, which is
         -- exactly the case for a recipe above your skill. Greed still wins it.
@@ -5482,6 +5535,8 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
         local reason
         if isRecipe then
             reason = string.format("unlearned %s recipe", recipeProfession or "profession")
+        elseif isMaterial then
+            reason = string.format("%s material", materialProfession or "profession")
         elseif isUpgrade then
             reason = string.format("upgrade for %s, +%.1f", scaleName or "a scale", delta or 0)
         else
@@ -5807,6 +5862,7 @@ function Valuate:RunSelfTest()
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
         "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
+        "IsLearnableRecipe", "IsUsefulTradeGood",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }
@@ -6151,17 +6207,25 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoRollLoot = not options.autoRollLoot
         print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
-        if options.autoRollLoot and options.autoRollRecipes ~= false then
-            -- Report the professions we can see. An empty list is the one silent
-            -- failure mode here: no professions detected means no recipe will ever
-            -- roll Need, and nothing else would tell you that.
-            local names = {}
-            for prof in pairs(GetKnownProfessions()) do names[#names + 1] = prof end
-            table.sort(names)
-            if #names > 0 then
-                print("  Will Need unlearned recipes for: |cFFFFFFFF" .. table.concat(names, ", ") .. "|r")
-            else
-                print("  |cFFFF8800No professions detected|r - no recipe will roll Need. Open your skills window once, then try again.")
+        if options.autoRollLoot then
+            local wantsRecipes = options.autoRollRecipes ~= false
+            local wantsMats = options.autoRollTradeGoods ~= false
+            if wantsRecipes or wantsMats then
+                -- Report the professions we can see. An empty list is the one silent
+                -- failure mode here: no professions detected means neither of these
+                -- will ever roll Need, and nothing else would tell you that.
+                local names = {}
+                for prof in pairs(GetKnownProfessions()) do names[#names + 1] = prof end
+                table.sort(names)
+                if #names > 0 then
+                    local what = {}
+                    if wantsRecipes then what[#what + 1] = "unlearned recipes" end
+                    if wantsMats then what[#what + 1] = "crafting materials" end
+                    print("  Will Need " .. table.concat(what, " and ")
+                        .. " for: |cFFFFFFFF" .. table.concat(names, ", ") .. "|r")
+                else
+                    print("  |cFFFF8800No professions detected|r - neither recipes nor materials will roll Need. Open your skills window once, then try again.")
+                end
             end
         end
     elseif command == "notify" then
