@@ -407,8 +407,28 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.17.0a (Current) - auto-Need learnable recipes
-    local v0170Header = CreateVersionHeader("Version 0.17.0a (Current) - auto-Need learnable recipes", currentY)
+    -- Version 0.17.1a (Current) - auto-Need profession materials
+    local v0171Header = CreateVersionHeader("Version 0.17.1a (Current) - auto-Need profession materials", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local v0171Text = CreateChangeText(
+        "• NEW: auto-roll also Needs crafting materials your professions use -\n" ..
+        "   cloth for Tailoring, herbs for Alchemy, metal for Blacksmithing.\n" ..
+        "   Trade goods don't say what they're for, so this uses a subtype-to-\n" ..
+        "   profession mapping.\n" ..
+        "• Gathering professions are ignored - mining produces ore, so a miner\n" ..
+        "   isn't short of it. Unmapped subtypes are left alone.\n" ..
+        "• |cFFFF8800Worth knowing:|r materials drop far more often than recipes, so\n" ..
+        "   this Needs a lot of common loot. Some groups consider that poor\n" ..
+        "   etiquette - it's one click to turn off.\n" ..
+        "• Toggle: 'Need Profession Materials', under Auto Roll Loot.",
+        currentY
+    )
+    local v0171Height = v0171Text:GetStringHeight()
+    currentY = currentY - v0171Height - versionSpacing
+
+    -- Version 0.17.0a - auto-Need learnable recipes
+    local v0170Header = CreateVersionHeader("Version 0.17.0a - auto-Need learnable recipes", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0170Text = CreateChangeText(
