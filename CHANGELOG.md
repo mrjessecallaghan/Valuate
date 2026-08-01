@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.3a] - 2026-07-31 — Item names were secretly item links
+
+### Fixed
+- **Item names were being stored as full item links.** `GetItemInfo` returns *name, link, …*
+  and the scan kept the second value, so every saved "name" was a link. That is why the
+  upgrade popup showed a bracketed blue `[Sentinel's Medallion]` and ran out of room — links
+  are much longer than names, and they carry their own colour, so any colour the display
+  applied was silently ignored.
+- Fixing it at the source also corrects three other places that were wrapping a link in a
+  colour code that could never take effect: the Best Equipment future-item row, its weapon-set
+  tooltip, and the character-window line.
+- **The upgrade popup got wider (300 → 356)** and the item now has its own line, so a long
+  name no longer competes with the score and spec for space. If one still would not fit it is
+  trimmed with an ellipsis instead of being cut off mid-word.
+
 ## [0.15.2a] - 2026-07-31 — Surplus-gear junk marking hardened
 
 ### Safety
