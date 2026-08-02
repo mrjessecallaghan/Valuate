@@ -5007,7 +5007,19 @@ end
 -- Resolves AdiBags and its Junk module once. Shared by the delete and sell paths so
 -- there is a single junk classification in the addon (duplicating it is how the
 -- "0 junk found" bug happened).
+-- Memoised: this is now on a per-bag-icon path (the new-item hook asks about every
+-- button on every repaint), and two LibStub lookups per item is real work for an
+-- answer that cannot change once found.
+--
+-- Only a SUCCESSFUL resolve is cached. AdiBags may not have loaded yet when the
+-- first call happens, and caching the miss would disable junk handling for the rest
+-- of the session.
+local cachedAdiBags, cachedJunkModule
 local function ResolveAdiBagsJunk()
+    if cachedAdiBags and cachedJunkModule then
+        return cachedAdiBags, cachedJunkModule
+    end
+
     local AdiBags, junkModule
     if LibStub then
         local ace = LibStub("AceAddon-3.0", true)
@@ -5015,6 +5027,10 @@ local function ResolveAdiBagsJunk()
         if AdiBags and AdiBags.GetModule then
             junkModule = AdiBags:GetModule("Junk", true)
         end
+    end
+
+    if AdiBags and junkModule then
+        cachedAdiBags, cachedJunkModule = AdiBags, junkModule
     end
     return AdiBags, junkModule
 end

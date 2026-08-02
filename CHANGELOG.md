@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.7a] - 2026-07-31 — The rest of the per-icon work stops repeating
+
+### Fixed
+- **Surplus-gear junk marking recomputed everything per bag icon, per repaint** — an item
+  lookup plus three scale-walking checks, with no cache. It is now remembered per item and
+  cleared alongside the data it derives from.
+- **Junk classification re-resolved AdiBags on every call**, two library lookups deep, for an
+  answer that cannot change once found. Now resolved once.
+- Together with the arrow fix in 0.19.6a, the three things AdiBags asks Valuate about for every
+  visible icon are all cached and invalidated on change rather than on a timer.
+
 ## [0.19.6a] - 2026-07-31 — Upgrade arrows stop recomputing constantly
 
 ### Fixed
