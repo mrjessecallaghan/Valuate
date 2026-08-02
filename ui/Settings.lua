@@ -135,14 +135,57 @@ local function CreateSettingsPanel(parent)
     -- ========================================
     -- COLUMN 1: Display & Formatting
     -- ========================================
+    -- Adds the accent rule to a header that was built by hand. Used for the
+    -- pre-existing headers in columns 2 and 3: re-anchoring them through
+    -- CreateSectionHeader would risk their layout for no visual gain, so they just
+    -- get the rule and match.
+    -- Parameter deliberately NOT named `header`/`anchorTo`: settings-anchor-chain
+    -- matches on identifier text, so two helpers sharing an anchor-parameter name
+    -- read to it as two controls pinned to the same frame.
+    local function AddHeaderRule(col, existingHeader)
+        local rule = col:CreateTexture(nil, "BORDER")
+        rule:SetPoint("TOPLEFT", existingHeader, "BOTTOMLEFT", 0, -2)
+        rule:SetWidth(28)
+        rule:SetHeight(2)
+        rule:SetColorTexture(unpack(COLORS.textAccent))
+        return rule
+    end
+
+    -- Section header: title plus a short accent rule underneath, so a column reads
+    -- as a few labelled groups instead of one long list of checkboxes.
+    --
+    -- `afterFrame` is the previous control in the column's chain, so headers join the
+    -- same single chain everything else uses - the layout rule this panel depends on,
+    -- and what CheckColumnAnchors verifies.
+    local function CreateSectionHeader(col, colIndex, text, afterFrame, extraGap)
+        local headerFrame = col:CreateFontString(nil, "OVERLAY", FONT_H1)
+        if afterFrame then
+            headerFrame:SetPoint("TOPLEFT", afterFrame, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 2 + (extraGap or 0)))
+        else
+            headerFrame:SetPoint("TOPLEFT", col, "TOPLEFT", 0, 0)
+        end
+        headerFrame:SetText(text)
+        headerFrame:SetTextColor(unpack(COLORS.textAccent))
+
+        -- Accent rule. A texture on the column, not a frame: BACKGROUND/BORDER
+        -- textures always draw beneath the column's child frames, so it can never
+        -- intercept a click or need frame-level juggling.
+        local rule = col:CreateTexture(nil, "BORDER")
+        rule:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -2)
+        rule:SetWidth(28)
+        rule:SetHeight(2)
+        rule:SetColorTexture(unpack(COLORS.textAccent))
+
+        columnHeights[colIndex] = columnHeights[colIndex]
+            + (afterFrame and (ELEMENT_SPACING * 2 + (extraGap or 0)) or 0)
+            + HEADER_HEIGHT + ELEMENT_SPACING
+        return headerFrame
+    end
+
     local col1 = columnFrames[1]
-    
+
     -- Display & Formatting Section Header
-    local displayHeader = col1:CreateFontString(nil, "OVERLAY", FONT_H1)
-    displayHeader:SetPoint("TOPLEFT", col1, "TOPLEFT", 0, 0)
-    displayHeader:SetText("Display & Formatting")
-    displayHeader:SetTextColor(unpack(COLORS.textAccent))
-    columnHeights[1] = HEADER_HEIGHT + ELEMENT_SPACING
+    local displayHeader = CreateSectionHeader(col1, 1, "Display & Formatting", nil)
     
     -- Decimal Places (Column 1)
     local decimalLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
@@ -392,7 +435,8 @@ local function CreateSettingsPanel(parent)
     
     -- Auto Scan dropdown (Column 1)
     local autoScanLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    autoScanLabel:SetPoint("TOPLEFT", scanVerboseCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    local scanningHeader = CreateSectionHeader(col1, 1, "Scanning", scanVerboseCheckbox)
+    autoScanLabel:SetPoint("TOPLEFT", scanningHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     autoScanLabel:SetText("Auto Scan:")
     
     local autoScanModes = {
@@ -458,7 +502,9 @@ local function CreateSettingsPanel(parent)
     -- Auto Choose Best Quest Reward checkbox (Column 1, below the Auto Scan dropdown)
     local autoQuestCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     autoQuestCheckbox:SetSize(24, 24)
-    autoQuestCheckbox:SetPoint("TOPLEFT", autoScanLabel, "BOTTOMLEFT", 0, -36)
+    -- extraGap clears the dropdown, which hangs below its label.
+    local questsHeader = CreateSectionHeader(col1, 1, "Quests", autoScanLabel, 22)
+    autoQuestCheckbox:SetPoint("TOPLEFT", questsHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local autoQuestLabel = autoQuestCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     autoQuestLabel:SetPoint("LEFT", autoQuestCheckbox, "RIGHT", 5, 0)
@@ -570,7 +616,8 @@ local function CreateSettingsPanel(parent)
     -- Auto Roll On Loot checkbox (Column 1, below Auto Accept Quests)
     local autoRollCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     autoRollCheckbox:SetSize(24, 24)
-    autoRollCheckbox:SetPoint("TOPLEFT", autoAcceptCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    local lootHeader = CreateSectionHeader(col1, 1, "Loot Rolling", autoAcceptCheckbox)
+    autoRollCheckbox:SetPoint("TOPLEFT", lootHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local autoRollLabel = autoRollCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     autoRollLabel:SetPoint("LEFT", autoRollCheckbox, "RIGHT", 5, 0)
@@ -719,7 +766,10 @@ local function CreateSettingsPanel(parent)
     local notifyCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     notifyCheckbox:SetSize(24, 24)
     -- -16 undoes the indent of the roll sub-options to return to the base column.
-    notifyCheckbox:SetPoint("TOPLEFT", professionsLabel, "BOTTOMLEFT", -16, -(ELEMENT_SPACING + 8))
+    -- -16 undoes the indent of the roll sub-options; extraGap clears the dropdown.
+    local alertsCol1Header = CreateSectionHeader(col1, 1, "Upgrade Alerts", professionsLabel, 14)
+    alertsCol1Header:SetPoint("TOPLEFT", professionsLabel, "BOTTOMLEFT", -16, -(ELEMENT_SPACING * 2 + 14))
+    notifyCheckbox:SetPoint("TOPLEFT", alertsCol1Header, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local notifyLabel = notifyCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     notifyLabel:SetPoint("LEFT", notifyCheckbox, "RIGHT", 5, 0)
@@ -793,7 +843,8 @@ local function CreateSettingsPanel(parent)
     -- Auto Delete Junk checkbox (Column 1) - DESTRUCTIVE, so it warns loudly.
     local autoDeleteCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     autoDeleteCheckbox:SetSize(24, 24)
-    autoDeleteCheckbox:SetPoint("TOPLEFT", bindConfirmCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    local cleanupHeader = CreateSectionHeader(col1, 1, "Vendor & Cleanup", bindConfirmCheckbox)
+    autoDeleteCheckbox:SetPoint("TOPLEFT", cleanupHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
 
     local autoDeleteLabel = autoDeleteCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     autoDeleteLabel:SetPoint("LEFT", autoDeleteCheckbox, "RIGHT", 5, 0)
@@ -927,6 +978,7 @@ local function CreateSettingsPanel(parent)
     comparisonHeader:SetPoint("TOPLEFT", col2, "TOPLEFT", 0, 0)
     comparisonHeader:SetText("Upgrade Comparison")
     comparisonHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col2, comparisonHeader)
     columnHeights[2] = HEADER_HEIGHT + ELEMENT_SPACING
     
     -- Comparison Mode dropdown (Column 2)
@@ -1004,6 +1056,7 @@ local function CreateSettingsPanel(parent)
     interfaceHeader:SetPoint("TOPLEFT", compModeLabel, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
     interfaceHeader:SetText("Interface")
     interfaceHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col2, interfaceHeader)
     columnHeights[2] = columnHeights[2] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING
     
     -- Show Minimap Button checkbox (Column 2) - moved from Column 3
@@ -1074,6 +1127,7 @@ local function CreateSettingsPanel(parent)
     autoDeleteHeader:SetPoint("TOPLEFT", reduceMotionCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
     autoDeleteHeader:SetText("Auto Delete")
     autoDeleteHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col2, autoDeleteHeader)
     columnHeights[2] = columnHeights[2] + 20 + ELEMENT_SPACING
 
     -- Helper: a small labelled numeric input row in column 2.
@@ -1264,6 +1318,7 @@ local function CreateSettingsPanel(parent)
     charWindowHeader:SetPoint("TOPLEFT", col3, "TOPLEFT", 0, 0)
     charWindowHeader:SetText("Character Window")
     charWindowHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col3, charWindowHeader)
     columnHeights[3] = HEADER_HEIGHT + ELEMENT_SPACING
     
     -- Enable Character Window Display checkbox
@@ -1433,6 +1488,7 @@ local function CreateSettingsPanel(parent)
     keybindHeader:SetPoint("TOPLEFT", charScaleLabel, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
     keybindHeader:SetText("Keybindings")
     keybindHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col3, keybindHeader)
     columnHeights[3] = columnHeights[3] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING
     
     -- Open Valuate UI Keybind Button
@@ -1606,6 +1662,7 @@ local function CreateSettingsPanel(parent)
     alertsHeader:SetPoint("TOPLEFT", keybindLabel, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
     alertsHeader:SetText("Alerts & Extras")
     alertsHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col3, alertsHeader)
     columnHeights[3] = columnHeights[3] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING
 
     -- Alerts, bank and quest options (Column 3).
@@ -1767,6 +1824,7 @@ local function CreateSettingsPanel(parent)
     advancedHeader:SetPoint("TOPLEFT", arrowsCheckbox, "BOTTOMLEFT", 0, -(ELEMENT_SPACING * 3))
     advancedHeader:SetText("Advanced")
     advancedHeader:SetTextColor(unpack(COLORS.textAccent))
+    AddHeaderRule(col3, advancedHeader)
     columnHeights[3] = columnHeights[3] + (ELEMENT_SPACING * 3) + HEADER_HEIGHT + ELEMENT_SPACING
     
     -- Debug Mode checkbox (moved from Column 2)

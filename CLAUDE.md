@@ -95,6 +95,12 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
+
+> **Known false positive:** the rule matches the anchor's *identifier text*, so two
+> layout helpers whose anchor **parameter** shares a name (`anchorTo`, `header`) look
+> to it like two controls pinned to one frame. Give each helper a distinct parameter
+> name (`afterFrame`, `existingHeader`) rather than suppressing the rule — it is
+> still catching the real case everywhere else.
 | `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
 | `no-bank-in-destructive-path` | bank-cache reads inside delete/sell/free-slot code | §8 |
 

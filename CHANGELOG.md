@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.1a] - 2026-07-31 — Settings page organised
+
+### Changed
+- **Column 1 was one header over ~24 controls** — a single wall of checkboxes. It is now six
+  labelled sections: Display & Formatting, Scanning, Quests, Loot Rolling, Upgrade Alerts, and
+  Vendor & Cleanup.
+- **Every section header gained an accent rule**, so the ten sections across all three columns
+  read as distinct groups rather than a continuous list.
+
 ## [0.18.0a] - 2026-07-31 — Profession overrides
 
 ### Added
