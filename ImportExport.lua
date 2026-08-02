@@ -429,3 +429,71 @@ function Valuate:ImportMultipleScales(text, overwrite)
     return successCount, failCount, existingScales
 end
 
+
+-- ============================================================================
+-- Scale library (shared across all your characters)
+-- ============================================================================
+-- Scales are SavedVariablesPerCharacter, so every new character starts with none
+-- and the only way to move one was to export a tag, write it down, and paste it
+-- back. The library is a small ACCOUNT-WIDE store that removes that chore.
+--
+-- It holds scale TAGS, not scale tables. That reuses GetScaleTag/ImportScale
+-- wholesale - the same serialisation the export box uses, already handling the v2
+-- weapon-set fields - so the library can never drift from what a pasted tag does,
+-- and there is no second format to keep in step.
+
+function Valuate:GetScaleLibrary()
+    if not ValuateScaleLibrary then ValuateScaleLibrary = {} end
+    return ValuateScaleLibrary
+end
+
+-- Stores a scale under its display name. Returns true, entryName - or false, err.
+function Valuate:SaveScaleToLibrary(scaleName)
+    if not scaleName then return false, "no scale given" end
+    local scale = Valuate:GetScales()[scaleName]
+    if not scale then return false, "no such scale on this character" end
+
+    local tag = Valuate:GetScaleTag(scaleName)
+    if not tag or tag == "" then return false, "couldn't serialise that scale" end
+
+    local entryName = scale.DisplayName or scaleName
+    Valuate:GetScaleLibrary()[entryName] = tag
+    return true, entryName
+end
+
+-- Copies a library entry onto THIS character. overwrite mirrors ImportScale.
+-- Returns ok, messageOrScaleName.
+--
+-- ImportScale returns (resultCode, scaleName, errorMessage), and EVERY code is a
+-- truthy number - SUCCESS is 1, TAG_ERROR is 3. Returning it straight through would
+-- make callers read a failure as success, so the translation happens here, once.
+function Valuate:LoadScaleFromLibrary(entryName, overwrite)
+    if not entryName then return false, "no entry given" end
+    local tag = Valuate:GetScaleLibrary()[entryName]
+    if not tag then return false, "no library entry called '" .. tostring(entryName) .. "'" end
+
+    local status, scaleName, errorMessage = Valuate:ImportScale(tag, overwrite)
+    if status == Valuate.ImportResult.SUCCESS then
+        return true, scaleName
+    elseif status == Valuate.ImportResult.ALREADY_EXISTS then
+        return false, "'" .. tostring(scaleName) .. "' already exists on this character"
+    end
+    return false, errorMessage or "the stored tag could not be read"
+end
+
+function Valuate:DeleteScaleFromLibrary(entryName)
+    if not entryName then return false end
+    local lib = Valuate:GetScaleLibrary()
+    if lib[entryName] == nil then return false end
+    lib[entryName] = nil
+    return true
+end
+
+-- Sorted for stable output: pairs() order is undefined, and a list that reshuffles
+-- between calls is needlessly hard to read.
+function Valuate:ListScaleLibrary()
+    local names = {}
+    for name in pairs(Valuate:GetScaleLibrary()) do names[#names + 1] = name end
+    table.sort(names)
+    return names
+end

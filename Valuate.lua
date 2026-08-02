@@ -5928,6 +5928,7 @@ function Valuate:RunSelfTest()
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
         "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
         "IsLearnableRecipe", "IsUsefulTradeGood", "GetProfessionOverrideChoices",
+        "GetScaleLibrary", "SaveScaleToLibrary", "LoadScaleFromLibrary", "ListScaleLibrary",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }
@@ -6220,6 +6221,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate rollcheck [itemlink] - Explain what auto-roll would do with an item")
+        print("  /valuate library - Scales shared across all your characters (save/load/delete)")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -6464,6 +6466,52 @@ SlashCmdList["VALUATE"] = function(msg)
             print("|cFFFF0000Valuate|r: No active scale - activate one first.")
         else
             Valuate:EquipBestSet(scaleName)
+        end
+    elseif strsub(command, 1, 7) == "library" then
+        -- /valuate library [save|load|delete] <name>
+        local rest = strtrim(strsub(command, 9) or "")
+        local verb, arg = rest:match("^(%S+)%s+(.+)$")
+        if not verb then verb, arg = rest, nil end
+
+        local lib = Valuate:GetScaleLibrary()
+        if verb == "save" and arg then
+            local ok, result = Valuate:SaveScaleToLibrary(arg)
+            if ok then
+                print("|cFF00FF00Valuate|r: Saved '" .. result .. "' to the shared library.")
+                print("  Available on all your characters via /valuate library load " .. result)
+            else
+                print("|cFFFF0000Valuate|r: " .. tostring(result))
+            end
+        elseif verb == "load" and arg then
+            -- overwrite = true: loading an entry you already have is a deliberate
+            -- "give me the library's copy", and refusing would leave no way to do it.
+            local ok, result = Valuate:LoadScaleFromLibrary(arg, true)
+            if ok then
+                print("|cFF00FF00Valuate|r: Loaded '" .. tostring(result) .. "' onto this character.")
+                if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+                -- The scale list lives in the UI namespace, which this file can't
+                -- see; it rebuilds itself when the window is next opened, so a
+                -- missed refresh here costs nothing.
+            else
+                print("|cFFFF0000Valuate|r: " .. tostring(result))
+            end
+        elseif verb == "delete" and arg then
+            if Valuate:DeleteScaleFromLibrary(arg) then
+                print("|cFF00FF00Valuate|r: Removed '" .. arg .. "' from the library.")
+            else
+                print("|cFFFF0000Valuate|r: No library entry called '" .. arg .. "'.")
+            end
+        else
+            local names = Valuate:ListScaleLibrary()
+            print("|cFF00FF00[Valuate]|r Scale library |cFFAAAAAA(shared by all your characters)|r")
+            if #names == 0 then
+                print("  |cFFAAAAAAEmpty.|r Save one with: /valuate library save <scale name>")
+            else
+                for _, name in ipairs(names) do
+                    print("  |cFFFFFFFF" .. name .. "|r")
+                end
+                print("  |cFFAAAAAALoad onto this character: /valuate library load <name>|r")
+            end
         end
     elseif command == "junkmarks" then
         -- Diagnostic for the AdiBags "mark surplus gear as junk" option. Lives here

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.1a] - 2026-07-31 — Scale library shared across characters
+
+### Added
+- **A scale library shared by all your characters.** Scales are saved per character, so every
+  new one started empty and the only way to move a scale was to export a tag, keep it
+  somewhere, and paste it back. Save once, load anywhere:
+  - `/valuate library` — list what is stored
+  - `/valuate library save <scale>` — put this character's scale in the library
+  - `/valuate library load <name>` — copy it onto this character
+  - `/valuate library delete <name>`
+- It stores the same **scale tags** the export box produces, so the library can never drift
+  from what pasting a tag does, and there is no second format to keep in step.
+
 ## [0.19.0a] - 2026-07-31 — Equip just the item the popup is showing you
 
 ### Added
