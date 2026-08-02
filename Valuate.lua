@@ -6181,7 +6181,38 @@ function Valuate:RunProfile()
         print("  |cFFAAAAAAParse tooltip stats: skipped - nothing in main hand.|r")
     end
 
+    -- The per-bag-item integration path. This is the one that actually scales with
+    -- bag size: AdiBags calls into both of these for EVERY visible button on every
+    -- repaint, so a millisecond here is multiplied by a bagful.
+    local sampleLink
+    for bag = 0, 4 do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+            local link = GetContainerItemLink(bag, slot)
+            if link then sampleLink = link break end
+        end
+        if sampleLink then break end
+    end
+
+    if sampleLink then
+        -- Cached: what a repaint of an unchanged bag actually costs.
+        timeIt("Upgrade arrow (cached)", 500, function()
+            Valuate:IsItemLinkUpgrade(sampleLink)
+        end)
+        -- Uncached: the cost after any scan, since a scan clears the cache and the
+        -- next repaint pays full price for every item at once.
+        timeIt("Upgrade arrow (cold)", 50, function()
+            Valuate:ResetUpgradeArrowCache()
+            Valuate:IsItemLinkUpgrade(sampleLink)
+        end)
+        timeIt("Junk classification", 500, function()
+            Valuate:IsItemJunk(GetItemIdFromLink(sampleLink))
+        end)
+    else
+        print("  |cFFAAAAAABag item paths: skipped - no items in your bags to sample.|r")
+    end
+
     print("  |cFFAAAAAAScan runs on loot/equipment changes; scoring and parsing run per item.|r")
+    print("  |cFFAAAAAAArrow and junk costs are per VISIBLE bag icon, per repaint.|r")
     return true
 end
 

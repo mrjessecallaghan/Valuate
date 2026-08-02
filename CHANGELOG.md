@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.3a] - 2026-07-31 — Profile what actually runs per bag icon
+
+### Added
+- **`/valuate profile` now measures the per-bag-item paths** — the upgrade-arrow check (cached
+  and cold) and junk classification. These are the costs that scale with bag size: AdiBags
+  calls into both for every visible icon on every repaint, so a millisecond there is multiplied
+  by a bagful. The profiler previously only measured the scan, scoring and tooltip parsing.
+- The **cold** arrow figure matters separately: a scan clears the cache, so the next repaint
+  pays full price for every item at once.
+- Library rows cascade in when the window opens, matching the reveals elsewhere.
+
 ## [0.19.2a] - 2026-07-31 — Scale library gets a window
 
 ### Added

@@ -933,6 +933,14 @@ local function RefreshScaleLibraryList()
         end)
 
         row:Show()
+        -- Cascade the rows in, matching the reveals elsewhere. Staggered by index so
+        -- a library with a dozen entries still finishes quickly.
+        row:SetAlpha(0)
+        Anim.tween({
+            duration = 0.18, delay = (i - 1) * 0.03, ease = "outCubic",
+            onUpdate = function(e) row:SetAlpha(e) end,
+            onDone = function() row:SetAlpha(1) end,
+        })
         y = y + ENTRY_HEIGHT + 2
     end
 
