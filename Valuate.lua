@@ -5919,19 +5919,56 @@ function Valuate:PrintReport()
         free < keepFree and " |cFFFF8800- below target|r" or ""))
 
     -- What is actually armed. Silence here is why "nothing happened" is confusing.
+    -- Sub-options are reported UNDER their parent rather than as separate entries.
+    -- A flat list of every toggle would be accurate but unreadable, and the thing
+    -- you actually want to know is "what will this do when it fires".
     local on = {}
-    local toggles = {
-        { options.autoAcceptQuests, "accept quests" },
-        { options.autoQuestReward, "pick quest reward" },
-        { options.autoQuestTurnIn, "turn in quests" },
-        { options.autoRollLoot, "roll on loot" },
-        { options.notifyBagUpgrade, "upgrade prompt" },
-        { options.autoDeleteJunk, "delete junk" },
-        { options.autoSellJunk, "sell junk" },
-        { options.autoRepair, "repair" },
-    }
-    for _, t in ipairs(toggles) do
-        if t[1] then on[#on + 1] = t[2] end
+    local function add(enabled, label)
+        if enabled then on[#on + 1] = label end
+    end
+    local function withExtras(label, extras)
+        if #extras == 0 then return label end
+        return label .. " (+" .. table.concat(extras, ", +") .. ")"
+    end
+
+    add(options.autoAcceptQuests, options.autoAcceptSkipTrivial
+        and "accept quests (skipping trivial)" or "accept quests")
+    add(options.autoQuestReward, "pick quest reward")
+    add(options.autoQuestTurnIn, "turn in quests")
+
+    if options.autoRollLoot then
+        local extras = {}
+        if options.autoRollRecipes ~= false then extras[#extras + 1] = "recipes" end
+        if options.autoRollTradeGoods ~= false then extras[#extras + 1] = "materials" end
+        add(true, withExtras("roll on loot", extras))
+    end
+
+    if options.notifyBagUpgrade then
+        local extras = {}
+        if options.notifyOtherSpecUpgrades then extras[#extras + 1] = "other specs" end
+        if options.notifyUpgradeSound then extras[#extras + 1] = "sound" end
+        add(true, withExtras(
+            (options.notifyBagUpgradeStyle == "chat") and "upgrade alert (chat)" or "upgrade popup",
+            extras))
+    end
+
+    add(options.showUpgradeArrows, "upgrade arrows")
+    add(options.includeBankItems, "bank items counted")
+
+    if options.autoDeleteJunk then
+        local iv = tonumber(options.autoDeleteIntervalSecs) or 0
+        add(true, iv > 0 and string.format("delete junk (every %ds)", iv) or "delete junk")
+    end
+    add(options.autoSellJunk, "sell junk")
+    add(options.autoRepair, "repair")
+
+    -- Surplus-gear marking lives in the AdiBags module's own settings, but it feeds
+    -- THIS addon's auto-delete, so someone running both needs to see them together
+    -- rather than discovering the combination the hard way.
+    local ab = _G.AdiBags
+    local abMod = ab and ab.GetModule and select(2, pcall(ab.GetModule, ab, "ValuateBestItems", true))
+    if type(abMod) == "table" and abMod.db and abMod.db.profile.markNonBestAsJunk then
+        add(true, "|cFFFF8800mark surplus gear as junk|r")
     end
     if #on > 0 then
         print("  Automation on: |cFF00FF00" .. table.concat(on, ", ") .. "|r")

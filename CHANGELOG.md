@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.20.1a] - 2026-07-31 — The report knows about everything again
+
+### Fixed
+- **`/valuate report` was omitting features that were switched on.** Its list of armed
+  automation was hardcoded and predated the upgrade arrows, bank scanning, recipe and material
+  rolling, alert options and the cleanup timer — so the one command meant to answer "what will
+  this do?" was quietly incomplete.
+- Sub-options now read under their parent — `roll on loot (+recipes, +materials)` — rather than
+  as a flat wall of toggles.
+- It also reports **AdiBags surplus-gear marking** when that is on. It lives in the AdiBags
+  module's own settings but feeds Valuate's auto-delete, so running both should not be
+  something you discover the hard way.
+
 ## [0.20.0a] - 2026-07-31 — Restore default settings
 
 ### Added
