@@ -211,6 +211,9 @@ callback either reschedule or be genuinely final.
 | `ui/*.lua` | The UI panels — see below |
 | `MinimapButton.lua` | Minimap button + upgrade pulse |
 | `tools/check.js` | Syntax + lint gate |
+| `tools/globals.js` | Scope analysis: undefined globals + the `ns.*` contract |
+| `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
+| `tools/options.js` | Every option is reachable from the UI or a command |
 
 ### `ui/` modules (load order matters — see the `.toc`)
 
