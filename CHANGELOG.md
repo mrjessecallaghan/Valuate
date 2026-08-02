@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.2a] - 2026-07-31 — Scale library gets a window
+
+### Added
+- **A "Scale Library" button** under the scale list, opening a proper window: every saved scale
+  listed with **Load** and **Delete**, plus **Save Current Scale**. The slash commands still
+  work, but a feature this useful should not live only in chat.
+- Deleting asks for confirmation, and says plainly that scales already on your characters are
+  unaffected.
+
 ## [0.19.1a] - 2026-07-31 — Scale library shared across characters
 
 ### Added

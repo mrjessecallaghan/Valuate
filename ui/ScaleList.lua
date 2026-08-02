@@ -551,7 +551,9 @@ local function CreateScaleList(parent)
     local buttonContainer = CreateFrame("Frame", nil, parent)
     buttonContainer:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     buttonContainer:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    buttonContainer:SetHeight(BUTTON_HEIGHT)
+    -- Two rows. Everything below anchors to this container's BOTTOM, so growing it
+    -- shifts the list down on its own - no re-anchoring anywhere else.
+    buttonContainer:SetHeight(BUTTON_HEIGHT * 2 + ELEMENT_SPACING)
     
     -- New Blank Scale button (80% width)
     local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.8)
@@ -569,6 +571,27 @@ local function CreateScaleList(parent)
         ValuateUI_ShowTemplatePicker()
     end)
     
+    -- Scale Library (row 2, full width). Lives here rather than the editor header
+    -- because it IS scale management, like the two buttons above it - and the header
+    -- has no room left once the summary is accounted for.
+    local libraryButton = CreateStyledButton(buttonContainer, "Scale Library", 200, BUTTON_HEIGHT)
+    libraryButton:SetPoint("TOPLEFT", newButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    libraryButton:SetScript("OnClick", function()
+        -- Read at click time: the library dialog is defined in ScaleEditor.lua,
+        -- which loads after this file.
+        if Valuate.ShowScaleLibrary then Valuate:ShowScaleLibrary() end
+    end)
+    libraryButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Scale Library", 1, 1, 1)
+            GameTooltip:AddLine("Scales saved here are shared by ALL your characters.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Scales themselves are per-character, so without this a new character starts with none.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    libraryButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     -- Tooltip for template button
     templateButton:SetScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))

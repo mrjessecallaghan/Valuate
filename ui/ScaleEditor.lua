@@ -859,6 +859,164 @@ function Valuate:ShowExportDialog(scaleName)
 end
 
 -- Shows the import dialog for pasting a scale tag
+-- ========================================
+-- Scale Library dialog
+-- ========================================
+-- Scales are per-character, so the library is the only way to reuse one without
+-- copying a tag by hand. Rows are POOLED and rebuilt on each open: the list is
+-- small and changes rarely, so a pool is simpler than incremental updates and
+-- cannot leave a stale row behind after a delete.
+local ScaleLibraryFrame
+local libraryRows = {}
+
+local function RefreshScaleLibraryList()
+    local frame = ScaleLibraryFrame
+    if not frame then return end
+
+    for _, row in ipairs(libraryRows) do row:Hide() end
+
+    local names = Valuate:ListScaleLibrary()
+    -- Show/Hide rather than SetShown: that is a later-expansion API which this
+    -- client happens to have backported, and nothing else in Valuate relies on it.
+    if #names == 0 then frame.emptyLabel:Show() else frame.emptyLabel:Hide() end
+
+    local y = 0
+    for i, entryName in ipairs(names) do
+        local row = libraryRows[i]
+        if not row then
+            row = CreateFrame("Frame", nil, frame.content)
+            row:SetHeight(ENTRY_HEIGHT)
+            row:SetPoint("LEFT", frame.content, "LEFT", 0, 0)
+            row:SetPoint("RIGHT", frame.content, "RIGHT", 0, 0)
+
+            row.label = row:CreateFontString(nil, "OVERLAY", FONT_BODY)
+            row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
+            row.label:SetJustifyH("LEFT")
+            row.label:SetTextColor(unpack(COLORS.textBody))
+
+            row.deleteBtn = CreateStyledButton(row, "Delete", 60, 18)
+            row.deleteBtn:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+
+            row.loadBtn = CreateStyledButton(row, "Load", 60, 18)
+            row.loadBtn:SetPoint("RIGHT", row.deleteBtn, "LEFT", -6, 0)
+
+            row.label:SetPoint("RIGHT", row.loadBtn, "LEFT", -6, 0)
+            libraryRows[i] = row
+        end
+
+        row:SetPoint("TOP", frame.content, "TOP", 0, -y)
+        row.label:SetText(entryName)
+
+        -- Rebound every refresh so a row reused for a different entry never keeps
+        -- the previous name in its closure.
+        row.loadBtn:SetScript("OnClick", function()
+            local ok, result = Valuate:LoadScaleFromLibrary(entryName, true)
+            if ok then
+                print("|cFF00FF00Valuate|r: Loaded '" .. tostring(result) .. "' onto this character.")
+                UpdateScaleList()
+                if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+            else
+                print("|cFFFF0000Valuate|r: " .. tostring(result))
+            end
+        end)
+        row.deleteBtn:SetScript("OnClick", function()
+            Valuate:ShowConfirmDialog({
+                text = "Remove \"" .. entryName .. "\" from the shared library?\n\n"
+                    .. "Scales already on your characters are not affected.",
+                acceptText = "Remove",
+                cancelText = "Cancel",
+                onAccept = function()
+                    Valuate:DeleteScaleFromLibrary(entryName)
+                    RefreshScaleLibraryList()
+                end,
+            })
+        end)
+
+        row:Show()
+        y = y + ENTRY_HEIGHT + 2
+    end
+
+    frame.content:SetHeight(math.max(y, 1))
+end
+
+local function CreateScaleLibraryFrame()
+    local frame = CreateFrame("Frame", "ValuateScaleLibraryFrame", UIParent)
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateScaleLibraryFrame") end
+    frame:SetWidth(360)
+    frame:SetHeight(320)
+    frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdrop(BACKDROP_WINDOW)
+    frame:SetBackdropColor(unpack(COLORS.windowBg))
+    frame:SetBackdropBorderColor(unpack(COLORS.borderLight))
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:Hide()
+
+    local title = frame:CreateFontString(nil, "OVERLAY", FONT_H1)
+    title:SetPoint("TOP", frame, "TOP", 0, -14)
+    title:SetText("Scale Library")
+    title:SetTextColor(unpack(COLORS.textAccent))
+
+    local subtitle = frame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    subtitle:SetPoint("TOP", title, "BOTTOM", 0, -4)
+    subtitle:SetText("Shared by all your characters")
+    subtitle:SetTextColor(unpack(COLORS.textDim))
+
+    local scroll = CreateFrame("ScrollFrame", nil, frame)
+    scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -58)
+    scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 56)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = self:GetVerticalScrollRange()
+        self:SetVerticalScroll(math.max(0, math.min(maxScroll, self:GetVerticalScroll() - delta * 24)))
+    end)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetWidth(330)
+    content:SetHeight(1)
+    scroll:SetScrollChild(content)
+    frame.content = content
+
+    local empty = frame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    empty:SetPoint("CENTER", scroll, "CENTER", 0, 0)
+    empty:SetWidth(300)
+    empty:SetJustifyH("CENTER")
+    empty:SetText("Nothing saved yet.\n\nUse |cFFFFFFFFSave Current Scale|r below to add the one you're editing.")
+    empty:SetTextColor(unpack(COLORS.textDim))
+    frame.emptyLabel = empty
+
+    local saveBtn = CreateStyledButton(frame, "Save Current Scale", 150, 22)
+    saveBtn:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 16)
+    saveBtn:SetScript("OnClick", function()
+        local ok, result = Valuate:SaveScaleToLibrary(ns.EditingScaleName)
+        if ok then
+            print("|cFF00FF00Valuate|r: Saved '" .. result .. "' to the shared library.")
+            RefreshScaleLibraryList()
+        else
+            print("|cFFFF0000Valuate|r: " .. tostring(result)
+                .. " - select a scale in the list first.")
+        end
+    end)
+
+    local closeBtn = CreateStyledButton(frame, "Close", 90, 22)
+    closeBtn:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -12, 16)
+    closeBtn:SetScript("OnClick", function() frame:Hide() end)
+
+    ScaleLibraryFrame = frame
+    return frame
+end
+
+function Valuate:ShowScaleLibrary()
+    local frame = ScaleLibraryFrame or CreateScaleLibraryFrame()
+    RefreshScaleLibraryList()
+    frame:Show()
+    Anim.popIn(frame)
+end
+
 function Valuate:ShowImportDialog()
     local dialog = CreateImportExportDialog()
     
