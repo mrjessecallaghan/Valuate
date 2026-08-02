@@ -111,6 +111,8 @@ local function CreateMainWindow()
     
     -- Main frame
     local frame = CreateFrame("Frame", "ValuateUIFrame", UIParent)
+    -- Escape closes the window, like Blizzard's own panels.
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateUIFrame") end
     frame:SetWidth(WINDOW_WIDTH)
     frame:SetHeight(MIN_WINDOW_HEIGHT)
     frame:SetMovable(true)

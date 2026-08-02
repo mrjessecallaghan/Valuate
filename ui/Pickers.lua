@@ -61,6 +61,7 @@ end
 
 local function CreateIconPickerFrame()
     local frame = CreateFrame("Frame", "ValuateIconPickerFrame", UIParent)
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateIconPickerFrame") end
     frame:SetSize(306, 440)  -- Increased height for more icons visible
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
@@ -295,6 +296,7 @@ end
 
 local function CreateClassSpecificPickerFrame()
     local frame = CreateFrame("Frame", "ValuateClassSpecificPickerFrame", UIParent)
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateClassSpecificPickerFrame") end
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetFrameLevel(100)
@@ -545,6 +547,7 @@ end
 
 local function CreateTemplatePickerFrame()
     local frame = CreateFrame("Frame", "ValuateTemplatePickerFrame", UIParent)
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateTemplatePickerFrame") end
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetFrameLevel(100)

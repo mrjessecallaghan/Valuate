@@ -751,8 +751,9 @@ local function CreateImportExportDialog()
     end)
     dialog:Hide()
     
-    -- Close on Escape
-    table.insert(UISpecialFrames, "ValuateImportExportDialog")
+    -- Close on Escape. Routed through the shared helper like every other frame, so
+    -- the duplicate guard applies here too.
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateImportExportDialog") end
     
     -- Title
     local title = dialog:CreateFontString(nil, "OVERLAY", FONT_H1)

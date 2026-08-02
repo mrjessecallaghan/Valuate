@@ -31,6 +31,8 @@ local function EnsurePopup()
     if popup then return popup end
 
     local f = CreateFrame("Frame", "ValuateUpgradePopup", UIParent)
+    -- Safe to Escape-close: it's a notification, so hiding it IS dismissing it.
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateUpgradePopup") end
     f:SetWidth(POPUP_W)
     f:SetHeight(POPUP_H)
     f:SetPoint("TOP", UIParent, "TOP", 0, -160)

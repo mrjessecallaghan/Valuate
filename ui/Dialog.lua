@@ -31,6 +31,10 @@ local function EnsureDialog()
     if valuateDialog then return valuateDialog end
 
     local f = CreateFrame("Frame", "ValuateConfirmDialog", UIParent)
+    -- Escape dismisses it. Safe because no caller passes onCancel - cancelling is
+    -- purely "close without acting", which is exactly what hiding does. If a caller
+    -- ever needs cleanup on cancel, this registration has to go.
+    if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateConfirmDialog") end
     f:SetSize(400, 130)
     f:SetPoint("TOP", UIParent, "TOP", 0, -180)
     f:SetFrameStrata("DIALOG")

@@ -182,9 +182,28 @@ local function CreateStyledButton(parent, text, width, height)
     return btn
 end
 
+-- Makes Escape close a frame, the way it closes Blizzard's own windows.
+--
+-- UISpecialFrames is just a list of GLOBAL frame names, so the frame must have been
+-- created with one. WoW hides the frame directly - it does not run OnHide-style
+-- callbacks or any cancel handler, so only register frames where "hidden" and
+-- "dismissed" mean the same thing.
+--
+-- Guarded against double registration: the list is shared across every addon, and a
+-- duplicate entry is pure noise in a table Blizzard walks on every Escape press.
+local function RegisterEscapeClose(frameName)
+    if type(frameName) ~= "string" or not UISpecialFrames then return false end
+    for _, name in ipairs(UISpecialFrames) do
+        if name == frameName then return false end
+    end
+    tinsert(UISpecialFrames, frameName)
+    return true
+end
+
 -- ========================================
 -- Publish to the shared namespace
 -- ========================================
+ns.RegisterEscapeClose = RegisterEscapeClose
 ns.ValidateStatValueInput = ValidateStatValueInput
 ns.ValidateWholeNumberInput = ValidateWholeNumberInput
 ns.ApplyStatValueValidation = ApplyStatValueValidation

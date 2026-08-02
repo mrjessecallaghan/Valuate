@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.4a] - 2026-07-31 — Escape closes Valuate windows
+
+### Added
+- **Escape now closes the Valuate window**, the same way it closes Blizzard's panels — along
+  with the icon, template and class-spec pickers, the upgrade popup, and the confirm dialog.
+  Import/Export already did this; now everything is consistent.
+- Registration goes through one guarded helper, so a frame cannot be added twice to the list
+  Blizzard walks on every Escape press.
+
 ## [0.18.3a] - 2026-07-31 — Scale editor feedback and reveal
 
 ### Added
