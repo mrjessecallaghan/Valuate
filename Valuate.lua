@@ -2494,6 +2494,12 @@ end
 --- This should be called whenever scale settings change (stat weights, visibility, etc.)
 --- Similar to Pawn's PawnResetTooltips function
 function Valuate:ResetTooltips()
+    -- Called whenever scoring inputs change - a stat weight edited, a stat banned,
+    -- a scale toggled. None of that moves the equipped-gear signature, so the arrow
+    -- cache has to be dropped explicitly here or arrows would keep answering with
+    -- the old weights until you happened to equip something.
+    if Valuate.ResetUpgradeArrowCache then Valuate:ResetUpgradeArrowCache() end
+
     -- Reset main tooltip
     ResetTooltip("GameTooltip")
     
@@ -2958,10 +2964,38 @@ function Valuate:RegisterBestEquipmentListener(fn)
     return true
 end
 
+-- Cheap fingerprint of everything an upgrade-arrow answer depends on: what you
+-- have equipped, and which scale is being asked about. Scale WEIGHTS are handled
+-- separately in ResetTooltips, since editing them changes answers without changing
+-- any of this.
+local upgradeCacheSignature
+local function UpgradeBaselineSignature()
+    local parts = {}
+    for slotId = 1, 18 do
+        if slotId ~= 4 then
+            local link = GetInventoryItemLink("player", slotId)
+            parts[#parts + 1] = (link and GetItemIdFromLink(link)) or "-"
+        end
+    end
+    local _, primaryName = Valuate:GetPrimaryScale()
+    parts[#parts + 1] = primaryName or "-"
+    return table.concat(parts, ",")
+end
+
 function Valuate:NotifyBestEquipmentChanged()
-    -- Equipping or re-scoring anything changes whether every OTHER item is an
-    -- upgrade, so the arrow cache can't outlive a scan.
-    if Valuate.ResetUpgradeArrowCache then Valuate:ResetUpgradeArrowCache() end
+    -- Only drop the arrow cache when the ANSWERS could have changed.
+    --
+    -- This used to reset on every scan, which was fine when scans were rare. With
+    -- Auto Scan on "Always" they now run about once a second while looting, so every
+    -- visible bag icon was rebuilding a tooltip and re-checking scales on every
+    -- repaint - for a baseline that had not moved. A scan that finds nothing new
+    -- must not invalidate anything.
+    local sig = UpgradeBaselineSignature()
+    if sig ~= upgradeCacheSignature then
+        upgradeCacheSignature = sig
+        if Valuate.ResetUpgradeArrowCache then Valuate:ResetUpgradeArrowCache() end
+    end
+
     for _, fn in ipairs(bestEquipmentListeners) do
         pcall(fn)
     end

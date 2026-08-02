@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.6a] - 2026-07-31 — Upgrade arrows stop recomputing constantly
+
+### Fixed
+- **The upgrade-arrow cache was thrown away on every scan.** That was harmless when scans were
+  rare, but Auto Scan on "Always" now runs about once a second while looting — so every visible
+  bag icon was rebuilding a tooltip and re-checking scales on every repaint, for a baseline
+  that had not actually moved.
+- It now clears only when the answers could have changed: your equipped gear, your current
+  spec, or your stat weights. A scan that finds nothing new invalidates nothing.
+
 ## [0.19.5a] - 2026-07-31 — Instructions catch up with the addon
 
 ### Fixed
