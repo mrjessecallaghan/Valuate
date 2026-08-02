@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.4a] - 2026-07-31 — Selftest covers the recent work
+
+### Added
+- **`/valuate selftest` now checks the newer features**: the scale library holds tags rather
+  than scale tables, profession overrides are keyed by name, and every Valuate window that has
+  been created is registered for Escape.
+- The Escape check only asserts on windows that **actually exist yet** — they are all created
+  lazily, so asserting on all of them would fail on a fresh login for windows you simply have
+  not opened.
+
 ## [0.19.3a] - 2026-07-31 — Profile what actually runs per bag icon
 
 ### Added

@@ -5972,6 +5972,62 @@ function Valuate:RunSelfTest()
               orphaned > 0 and (orphaned .. " orphaned; re-visit a bank to refresh") or nil)
     end
 
+    -- Scale library: entries must be TAGS (strings). Storing a scale table here by
+    -- mistake would import as garbage on another character, and the failure would
+    -- surface on a different character from the one that caused it.
+    local lib = Valuate:GetScaleLibrary()
+    check(type(lib) == "table", "scale library structure")
+    if type(lib) == "table" then
+        local bad = 0
+        for _, tag in pairs(lib) do
+            if type(tag) ~= "string" or tag == "" then bad = bad + 1 end
+        end
+        check(bad == 0, "library entries are scale tags",
+              bad > 0 and (bad .. " entr(ies) are not strings") or nil)
+    end
+
+    -- Profession overrides must be a name -> boolean map. A stray non-string key
+    -- would silently never match a recipe's subtype.
+    local overrides = Valuate:GetOptions().professionOverrides
+    check(type(overrides) == "table", "profession overrides structure")
+    if type(overrides) == "table" then
+        local badKeys = 0
+        for name in pairs(overrides) do
+            if type(name) ~= "string" then badKeys = badKeys + 1 end
+        end
+        check(badKeys == 0, "profession override keys are names",
+              badKeys > 0 and (badKeys .. " non-string key(s)") or nil)
+    end
+
+    -- Escape-to-close: a frame silently missing from UISpecialFrames looks identical
+    -- to one that is there, so it is worth asserting.
+    --
+    -- Every Valuate frame is created LAZILY - the main window on first /valuate ui,
+    -- the dialogs and pickers on first use - so only frames that actually exist yet
+    -- are checked. Asserting on all of them would fail on a fresh login for frames
+    -- that simply have not been opened, and a selftest that cries wolf is worse than
+    -- no selftest.
+    if UISpecialFrames then
+        local registered = {}
+        for _, name in ipairs(UISpecialFrames) do registered[name] = true end
+
+        local created, missing = 0, {}
+        for _, name in ipairs({
+            "ValuateUIFrame", "ValuateConfirmDialog", "ValuateUpgradePopup",
+            "ValuateImportExportDialog", "ValuateScaleLibraryFrame",
+            "ValuateIconPickerFrame", "ValuateTemplatePickerFrame",
+            "ValuateClassSpecificPickerFrame",
+        }) do
+            if _G[name] then
+                created = created + 1
+                if not registered[name] then missing[#missing + 1] = name end
+            end
+        end
+        check(#missing == 0,
+              string.format("Escape closes every created window (%d so far)", created),
+              #missing > 0 and ("not registered: " .. table.concat(missing, ", ")) or nil)
+    end
+
     -- Weapon-set metadata is the expected shape.
     local defs = Valuate:GetWeaponSetDefinitions()
     check(type(defs) == "table" and #defs == 4, "weapon-set definitions (4)",
