@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.20.0a] - 2026-07-31 — Restore default settings
+
+### Added
+- **A "Restore Default Settings" button**, under Advanced. There are now 48 options, and the
+  only way back to a known state was deleting saved variables — which also takes your scales.
+- **It only touches options.** Your scales, the scale library, best-equipment data and the bank
+  snapshot are left alone, and the confirmation says so.
+- Also available as `Valuate:RestoreDefaultOptions()`, which reports how many settings changed.
+
 ## [0.19.7a] - 2026-07-31 — The rest of the per-icon work stops repeating
 
 ### Fixed

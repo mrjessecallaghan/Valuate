@@ -1843,6 +1843,40 @@ local function CreateSettingsPanel(parent)
         Valuate:GetOptions().debug = (self:GetChecked() == 1) or (self:GetChecked() == true)
     end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Restore Defaults (Column 3, below Debug Mode). 48 options accumulate a lot of
+    -- state, and there was no way back to a known one short of deleting saved
+    -- variables entirely - which also takes your scales.
+    local restoreButton = CreateStyledButton(col3, "Restore Default Settings", 180, 22)
+    restoreButton:SetPoint("TOPLEFT", debugCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    restoreButton:SetScript("OnClick", function()
+        Valuate:ShowConfirmDialog({
+            text = "Restore all Valuate settings to their defaults?\n\n"
+                .. "|cFF00FF00Your scales, scale library and best-equipment data are NOT affected.|r\n"
+                .. "Only the options on this page change.",
+            acceptText = "Restore Defaults",
+            cancelText = "Cancel",
+            onAccept = function()
+                local n = Valuate:RestoreDefaultOptions()
+                print(string.format("|cFF00FF00[Valuate]|r Restored %d setting(s) to defaults.", n))
+                -- The panel's controls still show the old values; rebuilding them
+                -- means reopening the window, which is simpler and more honest than
+                -- trying to refresh forty-odd widgets in place.
+                print("|cFFAAAAAA[Valuate]|r Close and reopen this window to see the reset controls.")
+            end,
+        })
+    end)
+    restoreButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Restore Default Settings", 1, 1, 1)
+            GameTooltip:AddLine("Puts every option on this page back to how it shipped.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Scales, the scale library and your best-equipment data are left alone - this only touches settings.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    restoreButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
     
     -- ========================================
     -- Delete Saved Variables Button (Bottom Right)

@@ -702,6 +702,32 @@ function Valuate:GetOptions()
     return ValuateOptions
 end
 
+-- Restores every option to its default. Returns how many actually changed.
+--
+-- Options ONLY. Scales, the scale library, best-equipment data and the bank
+-- snapshot are untouched: 48 options accumulate a lot of state you might want to
+-- clear, but losing your scales because you wanted your checkboxes back would be
+-- an appalling trade.
+function Valuate:RestoreDefaultOptions()
+    local options = Valuate:GetOptions()
+    local changed = 0
+
+    -- Wipe in place rather than replacing the table: other files hold references to
+    -- it (GetOptions() results get cached in closures), and swapping the table would
+    -- leave them writing to an orphan.
+    for key in pairs(options) do
+        options[key] = nil
+        changed = changed + 1
+    end
+    ApplyOptionDefaults(options)
+
+    -- Anything derived from an option has to be recomputed, or the UI keeps showing
+    -- decisions made under the old settings.
+    if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+    if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    return changed
+end
+
 -- Get character-specific scales table
 function Valuate:GetScales()
     if not ValuateScales then
