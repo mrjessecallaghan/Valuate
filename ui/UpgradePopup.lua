@@ -123,16 +123,40 @@ local function EnsurePopup()
 
     -- Hovering the icon shows the actual item, so "is it really better?" is one
     -- mouse move away rather than a trip to the bags.
-    local iconHover = CreateFrame("Frame", nil, f)
+    -- Clicking the icon equips JUST that item. The Equip button takes the whole set,
+    -- which is the wrong granularity when you only want the one thing the popup is
+    -- actually telling you about - and that was the only option until now.
+    local iconHover = CreateFrame("Button", nil, f)
     iconHover:SetAllPoints(icon)
-    iconHover:EnableMouse(true)
+    iconHover:RegisterForClicks("LeftButtonUp")
     iconHover:SetScript("OnEnter", function(self)
         if f.itemLink and ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:SetHyperlink(f.itemLink)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Click to equip just this item.", 0.6, 1, 0.6)
             GameTooltip:Show()
         end
+        -- Slight lift on hover so the icon reads as clickable rather than decorative.
+        if icon.SetTexCoord then icon:SetTexCoord(0.10, 0.90, 0.10, 0.90) end
     end)
-    iconHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    iconHover:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+        if icon.SetTexCoord then icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
+    end)
+    iconHover:SetScript("OnClick", function()
+        if not f.itemLink or not f.itemSlotId then return end
+        -- Same guard EquipBestSet uses: equipping is blocked in combat, and saying so
+        -- beats a click that silently does nothing.
+        if InCombatLockdown() then
+            print("|cFFFF0000[Valuate]|r Can't change equipment in combat.")
+            return
+        end
+        -- Tell the bind-confirm handler this equip is ours, so a BoE upgrade doesn't
+        -- stall on the "this will bind to you" popup.
+        if Valuate.MarkEquipIntent then Valuate:MarkEquipIntent(8) end
+        EquipItemByName(f.itemLink, f.itemSlotId)
+        Valuate:HideUpgradePopup()
+    end)
 
     -- One driver for the glow pulse, running only while the popup is shown.
     f.pulse = 0
@@ -164,6 +188,10 @@ function Valuate:ShowUpgradePopup(opts)
 
     local top = opts.top
     f.itemLink = top and top.itemLink or nil
+    -- EquipItemByName needs the target slot for multi-slot gear (rings, trinkets,
+    -- one-handers), or it picks a slot itself and can undo the assignment the scan
+    -- worked out.
+    f.itemSlotId = top and top.slotId or nil
 
     if top and top.itemTexture then
         f.icon:SetTexture(top.itemTexture)

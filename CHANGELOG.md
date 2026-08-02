@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.0a] - 2026-07-31 — Equip just the item the popup is showing you
+
+### Added
+- **Click the upgrade popup's icon to equip only that item.** The Equip button takes the whole
+  set, which is the wrong granularity when you only want the one thing the popup is telling you
+  about — and it was the only option until now.
+- The icon lifts slightly on hover so it reads as clickable, and the tooltip says what a click
+  does.
+- Blocked in combat with a message, the same guard Equip All uses, rather than a click that
+  silently does nothing.
+
 ## [0.18.5a] - 2026-07-31 — One entrance for every window; the score rolls
 
 ### Changed
