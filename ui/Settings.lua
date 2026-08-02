@@ -649,11 +649,77 @@ local function CreateSettingsPanel(parent)
     rollMatsCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
+    -- Profession overrides (Column 1, below the roll sub-options).
+    --
+    -- MULTI-select, unlike every other dropdown here: you can have several
+    -- professions, so this uses isNotRadio + keepShownOnClick so ticking one does
+    -- not close the menu or clear the others.
+    local professionsLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    professionsLabel:SetPoint("TOPLEFT", rollMatsCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    professionsLabel:SetText("Professions")
+
+    local professionDropdown = CreateFrame("Frame", "ValuateProfessionDropdown", col1, "UIDropDownMenuTemplate")
+    professionDropdown:SetPoint("LEFT", professionsLabel, "RIGHT", -10, -2)
+    UIDropDownMenu_SetWidth(professionDropdown, 150)
+
+    local function ProfessionSummary()
+        local choices, detected = Valuate:GetProfessionOverrideChoices()
+        local overrides = Valuate:GetOptions().professionOverrides or {}
+        local n = 0
+        for _, prof in ipairs(choices) do
+            if detected[prof] or overrides[prof] then n = n + 1 end
+        end
+        if n == 0 then return "|cFFFF8800None detected|r" end
+        return string.format("%d profession%s", n, n == 1 and "" or "s")
+    end
+    UIDropDownMenu_SetText(professionDropdown, ProfessionSummary())
+
+    UIDropDownMenu_Initialize(professionDropdown, function(self, level)
+        local choices, detected = Valuate:GetProfessionOverrideChoices()
+        for _, prof in ipairs(choices) do
+            -- A fresh info table per row: reusing one across AddButton calls leaks
+            -- fields (notCheckable, disabled) into the next row.
+            local info = UIDropDownMenu_CreateInfo()
+            local isDetected = detected[prof]
+            info.text = isDetected and (prof .. "  |cFF00FF00(detected)|r") or prof
+            info.value = prof
+            info.isNotRadio = true
+            info.keepShownOnClick = true
+            local overrides = Valuate:GetOptions().professionOverrides or {}
+            info.checked = (isDetected or overrides[prof]) and true or false
+            -- A detected profession is already yours; the tick is informational and
+            -- unticking it would imply we could remove it, which overrides can't do.
+            info.disabled = isDetected and true or false
+            info.func = function(button)
+                local o = Valuate:GetOptions()
+                o.professionOverrides = o.professionOverrides or {}
+                o.professionOverrides[prof] = (not o.professionOverrides[prof]) or nil
+                UIDropDownMenu_SetText(professionDropdown, ProfessionSummary())
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+
+    professionDropdown:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Professions", 1, 1, 1)
+            GameTooltip:AddLine("Which professions auto-roll treats as yours when deciding to Need recipes and crafting materials.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Ones marked (detected) were read from your skill list and are always included - you can't untick them.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine("Tick any others to add them manually. Useful because the skill list returns nothing while its headers are collapsed, which would otherwise stop every recipe from rolling Need.", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Gathering professions aren't listed: they have no recipes and produce materials rather than consuming them.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    professionDropdown:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[1] = columnHeights[1] + 32 + ELEMENT_SPACING
+
     -- Notify Bag Upgrades checkbox (Column 1, below Auto Roll On Loot)
     local notifyCheckbox = CreateFrame("CheckButton", nil, col1, "UICheckButtonTemplate")
     notifyCheckbox:SetSize(24, 24)
-    -- -16 undoes the indent of the two roll sub-options to return to the base column.
-    notifyCheckbox:SetPoint("TOPLEFT", rollMatsCheckbox, "BOTTOMLEFT", -16, -ELEMENT_SPACING)
+    -- -16 undoes the indent of the roll sub-options to return to the base column.
+    notifyCheckbox:SetPoint("TOPLEFT", professionsLabel, "BOTTOMLEFT", -16, -(ELEMENT_SPACING + 8))
 
     local notifyLabel = notifyCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
     notifyLabel:SetPoint("LEFT", notifyCheckbox, "RIGHT", 5, 0)

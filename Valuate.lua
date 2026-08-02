@@ -655,6 +655,7 @@ local DEFAULT_OPTIONS = {
     autoRollLoot = false,                 -- auto Need/Greed on group loot rolls
     autoRollRecipes = true,               -- also Need unlearned recipes for professions you have
     autoRollTradeGoods = true,            -- also Need crafting materials your professions use
+    professionOverrides = {},             -- profession name -> true; treated as yours regardless of detection
     autoConfirmBindOnLoot = false,        -- auto-confirm bind prompts when YOU loot/use a BoP item
     autoDeleteJunk = false,               -- delete cheapest junk to keep bag slots free
     autoDeleteDryRun = false,             -- log what WOULD be deleted instead of deleting
@@ -5379,16 +5380,48 @@ end
 -- GetProfessions() is a later-expansion API - other addons on this client guard it
 -- before calling - so the skill list is the reliable source here. Headers
 -- ("Professions", "Secondary Skills") are skipped; only real skill lines count.
+-- Professions that can own a recipe or consume materials. Gathering skills are
+-- absent: they have no recipes, and they produce materials rather than needing
+-- them, so offering them as overrides would only invite mistakes.
+local OVERRIDABLE_PROFESSIONS = {
+    "Alchemy", "Blacksmithing", "Cooking", "Enchanting", "Engineering",
+    "First Aid", "Inscription", "Jewelcrafting", "Leatherworking", "Tailoring",
+}
+
 local function GetKnownProfessions()
     local out = {}
-    if not GetNumSkillLines or not GetSkillLineInfo then return out end
-    for i = 1, (GetNumSkillLines() or 0) do
-        local skillName, isHeader = GetSkillLineInfo(i)
-        if skillName and not isHeader then
-            out[skillName] = true
+    if GetNumSkillLines and GetSkillLineInfo then
+        for i = 1, (GetNumSkillLines() or 0) do
+            local skillName, isHeader = GetSkillLineInfo(i)
+            if skillName and not isHeader then
+                out[skillName] = true
+            end
+        end
+    end
+
+    -- Manual overrides are ADDITIVE, never subtractive. Detection reads the skill
+    -- list, which silently returns nothing when its headers are collapsed - so the
+    -- override list exists to make the feature work regardless of that, and taking
+    -- something away here would just reintroduce the problem from the other side.
+    local overrides = Valuate.GetOptions and Valuate:GetOptions().professionOverrides
+    if type(overrides) == "table" then
+        for prof, enabled in pairs(overrides) do
+            if enabled then out[prof] = true end
         end
     end
     return out
+end
+
+-- The list offered in Settings, and whether each is auto-detected right now.
+function Valuate:GetProfessionOverrideChoices()
+    local detected = {}
+    if GetNumSkillLines and GetSkillLineInfo then
+        for i = 1, (GetNumSkillLines() or 0) do
+            local skillName, isHeader = GetSkillLineInfo(i)
+            if skillName and not isHeader then detected[skillName] = true end
+        end
+    end
+    return OVERRIDABLE_PROFESSIONS, detected
 end
 
 -- Blizzard prints "Already known" on a recipe you have learned.
@@ -5894,7 +5927,7 @@ function Valuate:RunSelfTest()
         "HandleBindConfirm", "MarkEquipIntent", "AutoAcceptQuests",
         "ScanBankContents", "GetBankCache", "MarkAutomation", "GetAutomationHeartbeat",
         "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
-        "IsLearnableRecipe", "IsUsefulTradeGood",
+        "IsLearnableRecipe", "IsUsefulTradeGood", "GetProfessionOverrideChoices",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }
@@ -6219,13 +6252,18 @@ SlashCmdList["VALUATE"] = function(msg)
                 print(string.format("  Type: |cFFFFFFFF%s|r / |cFFFFFFFF%s|r",
                     itemType, itemSubType or "?"))
 
+                local _, detected = Valuate:GetProfessionOverrideChoices()
                 local profs = {}
-                for p in pairs(GetKnownProfessions()) do profs[#profs + 1] = p end
+                for p in pairs(GetKnownProfessions()) do
+                    -- Mark which came from the skill list and which you added by
+                    -- hand, so a wrong answer points at the right place to fix it.
+                    profs[#profs + 1] = detected[p] and p or (p .. " (manual)")
+                end
                 table.sort(profs)
                 if #profs > 0 then
                     print("  Your professions: |cFFFFFFFF" .. table.concat(profs, ", ") .. "|r")
                 else
-                    print("  |cFFFF8800No professions detected|r - open your skills window once. Until then no recipe or material can roll Need.")
+                    print("  |cFFFF8800No professions detected|r - open your skills window once, or tick them under Settings > Professions. Until then no recipe or material can roll Need.")
                 end
 
                 if itemType == "Recipe" then
@@ -6317,7 +6355,8 @@ SlashCmdList["VALUATE"] = function(msg)
                     print("  Will Need " .. table.concat(what, " and ")
                         .. " for: |cFFFFFFFF" .. table.concat(names, ", ") .. "|r")
                 else
-                    print("  |cFFFF8800No professions detected|r - neither recipes nor materials will roll Need. Open your skills window once, then try again.")
+                    print("  |cFFFF8800No professions detected|r - neither recipes nor materials will roll Need.")
+                    print("  Open your skills window once, or tick them under Settings > Professions.")
                 end
             end
         end

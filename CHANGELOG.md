@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.0a] - 2026-07-31 — Profession overrides
+
+### Added
+- **Settings > Professions** — a multi-select list of which professions auto-roll should treat
+  as yours. Tick as many as you like.
+- Professions read from your skill list show **(detected)** and are always included; you cannot
+  untick them, because an override can only add.
+- This exists because the skill list returns **nothing** while its headers are collapsed —
+  which silently stops every recipe and material from rolling Need, with no other symptom.
+  Ticking them by hand makes the feature work regardless.
+- `/valuate roll` and `/valuate rollcheck` now mark which professions were detected and which
+  you added manually, so a wrong answer points at the right place to fix it.
+- Gathering professions are not listed: they have no recipes, and produce materials rather
+  than consuming them.
+
 ## [0.17.4a] - 2026-07-31 — Don't Need a recipe you already carry
 
 ### Changed
