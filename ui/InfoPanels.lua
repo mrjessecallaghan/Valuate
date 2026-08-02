@@ -193,15 +193,31 @@ local function CreateInstructionsPanel(parent)
     local header8 = CreateSectionHeader("Per-Character Profiles", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local text8 = CreateBodyText("Starting in version 0.7.0, all settings and scales are saved per-character. This means:\n• Each character has completely independent scales and settings\n• Changes on one character don't affect your other characters\n• You can have different scales for different characters (e.g., DPS scales on your DPS character, tank scales on your tank)\n• Use Import/Export to share scales between your own characters if desired", currentY)
+    local text8 = CreateBodyText("Starting in version 0.7.0, all settings and scales are saved per-character. This means:\n• Each character has completely independent scales and settings\n• Changes on one character don't affect your other characters\n• You can have different scales for different characters (e.g., DPS scales on your DPS character, tank scales on your tank)\n\nScale Library:\nBecause scales are per-character, a new character starts with none. The 'Scale Library' button under the scale list is shared by ALL your characters - save a scale once, then load it onto any character. Import/Export still works for sharing with other people.", currentY)
     local text8Height = text8:GetStringHeight()
     currentY = currentY - text8Height - sectionSpacing
     
+    -- Finding Upgrades
+    local headerUpgrades = CreateSectionHeader("Finding Upgrades", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local textUpgrades = CreateBodyText("Valuate can point out upgrades rather than making you check every tooltip:\n\n• Green arrows mark any item that beats what you're wearing - in your bags, at vendors, and on the loot window. They follow your CURRENT spec (Settings > Character Window Scale decides which that is; the scale list marks it with a star).\n• The upgrade popup names the single biggest gain, with its score. Click its icon to equip just that item, or Equip to take the whole set.\n• Best Equipment shows the best item per slot, including gear in your bank - those are marked, because Equip All can't reach them.\n• Items you can't use yet (too low level) are tracked separately as future upgrades, so they don't get vendored.", currentY)
+    local textUpgradesHeight = textUpgrades:GetStringHeight()
+    currentY = currentY - textUpgradesHeight - sectionSpacing
+
+    -- Automation
+    local headerAuto = CreateSectionHeader("Automation", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local textAuto = CreateBodyText("All of this is opt-in, under Settings. Every automated feature has a matching command that explains why it did nothing, which is usually faster than guessing:\n\n• Auto Roll - Needs upgrades, unlearned recipes for professions you have (even above your current skill), and crafting materials your professions use. /valuate rollcheck <item> explains any single decision.\n• Auto Delete / Auto Sell - clears junk to keep bag slots free. Deletion is irreversible, so ALWAYS run /valuate deletepreview first.\n• Auto Accept / Turn In Quests, and picking the best quest reward.\n• /valuate report shows when each automation last ran and what it concluded - including 'ran and correctly did nothing', which is a different answer from 'never ran'.", currentY)
+    local textAutoHeight = textAuto:GetStringHeight()
+    currentY = currentY - textAutoHeight - sectionSpacing
+
     -- Tips and Tricks
     local header9 = CreateSectionHeader("Tips and Tricks", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local text9 = CreateBodyText("• Remember to press Enter after entering stat values - they won't save automatically!\n• Create multiple scales for different roles (e.g., 'DPS', 'Tank', 'Healer').\n• Use the visibility toggle to compare items for different builds without deleting scales.\n• Banned stats are useful for hybrid classes that can't use certain stats.\n• The scale name in the editor can be changed to rename the scale.", currentY)
+    local text9 = CreateBodyText("• Stat weights save when you press Enter OR click away - the row flashes to confirm it.\n• Create multiple scales for different roles (e.g., 'DPS', 'Tank', 'Healer').\n• Use the visibility toggle to compare items for different builds without deleting scales.\n• Banned stats are useful for hybrid classes that can't use certain stats.\n• The scale name in the editor can be changed to rename the scale (this one still needs Enter).\n• Escape closes any Valuate window.", currentY)
     local text9Height = text9:GetStringHeight()
     currentY = currentY - text9Height - PADDING
     

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.19.5a] - 2026-07-31 — Instructions catch up with the addon
+
+### Fixed
+- **The Instructions tab was telling you something untrue.** It still said stat weights "won't
+  save automatically" and to press Enter — that stopped being true in 0.13.1a, when clicking
+  away started committing too.
+
+### Added
+- Two new Instructions sections: **Finding Upgrades** (arrows, the popup, bank items, future
+  upgrades) and **Automation** (auto-roll, delete/sell, quests, and the commands that explain
+  why something did nothing).
+- The **Scale Library** is documented under Per-Character Profiles, where the problem it solves
+  is described.
+
 ## [0.19.4a] - 2026-07-31 — Selftest covers the recent work
 
 ### Added
