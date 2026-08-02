@@ -30,6 +30,9 @@ local ApplyStatValueValidation, ApplyWholeNumberValidation =
     ns.ApplyStatValueValidation, ns.ApplyWholeNumberValidation
 local HexToRGB = ns.HexToRGB
 local UpdateScaleList = ns.UpdateScaleList
+-- Anim.tween honours reduceMotion itself, jumping to the final state, so callers
+-- never branch on it.
+local Anim = ns.Anim
 
 -- ========================================
 -- Scale Editor (Right Panel)
@@ -110,6 +113,28 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         -- Read through ns at call time: this file defines the summary further down,
         -- so a local copy here would be nil.
         if ns.UpdateScaleEditorSummary then ns.UpdateScaleEditorSummary() end
+
+        -- Brief accent flash on the input border, so a committed value is visibly
+        -- acknowledged. Worth more here than anywhere else in the UI: until
+        -- recently, clicking away from a field silently discarded the edit, and the
+        -- box looked identical either way. Now "saved" has a tell.
+        Anim.tween({
+            duration = 0.45, ease = "outQuad",
+            onUpdate = function(e)
+                -- Full accent at the start, easing back to the row's resting border,
+                -- which differs depending on whether the row now carries a weight.
+                local from = COLORS.textAccent
+                local to = (value ~= 0) and COLORS.borderLight or COLORS.border
+                editBox:SetBackdropBorderColor(
+                    from[1] + (to[1] - from[1]) * e,
+                    from[2] + (to[2] - from[2]) * e,
+                    from[3] + (to[3] - from[3]) * e,
+                    1)
+            end,
+            -- Hand the final look back to ApplyWeightedLook rather than leaving the
+            -- tween's last frame as the resting state.
+            onDone = ApplyWeightedLook,
+        })
     end
 
     -- Focus handling
@@ -239,6 +264,9 @@ local function UpdateStatWeightsList(scaleName, scale)
     itemStatsContainer:SetPoint("TOPLEFT", ns.ScaleEditorFrame, "TOPLEFT", 0, 0)
     itemStatsContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
     tinsert(StatWeightRows, itemStatsContainer)
+    -- Tracked separately from StatWeightRows for the load fade: that table holds the
+    -- containers AND every row inside them, so fading all of it would stack alpha.
+    ns.ScaleEditorFrame.animContainers = { itemStatsContainer }
     
     -- Create column frames within Item Stats container
     local columnFrames = {}
@@ -325,6 +353,9 @@ local function UpdateStatWeightsList(scaleName, scale)
         equipmentTypesContainer:SetPoint("TOPLEFT", itemStatsContainer, "BOTTOMLEFT", 0, -ELEMENT_SPACING * 2)
         equipmentTypesContainer:SetWidth(NUM_COLUMNS * COLUMN_WIDTH + (NUM_COLUMNS - 1) * COLUMN_GAP)
         tinsert(StatWeightRows, equipmentTypesContainer)
+        if ns.ScaleEditorFrame.animContainers then
+            tinsert(ns.ScaleEditorFrame.animContainers, equipmentTypesContainer)
+        end
         
         -- Equipment section header
         local equipHeader = CreateFrame("Frame", nil, equipmentTypesContainer)
@@ -567,6 +598,27 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
 
     -- Refresh the header summary for the scale just loaded.
     if ns.UpdateScaleEditorSummary then ns.UpdateScaleEditorSummary() end
+
+    -- Fade the stat grid in when switching scales, so the ~60 rows arrive as a
+    -- change rather than an instant swap of one wall of numbers for another.
+    --
+    -- The CONTAINERS are faded, not the individual rows: StatWeightRows holds both
+    -- containers and every row inside them, so tweening each entry would stack
+    -- alpha (row alpha x container alpha) and leave rows visibly dimmer than the
+    -- grid they sit in.
+    local containers = ns.ScaleEditorFrame and ns.ScaleEditorFrame.animContainers
+    if containers then
+        for i, frame in ipairs(containers) do
+            if frame and frame.SetAlpha then
+                frame:SetAlpha(0)
+                Anim.tween({
+                    duration = 0.26, delay = (i - 1) * 0.05, ease = "outCubic",
+                    onUpdate = function(e) frame:SetAlpha(e) end,
+                    onDone = function() frame:SetAlpha(1) end,
+                })
+            end
+        end
+    end
 end
 
 -- ========================================

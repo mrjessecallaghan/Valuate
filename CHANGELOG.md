@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.3a] - 2026-07-31 — Scale editor feedback and reveal
+
+### Added
+- **Committing a stat weight now flashes the input.** Until recently, clicking away from a
+  field silently discarded the edit and the box looked identical either way — so "saved" now
+  has a visible tell, which matters more here than anywhere else in the UI.
+- **The stat grid fades in when you switch scales**, so ~60 rows arrive as a change rather than
+  one wall of numbers instantly replacing another.
+
 ## [0.18.2a] - 2026-07-31 — Settings reveal, scale list transitions
 
 ### Changed
