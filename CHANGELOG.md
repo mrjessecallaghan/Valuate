@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.2a] - 2026-07-31 — Settings reveal, scale list transitions
+
+### Changed
+- **The Settings tab now reveals in a stagger**, column by column, the same flourish the Best
+  Equipment tab uses — so the two read as one product rather than one animated tab and one
+  static one.
+- **The scale list fades instead of snapping.** Hover, selection, and the previously-selected
+  row all transition, so picking a scale reads as a handoff between two rows rather than two
+  separate pops.
+- Both honour **Reduce Motion**, which the animation helpers apply themselves.
+
 ## [0.18.1a] - 2026-07-31 — Settings page organised
 
 ### Changed

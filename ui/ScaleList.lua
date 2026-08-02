@@ -18,6 +18,8 @@ local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
     ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
 local CreateStyledButton, ShowTooltipSafe = ns.CreateStyledButton, ns.ShowTooltipSafe
+-- TweenBackdrop honours reduceMotion itself, so callers never branch on it.
+local TweenBackdrop = ns.TweenBackdrop
 local HexToRGB, RGBToHex = ns.HexToRGB, ns.RGBToHex
 local ShowIconPicker = ns.ShowIconPicker
 
@@ -377,7 +379,10 @@ local function UpdateScaleList()
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
                 if vis then
-                    self:SetBackdropColor(unpack(COLORS.buttonHover))
+                    -- Faded rather than snapped, matching the styled buttons
+                    -- elsewhere. Border is left as-is so the selected row's accent
+                    -- stays the only strong edge in the list.
+                    TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.12)
                 end
             end
 
@@ -400,9 +405,9 @@ local function UpdateScaleList()
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
                 if vis then
-                    self:SetBackdropColor(unpack(COLORS.buttonBg))
+                    TweenBackdrop(self, COLORS.buttonBg, COLORS.border, 0.18)
                 else
-                    self:SetBackdropColor(unpack(COLORS.disabled))
+                    TweenBackdrop(self, COLORS.disabled, COLORS.border, 0.18)
                 end
             end
         end)
@@ -414,19 +419,20 @@ local function UpdateScaleList()
                 local prevBtn = ns.ScaleListButtons[ns.CurrentSelectedScale]
                 local prevScale = Valuate:GetScales()[ns.CurrentSelectedScale]
                 local prevVis = prevScale and prevScale.Visible ~= false
+                -- Faded out over the same beat the new row fades in, so selection
+                -- reads as a handoff between two rows rather than two separate pops.
                 if prevVis then
-                    prevBtn:SetBackdropColor(unpack(COLORS.buttonBg))
-                    prevBtn:SetBackdropBorderColor(unpack(COLORS.border))
+                    TweenBackdrop(prevBtn, COLORS.buttonBg, COLORS.border, 0.14)
                 else
-                    prevBtn:SetBackdropColor(unpack(COLORS.disabled))
-                    prevBtn:SetBackdropBorderColor(unpack(COLORS.borderDark))
+                    TweenBackdrop(prevBtn, COLORS.disabled, COLORS.borderDark, 0.14)
                 end
             end
             
             -- Select this one
             ns.CurrentSelectedScale = scaleData.name
-            self:SetBackdropColor(unpack(COLORS.selected))
-            self:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
+            -- Slightly quicker than the hover fade: a click should feel like it
+            -- landed, not like it's still deciding.
+            TweenBackdrop(self, COLORS.selected, COLORS.selectedBorder, 0.10)
             
             -- Update editor with current scale data from ValuateScales
             ValuateUI_UpdateScaleEditor(scaleData.name, Valuate:GetScales()[scaleData.name])

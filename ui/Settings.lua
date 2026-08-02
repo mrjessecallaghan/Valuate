@@ -23,6 +23,9 @@ local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
     ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
 local CreateStyledButton, ShowTooltipSafe = ns.CreateStyledButton, ns.ShowTooltipSafe
+-- Anim.tween honours the reduceMotion option itself, jumping straight to the final
+-- state, so callers never need to branch on it.
+local Anim = ns.Anim
 local ApplyStatValueValidation, ApplyWholeNumberValidation =
     ns.ApplyStatValueValidation, ns.ApplyWholeNumberValidation
 local HexToRGB = ns.HexToRGB
@@ -1929,6 +1932,26 @@ local function CreateSettingsPanel(parent)
         scrollBar:SetValue(math.min(scrollBar:GetValue() or 0, range))
         if range > 0 then scrollBar:Show() else scrollBar:Hide() end
     end)
+
+    -- Staggered column reveal on tab-open, matching the Best Equipment flourish so
+    -- the two tabs feel like the same product. Columns rather than sections: the
+    -- ten sections are flat children of three column frames, so fading the columns
+    -- gets the cascade without needing every control grouped into its own frame.
+    ns.RevealSettingsColumns = function()
+        for i = 1, 3 do
+            local f = columnFrames[i]
+            if f then
+                f:SetAlpha(0)
+                Anim.tween({
+                    duration = 0.30, delay = (i - 1) * 0.07, ease = "outCubic",
+                    onUpdate = function(e) f:SetAlpha(e) end,
+                    -- Land exactly on 1: an eased tween can stop a hair short, and a
+                    -- permanently 0.98-alpha panel is a subtle way to look broken.
+                    onDone = function() f:SetAlpha(1) end,
+                })
+            end
+        end
+    end
 
     -- Structural safeguard: warn immediately if any column has overlapping controls.
     CheckColumnAnchors(col1, "column 1")

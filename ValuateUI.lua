@@ -235,7 +235,10 @@ local function CreateTabSystem(mainFrame, contentFrame)
         if tabPanels[tabName] then
             local panel = tabPanels[tabName]
             panel:Show()
-            if tabName == "bestEquipment" then
+            -- Tabs that run their own staggered reveal keep the panel opaque: a
+            -- whole-panel fade would multiply with the children's alpha and make the
+            -- cascade look muddy rather than layered.
+            if tabName == "bestEquipment" or tabName == "settings" then
                 panel:SetAlpha(1)
             else
                 panel:SetAlpha(0)
@@ -263,8 +266,12 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 if Valuate.RevealBestEquipmentColumns then
                     Valuate:RevealBestEquipmentColumns()
                 end
+            elseif tabName == "settings" then
+                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                -- Staggered column reveal, same flourish as Best Equipment.
+                if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
             else
-                -- Instructions, About, Changelog, and Settings tabs: Use minimum height with proper spacing
+                -- Instructions, About, Changelog: Use minimum height with proper spacing
                 ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
             end
         end
