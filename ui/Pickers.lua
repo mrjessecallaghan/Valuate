@@ -18,6 +18,8 @@ local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
     ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
 local SCALE_ICON_LIST, CLASS_SPEC_TEMPLATES = ns.SCALE_ICON_LIST, ns.CLASS_SPEC_TEMPLATES
 local CreateStyledButton, ShowTooltipSafe = ns.CreateStyledButton, ns.ShowTooltipSafe
+-- Anim.popIn honours reduceMotion itself, so callers never branch on it.
+local Anim = ns.Anim
 local HexToRGB = ns.HexToRGB
 
 -- Picker frame state (file-local by design - see header)
@@ -288,6 +290,7 @@ local function ShowIconPicker(callback)
     end
     IconPickerCallback = callback
     IconPickerFrame:Show()
+    Anim.popIn(IconPickerFrame)
 end
 
 -- ========================================
@@ -835,6 +838,7 @@ function ValuateUI_ShowFullTemplatePicker()
     end
     
     TemplatePickerFrame:Show()
+    Anim.popIn(TemplatePickerFrame)
 end
 
 -- Show the template picker (class-specific first)
@@ -843,6 +847,7 @@ function ValuateUI_ShowTemplatePicker()
         ClassSpecificPickerFrame = CreateClassSpecificPickerFrame()
     end
     ClassSpecificPickerFrame:Show()
+    Anim.popIn(ClassSpecificPickerFrame)
 end
 
 ns.ShowIconPicker = ShowIconPicker

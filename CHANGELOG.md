@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.18.5a] - 2026-07-31 — One entrance for every window; the score rolls
+
+### Changed
+- **Every popup now arrives the same way.** The icon, template and class-spec pickers were
+  appearing instantly; the upgrade popup and confirm dialog each had their own timings. All
+  five now share one entrance — fade plus a small spring — so the addon feels like one thing.
+- The confirm dialog uses a **shallower** overshoot on purpose: it often asks about something
+  destructive, and a bouncy arrival is the wrong tone for "delete these 12 items?".
+- **The character-sheet score now rolls to its new value** instead of silently becoming a
+  different number. Equipping something makes the change visible, which is the interesting part.
+
 ## [0.18.4a] - 2026-07-31 — Escape closes Valuate windows
 
 ### Added

@@ -94,8 +94,10 @@ function Valuate:ShowConfirmDialog(opts)
     f:SetHeight(math.max(120, (f.text:GetStringHeight() or 20) + 90))
 
     f:Show()
-    f:SetAlpha(0)
-    Anim.fade(f, 1, 0.15, "outQuad")
+    -- Shared entrance, but a shallower overshoot than the pickers: this dialog
+    -- often asks about something destructive, and a bouncy arrival is the wrong
+    -- tone for "delete these 12 items?".
+    Anim.popIn(f, 0.97, 0.20)
     return f
 end
 

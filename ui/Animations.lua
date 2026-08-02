@@ -120,6 +120,23 @@ function Anim.scaleTo(frame, to, duration, ease, onDone)
     })
 end
 
+-- Standard entrance for anything that appears over the UI: dialogs, pickers,
+-- popups. Fade plus a small spring overshoot, defined once so every window in the
+-- addon arrives the same way instead of each growing its own timings.
+--
+-- Both underlying tweens honour reduceMotion (they jump straight to the final
+-- state), so the frame still ends up fully visible at scale 1 either way.
+function Anim.popIn(frame, fromScale, duration)
+    if not frame or not frame.SetAlpha then return end
+    duration = duration or 0.28
+    frame:SetAlpha(0)
+    if frame.SetScale then frame:SetScale(fromScale or 0.92) end
+    -- Alpha lands first: the shape settling after it is already solid reads as
+    -- arriving, whereas fading and scaling in lockstep reads as blurry.
+    Anim.fade(frame, 1, duration * 0.6, "outQuad")
+    if frame.SetScale then Anim.scaleTo(frame, 1, duration, "outBack") end
+end
+
 -- Convenience: count a number from -> to, calling setter each tick. For score/stat
 -- roll-ups. owner lets a re-trigger cancel the previous run cleanly.
 function Anim.number(ownerFrame, propKey, from, to, duration, setter, ease)

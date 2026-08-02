@@ -237,18 +237,10 @@ function Valuate:ShowUpgradePopup(opts)
         if opts.onEquip then opts.onEquip() end
     end)
 
-    -- Entrance: a small overshoot so it arrives with some life rather than just
-    -- appearing. Cheap, and skipped entirely under reduce-motion.
+    -- Shared entrance, so this arrives exactly like the pickers and dialogs rather
+    -- than carrying its own timings. Anim.popIn handles reduceMotion itself.
     f:Show()
-    if Valuate:GetOptions().reduceMotion then
-        f:SetAlpha(1)
-        f:SetScale(1)
-    else
-        f:SetAlpha(0)
-        f:SetScale(0.9)
-        Anim.fade(f, 1, 0.18, "outQuad")
-        Anim.scaleTo(f, 1, 0.32, "outBack")
-    end
+    Anim.popIn(f, 0.9, 0.32)
     return f
 end
 

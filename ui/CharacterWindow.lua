@@ -27,6 +27,8 @@ local CharacterWindowFrame = nil
 local CharacterWindowIconTexture = nil
 local CharacterWindowNameText = nil
 local CharacterWindowScoreText = nil
+-- Last score shown, so the next update can roll from it instead of snapping.
+local CharacterWindowLastScore = nil
 local CharacterWindowInitialized = false
 local CharacterWindowUpdating = false
 
@@ -237,6 +239,7 @@ local function UpdateCharacterWindowDisplay()
             if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
             if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
             if CharacterWindowScoreText then CharacterWindowScoreText:SetText("--") end
+            CharacterWindowLastScore = nil  -- next real score starts fresh, not rolled from a stale one
             CharacterWindowUpdating = false
             return
         end
@@ -247,7 +250,7 @@ local function UpdateCharacterWindowDisplay()
         if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
         if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
         if CharacterWindowScoreText then CharacterWindowScoreText:SetText("--") end
-        CharacterWindowUpdating = false
+        CharacterWindowLastScore = nil
         return
     end
     
@@ -296,8 +299,22 @@ local function UpdateCharacterWindowDisplay()
             displayValue = slotCount > 0 and (totalScore / slotCount) or 0
         end
         
-        local scoreText = string.format(formatStr, displayValue)
-        CharacterWindowScoreText:SetText("|cFF" .. color .. scoreText .. "|r")
+        -- Roll from the previous score to the new one, so equipping something shows
+        -- the number MOVING rather than silently becoming a different number - the
+        -- change is the interesting part, and it was previously invisible.
+        --
+        -- Anim.number lands exactly on the target and short-circuits when the
+        -- difference is negligible, so a refresh that changes nothing costs nothing.
+        local previous = CharacterWindowLastScore or displayValue
+        CharacterWindowLastScore = displayValue
+        if ns.Anim then
+            ns.Anim.number(CharacterWindowScoreText, "valuateScore", previous, displayValue, 0.45,
+                function(v)
+                    CharacterWindowScoreText:SetText("|cFF" .. color .. string.format(formatStr, v) .. "|r")
+                end)
+        else
+            CharacterWindowScoreText:SetText("|cFF" .. color .. string.format(formatStr, displayValue) .. "|r")
+        end
     end
     
     -- Calculate dynamic width based on content
