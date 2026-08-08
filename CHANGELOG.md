@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.29.0a] - 2026-07-31 — Find the setting you're looking for
+
+### Added
+- **A search box at the top of Settings.** Forty-seven options across three columns: knowing an
+  option exists and finding it are different problems, and only the first was solved. Type
+  `junk` and the junk-related rows stay bright while everything else recedes.
+- **It dims rather than hides**, deliberately. Every control here anchors to the one above it,
+  so hiding one would collapse the rest of the column — the exact failure the
+  `settings-anchor-chain` lint rule exists to catch. Alpha touches no anchors, so nothing can
+  move.
+- Escape clears the filter before it gives up focus, so a stray press can't leave the page
+  dimmed with no visible reason.
+
+### Notes
+- **The search index is derived from the built UI, never hand-maintained.** A list of
+  "option → search words" would be the eighth such list in this project, and the other seven
+  have all drifted. This one reads the labels actually on screen, so an option added tomorrow
+  is searchable with no extra step.
+- The wrinkle: a label isn't reliably part of the control it names — about half are regions of
+  their checkbox, and the half beside dropdowns and sliders are regions of the *column*, so no
+  amount of walking children finds them. What *is* reliable is that a label and the thing it
+  labels sit on the same **line**, which is a property of the layout rather than of how it was
+  written. Elements are grouped by vertical position and share their combined text.
+- The index refuses to cache an implausible result. `GetTop()` is nil for a frame that has never
+  been laid out, and a too-early build would cache empty for the whole session with searching
+  silently doing nothing; the next keystroke simply tries again.
+- **Not covered by any gate** — this is pure UI. `/valuate verify search` walks through it.
+
 ## [0.28.1a] - 2026-07-31 — Guarding the templates
 
 ### Added

@@ -97,8 +97,31 @@ local function CreateSettingsPanel(parent)
     -- columnHeights was already being tracked for exactly this and never used for
     -- anything; it now sizes the scroll child, so the panel can never outgrow its
     -- window again however many options get added.
+    -- ---- Search box -------------------------------------------------------
+    -- Forty-seven options across three columns. Knowing one exists and finding it are
+    -- different problems, and only the first was solved.
+    --
+    -- This DIMS rather than hides. Every control here anchors to the one above it, so
+    -- hiding a control would collapse the chain beneath it - which is the failure the
+    -- settings-anchor-chain lint rule exists to catch. Alpha touches no anchors.
+    local searchBox = CreateFrame("EditBox", nil, parent)
+    searchBox:SetHeight(20)
+    searchBox:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
+    searchBox:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -(SCROLLBAR_WIDTH + 2), -2)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject("GameFontHighlightSmall")
+    searchBox:SetBackdrop(BACKDROP_INPUT)
+    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
+    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
+    searchBox:SetTextInsets(6, 6, 0, 0)
+
+    local searchHint = searchBox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchHint:SetPoint("LEFT", searchBox, "LEFT", 7, 0)
+    searchHint:SetText("Search settings...")
+    searchHint:SetTextColor(unpack(COLORS.textDim))
+
     local scrollFrame = CreateFrame("ScrollFrame", nil, parent)
-    scrollFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+    scrollFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -24)
     scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
     scrollFrame:EnableMouseWheel(true)
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
@@ -2035,6 +2058,142 @@ local function CreateSettingsPanel(parent)
             Anim.revealIn(columnFrames[i], (i - 1) * gap)
         end
     end
+
+    -- ---- Search index -----------------------------------------------------
+    -- DERIVED from the built UI, never hand-maintained. A list of "option -> search
+    -- words" typed out by hand would be the eighth such list in this project, and the
+    -- other seven have all drifted. This one cannot: it reads the labels that are
+    -- actually on screen, so an option added tomorrow is searchable with no extra step.
+    --
+    -- The wrinkle is that a label is not reliably part of the control it names. About
+    -- half are regions of their checkbox; the other half - the ones beside dropdowns
+    -- and sliders - are regions of the COLUMN, so no amount of walking children finds
+    -- them. What is reliable is that a label and the thing it labels sit on the same
+    -- LINE, which is a property of the layout rather than of how it was written.
+    --
+    -- So: group everything in a column by vertical position, and let each group share
+    -- its combined text. Section headers land on their own line and so form their own
+    -- group, which is what makes a whole section recede when nothing in it matches.
+    local LINE_TOLERANCE = 10   -- px; a label and its control are on the same line
+    local searchIndex = nil
+
+    local function BuildSearchIndex()
+        local groups = {}
+        for _, col in ipairs(columnFrames) do
+            local entries = {}
+
+            local function consider(el, isText)
+                if not el or not el.GetTop then return end
+                local top = el:GetTop()
+                if not top then return end
+                entries[#entries + 1] = { el = el, top = top, isText = isText }
+            end
+
+            local kids = { col:GetChildren() }
+            for _, kid in ipairs(kids) do
+                consider(kid, false)
+                -- A control's own label rides along with it, so no separate lookup.
+                local kidRegions = { kid:GetRegions() }
+                for _, r in ipairs(kidRegions) do
+                    if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+                        consider(r, true)
+                    end
+                end
+            end
+            local colRegions = { col:GetRegions() }
+            for _, r in ipairs(colRegions) do
+                if r and r.GetObjectType and r:GetObjectType() == "FontString" then
+                    consider(r, true)
+                end
+            end
+
+            table.sort(entries, function(a, b)
+                if a.top ~= b.top then return a.top > b.top end
+                -- Total order: equal tops must not sort arbitrarily, or the grouping
+                -- below lands differently between runs.
+                return tostring(a.el) < tostring(b.el)
+            end)
+
+            local current = nil
+            for _, e in ipairs(entries) do
+                if not current or (current.top - e.top) > LINE_TOLERANCE then
+                    current = { top = e.top, els = {}, words = {} }
+                    groups[#groups + 1] = current
+                end
+                current.els[#current.els + 1] = e.el
+                if e.isText then
+                    local t = e.el:GetText()
+                    if t and t ~= "" then current.words[#current.words + 1] = t end
+                end
+            end
+        end
+
+        for _, g in ipairs(groups) do
+            g.text = strlower(table.concat(g.words, " "))
+        end
+        return groups
+    end
+
+    -- Applying a filter is alpha only: no anchors move, so nothing can collapse.
+    local DIMMED = 0.22
+
+    local function ApplySettingsFilter(query)
+        -- Built lazily, and only from a panel that has actually been laid out.
+        -- GetTop() returns nil for a frame that has never been positioned, so an index
+        -- built too early would be empty - and being cached, it would stay empty for
+        -- the session, with searching silently doing nothing at all.
+        --
+        -- An implausible result is therefore NOT cached: the next keystroke tries
+        -- again, so this heals itself rather than failing once and forever.
+        if not searchIndex then
+            if not parent:IsShown() then return end
+            local built = BuildSearchIndex()
+            if #built < 10 then return end
+            searchIndex = built
+        end
+        query = strlower(strtrim(query or ""))
+
+        for _, g in ipairs(searchIndex) do
+            -- A group with no text at all (a bare texture or spacer) follows the
+            -- filter rather than staying lit, or clearing the page would leave odd
+            -- bright fragments floating in the dimmed background.
+            local show = (query == "") or (g.text ~= "" and g.text:find(query, 1, true) ~= nil)
+            local target = show and 1 or DIMMED
+            for _, el in ipairs(g.els) do
+                if el.SetAlpha then
+                    if el.GetAlpha and math.abs((el:GetAlpha() or 1) - target) < 0.01 then
+                        -- Already there. Skip, so typing another letter does not
+                        -- restart forty-odd tweens that have nothing to do.
+                    elseif Anim and Anim.owned then
+                        local from = el:GetAlpha() or 1
+                        Anim.owned(el, "searchdim", {
+                            duration = MOTION.fast,
+                            onUpdate = function(e) el:SetAlpha(from + (target - from) * e) end,
+                            onDone = function() el:SetAlpha(target) end,
+                        })
+                    else
+                        el:SetAlpha(target)
+                    end
+                end
+            end
+        end
+    end
+
+    searchBox:SetScript("OnTextChanged", function(self)
+        local text = self:GetText() or ""
+        if text == "" then searchHint:Show() else searchHint:Hide() end
+        ApplySettingsFilter(text)
+    end)
+    -- Escape clears the filter first and only gives up focus once it is already clear,
+    -- so a stray press cannot leave the page dimmed with no visible reason.
+    searchBox:SetScript("OnEscapePressed", function(self)
+        if (self:GetText() or "") ~= "" then
+            self:SetText("")
+        else
+            self:ClearFocus()
+        end
+    end)
+    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 
     -- Structural safeguard: warn immediately if any column has overlapping controls.
     CheckColumnAnchors(col1, "column 1")
