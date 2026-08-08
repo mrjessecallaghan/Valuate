@@ -2286,8 +2286,17 @@ function Valuate:HookTooltips()
     hooksecurefunc(GameTooltip, "SetQuestItem", OnTooltipSet)
     hooksecurefunc(GameTooltip, "SetQuestLogItem", OnTooltipSet)
     
-    -- Hook OnUpdate to continuously check and add our lines
-    GameTooltip:HookScript("OnUpdate", function(self, elapsed)
+    -- Hook OnUpdate to continuously check and add our lines.
+    --
+    -- Split out and pcall'd below. This runs roughly sixty times a SECOND for as long
+    -- as a tooltip is on screen, so an error in here is not one error - it is a wall of
+    -- them, every frame, until you move the mouse, which makes the game unusable rather
+    -- than merely broken.
+    --
+    -- The event handler, the AdiBags filter and the minimap-button tooltip all already
+    -- contain their errors, each with a comment giving this same reason. This was the
+    -- highest-frequency handler of the four and the only one left unguarded.
+    local function RefreshTooltip(self, elapsed)
         -- Only process if tooltip is visible and has an item
         if not self:IsVisible() then return end
         -- Prefer the real link (2nd return); fall back to the name so the
@@ -2400,8 +2409,18 @@ function Valuate:HookTooltips()
                 self:SetBackdropBorderColor(unpack(DefaultTooltipBorderColor))
             end
         end
+    end
+
+    GameTooltip:HookScript("OnUpdate", function(self, elapsed)
+        local ok, err = pcall(RefreshTooltip, self, elapsed)
+        if ok then return end
+        -- Reported once, then the frames that follow cost a pcall and a table lookup.
+        -- Deliberately NOT disabled after an error: a single malformed item would
+        -- otherwise switch tooltip scoring off for the rest of the session, silently,
+        -- which is a worse outcome than one line in chat.
+        Valuate:ReportRuntimeError("tooltip refresh", err)
     end)
-    
+
     -- Clear state when tooltip hides
     GameTooltip:HookScript("OnHide", function(self)
         CurrentTooltipItem = nil
@@ -6009,6 +6028,24 @@ end)
 -- Lists what has gone wrong this session. Empty is the expected answer; anything
 -- here is worth reporting, since it means a code path is broken rather than merely
 -- switched off.
+-- Records a runtime error from somewhere that is NOT an event handler, using the same
+-- once-only reporting and the same /valuate errors listing.
+--
+-- A method rather than a local because the callers live far above this point in the
+-- file - a local declared here would be a nil global up there, which is the trap this
+-- project has now hit twice. Methods on the Valuate table are resolved when they are
+-- CALLED, so ordering does not matter.
+function Valuate:ReportRuntimeError(key, err)
+    key = tostring(key or "unknown")
+    if eventErrors[key] then return end
+
+    eventErrors[key] = tostring(err)
+    eventErrorOrder[#eventErrorOrder + 1] = key
+    print("|cFFFF0000[Valuate]|r Error in " .. key .. ":")
+    print("  " .. tostring(err))
+    print("  |cFFAAAAAAReported once. /valuate errors to list them again.|r")
+end
+
 function Valuate:GetEventErrors()
     local list = {}
     for _, event in ipairs(eventErrorOrder) do
@@ -6249,6 +6286,7 @@ function Valuate:RunSelfTest()
         "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList",
+        "ReportRuntimeError",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)

@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.31.2a] - 2026-07-31 — The tooltip can't spam you any more
+
+### Fixed
+- **An error while scoring a hovered item would have repeated ~60 times a second.** The tooltip
+  refresh runs every frame for as long as a tooltip is on screen, and it was the one hot handler
+  with no error containment — so a single bad item wouldn't produce *an* error, it would produce
+  a wall of them, every frame, until you moved the mouse. That is the difference between the
+  addon being broken and the game being unusable.
+- It now reports **once** and carries on. Deliberately not disabled after an error: one malformed
+  item would otherwise switch tooltip scoring off for the rest of the session, silently, which is
+  worse than a single line in chat. The error is listed by `/valuate errors` alongside event
+  errors.
+
+### Notes
+- This wasn't a new idea — the event handler, the AdiBags filter and the minimap-button tooltip
+  all already contain their errors, each with a comment giving this exact reason. The
+  highest-frequency handler of the four was the one that never got it. The reasoning was
+  already written down three times; it just hadn't been applied here.
+- `Valuate:ReportRuntimeError` is a **method** rather than a file-local on purpose: its callers
+  live thousands of lines above the error machinery, and a local declared down there would be a
+  nil global up here — the trap this project has now hit twice.
+
 ## [0.31.1a] - 2026-07-31 — `/valuate export` stops guessing
 
 ### Fixed
