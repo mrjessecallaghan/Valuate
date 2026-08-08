@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.50.0a] - 2026-08-09 — Clicking the tab you're already on stops jolting the window
+
+### Fixed
+- **Re-clicking the active tab replayed its arrival.** `SelectTab` did identical work whether
+  you were switching tabs or clicking the one you were already on. On Best Equipment that
+  meant snapping the window to `MIN_WINDOW_HEIGHT` and growing it back to fit — so a click
+  that changed nothing **collapsed the window and re-expanded it**, the most visible thing a
+  no-op could do.
+- The staggered column reveals replayed too, and the crossfade blinked the panel you were
+  already reading.
+- An entrance is for arriving. Playing it when nothing arrived is what makes a UI feel loose.
+- A re-click still shows the panel, restyles the buttons and refreshes content, so it remains
+  a reasonable way to ask for a refresh — it just doesn't perform the arrival.
+- The pinned-opaque path now cancels any crossfade still running first, or the old tween
+  overwrites the alpha on its next frame.
+
+### Development
+- **An eighteenth gate, `tools/tabtest.js`**, builds the real main window and drives its
+  tabs. 15 checks, stated as *arrivals happen on arrival*: reveal and height-reset fire on a
+  genuine switch, not on a re-click, and **do** fire again when you leave and come back — the
+  guard has to key on the tab changing, not on "have we been here before".
+- Mutation-tested: forcing `isSwitch = true` (the old behaviour) fails exactly the four
+  re-click checks.
+- **`Valuate:ShowUI()` wraps its build in a pcall of its own and reports failure by
+  printing**, so it returns success even when the window didn't build. The gate asserts on
+  the captured output rather than the pcall result — otherwise it would sail past a
+  completely broken window. Noted in `CLAUDE.md`.
+- Two fixture traps worth recording: the panels **assign** `RevealBestEquipmentColumns` and
+  `RevealSettingsColumns` during the build, so counters installed beforehand are overwritten
+  and every assertion silently counts zero. The first run did exactly that.
+
 ## [0.49.2a] - 2026-08-09 — Every settings checkbox is checked against the option it owns
 
 ### Development

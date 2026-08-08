@@ -224,13 +224,27 @@ local function CreateTabSystem(mainFrame, contentFrame)
     local tabPanels = {}
     
     local function SelectTab(tabName)
+        -- Is this an actual CHANGE of tab, or a click on the one you are already on?
+        --
+        -- Everything below still runs either way - the panel is re-shown, the buttons are
+        -- restyled, Best Equipment refreshes - so re-clicking a tab remains a refresh. What
+        -- it must NOT do is replay the arrival.
+        --
+        -- Re-clicking the Best Equipment tab used to snap the window to MIN_WINDOW_HEIGHT
+        -- and then grow it back to fit, so a click that changed nothing collapsed the
+        -- window and re-expanded it. The staggered column reveals replayed too, and the
+        -- crossfade blinked the panel you were already reading. An entrance is for
+        -- arriving; playing it when nothing arrived is what makes a UI feel loose.
+        --
+        -- Computed BEFORE activeTab is reassigned, for the obvious reason.
+        local isSwitch = (activeTab ~= tabName)
         activeTab = tabName
-        
+
         -- Hide all panels
         for _, panel in pairs(tabPanels) do
             panel:Hide()
         end
-        
+
         -- Show selected panel with a quick crossfade, so switching tabs reads as a
         -- transition rather than an instant swap. The Best Equipment tab is exempt: it
         -- does its own staggered per-column reveal (below), which would otherwise
@@ -241,7 +255,12 @@ local function CreateTabSystem(mainFrame, contentFrame)
             -- Tabs that run their own staggered reveal keep the panel opaque: a
             -- whole-panel fade would multiply with the children's alpha and make the
             -- cascade look muddy rather than layered.
-            if tabName == "bestEquipment" or tabName == "settings" then
+            --
+            -- A re-click is opaque for a different reason: there is nothing to fade in.
+            if not isSwitch or tabName == "bestEquipment" or tabName == "settings" then
+                -- Cancel any crossfade still running before pinning the alpha, or it
+                -- carries on writing over the value set here on its next frame.
+                Anim.cancelProp(panel, "alpha")
                 panel:SetAlpha(1)
             else
                 panel:SetAlpha(0)
@@ -265,19 +284,27 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 -- Deliberately a SNAP, not a tween: this is a reset to a known height
                 -- so the refresh below can measure from it. Animating it would run the
                 -- window down toward the minimum and then reverse as the fit lands.
-                Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, false)
+                --
+                -- Only when ARRIVING. On a re-click the window is already at the fitted
+                -- height, so resetting it collapses the window to the minimum and grows it
+                -- back for no reason - the most visible thing a no-op click could do.
+                if isSwitch then
+                    Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, false)
+                end
                 if Valuate.RefreshBestEquipmentDisplay then
                     Valuate:RefreshBestEquipmentDisplay()
                 end
                 -- Staggered per-column reveal (only on tab-open, so it's a flourish).
-                if Valuate.RevealBestEquipmentColumns then
+                if isSwitch and Valuate.RevealBestEquipmentColumns then
                     Valuate:RevealBestEquipmentColumns()
                 end
             elseif tabName == "settings" then
-                Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
-                -- Staggered column reveal, same flourish as Best Equipment.
-                if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
-            else
+                if isSwitch then
+                    Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
+                    -- Staggered column reveal, same flourish as Best Equipment.
+                    if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
+                end
+            elseif isSwitch then
                 -- Instructions, About, Changelog: Use minimum height with proper spacing
                 Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
             end

@@ -135,6 +135,13 @@ function CreateFrame(frameType, name, parent, template)
     function f:SetGradientAlpha(...) self.__gradient = {...} end
     function f:StartMoving() self.__moving = true end
     function f:StopMovingOrSizing() self.__moving = false end
+    -- Text measurement. Returns a length proportional to the string so callers that
+    -- compare it against a width get a monotonic answer, rather than a constant that
+    -- would make every "does this fit?" branch take the same path.
+    function f:GetStringWidth()
+        return #(self.__text or "") * 6
+    end
+    function f:GetStringHeight() return 12 end
     function f:SetTextInsets(...) self.__textInsets = {...} end
     function f:SetNumeric(n) self.__numeric = n end
     function f:HighlightText(...) self.__highlight = {...} end
