@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.3a] - 2026-08-09 — A scale that can't work now says so
+
+### Added
+- **`/valuate check` now names any active scale with no stat weights.** Such a scale scores
+  everything 0 and looks completely normal doing it — a column of zeros in Best Equipment, `0.0`
+  in every tooltip, and nothing explaining why.
+- `GetActiveScales` only requires a `Values` **table**, and an empty one is truthy — so this is
+  exactly what the **Blank** button produces until you fill it in. It completes the first-run
+  story: a new user clicks Blank, gets a scale that silently does nothing, and had no way to find
+  out.
+- The existing check only fired when **no** scale found anything, so one good scale alongside one
+  empty scale went entirely unreported.
+
+### Notes
+- Proven through the harness, and the case that mattered was the near-miss: **a negative weight is
+  still a weight.** Someone weighting Spirit at −1 to steer away from it has a perfectly good
+  scale, and testing `v ~= 0` rather than `v > 0` is the difference between flagging it and
+  leaving it alone.
+- All-zero weights *do* count as empty, since they score identically to no weights at all.
+
 ## [0.38.2a] - 2026-08-09 — Best Equipment admits when its data is stale
 
 ### Added

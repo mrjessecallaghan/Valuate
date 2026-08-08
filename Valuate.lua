@@ -7320,6 +7320,34 @@ SlashCmdList["VALUATE"] = function(msg)
             problems[#problems + 1] = "no active scale - nothing can be scored until you tick one"
         end
 
+        -- An ACTIVE scale with no weights scores everything 0, and looks completely
+        -- normal doing it: a column of zeros in Best Equipment and 0.0 in every
+        -- tooltip, with nothing saying why.
+        --
+        -- GetActiveScales only requires a Values TABLE, and an empty one is truthy - so
+        -- this is exactly what the "Blank" button produces until you fill it in. The
+        -- existing check below only fires when NO scale found anything, so one good
+        -- scale alongside one empty scale went unreported.
+        do
+            local scales = Valuate:GetScales()
+            local empty = {}
+            for _, name in ipairs(activeScales) do
+                local scale = scales[name]
+                local hasWeight = false
+                if scale and scale.Values then
+                    for _, v in pairs(scale.Values) do
+                        if type(v) == "number" and v ~= 0 then hasWeight = true break end
+                    end
+                end
+                if not hasWeight then empty[#empty + 1] = scale and (scale.DisplayName or name) or name end
+            end
+            if #empty > 0 then
+                -- activeScales is sorted, so this inherits a stable order.
+                problems[#problems + 1] = "active but has no stat weights, so it scores everything 0: "
+                    .. table.concat(empty, ", ") .. " - open it and set some, or untick it"
+            end
+        end
+
         local scanAgo = Valuate:GetAutomationHeartbeat("scan")
         if not scanAgo then
             problems[#problems + 1] = "no gear scan has run yet - try /valuate scan"
