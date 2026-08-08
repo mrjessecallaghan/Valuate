@@ -556,7 +556,7 @@ local function UpdateStatWeightsList(scaleName, scale)
                 -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
                 local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + totalContentHeight + PADDING
                 local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
-                ns.ValuateUIFrame:SetHeight(windowHeight)
+                Anim.setHeight(ns.ValuateUIFrame, windowHeight, true)
             end
         end
         
@@ -573,7 +573,7 @@ local function UpdateStatWeightsList(scaleName, scale)
             -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
             local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + itemStatsMaxHeight + PADDING
             local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
-            ns.ValuateUIFrame:SetHeight(windowHeight)
+            Anim.setHeight(ns.ValuateUIFrame, windowHeight, true)
         end
     end
 end

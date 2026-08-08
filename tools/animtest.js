@@ -64,7 +64,7 @@ UIParent = { __name = "UIParent" }
 function CreateFrame(frameType, name, parent)
     local f = {
         __type = frameType, __name = name, __scripts = {},
-        __alpha = 1, __scale = 1,
+        __alpha = 1, __scale = 1, __height = 100,
         __fill = {0, 0, 0, 1}, __border = {0, 0, 0, 1},
     }
     function f:SetScript(which, fn) self.__scripts[which] = fn end
@@ -73,6 +73,8 @@ function CreateFrame(frameType, name, parent)
     function f:GetAlpha() return self.__alpha end
     function f:SetScale(s) self.__scale = s end
     function f:GetScale() return self.__scale end
+    function f:SetHeight(h) self.__height = h end
+    function f:GetHeight() return self.__height end
     function f:SetBackdropColor(r, g, b, a) self.__fill = {r, g, b, a} end
     function f:GetBackdropColor() return unpack(self.__fill) end
     function f:SetBackdropBorderColor(r, g, b, a) self.__border = {r, g, b, a} end
@@ -167,6 +169,35 @@ for n = 3, 60 do
     ok(gap <= prev + 1e-9, "staggerFor(" .. n .. ") is wider than staggerFor(" .. (n - 1) .. ")")
     prev = gap
 end
+
+-- ------------------------------------------------------- the easing invariant
+-- Everything downstream leans on this: the driver clamps progress to 1 and calls
+-- onUpdate one last time, so a tween lands exactly on its target IF AND ONLY IF its
+-- easing returns exactly 1 at t=1. That is what lets Anim.setHeight fix its ease and
+-- still land on the pixel, and it is why the onDone guards elsewhere are insurance
+-- rather than load-bearing.
+--
+-- It was entirely untested, and an easing added later that overshoots or falls short
+-- at the endpoint would break several unrelated things at once with no gate objecting.
+-- outBack and outElastic both overshoot in the MIDDLE, which is the point of them -
+-- the endpoints are what must be exact.
+-- The two ends are held to deliberately DIFFERENT standards, because only one of them
+-- is load-bearing:
+--
+--   t=1 must be EXACT. It is the resting state - a shortfall there is permanent and
+--        visible (a panel stuck at 0.98 alpha, a window a pixel short).
+--   t=0 only needs to be near. It is a state the driver never actually evaluates
+--        (elapsed is always > 0 on the first frame), and outBack legitimately returns
+--        2.2e-16 there: its formula is 1 + c3*u^3 + c1*u^2, which at u = -1 is
+--        1 - 2.70158 + 1.70158 - exact in algebra, not in floating point. Demanding
+--        exactness would mean rewriting a correct easing to satisfy a test.
+local easingCount = 0
+for name, fn in pairs(ns.Easing) do
+    easingCount = easingCount + 1
+    ok(fn(1) == 1, "easing '" .. name .. "' returns " .. tostring(fn(1)) .. " at t=1, not exactly 1")
+    ok(math.abs(fn(0)) < 1e-9, "easing '" .. name .. "' starts at " .. tostring(fn(0)) .. ", not ~0")
+end
+ok(easingCount >= 6, "expected the full easing library; found only " .. easingCount)
 
 -- ------------------------------------------------------------------ revealIn
 -- Lands on EXACTLY 1. A panel resting at 0.98 is the failure this guards.
@@ -330,6 +361,54 @@ ok(otherTicks > atCancel, "cancelProp took down an unrelated property on the sam
 Anim.cancelProp(CreateFrame("Frame"), "never")
 Anim.cancelProp(pressed, "backdrop")
 ok(true, "cancelProp errored on a frame with no such tween")
+
+-- --------------------------------------------------------------- Anim.setHeight
+-- The main window's height has several writers across three files. They are only
+-- safe to mix because this is the single entry point, so these check the contract
+-- that makes that true rather than just "does it animate".
+local win = CreateFrame("Frame")
+win:SetHeight(600)
+
+-- A snap must land immediately, with no frames in between.
+Anim.setHeight(win, 800, false)
+ok(win:GetHeight() == 800, "setHeight(animate=false) did not apply immediately")
+
+-- THE safety property: a snap must KILL a running tween. Without this a plain
+-- SetHeight during an animation is overwritten on the very next frame, and the
+-- window springs back to a size nobody asked for.
+Anim.setHeight(win, 600, true)
+advance(0.05, 3)
+Anim.setHeight(win, 750, false)
+advance(0.5, 25)
+ok(win:GetHeight() == 750,
+    "a snap did not cancel the running height tween - the tween won, landing at " .. tostring(win:GetHeight()))
+
+-- An animated change lands exactly on target, not near it.
+win:SetHeight(600)
+Anim.setHeight(win, 900, true)
+ok(win:GetHeight() ~= 900, "setHeight(animate=true) jumped instead of animating")
+advance(MOTION.base * 2)
+near(win:GetHeight(), 900, "animated setHeight did not land on its target")
+
+-- Sub-pixel changes snap: a 0.4px animation is a wasted frame budget.
+win:SetHeight(500)
+Anim.setHeight(win, 500.4, true)
+ok(win:GetHeight() == 500.4, "a sub-pixel height change should snap, not animate")
+
+-- Re-targeting mid-flight replaces rather than stacking.
+win:SetHeight(400)
+Anim.setHeight(win, 900, true)
+advance(0.05, 3)
+Anim.setHeight(win, 700, true)
+advance(MOTION.base * 2)
+near(win:GetHeight(), 700, "re-targeting an animated height did not land on the newest target")
+
+-- Reduce Motion still lands exactly, and instantly.
+__reduceMotion = true
+win:SetHeight(300)
+Anim.setHeight(win, 850, true)
+ok(win:GetHeight() == 850, "Reduce Motion setHeight left the window at " .. tostring(win:GetHeight()))
+__reduceMotion = false
 
 -- -------------------------------------------------------------- TweenBackdrop
 -- Reads the CURRENT colour as its start, so an interrupted hover resumes from where

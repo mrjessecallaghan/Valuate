@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.24.0a] - 2026-07-31 — The window resizes instead of snapping
+
+### Changed
+- **The main window now animates its height** instead of jumping. Switching tabs, selecting a
+  scale, and Best Equipment growing to fit its rows all ease into the new size. This is the
+  most visible thing the animation engine does, and it was the last place that still snapped.
+- **`Anim.setHeight(frame, height, animate)` is now the only writer of a shared frame's
+  height.** It had seven writers across three files — fine while they all snapped, and a
+  hazard the moment one animates: a plain `SetHeight` landing during a running height tween
+  is overwritten on the very next frame, and the window springs back to a size nobody asked
+  for. That is the same defect the `OnUpdate` slot kept producing, so the consolidation came
+  first and the animation second.
+- The Best Equipment tab's reset-to-minimum deliberately still snaps — animating it would run
+  the window toward the minimum and then reverse as the content fit lands.
+
+### Added
+- **The easing library's endpoint invariant is now pinned.** Everything downstream depends on
+  an easing returning *exactly* 1 at t=1 — that is what makes a tween land on its target — and
+  nothing tested it. An easing added later that overshot or fell short would have broken
+  several unrelated things at once, silently. Checking it also documented a real asymmetry:
+  t=1 must be exact, while t=0 only needs to be near, because `outBack` legitimately returns
+  2.2e-16 there and the driver never evaluates t=0 anyway.
+- Harness now at 126 runtime checks.
+
 ## [0.23.2a] - 2026-07-31 — The one OnUpdate slot
 
 ### Fixed

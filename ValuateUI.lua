@@ -115,7 +115,7 @@ local function CreateMainWindow()
     -- Escape closes the window, like Blizzard's own panels.
     if ns.RegisterEscapeClose then ns.RegisterEscapeClose("ValuateUIFrame") end
     frame:SetWidth(WINDOW_WIDTH)
-    frame:SetHeight(MIN_WINDOW_HEIGHT)
+    frame:SetHeight(MIN_WINDOW_HEIGHT)  -- creation; no prior height to animate from
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
@@ -261,7 +261,11 @@ local function CreateTabSystem(mainFrame, contentFrame)
             elseif tabName == "bestEquipment" then
                 -- Best Equipment tab sizes itself to fit rows + weapon-sets + summary
                 -- (the panel is already shown above, so the refresh will resize).
-                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                --
+                -- Deliberately a SNAP, not a tween: this is a reset to a known height
+                -- so the refresh below can measure from it. Animating it would run the
+                -- window down toward the minimum and then reverse as the fit lands.
+                Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, false)
                 if Valuate.RefreshBestEquipmentDisplay then
                     Valuate:RefreshBestEquipmentDisplay()
                 end
@@ -270,12 +274,12 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     Valuate:RevealBestEquipmentColumns()
                 end
             elseif tabName == "settings" then
-                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
                 -- Staggered column reveal, same flourish as Best Equipment.
                 if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
             else
                 -- Instructions, About, Changelog: Use minimum height with proper spacing
-                ns.ValuateUIFrame:SetHeight(MIN_WINDOW_HEIGHT)
+                Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
             end
         end
         

@@ -243,6 +243,44 @@ function Anim.revealIn(frame, delay, duration, ease)
     })
 end
 
+-- The single writer for a frame's height, animated or not.
+--
+-- The main window's height has SEVEN writers across three files - tab switching, the
+-- scale editor's dynamic fit, the best-equipment fit. That is fine while every one of
+-- them snaps, and a hazard the moment any of them animates: a plain SetHeight landing
+-- during a running height tween is overwritten on the very next frame, and the window
+-- silently springs back to a size nobody asked for. Exactly the class of bug that the
+-- OnUpdate slot kept producing.
+--
+-- So there is one entry point. Callers that want a snap pass animate=false and this
+-- cancels any tween first; callers that want motion get an owned tween that a later
+-- call replaces cleanly. Nothing else may call SetHeight on a shared frame.
+--
+-- Sub-pixel changes snap regardless: a 0.4px "animation" is a wasted frame budget and
+-- can leave the height a hair off its target.
+function Anim.setHeight(frame, height, animate)
+    if not frame or not frame.SetHeight or not height then return end
+    local from = frame:GetHeight() or height
+
+    if not animate or math.abs(height - from) < 1 then
+        Anim.cancelProp(frame, "height")
+        frame:SetHeight(height)
+        return
+    end
+
+    -- Anim.owned cancels any previous height tween itself. Under Reduce Motion the
+    -- engine short-circuits to the final state, so the height still lands exactly.
+    return Anim.owned(frame, "height", {
+        duration = (ns.MOTION and ns.MOTION.base) or 0.24,
+        ease = "outCubic",
+        onUpdate = function(e) frame:SetHeight(from + (height - from) * e) end,
+        -- Redundant while the ease above is outCubic - the driver clamps to 1 and every
+        -- easing in the library returns exactly 1 there (pinned by tools/animtest.js).
+        -- Kept so that changing the ease cannot silently leave the window a pixel short.
+        onDone = function() frame:SetHeight(height) end,
+    })
+end
+
 -- Convenience: count a number from -> to, calling setter each tick. For score/stat
 -- roll-ups. owner lets a re-trigger cancel the previous run cleanly.
 function Anim.number(ownerFrame, propKey, from, to, duration, setter, ease)

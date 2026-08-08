@@ -600,7 +600,8 @@ local function CreateBestEquipmentPanel(parent)
             -- title + tabs + scan row + content + generous chrome/margin so the
             -- summary lines never clip (a slightly tall window is harmless; clipping isn't).
             local neededHeight = 40 + 30 + 40 + calculatedHeight + PADDING + 60
-            ns.ValuateUIFrame:SetHeight(math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight)))
+            Anim.setHeight(ns.ValuateUIFrame,
+                math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight)), true)
         end
 
         -- Parse each equipped item's SCALED stats once per rebuild, cached by slot
