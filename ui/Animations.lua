@@ -45,12 +45,23 @@ local Easing = {
 
 -- Reported once, because an animation error is a UI bug worth knowing about but not
 -- worth a wall of text.
+-- Routed through Valuate:ReportRuntimeError so it lands in /valuate errors alongside
+-- event and tooltip failures. That command answers "what went wrong this session", and
+-- an animation callback dying is squarely that - reporting it only to chat meant it
+-- scrolled away and the command still said "nothing".
+--
+-- Guarded rather than assumed: this file loads before much of the core, and the engine
+-- should degrade to a plain print rather than error while reporting an error.
 local animErrorReported = false
 local function ReportAnimError(err)
     if animErrorReported then return end
     animErrorReported = true
-    print("|cFFFF0000[Valuate]|r An animation callback errored and was cancelled:")
-    print("  " .. tostring(err))
+    if Valuate and Valuate.ReportRuntimeError then
+        Valuate:ReportRuntimeError("an animation callback", err)
+    else
+        print("|cFFFF0000[Valuate]|r An animation callback errored and was cancelled:")
+        print("  " .. tostring(err))
+    end
     print("  |cFFAAAAAAThe UI keeps working; only that one animation stopped.|r")
 end
 

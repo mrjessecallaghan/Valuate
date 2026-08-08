@@ -434,11 +434,21 @@ junkTicker:SetScript("OnUpdate", function(self, e)
     -- and repeat every interval, which is the last place that should happen quietly.
     if Valuate.AutoDeleteJunk then
         local ok, err = pcall(Valuate.AutoDeleteJunk, Valuate)
-        if not ok and not self.errorReported then
-            self.errorReported = true
-            print("|cFFFF0000[Valuate]|r Automatic junk cleanup errored and has been reported once:")
-            print("  " .. tostring(err))
-            print("  |cFFAAAAAARun /valuate deletepreview to check what it would act on.|r")
+        if not ok then
+            -- Through the shared reporter, so this lands in /valuate errors.
+            --
+            -- It used to print its own once-only message with its own flag, which meant
+            -- /valuate errors - the command whose whole job is "anything that went wrong
+            -- this session" - would answer "nothing" while junk cleanup had been broken
+            -- since login. A diagnostic that under-reports is worse than none, because
+            -- it is trusted.
+            if Valuate.ReportRuntimeError then
+                Valuate:ReportRuntimeError("automatic junk cleanup", err)
+            end
+            if not self.errorReported then
+                self.errorReported = true
+                print("  |cFFAAAAAARun /valuate deletepreview to check what it would act on.|r")
+            end
         end
     end
 end)

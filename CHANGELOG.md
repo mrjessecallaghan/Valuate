@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.36.3a] - 2026-07-31 — `/valuate errors` stops under-reporting
+
+### Fixed
+- **`/valuate errors` could answer "nothing went wrong" while two subsystems had been broken
+  since login.** Its whole job is to be the one place to look, and two failure paths bypassed it:
+  - the **periodic junk cleanup**, which had its own once-only flag and its own chat message. If
+    auto-delete errored, cleanup silently stopped for the session and the command said nothing.
+  - the **animation engine**, whose cancelled-callback report also went only to chat, where it
+    scrolls away.
+- Both now route through `Valuate:ReportRuntimeError`, so they appear alongside event and tooltip
+  failures. The junk ticker keeps its extra "run /valuate deletepreview" hint, which is advice the
+  generic reporter has no business knowing.
+
+### Notes
+- `ui/Animations.lua` guards rather than assumes: it loads before much of the core, so it falls
+  back to a plain print if the reporter is not there yet. An engine that errors *while reporting
+  an error* is not an improvement.
+- The harness now defines `ReportRuntimeError` on the mock for that one test, so both paths stay
+  covered — the routing where it exists, the fallback everywhere else. Swallowing the routed call
+  fails the gate.
+- Same shape as the last two releases: a correct primitive existed (`ReportRuntimeError`, added
+  in v0.31.2a) and older code kept its own copy. **A diagnostic that under-reports is worse than
+  none, because it is trusted.**
+
 ## [0.36.2a] - 2026-07-31 — Every animation is now owned, and the gate says so
 
 ### Fixed

@@ -194,18 +194,28 @@ ok(after:GetAlpha() == 1, "engine stopped driving tweens after a batch completed
 -- --------------------------------------------------------- error containment
 -- An erroring callback used to fail again every frame forever, because the code that
 -- removes the tween sits past the error. Assert it is reported ONCE and dropped.
+-- Routed through Valuate:ReportRuntimeError when it exists, so the failure reaches
+-- /valuate errors instead of only scrolling past in chat. Defined on the mock HERE
+-- rather than in the prelude, so the fallback path stays covered everywhere else.
+local routed = {}
+Valuate.ReportRuntimeError = function(_, key, err)
+    table.insert(routed, tostring(key) .. ": " .. tostring(err))
+end
+
 local boom = CreateFrame("Frame")
 Anim.tween({
     duration = 0.2,
     onUpdate = function() error("deliberate test explosion") end,
 })
 advance(1.0, 60)
+
 local reports = 0
-for _, line in ipairs(__printed) do
+for _, line in ipairs(routed) do
     if line:find("deliberate test explosion", 1, true) then reports = reports + 1 end
 end
-ok(reports >= 1, "an erroring tween callback was never reported")
+ok(reports >= 1, "an erroring tween callback was not reported through Valuate:ReportRuntimeError")
 ok(reports <= 1, "erroring tween reported " .. reports .. " times - it is looping, not cancelled")
+Valuate.ReportRuntimeError = nil
 
 -- ...and the engine still works afterwards. Containment that stops everything else
 -- is not containment.
