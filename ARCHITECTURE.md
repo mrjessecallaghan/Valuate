@@ -171,6 +171,10 @@ Anim.popIn(frame, fromScale, duration)                -- standard entrance
 A raw `frame:SetScript("OnUpdate", …)` is a lint failure unless annotated (CLAUDE.md §9).
 What legitimately remains is dedicated driver and throttle frames.
 
+So is a **bare `Anim.tween` outside the engine**. An animation nothing can replace outlives
+the data it started with — twice that left a stale value on screen, both times in code
+written *after* `Anim.owned` existed to prevent it. Every animation in the addon is owned.
+
 ## Frame pooling
 
 **WoW never frees a `CreateFrame` widget.** `SetParent(nil)` does not free it; nothing does.

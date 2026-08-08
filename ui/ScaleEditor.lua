@@ -134,7 +134,16 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         -- acknowledged. Worth more here than anywhere else in the UI: until
         -- recently, clicking away from a field silently discarded the edit, and the
         -- box looked identical either way. Now "saved" has a tell.
-        Anim.tween({
+        -- Owned by this box, so a second commit replaces the flash already running
+        -- instead of two of them fighting over the same border colour.
+        --
+        -- More reachable since the stat grid became a pool (v0.33.0a): switching scales
+        -- now REUSES this edit box, so a flash started under the previous scale would
+        -- otherwise carry on painting over the row after it had been repopulated. It
+        -- settles correctly either way - onDone hands the final look back to
+        -- ApplyWeightedLook, which reads current state - but the transient belonged to
+        -- a scale you were no longer looking at.
+        Anim.owned(editBox, "commitflash", {
             duration = MOTION.slow, ease = "outQuad",
             onUpdate = function(e)
                 -- Full accent at the start, easing back to the row's resting border,

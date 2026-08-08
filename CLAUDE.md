@@ -112,6 +112,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
+| `anim-tween-needs-owner` | a bare `Anim.tween` outside the engine | §9 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
 
 > **Known false positive:** the rule matches the anchor's *identifier text*, so two

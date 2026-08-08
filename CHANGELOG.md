@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.36.2a] - 2026-07-31 — Every animation is now owned, and the gate says so
+
+### Fixed
+- **The stat-editor commit flash could paint a row belonging to a different scale.** It was the
+  last bare `Anim.tween` in the addon. Pooling the stat grid (v0.33.0a) made it reachable:
+  switching scales now reuses the same edit box, so a flash started under the previous scale
+  carried on painting after the row had been repopulated. It settled correctly — `onDone` hands
+  the final look back to `ApplyWeightedLook`, which reads current state — but the transient
+  belonged to a scale you were no longer looking at.
+
+### Added
+- **Lint rule `anim-tween-needs-owner`** (12th rule). A bare `Anim.tween` cannot be replaced, so
+  re-triggering stacks and the older run can finish *last* and win. Twice that left a stale value
+  on screen — the Best Equipment count-ups last release, this flash now — and **both were in code
+  written after `Anim.owned` was added to prevent exactly that.**
+- `ui/Animations.lua` is exempt by definition; everywhere else, `Anim.owned` works on any table,
+  so there is no excuse involving Blizzard frames. A genuinely one-shot animation is still fine,
+  it just has to say so — there are currently **zero** such sites, so the rule costs nothing today.
+
+### Notes
+- Verified by reverting both fixes: each fails the gate. This is the companion to
+  `raw-onupdate-needs-reason` and exists for the same reason — having a correct primitive is not
+  the same as reaching for it.
+
 ## [0.36.1a] - 2026-07-31 — Scores stop landing on the previous scan
 
 ### Fixed

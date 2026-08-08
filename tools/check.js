@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 11 lint rules
+ * @gate Lua syntax + 12 lint rules
  *
  * Valuate syntax + lint gate.
  *
@@ -116,6 +116,31 @@ const RULES = [
       /\btable\.insert\s*\(\s*[\w.]*\brt\.headCols\b/.test(l) ||
       /\brt\.headCols\s*\[[^\]]*\]\s*=[^=]/.test(l) ||
       /\brt\.headCols\s*=[^=]/.test(l),
+  },
+  {
+    // Companion to raw-onupdate-needs-reason, and it exists for the same reason: an
+    // animation nothing can replace is one that outlives the data it was started for.
+    //
+    // Two bugs came from bare Anim.tween calls, both in code written AFTER Anim.owned
+    // was added to prevent exactly this:
+    //
+    //   * the Best Equipment score count-ups captured the score they started with and
+    //     wrote to a POOLED label, so re-revealing the tab left the old run painting
+    //     the previous scan's number - and the staggered delays meant it could finish
+    //     LAST and win.
+    //   * the stat-editor commit flash kept painting a row after the grid had been
+    //     repopulated for a different scale.
+    //
+    // Anim.owned(frame, propKey, opts) makes re-triggering replace rather than stack,
+    // and works on any table - so there is no excuse involving Blizzard frames.
+    // ui/Animations.lua is the engine itself and is exempt by definition.
+    //
+    // A genuinely one-shot animation on something that cannot be re-triggered is fine;
+    // it just has to say so. There are currently zero such sites.
+    name: "anim-tween-needs-owner",
+    why: "A bare Anim.tween cannot be replaced, so re-triggering stacks and the older run can finish last and win - twice now that meant a stale value left on screen. Use Anim.owned(frame, propKey, opts), which works on any table - or annotate with -- valuate-lint-ignore: anim-tween-needs-owner  <why it can never be re-triggered>.",
+    test: (l, file) =>
+      path.basename(file) !== "Animations.lua" && /\bAnim\.tween\s*\(/.test(l),
   },
   {
     name: "no-duplicate-junk-logic",
