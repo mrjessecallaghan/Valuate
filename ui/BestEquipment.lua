@@ -141,12 +141,40 @@ local function CreateBestEquipmentPanel(parent)
     scanLabel:SetText("Scan Best Equipment")
     scanLabel:SetTextColor(unpack(COLORS.textBody))
     
+    -- How old the data on screen is.
+    --
+    -- ValuateBestEquipment is SavedVariablesPerCharacter, so it survives logout: open
+    -- this tab before anything triggers a scan and you are looking at LAST SESSION's
+    -- best-in-slot, presented exactly like fresh results. Loot, vendor or level in
+    -- between and it can be substantially wrong, with nothing saying so.
+    --
+    -- The heartbeat makes the distinction for free, and by accident of implementation:
+    -- it is keyed on GetTime(), which resets at login, so "no heartbeat" means
+    -- precisely "no scan since you logged in" - which is exactly the case worth
+    -- flagging.
+    local scanAgeText = parent:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    scanAgeText:SetPoint("LEFT", scanButton, "RIGHT", ELEMENT_SPACING, 0)
+    scanAgeText:SetJustifyH("LEFT")
+
+    local function UpdateScanAge()
+        local ago = Valuate.GetAutomationHeartbeat and Valuate:GetAutomationHeartbeat("scan")
+        if not ago then
+            scanAgeText:SetText("|cFFFF8800Not scanned this session|r - these are last session's results")
+            return
+        end
+        local when = (SecondsToTime and ago >= 1) and SecondsToTime(ago) or "moments"
+        scanAgeText:SetText("|cFF888888Scanned " .. when .. " ago|r")
+    end
+    parent.UpdateScanAge = UpdateScanAge
+    UpdateScanAge()
+
     scanButton:SetScript("OnClick", function()
         Valuate:ScanBestEquipment()
         -- Refresh display after scan
         if Valuate.RefreshBestEquipmentDisplay then
             Valuate:RefreshBestEquipmentDisplay()
         end
+        UpdateScanAge()
     end)
     
     scanButton:SetScript("OnEnter", function(self)
@@ -641,6 +669,11 @@ local function CreateBestEquipmentPanel(parent)
         -- Hoisted: the row loop below asks this once per slot per column otherwise, and
         -- it cannot change midway through a single rebuild.
         local panelVisible = parent:IsShown()
+
+        -- Refreshed on every redraw, not just when the Scan button is pressed: a
+        -- background scan updates the rows without going near that button, and an age
+        -- label that only tracked manual scans would be its own kind of lie.
+        if parent.UpdateScanAge then parent.UpdateScanAge() end
 
         local activeScales = Valuate:GetActiveScales()
         local scales = Valuate:GetScales()

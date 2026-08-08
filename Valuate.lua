@@ -7044,6 +7044,13 @@ local VERIFY_CHECKS = {
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
     },
     {
+        id = "scanage", since = "0.38.2a",
+        title = "Best Equipment says how old its data is",
+        steps = "Log in and open Best Equipment BEFORE anything triggers a scan. Then press Scan Best Equipment and watch the label beside the button.",
+        expect = "Before scanning it warns these are last session's results. After scanning it reads \"Scanned moments ago\", and it keeps up to date after BACKGROUND scans too - not only after pressing the button.",
+        broke = "New in this version. Saved best-in-slot survives logout and was shown exactly like fresh data, so stale results looked authoritative.",
+    },
+    {
         id = "bankvisit", since = "0.38.1a",
         title = "Opening a bank says whether anything in it is an upgrade",
         steps = "Put an item better than what you are wearing into your bank, walk away, then come back and open it. Then move a few items in and out while it is open.",

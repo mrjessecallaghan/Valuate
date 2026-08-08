@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.2a] - 2026-08-09 — Best Equipment admits when its data is stale
+
+### Added
+- **The Best Equipment tab now says how old its results are.** `ValuateBestEquipment` is saved per
+  character, so it survives logout — open that tab before anything triggers a scan and you are
+  looking at **last session's** best-in-slot, presented exactly like fresh results. Loot, vendor or
+  level in between and it can be substantially wrong, with nothing saying so.
+- Before the first scan of a session it reads *"Not scanned this session — these are last
+  session's results"*; afterwards, *"Scanned N ago"*.
+
+### Notes
+- The distinction comes free, and by accident of implementation: the automation heartbeat is keyed
+  on `GetTime()`, which resets at login. So "no heartbeat" means precisely "no scan since you
+  logged in" — exactly the case worth flagging, with no new state to store.
+- Updated on **every redraw**, not just when the Scan button is pressed. Background scans update
+  the rows without going near that button, and an age label that only tracked manual scans would
+  be its own kind of lie.
+
 ## [0.38.1a] - 2026-08-09 — The bank tells you while you're standing in it
 
 ### Added
