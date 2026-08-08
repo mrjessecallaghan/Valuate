@@ -118,9 +118,59 @@ const files = [];
 for (const r of SCAN) collectFiles(r, files);
 files.sort();
 
-// Pass 1: every global the addon ASSIGNS is legitimate (functions, config tables).
+/*
+ * Pass 1: every global the addon ASSIGNS is legitimate (functions, config tables).
+ *
+ * The catch is telling a global assignment from a local one. `x = 1` is a global write
+ * only if no `local x` is in scope, and this pass originally ignored that - so ANY
+ * reassignment of a local anywhere whitelisted that name in EVERY file.
+ *
+ * That was not theoretical. `Valuate.lua` has:
+ *     local _, ns = ...
+ *     ns = ns or {}
+ * The second line assigns the local, but it registered `ns` as an addon global, which
+ * meant a file that forgot `local _, ns = ...` entirely could read `ns.Anim` and this
+ * gate stayed silent - the exact "resolves to a nil global, no error, silently wrong"
+ * bug it exists to catch. MinimapButton.lua shipped in that state.
+ *
+ * Fix is deliberately conservative: a name declared local ANYWHERE in a file does not
+ * get whitelisted by assignments in that file. Coarser than real scope analysis, and
+ * it errs toward reporting rather than staying quiet, which is the right direction for
+ * a gate. Genuine globals are still picked up from the files that truly assign them.
+ */
 const addonGlobals = new Set();
 const asts = new Map();
+
+// Every name bound as a local anywhere in this file: local statements, local
+// functions, function parameters, and loop variables.
+function collectLocalNames(ast) {
+  const names = new Set();
+  (function walk(node) {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "LocalStatement") {
+      for (const v of node.variables || []) names.add(v.name);
+    }
+    if (node.type === "FunctionDeclaration") {
+      if (node.isLocal && node.identifier && node.identifier.type === "Identifier") {
+        names.add(node.identifier.name);
+      }
+      for (const p of node.parameters || []) {
+        if (p.type === "Identifier") names.add(p.name);
+      }
+    }
+    if (node.type === "ForNumericStatement" && node.variable) names.add(node.variable.name);
+    if (node.type === "ForGenericStatement") {
+      for (const v of node.variables || []) names.add(v.name);
+    }
+    for (const k of Object.keys(node)) {
+      if (k === "loc") continue;
+      const v = node[k];
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") walk(v);
+    }
+  })(ast);
+  return names;
+}
 
 for (const f of files) {
   let ast;
@@ -131,18 +181,22 @@ for (const f of files) {
   } catch { continue; } // check.js reports syntax errors
   asts.set(f, ast);
 
+  const localNames = collectLocalNames(ast);
+
   (function findAssignedGlobals(node) {
     if (!node || typeof node !== "object") return;
     if (node.type === "AssignmentStatement") {
       for (const t of node.variables || []) {
-        if (t.type === "Identifier") addonGlobals.add(t.name);
+        if (t.type === "Identifier" && !localNames.has(t.name)) addonGlobals.add(t.name);
       }
     }
     if (node.type === "FunctionDeclaration" && node.identifier &&
-        node.identifier.type === "Identifier" && !node.isLocal) {
+        node.identifier.type === "Identifier" && !node.isLocal &&
+        !localNames.has(node.identifier.name)) {
       addonGlobals.add(node.identifier.name);
     }
     for (const k of Object.keys(node)) {
+      if (k === "loc") continue;
       const v = node[k];
       if (Array.isArray(v)) v.forEach(findAssignedGlobals);
       else if (v && typeof v === "object") findAssignedGlobals(v);

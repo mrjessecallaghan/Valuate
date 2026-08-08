@@ -175,6 +175,15 @@ local pendingScanTimer = nil
 local bagUpdateCooldown = 0  -- Cooldown after bag updates to let items settle
 local recentEquipmentChange = false  -- Track if we recently had equipment changes
 
+-- Upgrade found during combat; the PLAYER_REGEN_ENABLED handler rechecks on leaving.
+--
+-- Declared HERE rather than with the rest of the bag-upgrade state further down,
+-- because the event handler that READS it sits at the top of this file. As a local
+-- declared below its reader it was a nil global there instead - so the deferred
+-- prompt was set on leaving combat and then never seen, silently, for every upgrade
+-- found in combat. Lua raises nothing for this; tools/globals.js now does.
+local bagUpgradePending = false
+
 -- ========================================
 -- Cancelable one-shot timer (client-compat)
 -- ========================================
@@ -4158,7 +4167,8 @@ end
 -- When an equippable upgrade for your CURRENT scale is sitting in your bags, offer a
 -- one-click "equip best set" popup - out of combat only. Opt-in; re-prompts each loot
 -- event by default (or only when the available upgrades change).
-local bagUpgradePending = false      -- upgrade found during combat; recheck on leaving
+-- (bagUpgradePending is declared at the top of this file, next to the other event-
+-- handler flags - the PLAYER_REGEN_ENABLED handler up there reads it.)
 local lastNotifiedSignature = nil    -- "oncePerUpgrade" dedupe
 local pendingEquipScale = nil        -- scale the popup's Equip button will act on
 

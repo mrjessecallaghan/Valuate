@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.23.1a] - 2026-07-31 — Two silent bugs, both found by tightening a gate
+
+### Fixed
+- **The deferred in-combat upgrade prompt never fired.** `bagUpgradePending` was declared
+  `local` 3,500 lines below the event handler that reads it, so that handler saw a nil global
+  instead. Finding an upgrade mid-fight set the flag; leaving combat checked a different
+  variable and did nothing. Every in-combat upgrade prompt has been dropped, silently, since
+  the feature was written. Declaration moved up beside the other event-handler flags.
+- **The minimap pulse and the drag handler both owned the button's single `OnUpdate` slot.**
+  Whichever wrote second discarded the other's cleanup: dragging during a pulse left the
+  starburst glow visible and the button stuck at up to 1.14x scale until some later pulse
+  happened to finish, and a pulse arriving mid-drag stopped the button following the cursor.
+  The pulse now runs on the shared animation engine, leaving the drag handler as the only
+  writer of that slot.
+
+### Added
+- **`Anim.owned(frame, propKey, opts)`** — public form of the engine's owned tween, where
+  re-triggering replaces rather than stacks. This is the thing a bare
+  `frame:SetScript("OnUpdate", ...)` cannot give you, and it is why the collision above was
+  possible at all. Four new harness checks cover it, all mutation-verified.
+
+### Changed
+- **`tools/globals.js` pass 1 is now scope-aware.** It treated any `x = ...` as a global
+  assignment and whitelisted that name in *every* file — so `ns = ns or {}` in `Valuate.lua`
+  (an assignment to a *local*) quietly disabled undefined-global detection for `ns`
+  everywhere. `MinimapButton.lua` was shipping without capturing `ns` at all and the gate
+  said nothing. Tightening it caught that immediately, and surfaced the `bagUpgradePending`
+  bug above, which had been masked the same way.
+- `UpgradeArrows` and `UpgradePopup` use the published `ns.ReduceMotion()` accessor rather
+  than each re-reading the option.
+
 ## [0.23.0a] - 2026-07-31 — A gate that actually runs the code
 
 ### Added

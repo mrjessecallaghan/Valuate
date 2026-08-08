@@ -4,6 +4,11 @@
 local Valuate = Valuate
 if not Valuate then return end
 
+-- The addon's private table, for the shared animation engine. This file loads LAST in
+-- the .toc, well after ui\Animations.lua, so ns.Anim is always published by the time
+-- anything here runs.
+local _, ns = ...
+
 -- Minimap button state
 local minimapButton = nil
 local DEFAULT_POSITION = 200  -- Default angle in degrees
@@ -239,13 +244,29 @@ function Valuate:ToggleMinimapButton()
 end
 
 -- Briefly pulse the minimap button (a twin starburst glow + gentle scale bump) to
--- draw the eye when a gear upgrade for your current scale is available. Self-contained
--- (own OnUpdate) so it doesn't depend on the UI file's animation engine, and skipped
--- under Reduce Motion. Safe no-op if the button is hidden.
+-- draw the eye when a gear upgrade for your current scale is available. Safe no-op
+-- if the button is hidden.
+--
+-- Runs on the shared animation engine, NOT on this button's own OnUpdate. It used to
+-- own that script slot - but so does the drag handler, and a frame only has one. A
+-- pulse interrupted by a drag never reached its cleanup, so the starburst stayed
+-- visible and the button stayed scaled up (to 1.14x) until some later pulse happened
+-- to finish; a pulse arriving mid-drag stopped the button following the cursor. The
+-- engine owns tweens by (frame, property), so the two no longer collide and the drag
+-- handler is the only writer of this button's OnUpdate.
+--
+-- Owned by "pulse" so two upgrades in quick succession replace rather than stack -
+-- otherwise both would be writing SetScale every frame and the first to finish would
+-- snap the button back to 1 mid-pulse.
 local pulseGlow
 function Valuate:PulseMinimapButton()
     if not minimapButton or not minimapButton:IsShown() then return end
-    if Valuate.GetOptions and Valuate:GetOptions().reduceMotion then return end
+    local Anim = ns and ns.Anim
+    if not Anim then return end
+    -- ReduceMotion is checked here rather than left to the engine: the engine would
+    -- jump to the final frame of the pulse, and this animation's "final state" is a
+    -- hidden glow, so the honest instant version is simply not pulsing at all.
+    if ns.ReduceMotion and ns.ReduceMotion() then return end
 
     if not pulseGlow then
         pulseGlow = minimapButton:CreateTexture(nil, "OVERLAY")
@@ -256,26 +277,30 @@ function Valuate:PulseMinimapButton()
         pulseGlow:Hide()
     end
 
-    local total, DUR = 0, 1.3
     pulseGlow:Show()
-    minimapButton:SetScript("OnUpdate", function(self, elapsed)
-        total = total + elapsed
-        local t = total / DUR
-        if t >= 1 then
-            self:SetScript("OnUpdate", nil)
+    Anim.owned(minimapButton, "pulse", {
+        duration = 1.3,
+        -- Linear, because the envelope below IS the shaping. An easing on top would
+        -- distort the two pulses into uneven ones.
+        ease = "linear",
+        onUpdate = function(t)
+            -- Two quick pulses inside a fading envelope.
+            local env = 1 - t
+            local pulse = math.abs(math.sin(t * math.pi * 3)) * env
+            local size = 24 + pulse * 30
+            pulseGlow:SetWidth(size)
+            pulseGlow:SetHeight(size)
+            pulseGlow:SetAlpha(pulse)
+            minimapButton:SetScale(1 + pulse * 0.14)
+        end,
+        -- Runs on completion only. Cancelling (a second pulse replacing this one)
+        -- deliberately does NOT run it: the replacement owns the cleanup, and firing
+        -- this in between would snap the button back to scale 1 mid-pulse.
+        onDone = function()
             pulseGlow:Hide()
-            self:SetScale(1)
-            return
-        end
-        -- Two quick pulses inside a fading envelope.
-        local env = 1 - t
-        local pulse = math.abs(math.sin(t * math.pi * 3)) * env
-        local size = 24 + pulse * 30
-        pulseGlow:SetWidth(size)
-        pulseGlow:SetHeight(size)
-        pulseGlow:SetAlpha(pulse)
-        self:SetScale(1 + pulse * 0.14)
-    end)
+            minimapButton:SetScale(1)
+        end,
+    })
 end
 
 -- Initialize the button when the addon loads

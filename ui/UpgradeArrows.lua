@@ -56,7 +56,7 @@ pulseDriver:SetScript("OnUpdate", function(self, e)
 
     -- Respect the accessibility option: a static, fully-opaque arrow is still
     -- perfectly visible, it just doesn't move.
-    if Valuate.GetOptions and Valuate:GetOptions().reduceMotion then
+    if ns.ReduceMotion and ns.ReduceMotion() then
         for rec in pairs(shownArrows) do
             rec.arrow:SetAlpha(1)
             rec.glow:SetAlpha(0.55)

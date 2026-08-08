@@ -127,6 +127,21 @@ local function startProp(frame, propKey, opts)
     return tw
 end
 
+-- Public form of startProp: a tween OWNED by (frame, propKey), where re-triggering
+-- cancels the previous one instead of running both.
+--
+-- Use this instead of frame:SetScript("OnUpdate", ...) for anything that animates.
+-- A frame has exactly one OnUpdate slot, so two features that both animate the same
+-- frame silently overwrite each other - and the loser's cleanup never runs, which is
+-- how the minimap button ended up able to keep a starburst glow and a 1.14x scale
+-- permanently when a pulse was interrupted by a drag. Tweens here are owned by a
+-- named property, so unrelated animations on one frame coexist and related ones
+-- replace cleanly.
+function Anim.owned(frame, propKey, opts)
+    if not frame or not propKey or not opts then return end
+    return startProp(frame, propKey, opts)
+end
+
 -- Convenience: fade a frame's alpha from its current value to `to`.
 function Anim.fade(frame, to, duration, ease, onDone)
     if not frame then return end

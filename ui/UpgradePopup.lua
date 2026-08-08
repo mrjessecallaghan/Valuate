@@ -162,7 +162,7 @@ local function EnsurePopup()
     -- One driver for the glow pulse, running only while the popup is shown.
     f.pulse = 0
     f:SetScript("OnUpdate", function(self, e)
-        if Valuate.GetOptions and Valuate:GetOptions().reduceMotion then
+        if ns.ReduceMotion and ns.ReduceMotion() then
             self.glow:SetAlpha(0.5)
             return
         end

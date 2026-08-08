@@ -271,6 +271,37 @@ seen = nil
 Anim.number(owner, "test2", 2.0, 2.0, MOTION.count, function(v) seen = v end)
 ok(seen == 2.0, "Anim.number should set instantly when there is nothing to animate")
 
+-- ----------------------------------------------------------------- Anim.owned
+-- The point of owned tweens is that re-triggering REPLACES rather than stacks. This
+-- is what a bare frame:SetScript("OnUpdate", ...) cannot give you, and getting it
+-- wrong is invisible: two tweens writing the same property just look like jitter.
+local ownedFrame = CreateFrame("Frame")
+local aTicks, bTicks = 0, 0
+Anim.owned(ownedFrame, "prop", { duration = 0.4, onUpdate = function() aTicks = aTicks + 1 end })
+advance(0.1, 5)
+local aAtSwap = aTicks
+Anim.owned(ownedFrame, "prop", { duration = 0.4, onUpdate = function() bTicks = bTicks + 1 end })
+advance(0.6, 30)
+ok(aTicks == aAtSwap, "re-triggering an owned tween left the previous one running (stacking)")
+ok(bTicks > 0, "the replacing owned tween never ran")
+
+-- Cancelling must NOT run onDone. The replacement owns the final state; running the
+-- cancelled tween's cleanup in between is what would snap a frame back mid-animation.
+local doneAfterCancel = false
+Anim.owned(ownedFrame, "cleanup", { duration = 0.4, onDone = function() doneAfterCancel = true end })
+advance(0.1, 5)
+Anim.owned(ownedFrame, "cleanup", { duration = 0.4 })
+ok(not doneAfterCancel, "cancelling an owned tween ran its onDone - the replacement should own cleanup")
+advance(0.6, 30)
+
+-- Different property keys on ONE frame must coexist: that is what makes this usable
+-- for a frame that already animates something else.
+local coA, coB = 0, 0
+Anim.owned(ownedFrame, "alpha", { duration = 0.3, onUpdate = function() coA = coA + 1 end })
+Anim.owned(ownedFrame, "scale", { duration = 0.3, onUpdate = function() coB = coB + 1 end })
+advance(0.5, 25)
+ok(coA > 0 and coB > 0, "two different owned properties on one frame cancelled each other")
+
 -- -------------------------------------------------------------- TweenBackdrop
 -- Reads the CURRENT colour as its start, so an interrupted hover resumes from where
 -- it actually is rather than snapping back.
