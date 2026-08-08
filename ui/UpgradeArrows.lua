@@ -57,22 +57,28 @@ pulseDriver.t = 0
 pulseDriver:SetScript("OnUpdate", function(self, e)
     if not next(shownArrows) then return end
 
-    -- Respect the accessibility option: a static, fully-opaque arrow is still
-    -- perfectly visible, it just doesn't move.
+    -- Decide the alphas, THEN write them. Two branches each with their own loop is how
+    -- this went wrong: the Reduce Motion path returned early with a loop of its own and
+    -- no pruning, so with the accessibility option on, `shownArrows` grew for the whole
+    -- session. Every arrow ever drawn stayed registered, and the driver wrote alpha to
+    -- textures inside closed bags on every frame, forever.
+    --
+    -- That is the branch least likely to be noticed by whoever is watching the screen,
+    -- which is a poor place to keep the copy that forgot to clean up. One loop now, so
+    -- the pruning cannot belong to only one of them.
+    local arrowAlpha, glowAlpha
     if ns.ReduceMotion and ns.ReduceMotion() then
-        for rec in pairs(shownArrows) do
-            rec.arrow:SetAlpha(1)
-            rec.glow:SetAlpha(0.55)
-        end
-        return
+        -- A static, fully-opaque arrow is still perfectly visible; it just doesn't move.
+        arrowAlpha, glowAlpha = 1, 0.55
+    else
+        self.t = self.t + (e or 0)
+        -- ~1.3s cycle. The arrow itself stays near full opacity so it never reads as
+        -- "fading out"; most of the movement is in the glow behind it.
+        local phase = math.sin(self.t * (2 * math.pi / 1.3))
+        arrowAlpha = 0.88 + 0.12 * phase
+        glowAlpha = 0.45 + 0.35 * phase
     end
 
-    self.t = self.t + (e or 0)
-    -- ~1.3s cycle. The arrow itself stays near full opacity so it never reads as
-    -- "fading out"; most of the movement is in the glow behind it.
-    local phase = math.sin(self.t * (2 * math.pi / 1.3))
-    local arrowAlpha = 0.88 + 0.12 * phase
-    local glowAlpha = 0.45 + 0.35 * phase
     for rec in pairs(shownArrows) do
         -- Self-pruning: a closed bag or merchant hides the whole parent without
         -- our update ever running, and animating textures nobody can see would

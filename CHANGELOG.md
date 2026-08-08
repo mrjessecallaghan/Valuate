@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.45.1a] - 2026-08-09 — Reduce Motion stops leaking work
+
+### Fixed
+- **With Reduce Motion on, the upgrade-arrow driver never released an arrow.** One driver
+  animates every arrow on screen by walking a set; bags and merchant windows close without
+  telling it, so it prunes as it goes and arrows re-register when they are next drawn. The
+  Reduce Motion branch was a second copy of that loop which returned early and skipped the
+  pruning — so with the accessibility option on, the set only grew, and the driver wrote alpha
+  to textures inside closed bags on every frame for the rest of the session.
+- That is the branch least likely to be noticed by whoever is watching the screen, which is a
+  poor place to keep the copy that forgot to clean up.
+- Both modes now **decide the alphas and share one loop**, so the cleanup cannot belong to
+  only one of them.
+
+### Development
+- **A fifteenth gate, `tools/arrowtest.js`** — 17 checks that tick the real driver and run
+  *both* motion modes through an identical block of assertions. Mutation-tested: restoring the
+  early return fails four checks under Reduce Motion and none under normal motion, which is
+  exactly the shape of the original bug.
+- The mock gained `RegisterEvent` and friends. They **record**, never dispatch — a mock that
+  fired events would be deciding when the client does, which is the behaviour a gate is trying
+  to observe.
+
 ## [0.45.0a] - 2026-08-09 — The tooltip stops contradicting itself
 
 ### Fixed

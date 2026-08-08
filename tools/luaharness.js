@@ -135,6 +135,21 @@ function CreateFrame(frameType, name, parent, template)
     function f:SetGradientAlpha(...) self.__gradient = {...} end
     function f:StartMoving() self.__moving = true end
     function f:StopMovingOrSizing() self.__moving = false end
+
+    -- Events are RECORDED, never dispatched. A mock that fired them would be deciding
+    -- when the client does, which is exactly the behaviour a gate is trying to observe;
+    -- a test that wants an event calls the handler itself.
+    function f:RegisterEvent(ev)
+        self.__events = self.__events or {}
+        self.__events[ev] = true
+    end
+    function f:UnregisterEvent(ev)
+        if self.__events then self.__events[ev] = nil end
+    end
+    function f:UnregisterAllEvents() self.__events = {} end
+    function f:IsEventRegistered(ev)
+        return (self.__events and self.__events[ev]) and true or false
+    end
     table.insert(__frames, f)
     return f
 end
