@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.37.1a] - 2026-07-31 — A first install that explains itself
+
+### Changed
+- **The first-run scale now says what it is.** A new install got a scale called “Default” whose own
+  source comment described it as “for testing”: every primary stat weighted 1.0, so it scores a
+  plate DPS piece and a cloth caster piece almost identically. Nothing said so. A new user saw
+  numbers that looked authoritative and had no way to know they were placeholders.
+- It is now called **Starter**, and a one-time message explains that its weights are crude and
+  points at the 45 built-in class/spec templates. Nothing can guess better on their behalf —
+  Ascension is **classless**, so there is no spec to infer — which is exactly why saying so is the
+  whole job.
+- **The template button now has the words and the width.** It was a 20%-wide “+” beside an
+  80%-wide “New Blank Scale” — emphasis exactly backwards for the person who needs it most. A
+  newcomer cannot usefully fill in a blank scale; not knowing their stat weights is the problem
+  the addon exists to solve. Now **From Template** is the wide one and **Blank** sits beside it.
+
+### Notes
+- Caught while writing the message: it originally said to click “New from Template”, and no such
+  button exists — the visible label was “+”. Telling a brand-new user to click something that
+  isn’t there is precisely the wrong first impression, and it is why the button got relabelled
+  rather than the message getting vaguer.
+- Nothing referenced the old scale name, so the rename is safe.
+- `/valuate verify firstrun` covers it, and is honest that it is the hardest check to run: it
+  needs a character that has never had Valuate, or `ValuateScales` cleared.
+
 ## [0.37.0a] - 2026-07-31 — Rules you can actually follow
 
 ### Fixed

@@ -583,17 +583,23 @@ local function CreateScaleList(parent)
     -- shifts the list down on its own - no re-anchoring anywhere else.
     buttonContainer:SetHeight(BUTTON_HEIGHT * 2 + ELEMENT_SPACING)
     
-    -- New Blank Scale button (80% width)
-    local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.8)
-    local newButton = CreateStyledButton(buttonContainer, "New Blank Scale", newButtonWidth, BUTTON_HEIGHT)
+    -- Blank scale gets the SMALLER share, and the template button gets the words.
+    --
+    -- It was the other way round: "New Blank Scale" at 80% and the template picker as a
+    -- 20%-wide "+". That put the emphasis exactly backwards for the person who needs it
+    -- most. A new user cannot usefully fill in a blank scale - they do not yet know what
+    -- their stat weights should be, which is the entire problem the addon solves - while
+    -- the "+" hid 45 researched class/spec presets behind a symbol nobody hovers.
+    local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.4)
+    local newButton = CreateStyledButton(buttonContainer, "Blank", newButtonWidth, BUTTON_HEIGHT)
     newButton:SetPoint("TOPLEFT", buttonContainer, "TOPLEFT", 0, 0)
     newButton:SetScript("OnClick", function()
         ValuateUI_NewScale()
     end)
     
-    -- Template button (20% width) - "+" symbol
+    -- Template button: now the wide one, and it says what it does.
     local templateButtonWidth = 200 - newButtonWidth - ELEMENT_SPACING
-    local templateButton = CreateStyledButton(buttonContainer, "+", templateButtonWidth, BUTTON_HEIGHT)
+    local templateButton = CreateStyledButton(buttonContainer, "From Template", templateButtonWidth, BUTTON_HEIGHT)
     templateButton:SetPoint("TOPRIGHT", buttonContainer, "TOPRIGHT", 0, 0)
     templateButton:SetScript("OnClick", function()
         ValuateUI_ShowTemplatePicker()

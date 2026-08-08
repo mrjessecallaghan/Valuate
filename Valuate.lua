@@ -957,14 +957,28 @@ function Valuate:Initialize()
     end
 end
 
--- Creates a simple default scale for testing
+-- The scale a brand-new install starts with, plus the one-time message explaining
+-- what it is.
+--
+-- Its weights are deliberately crude - every primary stat at 1.0 - so an item's score
+-- is roughly "how many stats does this have". That is a reasonable heuristic while
+-- levelling and a poor one for anything else: it scores a plate DPS piece and a cloth
+-- caster piece almost identically.
+--
+-- The problem was never the weights, it was the silence. This addon ships FORTY-FIVE
+-- researched class/spec templates and the first-run path never mentioned them, so a
+-- new user saw numbers that looked authoritative, had no way to know they were
+-- placeholders, and would only find the real ones by going looking.
+--
+-- Nothing here can guess better on their behalf: Ascension is CLASSLESS, so there is
+-- no spec to infer. Which makes saying so the whole job.
 function Valuate:CreateDefaultScale()
     local defaultScale = {
-        DisplayName = "Default",
+        DisplayName = "Starter",
         Color = "00FF00",
         Visible = true,
         Values = {
-            -- Example stat weights (users should customize these)
+            -- Crude on purpose; see above. Every primary stat counts the same.
             Strength = 1.0,
             Agility = 1.0,
             Stamina = 0.5,
@@ -973,9 +987,19 @@ function Valuate:CreateDefaultScale()
             SpellPower = 1.0,
         }
     }
-    
+
     local scales = Valuate:GetScales()
-    scales["Default"] = defaultScale
+    scales["Starter"] = defaultScale
+
+    -- Deferred so it lands after the addon's own load line rather than above it, and
+    -- after whatever else is still printing at login.
+    ValuateAfter(2, function()
+        print("|cFF00FF00Valuate|r: created a |cFFFFFFFFStarter|r scale to get you going.")
+        print("  |cFFFFFF00It weights every stat the same|r, so its scores only really mean")
+        print("  \"has more stats\". Good enough while levelling, not much use beyond it.")
+        print("  |cFF00FF00Type /valuate|r and click |cFFFFFFFFFrom Template|r (top-left) - there are 45 built-in")
+        print("  specs with proper weights. Pick whichever matches how you actually play.")
+    end)
 end
 
 -- ========================================
@@ -6888,6 +6912,13 @@ local VERIFY_CHECKS = {
         steps = "Turn on auto-sell or auto-delete, then hover a grey item, a green item that is best-in-slot, and a quest item that AdiBags calls junk.",
         expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all.",
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
+    },
+    {
+        id = "firstrun", since = "0.37.1a",
+        title = "A brand-new install explains itself",
+        steps = "Hardest one to test - it needs a character that has never run Valuate. On an alt, or after clearing ValuateScales from SavedVariables, log in and watch chat about two seconds after the load line.",
+        expect = "A Starter scale appears, and a message says its weights are crude and points at the From Template button. The scale list should show From Template as the WIDE button, with Blank beside it.",
+        broke = "New in this version. The old default was called Default, said nothing about being a placeholder, and the 45 real templates were hidden behind a 20%-wide + button.",
     },
     {
         id = "scoreroll", since = "0.36.1a",
