@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.43.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.44.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -26,7 +26,9 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 - **Tooltip scores** — live item score, comparison against what you're wearing, and a
   "★ Best for" marker naming the scales an item wins for.
 - **Best Equipment panel** — best-in-slot per scale, upgrade deltas, an equipped-vs-best
-  summary, and one-click **Equip All**.
+  summary, and one-click **Equip All**. Slots you're wearing *nothing* in are called out
+  as **New** and counted, but only when you actually own something to fill them — an empty
+  Off Hand is correct if you run a two-hander.
 - **Weapon sets** — a classless character can validly run several setups, so Valuate tracks
   **Two-Hander**, **1H + Shield**, **1H + Off-Hand** and **Dual Wield** *independently*,
   each with its own score. Enable the ones you use per scale and pick which is active;
@@ -86,11 +88,12 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. 7 subsystems — the animation engine, input
-validation and colour handling, scale-tag parsing, the spec templates, the verify
-walkthrough, **the deletion protections** and **the pooled scale list** — are executed
-headlessly against a mocked WoW API and are genuinely behaviour-tested. **Everything else
-is statically verified only**: it loads, it resolves, its wiring is consistent.
+Developed without the game running. 8 subsystems are executed headlessly against a mocked
+WoW API and are genuinely behaviour-tested — the animation engine, input validation and
+colour handling, scale-tag parsing, the spec templates, the verify walkthrough, **the
+deletion protections**, the pooled scale list, and the slot comparison states.
+**Everything else is statically verified only**: it loads, it resolves, its wiring is
+consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -117,11 +120,10 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-7 of them **execute real Lua** under fengari against a mocked WoW API — the animation
-engine, input validation and colour handling, scale-tag parsing, the spec templates, the
-verify walkthrough, the deletion protections, and the pooled scale list. Those are where
-every substantive bug has been found, because the static gates can only see structure. The
-rest check wiring: that a file loads, a symbol resolves, a list stays in step.
+8 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+above). Those are where every substantive bug has been found, because the static gates can
+only see structure — they cannot see a correct-looking branch in the wrong order. The rest
+check wiring: that a file loads, a symbol resolves, a list stays in step.
 
 Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
 in-game, and its list is short on purpose — only behaviours that fail *silently*.

@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.44.0a] - 2026-08-09 — An empty slot now says it is empty
+
+### Fixed
+- **Empty gear slots showed a grey `--` meaning "no comparison available".** The branch that
+  should have said **New** was unreachable: a bare slot has no stats, so its score is nil, and
+  `not equippedScore` caught it one branch earlier. Empty rings, necks and trinkets — exactly
+  what a levelling character has — rendered as though Valuate had nothing to say about them.
+- **It also contradicted the summary line directly above it**, which counts an empty slot's
+  whole score as an upgrade. The total said "+120 in bags" and no row admitted to being any
+  of it.
+- **The tooltip went silent** for anything but a positive equipped score, so hovering an empty
+  slot explained nothing — the case where you are most likely to be asking.
+- A nil score has **two causes that are not the same answer**: nothing equipped, or something
+  equipped whose stats this scale bans. Those are now distinguished; the second still reads
+  `--`, because there genuinely is no number to compare.
+- An equipped score of **zero or below** now shows a real delta instead of being lumped in
+  with "no comparison". Both are numbers a scale can legitimately produce.
+- `CLAUDE.md` pointed at `toolsinstall-hooks.cmd` — a stripped backslash, which is the exact
+  bug the bullet two lines below it warns about.
+
+### Added
+- **"N empty slots you can fill"** in the Best Equipment summary. Deliberately not "empty
+  slots": Off Hand is empty by design if you run a two-hander and plenty of builds never fill
+  Ranged, so it counts only slots where you own something for them. A line that nags about
+  correct slots is a line people learn to ignore.
+
+### Development
+- The row and its tooltip each carried their own copy of the three-way branch — which is how
+  two answers to one question drift apart. Both now call one named `SlotCompareState`.
+- **A thirteenth gate, `tools/bestequiptest.js`**, runs it. Mutation-tested: restoring the
+  original branch order fails exactly the check that names the bug.
+- Nothing caught this for eighteen releases because it is not a crash, a nil call or a missing
+  symbol — it is a correct-looking branch in the wrong order, which no static gate can see.
+
 ## [0.43.0a] - 2026-08-09 — The scale list stops leaking
 
 ### Fixed

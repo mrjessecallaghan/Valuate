@@ -38,6 +38,30 @@ local BestEquipmentScrollFrame = nil
 local BestEquipmentContentFrame = nil
 -- (BestEquipmentScaleFrames removed: the panel now uses a persistent column pool)
 
+-- What a slot's best item can be compared AGAINST. Three states, and they are not
+-- interchangeable:
+--
+--   "new"       nothing equipped there. The best item is a pure gain and the slot is bare.
+--   "unusable"  something equipped, but this scale bans one of its stats, so
+--               CalculateItemScore returned nil. There is genuinely no number to compare.
+--   "delta"     a real equipped score - INCLUDING zero and negative ones, both of which a
+--               scale can legitimately produce - so show the difference.
+--
+-- Named and file-local for two reasons. It was written inline as
+-- `if score > 0 ... elseif score == 0 or not score then "--" else "New" end`, where the
+-- "New" arm was unreachable: a bare slot has nil stats, so `not score` caught it one
+-- branch earlier and every empty slot rendered as a grey "--" meaning "no comparison" -
+-- on exactly the slots where the comparison is easiest and the gain is largest.
+--
+-- And the row and its tooltip each carried their own copy of that branch, which is how
+-- two answers to one question drift apart. One decision, two readers, one gate
+-- (tools/bestequiptest.js).
+local function SlotCompareState(equippedStats, equippedScore)
+    if not equippedStats then return "new" end
+    if not equippedScore then return "unusable" end
+    return "delta"
+end
+
 -- ========================================
 -- "What did that scan actually change?"
 -- ========================================
@@ -864,6 +888,7 @@ local function CreateBestEquipmentPanel(parent)
                 -- Running totals for the summary block (accumulated in the row loop).
                 local equippedTotal, bestTotal, upgradeTotal = 0, 0, 0
                 local bankUpgradeTotal = 0
+                local emptyFillable = 0
 
                 for rowIndex, slotInfo in ipairs(EquipmentSlots) do
                     local slotId = slotInfo.slotId
@@ -907,6 +932,21 @@ local function CreateBestEquipmentPanel(parent)
 
                     -- Summary totals: best-achievable per slot is max(best, equipped);
                     -- upgrades are the positive best-over-equipped deltas.
+                    -- Slots wearing NOTHING that you own something for.
+                    --
+                    -- Deliberately not "empty slots". Off Hand is empty by design if you
+                    -- run a two-hander, and plenty of builds never fill Ranged - counting
+                    -- those would nag about slots that are correct, which is the fastest
+                    -- way to teach someone to ignore the line. If Valuate found no item
+                    -- for the slot there is nothing to say; if it found one and you are
+                    -- wearing nothing, that is worth a sentence.
+                    --
+                    -- Bank items are excluded for the same reason they are split out of
+                    -- the upgrade total: Equip All cannot reach them.
+                    if not equippedStats and bestItem and bestItem.source ~= "bank" then
+                        emptyFillable = emptyFillable + 1
+                    end
+
                     local eqSlotScore = equippedScore or 0
                     local bestSlotScore = (bestItem and bestItem.score) or 0
                     equippedTotal = equippedTotal + eqSlotScore
@@ -1020,7 +1060,16 @@ local function CreateBestEquipmentPanel(parent)
                             itemNameText:SetText(itemName)
                         end
 
-                        if equippedScore and equippedScore > 0 then
+                        -- The old inline branch also disagreed with the summary directly
+                        -- above it, which counts an empty slot's whole score as an
+                        -- upgrade: the total said "+120 in bags" and no row admitted to
+                        -- being any of it.
+                        local compareState = SlotCompareState(equippedStats, equippedScore)
+                        if compareState == "new" then
+                            comparisonText:SetText("|cFF00FF00New|r")
+                        elseif compareState == "unusable" then
+                            comparisonText:SetText("|cFF888888--|r")
+                        else
                             local diff = scoreValue - equippedScore
                             if math.abs(diff) < 0.01 then diff = 0 end
                             local diffColor = "FFFFFF"
@@ -1035,10 +1084,6 @@ local function CreateBestEquipmentPanel(parent)
                                 diff = 0
                             end
                             comparisonText:SetText("|cFF" .. diffColor .. diffSign .. string.format(formatStr, diff) .. "|r")
-                        elseif equippedScore == 0 or not equippedScore then
-                            comparisonText:SetText("|cFF888888--|r")
-                        else
-                            comparisonText:SetText("|cFF00FF00New|r")
                         end
 
                         slotFrame:SetScript("OnEnter", function(self)
@@ -1059,7 +1104,17 @@ local function CreateBestEquipmentPanel(parent)
                                 end
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine("Score for |cFF" .. color .. displayName .. "|r: |cFF" .. color .. string.format(formatStr, scoreValue) .. "|r", 1, 1, 1)
-                                if equippedScore and equippedScore > 0 then
+                                -- Same decision as the row, through the same function. The
+                                -- tooltip used to go silent for anything but a positive
+                                -- equipped score, so an empty slot said nothing at all
+                                -- about why - the one case where a person is most likely
+                                -- to be asking.
+                                local tipState = SlotCompareState(equippedStats, equippedScore)
+                                if tipState == "new" then
+                                    GameTooltip:AddLine("|cFF00FF00Nothing equipped in this slot|r", 0.8, 0.8, 0.8)
+                                elseif tipState == "unusable" then
+                                    GameTooltip:AddLine("|cFF888888What you are wearing has a stat this scale bans, so there is no score to compare.|r", 0.8, 0.8, 0.8, true)
+                                else
                                     local diff = scoreValue - equippedScore
                                     if math.abs(diff) < 0.01 then diff = 0 end
                                     local diffColor = "FFFFFF"
@@ -1212,15 +1267,29 @@ local function CreateBestEquipmentPanel(parent)
                 if bankUpgradeTotal > 0.01 then
                     bankPart = "  |cFFFF8800+" .. string.format(formatStr, bankUpgradeTotal) .. " in bank|r"
                 end
+                -- An empty slot you can fill is the single most actionable thing this
+                -- panel knows, and it was previously visible only as a grey "--" on the
+                -- row. Levelling characters run around with a bare neck or one ring for
+                -- hours; "+120 in bags" does not tell you that any of it is free.
+                local emptyPart = ""
+                if emptyFillable > 0 then
+                    emptyPart = "  |cFF00FF00" .. emptyFillable ..
+                        (emptyFillable == 1 and " empty slot" or " empty slots") .. " you can fill|r"
+                end
+
+                -- emptyPart is appended to EVERY branch. It is a statement about your
+                -- slots, not about the score, so it stays true when the item filling the
+                -- slot happens to be worth nothing to this scale - and a line that
+                -- appears in two states out of three is a line nobody can rely on.
                 if upgradeTotal > 0.01 then
                     col.upgradesText:SetText("|cFF00FF00Upgrades in bags: +"
-                        .. string.format(formatStr, upgradeTotal) .. "|r" .. bankPart)
+                        .. string.format(formatStr, upgradeTotal) .. "|r" .. bankPart .. emptyPart)
                 elseif bankPart ~= "" then
                     -- Don't claim there is nothing to gain when the gain is simply
                     -- sitting in the bank.
-                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r" .. bankPart)
+                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r" .. bankPart .. emptyPart)
                 else
-                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r")
+                    col.upgradesText:SetText("|cFF888888No upgrades in bags|r" .. emptyPart)
                 end
             end
         end

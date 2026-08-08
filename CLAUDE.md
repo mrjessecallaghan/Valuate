@@ -15,7 +15,7 @@ node tools/gates.js
 ```
 
 Run this **before every commit** - or install the hook once and stop thinking about
-it: `toolsinstall-hooks.cmd` (double-click, or run it from a terminal).
+it: `tools/install-hooks.cmd` (double-click, or run it from a terminal).
 
 Gates **discover themselves**: a file in `tools/` is a gate if its header comment
 contains an `@gate` line. There is deliberately no list to keep in step - a gate list
@@ -33,15 +33,15 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
-  It, `widgettest.js`, `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js` and
-  `scalelisttest.js` run Valuate code rather than reading it, which matters because every
-  static gate passes on a clamp whose comparison is the wrong way round. `scalelisttest.js`
-  goes furthest: it builds a real panel and drives its buttons. Start with `animtest.js` when
-  extending runtime
-  coverage: the engine's whole external surface is `CreateFrame` plus one option read, so
-  its mock is small enough to trust. Mutation-tested — every check in it has been shown to
-  fail when the behaviour it names is broken.
+- **Eight gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+  `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
+  `bestequiptest.js`. This matters because every static gate passes on a clamp whose
+  comparison is the wrong way round, or a correct-looking branch in the wrong order.
+  `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
+  Start with `animtest.js` when extending runtime coverage: the engine's whole external
+  surface is `CreateFrame` plus one option read, so its mock is small enough to trust.
+  Mutation-tested — every check in it has been shown to fail when the behaviour it names
+  is broken.
 - **When the logic is worth running but its file is not loadable**, do what `verifytest.js`
   and `deletetest.js` do: match the functions out of `Valuate.lua` by source and execute
   those. The core file needs most of the WoW API to reach its end; a self-contained function
@@ -260,6 +260,7 @@ callback either reschedule or be genuinely final.
 | `tools/verifytest.js` | Runs the `/valuate verify` walkthrough's pending/staleness logic |
 | `tools/deletetest.js` | Runs each of the six deletion protections and proves it fires |
 | `tools/scalelisttest.js` | Runs the pooled scale list; proves rows act on the scale shown |
+| `tools/bestequiptest.js` | Runs the slot comparison states (empty / unusable / delta) |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
