@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.6a] - 2026-08-09 — The settings search says how many it found
+
+### Added
+- **A match count in the Settings search box.** The filter *dims* rather than hides — which is
+  what keeps the anchor chain intact — but that means a match further down the panel is
+  dimmed-in-place and invisible until you scroll to it. Without a count there was no way to tell
+  **"nothing matches"** from **"the matches are below the fold"**, and those call for opposite
+  reactions: one means refine the search, the other means keep scrolling.
+- Reads `no matches` in red, or `N match`/`N matches`.
+
+### Notes
+- Only groups carrying **text** count. A spacer or a bare texture follows the filter visually but
+  isn't a setting anyone was looking for, and counting them would inflate every number.
+- Found by auditing my own recent work rather than the older code — third pass, third real gap. A
+  feature can be correct and still be unusable if it won't tell you what it did.
+
 ## [0.38.5a] - 2026-08-09 — Levelling mid-swap no longer loses the announcement
 
 ### Fixed

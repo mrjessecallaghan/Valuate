@@ -120,6 +120,17 @@ local function CreateSettingsPanel(parent)
     searchHint:SetText("Search settings...")
     searchHint:SetTextColor(unpack(COLORS.textDim))
 
+    -- Match count, right-aligned inside the box.
+    --
+    -- The filter DIMS rather than hides, which is what keeps the anchor chain intact -
+    -- but it means a match further down the panel is dimmed-in-place and invisible
+    -- until you scroll to it. Without a count there is no way to tell "nothing matches"
+    -- from "the matches are below the fold", and those call for opposite reactions:
+    -- one means refine the search, the other means keep scrolling.
+    local searchCount = searchBox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchCount:SetPoint("RIGHT", searchBox, "RIGHT", -7, 0)
+    searchCount:SetJustifyH("RIGHT")
+
     local scrollFrame = CreateFrame("ScrollFrame", nil, parent)
     scrollFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -24)
     scrollFrame:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -SCROLLBAR_WIDTH, 0)
@@ -2153,11 +2164,17 @@ local function CreateSettingsPanel(parent)
         end
         query = strlower(strtrim(query or ""))
 
+        -- Counted as we go. Only groups that carry TEXT count as matches: a spacer or
+        -- a bare texture follows the filter visually but is not a setting anyone was
+        -- looking for, and counting them would inflate every number.
+        local matched = 0
+
         for _, g in ipairs(searchIndex) do
             -- A group with no text at all (a bare texture or spacer) follows the
             -- filter rather than staying lit, or clearing the page would leave odd
             -- bright fragments floating in the dimmed background.
             local show = (query == "") or (g.text ~= "" and g.text:find(query, 1, true) ~= nil)
+            if show and g.text ~= "" and query ~= "" then matched = matched + 1 end
             local target = show and 1 or DIMMED
             for _, el in ipairs(g.els) do
                 if el.SetAlpha then
@@ -2176,6 +2193,15 @@ local function CreateSettingsPanel(parent)
                     end
                 end
             end
+        end
+
+        if query == "" then
+            searchCount:SetText("")
+        elseif matched == 0 then
+            searchCount:SetText("|cFFFF5555no matches|r")
+        else
+            searchCount:SetText("|cFF888888" .. matched .. " match"
+                .. (matched == 1 and "" or "es") .. "|r")
         end
     end
 

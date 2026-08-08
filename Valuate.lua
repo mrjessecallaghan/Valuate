@@ -7123,7 +7123,7 @@ local VERIFY_CHECKS = {
         id = "search", since = "0.29.0a",
         title = "Settings search dims everything except what you typed",
         steps = "Open Settings and type 'junk' in the search box at the top. Then clear it, and press Escape with text in the box.",
-        expect = "Only junk-related rows stay bright; everything else dims but STAYS PUT - nothing may move or reflow. Clearing restores every row to full brightness, with none left dim.",
+        expect = "Only junk-related rows stay bright; everything else dims but STAYS PUT - nothing may move or reflow. The box shows a match count on the right. Clearing restores every row to full brightness, with none left dim.",
         broke = "New in this version - never run. It dims rather than hides precisely because every control anchors to the one above it, so hiding one would collapse the rest of the column. If anything moves, that is the bug.",
     },
     {
