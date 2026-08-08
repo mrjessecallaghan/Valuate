@@ -135,6 +135,12 @@ function CreateFrame(frameType, name, parent, template)
     function f:SetGradientAlpha(...) self.__gradient = {...} end
     function f:StartMoving() self.__moving = true end
     function f:StopMovingOrSizing() self.__moving = false end
+    function f:SetTextInsets(...) self.__textInsets = {...} end
+    function f:SetNumeric(n) self.__numeric = n end
+    function f:HighlightText(...) self.__highlight = {...} end
+    function f:SetMultiLine(m) self.__multiLine = m end
+    function f:SetSpacing(s) self.__spacing = s end
+    function f:SetDesaturated(d) self.__desaturated = d end
 
     -- Events are RECORDED, never dispatched. A mock that fired them would be deciding
     -- when the client does, which is exactly the behaviour a gate is trying to observe;
@@ -153,6 +159,27 @@ function CreateFrame(frameType, name, parent, template)
     table.insert(__frames, f)
     return f
 end
+
+-- Blizzard's dropdown API, RECORDED rather than simulated.
+--
+-- Real UIDropDownMenu builds its list by calling an initialiser that calls AddButton once
+-- per entry, so the honest mock keeps what it was handed and lets a test walk it. It does
+-- not open, close or select anything by itself: a mock that decided what was selected would
+-- be answering the question a gate is asking.
+__dropdownButtons = {}
+function UIDropDownMenu_CreateInfo() return {} end
+function UIDropDownMenu_SetWidth(f, w) if f then f.__ddWidth = w end end
+function UIDropDownMenu_SetButtonWidth(f, w) if f then f.__ddButtonWidth = w end end
+function UIDropDownMenu_JustifyText(f, j) if f then f.__ddJustify = j end end
+function UIDropDownMenu_SetText(f, t) if f then f.__ddText = t end end
+function UIDropDownMenu_GetText(f) return f and f.__ddText end
+function UIDropDownMenu_SetSelectedValue(f, v) if f then f.__ddValue = v end end
+function UIDropDownMenu_GetSelectedValue(f) return f and f.__ddValue end
+function UIDropDownMenu_SetSelectedID(f, i) if f then f.__ddID = i end end
+function UIDropDownMenu_AddButton(info) table.insert(__dropdownButtons, info) return info end
+function UIDropDownMenu_Initialize(f, initFn) if f then f.__ddInit = initFn end end
+function ToggleDropDownMenu() end
+function CloseDropDownMenus() end
 
 -- ReduceMotion() reads this. Off by default; a test flips it.
 __reduceMotion = false

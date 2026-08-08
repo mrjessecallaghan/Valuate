@@ -33,18 +33,18 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Eleven gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Twelve gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
-  `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`. This matters because
-  every static gate passes on a clamp whose comparison is the wrong way round, a correct-looking branch
-  in the wrong order, a division by a signed value that should have been a magnitude, or a
+  `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`.
+  This matters because every static gate passes on a clamp whose comparison is the wrong
+  way round, a correct-looking branch in the wrong order, a division by a signed value that should have been a magnitude, or a
   cleanup step present in one branch of a copied loop and missing from the other.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
-  **`ui/Settings.lua` (2,232 lines) has no runtime coverage.** It loads under the harness
-  and builds about a third of the way before it needs `Valuate:` API surface mocked
-  (`GetProfessionOverrideChoices` was the first). That is a test fixture, not a harness gap
-  — do not add those to `luaharness.js`; they belong in the gate that wants them. Worth
-  doing: reading it turned up a keybind capture that never released the keyboard.
+  `settingstest.js` **builds the whole 2,232-line Settings panel** and drives its keybind
+  button. Getting there needed the client's dropdown API and a few EditBox methods in the
+  shared mock — those are things the CLIENT provides — and the addon's own `Valuate:`
+  methods stubbed **in the gate**. Keep that line: pushing addon API into `luaharness.js`
+  would make every other gate test against a more imaginary client than it does now.
   Start with `animtest.js` when extending runtime coverage: the engine's whole external
   surface is `CreateFrame` plus one option read, so its mock is small enough to trust.
   Mutation-tested — every check in it has been shown to fail when the behaviour it names
@@ -290,6 +290,7 @@ callback either reschedule or be genuinely final.
 | `tools/tooltiptest.js` | Runs the tooltip comparison text; sign, colour and magnitude agree |
 | `tools/arrowtest.js` | Ticks the upgrade-arrow driver; proves it prunes in both motion modes |
 | `tools/sharetest.js` | Runs the stat-share ranking; shares, sign handling, stable order |
+| `tools/settingstest.js` | Builds the Settings panel; keybind capture always releases the keyboard |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

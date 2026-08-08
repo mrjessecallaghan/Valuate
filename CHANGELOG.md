@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.49.1a] - 2026-08-09 — The Settings panel gets runtime coverage
+
+### Development
+- **A seventeenth gate, `tools/settingstest.js`, builds the whole 2,232-line Settings panel
+  and drives its keybind button.** That file had no runtime coverage at all and was the
+  largest blind spot left; last release's two keybind bugs were found by reading it, which
+  is not a method that scales.
+- **Both of those bugs are now caught mechanically.** Mutation-tested: restoring the
+  right-click-clear-without-releasing fails with *"a key pressed afterwards is not silently
+  bound (got VALUATE_TOGGLE_UI, wanted nil)"* — the shipped bug, stated as an assertion.
+  Restoring the missing `OnHide` disarm fails the two checks that name it.
+- 23 checks, all ending on **"did the keyboard get handed back"**, because that is the
+  property that matters rather than which key ended up bound.
+- The button is found by looking for the only frame in the panel with an `OnKeyDown`
+  handler, so inserting a control above it cannot silently redirect the gate.
+
+### Notes
+- The line I said I'd keep, kept: the client's **dropdown API and a few EditBox methods**
+  went into the shared mock, because those are what a client provides. The addon's own
+  `Valuate:` methods are stubbed **in the gate**. Pushing addon API into `luaharness.js`
+  would make all twelve runtime gates test against a more imaginary client than they do now.
+- This is the piece of work I deliberately stopped half-way through last release rather than
+  ship a fixture that read as coverage without being it.
+
 ## [0.49.0a] - 2026-08-09 — The keybind button lets go of your keyboard
 
 ### Fixed
