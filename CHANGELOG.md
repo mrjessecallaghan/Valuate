@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.50.1a] - 2026-08-09 — The confirm dialog is pinned to the question it's asking
+
+### Development
+- **A nineteenth gate, `tools/dialogtest.js`.** `ValuateConfirmDialog` is a **singleton** —
+  one frame reused for every question the addon asks, including *"delete this scale?"* — so
+  its accept button is rebound each time. That's the hazard that kept the scale list unpooled
+  for eleven releases, in miniature: a reused control still wired to the previous request.
+  Here it would mean clicking **Delete** running the callback from a dialog you already
+  dismissed.
+- 21 checks. Every case shows a **second** dialog before clicking, because a test that shows
+  one and clicks it passes whether or not the rebinding works. Each also asserts the *other*
+  callback did **not** run — "the right thing happened" and "only the right thing happened"
+  are different claims.
+- Mutation-tested three ways, all caught: binding accept once at creation (the stale
+  callback), acting before hiding (which also closes a chained dialog opened from the
+  callback), and not resetting button labels when a request omits them — that last one leaves
+  **"Delete" sitting on a dialog asking something else**, which is how a person clicks it.
+- Also pinned: the dialog hides *before* the callback runs, so a callback may open another
+  one; cancel never runs `onAccept`; and `HideConfirmDialog` acts on nothing.
+
+### Added
+- **A sixteenth lint rule, `no-dialog-oncancel-with-escape`.** `ui/Dialog.lua` registers the
+  dialog for Escape-to-close and notes that this is safe *"because no caller passes
+  onCancel"*. That is true — I checked — but it's a coupling, not an observation: Escape hides
+  the frame without running anything, so the day a caller needs cleanup on cancel, Escape
+  starts skipping it silently, on the dialog that asks about deletion. Using `onCancel` now
+  requires removing the Escape registration first, which is what the comment already said.
+
 ## [0.50.0a] - 2026-08-09 — Clicking the tab you're already on stops jolting the window
 
 ### Fixed

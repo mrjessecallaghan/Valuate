@@ -135,6 +135,27 @@ const RULES = [
       /\bQuestInfoItem_OnClick\s*\(/.test(l),
   },
   {
+    /*
+     * ui/Dialog.lua registers ValuateConfirmDialog for Escape-to-close, and says in a
+     * comment that this is "safe because no caller passes onCancel - cancelling is purely
+     * close-without-acting, which is exactly what hiding does."
+     *
+     * That is true today and it is a coupling, not an observation: Escape hides the frame
+     * without running anything, so the day a caller needs cleanup on cancel, Escape starts
+     * skipping it silently. The dialog is what asks "delete this scale?", so the cleanup
+     * being skipped is the kind that matters.
+     *
+     * Enforced rather than trusted. To use onCancel, remove the RegisterEscapeClose line
+     * first (or route Escape through the cancel handler) - the comment in Dialog.lua says
+     * as much, and this makes ignoring it impossible rather than merely rude.
+     */
+    name: "no-dialog-oncancel-with-escape",
+    why: "ValuateConfirmDialog is registered for Escape-to-close, which hides it WITHOUT running onCancel - so cancel cleanup would be skipped whenever Escape is used. Drop the RegisterEscapeClose in ui/Dialog.lua first, or handle cancel some other way.",
+    test: (l, file) =>
+      /\bonCancel\b/.test(l) &&
+      path.resolve(file) !== path.resolve(ADDON_ROOT, "ui", "Dialog.lua"),
+  },
+  {
     name: "no-protected-calls",
     why: "Automating item use is a protected path; the client blocks the use and blames Valuate. Let the user answer that popup.",
     test: (l) => /\bConfirmBindOnUse\s*\(/.test(l),
