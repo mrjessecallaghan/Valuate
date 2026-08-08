@@ -31,9 +31,26 @@ local ShowIconPicker = ns.ShowIconPicker
 
 local ScaleListFrame = nil
 
+-- KNOWN LEAK, not yet fixed: this rebuilds its buttons instead of pooling them.
+--
+-- SetParent(nil) does not free a frame in WoW - nothing does. So every call orphans
+-- about five frames per scale, permanently. ui/BestEquipment.lua hit exactly this and
+-- was rewritten around a pool ("BuildBestEquipColumn builds a column's structure once;
+-- UpdateBestEquipmentDisplay only sets content and rebinds closures"); this panel and
+-- ui/ScaleEditor.lua's UpdateStatWeightsList never got the same treatment.
+--
+-- The pathological caller is gone: the colour picker used to call this on every colour
+-- change while you dragged the wheel, which cost thousands of frames in seconds. What
+-- remains is one call per user action - creating, deleting, renaming or toggling a
+-- scale - so the leak is now slow rather than alarming.
+--
+-- Fixing it properly means splitting button construction from population so the row can
+-- be reused, and rebinding the closures to read the scale name from the button rather
+-- than capturing it. That is a real refactor of live UI code, so it is written down
+-- here rather than attempted blind.
 local function UpdateScaleList()
     if not ScaleListFrame then return end
-    
+
     -- Clear existing buttons
     for _, btn in pairs(ns.ScaleListButtons) do
         btn:Hide()
@@ -121,10 +138,17 @@ local function UpdateScaleList()
                 if scales[scaleName] then
                     scales[scaleName].Color = newColor
                 end
+                -- The swatch is the ONLY thing in a row that shows the scale's colour, and
+                -- it is updated directly here. A full UpdateScaleList() used to follow,
+                -- which was redundant - and ruinous.
+                --
+                -- WoW calls this on EVERY colour change, so it fires continuously while
+                -- you drag the colour wheel. Each call rebuilt the whole list, and
+                -- UpdateScaleList discards its buttons with SetParent(nil) - which does
+                -- NOT free a frame in WoW. A few seconds of dragging with five scales
+                -- therefore orphaned a couple of thousand frames, permanently.
                 colorPreview:SetVertexColor(newR, newG, newB, 1)
-                -- Update the scale list to reflect new color
-                UpdateScaleList()
-                
+
                 -- Reset tooltips to show new color immediately
                 if Valuate.ResetTooltips then
                     Valuate:ResetTooltips()
@@ -136,9 +160,12 @@ local function UpdateScaleList()
                 local scales = Valuate:GetScales()
                 if prev and scales[scaleName] then
                     scales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
+                    -- Restore the swatch directly, for the same reason as above. This
+                    -- one fires once rather than per frame, but a rebuild here would
+                    -- still orphan a row's worth of frames for no benefit.
+                    colorPreview:SetVertexColor(prev[1], prev[2], prev[3], 1)
                 end
-                UpdateScaleList()
-                
+
                 -- Reset tooltips to restore original color
                 if Valuate.ResetTooltips then
                     Valuate:ResetTooltips()

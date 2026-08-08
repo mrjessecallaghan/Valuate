@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.32.0a] - 2026-07-31 — Dragging the colour wheel stops leaking frames
+
+### Fixed
+- **Adjusting a scale's colour orphaned thousands of UI frames.** WoW calls the colour
+  picker's callback on *every* colour change — continuously while you drag the wheel — and
+  that callback rebuilt the entire scale list each time. `UpdateScaleList` discards its
+  buttons with `SetParent(nil)`, which does **not** free a frame in WoW; nothing does. With
+  five scales, a few seconds of dragging permanently orphaned a couple of thousand frames.
+  The rebuild was also **redundant**: the swatch is the only thing in a row that shows the
+  colour, and the callback already updated it directly. The rebuild is gone.
+- The cancel path now restores the swatch directly too, for the same reason.
+- `ui/Pickers.lua`'s template-button tooltip was the last hover handler calling
+  `GameTooltip:SetOwner` directly instead of going through `ShowTooltipSafe`, so it could
+  appear while a frame was being dragged. Every other one in the addon already went through it.
+
+### Notes — known leaks, written down rather than half-fixed
+- `UpdateScaleList` and `UpdateStatWeightsList` both **rebuild rather than pool**. Each call
+  orphans about five frames per scale, and roughly 250 frames respectively, permanently.
+  `ui/BestEquipment.lua` hit exactly this and was rewritten around a pool; these two never got
+  the same treatment.
+- Removing the colour-picker caller takes the scale-list leak from *alarming* to *slow* — what
+  remains is one call per user action rather than dozens per second.
+- The stat-editor one (~250 frames per scale you click) is untouched. Fixing it means splitting
+  a ~250-line layout builder into build-once and populate, on live UI I cannot run. That is
+  recorded in a comment at the function rather than attempted blind — a botched conversion
+  breaks the stat editor outright.
+
 ## [0.31.2a] - 2026-07-31 — The tooltip can't spam you any more
 
 ### Fixed

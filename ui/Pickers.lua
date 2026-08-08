@@ -679,11 +679,14 @@ local function CreateTemplatePickerFrame()
             self:SetBackdropColor(unpack(COLORS.buttonHover))
             self:SetBackdropBorderColor(unpack(COLORS.borderLight))
             
-            -- Show tooltip with role
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(template.name, 1, 1, 1)
-            GameTooltip:AddLine(GetRoleName(template.role), 0.7, 0.7, 0.7)
-            GameTooltip:Show()
+            -- Through the shared helper, which suppresses tooltips while a frame is
+            -- being dragged. This was the last hover handler still calling SetOwner
+            -- directly; every other one in the addon already went through it.
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                GameTooltip:SetText(template.name, 1, 1, 1)
+                GameTooltip:AddLine(GetRoleName(template.role), 0.7, 0.7, 0.7)
+                GameTooltip:Show()
+            end
         end)
         btn:SetScript("OnLeave", function(self)
             self:SetBackdropColor(unpack(COLORS.buttonBg))

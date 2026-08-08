@@ -242,9 +242,24 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     return row
 end
 
+-- KNOWN LEAK, not yet fixed, and the larger of the two.
+--
+-- This discards every row and rebuilds the grid on each call - roughly 250 frames for
+-- ~60 stat rows plus their columns and containers. SetParent(nil) does not free a frame
+-- in WoW, so each call orphans all of them permanently. Selecting ten scales in a
+-- session leaks on the order of 2,500 frames, and frame count is a global UI cost, not
+-- just this addon's problem.
+--
+-- The file header calls StatWeightRows a "pool", which it is not: it is emptied and
+-- refilled. ui/BestEquipment.lua solved the same problem properly - build structure
+-- once, then only set content and rebind closures - and that is the shape this needs.
+--
+-- Deliberately not attempted blind: it is a ~250-line layout builder driving live UI,
+-- and a botched conversion breaks the stat editor outright. Recorded here so the next
+-- person to open this file knows, rather than rediscovering it.
 local function UpdateStatWeightsList(scaleName, scale)
     if not ns.ScaleEditorFrame then return end
-    
+
     -- Clear existing rows
     for _, row in pairs(StatWeightRows) do
         if row.Hide then row:Hide() end
