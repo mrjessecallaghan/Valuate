@@ -6248,7 +6248,7 @@ function Valuate:RunSelfTest()
         "SaveSettingsSnapshot", "LoadSettingsSnapshot", "HasSettingsSnapshot",
         "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
-        "RunProfile", "RunVerify", "CountEquippableUpgrades",
+        "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)
@@ -6618,6 +6618,39 @@ function Valuate:RunProfile()
     print("  |cFFAAAAAAScan runs on loot/equipment changes; scoring and parsing run per item.|r")
     print("  |cFFAAAAAAArrow and junk costs are per VISIBLE bag icon, per repaint.|r")
     return true
+end
+
+-- Prints every scale, in a stable order, with its internal key when that differs from
+-- the display name.
+--
+-- One implementation because there were two, both looping ValuateScales with pairs()
+-- and both printing in whatever order Lua felt like - so the same "Available scales"
+-- list came out differently on consecutive runs of the same command. Trivial on its
+-- own; the reason it matters is that this list is what you read to find the exact name
+-- to type back in, and a list that reorders itself is a poor thing to search.
+--
+-- The key is shown only when it differs, since that is exactly when typing the display
+-- name may be ambiguous and the key is what disambiguates.
+function Valuate:PrintScaleList()
+    local names = {}
+    for name in pairs(Valuate:GetScales() or {}) do tinsert(names, name) end
+    table.sort(names, function(a, b)
+        local scales = Valuate:GetScales()
+        local da = scales[a].DisplayName or a
+        local db = scales[b].DisplayName or b
+        if da ~= db then return da < db end
+        return a < b  -- display names may collide; keys cannot
+    end)
+
+    for _, name in ipairs(names) do
+        local scale = Valuate:GetScales()[name]
+        local displayName = scale.DisplayName or name
+        if displayName ~= name then
+            print("  " .. displayName .. "  |cFFAAAAAA(" .. name .. ")|r")
+        else
+            print("  " .. displayName)
+        end
+    end
 end
 
 -- ========================================
@@ -7294,25 +7327,47 @@ SlashCmdList["VALUATE"] = function(msg)
             -- No scale name specified - list available scales
             print("|cFF00FF00Valuate|r: Please specify a scale name to export.")
             print("Available scales:")
-            for name, scale in pairs(ValuateScales) do
-                local displayName = scale.DisplayName or name
-                print("  " .. displayName)
-            end
+            Valuate:PrintScaleList()
             print("Usage: /valuate export [scalename]")
         else
-            -- Try to find the scale (case-insensitive, match by display name or internal name)
-            local foundScale = nil
-            local foundName = nil
-            
+            -- Find the scale, case-insensitively, by internal name or display name.
+            --
+            -- This used to take the FIRST match and break. pairs() has no order, so with
+            -- two scales whose names differ only in case, or where one scale's key
+            -- happens to equal another's display name, it exported an arbitrary one of
+            -- them - and said nothing. Handing a friend the wrong scale is a failure you
+            -- only find out about later, if at all.
+            --
+            -- So: collect every match. An exact internal-name hit is unambiguous by
+            -- definition (keys are unique) and wins outright; otherwise, more than one
+            -- match is reported rather than guessed at.
+            local wanted = strlower(scaleName)
+            local exactKey = nil
+            local matches = {}
+
             for name, scale in pairs(ValuateScales) do
                 local displayName = scale.DisplayName or name
-                if strlower(name) == strlower(scaleName) or strlower(displayName) == strlower(scaleName) then
-                    foundScale = scale
-                    foundName = name
-                    break
+                if name == scaleName then
+                    exactKey = name
+                elseif strlower(name) == wanted or strlower(displayName) == wanted then
+                    tinsert(matches, name)
                 end
             end
-            
+            table.sort(matches)  -- pairs() collected them; don't report them arbitrarily either
+
+            local foundName = exactKey or (#matches == 1 and matches[1] or nil)
+            local foundScale = foundName and ValuateScales[foundName] or nil
+
+            if not foundName and #matches > 1 then
+                print("|cFFFF8800Valuate|r: '" .. scaleName .. "' matches " .. #matches .. " scales:")
+                for _, name in ipairs(matches) do
+                    local dn = ValuateScales[name].DisplayName or name
+                    print("  " .. dn .. (dn ~= name and ("  |cFFAAAAAA(" .. name .. ")|r") or ""))
+                end
+                print("|cFFFFFF00Use the exact name in brackets to pick one.|r")
+                return
+            end
+
             if foundScale and foundName then
                 local scaleTag, whyNot = Valuate:GetScaleTag(foundName)
                 if scaleTag then
@@ -7325,10 +7380,7 @@ SlashCmdList["VALUATE"] = function(msg)
             else
                 print("|cFFFF0000Valuate|r: Scale not found: " .. scaleName)
                 print("Available scales:")
-                for name, scale in pairs(ValuateScales) do
-                    local displayName = scale.DisplayName or name
-                    print("  " .. displayName)
-                end
+                Valuate:PrintScaleList()
             end
         end
     elseif command == "ui" then

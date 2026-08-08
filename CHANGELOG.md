@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.31.1a] - 2026-07-31 — `/valuate export` stops guessing
+
+### Fixed
+- **`/valuate export <name>` could silently export the wrong scale.** It took the *first*
+  case-insensitive match from a `pairs()` loop, which has no order — so with two scales whose
+  names differ only in case, or where one scale's internal key equals another's display name,
+  you got an arbitrary one of them with no indication. Handing someone the wrong scale is a
+  failure you find out about later, if at all. It now collects every match: an exact
+  internal-name hit wins outright (keys are unique), and anything still ambiguous is **reported
+  with the exact names to choose from** rather than guessed at.
+- **"Available scales" printed in a different order each time.** Two separate listings each
+  looped `pairs()` and printed as they went. Minor on its own — but that list is what you read
+  to find the exact name to type back in, and a list that reorders itself is a poor thing to
+  search. Both now go through one sorted helper, which also shows the internal key when it
+  differs from the display name, since that is exactly when the display name may be ambiguous.
+
+### Notes
+- Found by auditing the four `pairs()` loops that `break` early — "take the first match" from an
+  unordered iteration. The other three are existence checks where order cannot change a boolean,
+  so they were left alone; a lint rule for this shape would be three-quarters false positives,
+  which is worse than none.
+- `pairs-list-needs-sort` (added last release) does **not** catch this shape — it sees lists that
+  are built and returned, not loops that break on a first match. Worth knowing where the rule's
+  edge is rather than assuming it covers the whole class.
+
 ## [0.31.0a] - 2026-07-31 — Which scale is your primary, deterministically
 
 ### Fixed
