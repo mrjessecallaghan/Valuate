@@ -33,10 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Eight gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Nine gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
-  `bestequiptest.js`. This matters because every static gate passes on a clamp whose
-  comparison is the wrong way round, or a correct-looking branch in the wrong order.
+  `bestequiptest.js`, `tooltiptest.js`. This matters because every static gate passes on a
+  clamp whose comparison is the wrong way round, or a correct-looking branch in the wrong
+  order, or a division by a signed value that should have been a magnitude.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
   Start with `animtest.js` when extending runtime coverage: the engine's whole external
   surface is `CreateFrame` plus one option read, so its mock is small enough to trust.
@@ -54,6 +55,10 @@ that loses an entry does not complain, it just stops running.
   shorter list before it checks anything, because a row that captured its scale at build time
   passes every test that only populates once. That is the difference between covering the code
   and covering the failure.
+- **Sweep the input space for display logic.** `tooltiptest.js` states one property — the sign
+  of the percentage matches the sign of the difference — and loops every baseline × difference
+  × comparison mode. That found a second bug the hand-written cases missed, in the branch that
+  prints `HUGE!` and no number. Formatting code has few enough inputs to enumerate; do.
 - `globals.js` does **scope analysis** and reports identifiers read as globals that
   aren't a known API. This is the guard against the worst bug class here: a reference
   that resolves to a nil global instead of the local you meant — Lua raises no error, the
@@ -261,6 +266,7 @@ callback either reschedule or be genuinely final.
 | `tools/deletetest.js` | Runs each of the six deletion protections and proves it fires |
 | `tools/scalelisttest.js` | Runs the pooled scale list; proves rows act on the scale shown |
 | `tools/bestequiptest.js` | Runs the slot comparison states (empty / unusable / delta) |
+| `tools/tooltiptest.js` | Runs the tooltip comparison text; sign, colour and magnitude agree |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.45.0a] - 2026-08-09 — The tooltip stops contradicting itself
+
+### Fixed
+- **A negative equipped score flipped the sign of the percentage.** Going from -10 to -5 is an
+  improvement; the tooltip reported **-50%**, and since the `+` and the green were already
+  chosen from the raw difference, it printed **`+-50.0%` in green**. Negative scores are not
+  hypothetical — the weight box deliberately keeps a leading minus so a scale can penalise a
+  stat.
+- The addon already knew the answer. `CalculateStatBreakdownWithComparison` has always divided
+  by `math.abs` for the per-stat lines. It was the same computation, in the same tooltip,
+  disagreeing with itself.
+- **A catastrophic downgrade read as good news.** Past ±1000% the text is `HUGE!` with no
+  number — but the sign came from a variable left empty for losses, on the convention that the
+  number carries its own minus. There is no number in that branch, so a huge loss rendered
+  `(HUGE!)`, distinguishable from a huge gain's `(+HUGE!)` only by an absent character. It now
+  says `-HUGE!`.
+
+### Development
+- **A fourteenth gate, `tools/tooltiptest.js`** — 303 runtime checks on the most-read string
+  the addon produces. Mutation-tested: both fixes fail exactly the checks that name them.
+- The second bug was found by the gate, not by reading. It states one property — **the sign of
+  the percentage matches the sign of the difference** — and sweeps every baseline × difference
+  × comparison mode rather than listing cases by hand. Formatting code has few enough inputs
+  to enumerate.
+
 ## [0.44.0a] - 2026-08-09 — An empty slot now says it is empty
 
 ### Fixed

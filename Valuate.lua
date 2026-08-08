@@ -1690,18 +1690,36 @@ local function FormatPercentageComparison(diff, equippedScore, formatStr, compMo
         end
     end
     
-    -- Calculate percentage
-    local percent = (diff / equippedScore) * 100
+    -- Calculate percentage.
+    --
+    -- Divided by the MAGNITUDE, so the sign of the percentage comes from the change and
+    -- not from the baseline. Scales may hold negative weights - the weight box keeps a
+    -- leading minus on purpose - so an equipped item can score below zero, and dividing
+    -- by a negative score flips the sign. Going from -10 to -5 is an improvement, and the
+    -- raw division reports it as -50%: the caller has already chosen a green "+" from
+    -- `diff`, so the tooltip printed "+-50.0%" in green.
+    --
+    -- CalculateStatBreakdownWithComparison has always done it this way for the per-stat
+    -- lines. This is the same computation in the same tooltip disagreeing with itself.
+    local percent = (diff / math.abs(equippedScore)) * 100
     local diffColor = diff > 0 and "|cFF00FF00" or (diff < 0 and "|cFFFF0000" or "|cFFFFFF00")
     local diffSign = diff > 0 and "+" or ""
     local diffText = string.format(formatStr, diff)
     
-    -- Handle extreme percentages
+    -- Handle extreme percentages.
+    --
+    -- HUGE! needs its OWN sign. `diffSign` is empty for a loss on the convention that the
+    -- formatted number already carries the minus - true everywhere else here, and false in
+    -- this branch, because there is no number. A catastrophic downgrade therefore rendered
+    -- as "(HUGE!)", distinguishable from a huge gain's "(+HUGE!)" only by the absent plus
+    -- and the colour. On the one line the addon prints for every item, "HUGE!" reads as
+    -- good news.
+    local hugeSign = diff > 0 and "+" or (diff < 0 and "-" or "")
     if math.abs(percent) >= 1000 then
         if compMode == "both" then
-            return " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. diffSign .. "HUGE!)|r"
+            return " " .. diffColor .. "(" .. diffSign .. diffText .. ", " .. hugeSign .. "HUGE!)|r"
         else
-            return " " .. diffColor .. "(" .. diffSign .. "HUGE!)|r"
+            return " " .. diffColor .. "(" .. hugeSign .. "HUGE!)|r"
         end
     end
     

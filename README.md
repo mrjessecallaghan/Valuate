@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.44.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.45.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -88,12 +88,12 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. 8 subsystems are executed headlessly against a mocked
+Developed without the game running. 9 subsystems are executed headlessly against a mocked
 WoW API and are genuinely behaviour-tested — the animation engine, input validation and
 colour handling, scale-tag parsing, the spec templates, the verify walkthrough, **the
-deletion protections**, the pooled scale list, and the slot comparison states.
-**Everything else is statically verified only**: it loads, it resolves, its wiring is
-consistent.
+deletion protections**, the pooled scale list, the slot comparison states, and the tooltip
+comparison text. **Everything else is statically verified only**: it loads, it resolves, its
+wiring is consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -120,7 +120,7 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-8 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+9 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.
