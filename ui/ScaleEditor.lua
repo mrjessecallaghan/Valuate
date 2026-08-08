@@ -825,9 +825,12 @@ end
 
 -- Shows the export dialog with a scale tag
 function Valuate:ShowExportDialog(scaleName)
-    local scaleTag = self:GetScaleTag(scaleName)
+    local scaleTag, whyNot = self:GetScaleTag(scaleName)
     if not scaleTag then
-        print("|cFFFF0000Valuate|r: Failed to generate export string for scale.")
+        -- Say WHICH problem. A refused export is almost always a name this addon
+        -- cannot round-trip, and that is something the user can fix in ten seconds
+        -- if told, and cannot fix at all if not.
+        print("|cFFFF0000Valuate|r: " .. (whyNot or "Failed to generate export string for scale."))
         return
     end
     

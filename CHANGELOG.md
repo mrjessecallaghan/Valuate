@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.28.0a] - 2026-07-31 — Exports you can actually import
+
+### Fixed
+- **Exporting a scale whose name contained `{`, `}` or `|` produced a tag this addon then
+  refused — or worse, silently corrupted.** The rule lived only in the *parser*, so the
+  exporter never consulted it. With `}` or `|` you got a rejection blaming the tag's format,
+  with nothing pointing at the name. With `{` there was no error at all: `My{Scale` exported
+  and re-imported as a scale called **`My`**, because the parser's pattern stops at the first
+  brace. The rule now lives in one place (`Valuate:IsValidScaleTagName`) that both sides use,
+  and export refuses up front with a message naming the scale to rename.
+- **Export-all silently dropped scales it couldn't serialise.** It now reports each one. Nine
+  tags when you have ten is the same silent loss, and bulk export is exactly when nobody counts.
+- Every export failure path now says *which* problem it hit instead of "Failed to generate
+  export string for scale."
+
+### Added
+- **`tools/importtest.js`** — a third runtime gate, covering `ImportExport.lua`. That file makes
+  zero WoW API calls and parses text pasted in from elsewhere, so two properties matter and
+  neither is visible to a parser: export→import must be lossless, and anything the exporter can
+  produce the importer must accept. 78 checks, including malformed input that must never raise,
+  version compatibility in both directions, and the full weapon-set round trip.
+
+### Notes
+- The harness confirmed one thing that *looks* like a bug and isn't: a disabled weapon set
+  round-trips as `nil` rather than `false`. `IsWeaponSetEnabled` reads a missing key inside an
+  existing table as disabled, so the two are equivalent — the check now asserts the semantics
+  rather than the representation, and the all-disabled case (where the table must still exist,
+  or every set silently switches back on) is pinned separately.
+
 ## [0.27.1a] - 2026-07-31 — A bad colour no longer takes down a panel
 
 ### Fixed

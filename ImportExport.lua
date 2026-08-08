@@ -20,6 +20,27 @@ Valuate.ImportResult = {
     VERSION_ERROR = 4,
 }
 
+-- The scale tag is delimited by { } and Valuate's chat output uses |, so a display
+-- name containing any of the three cannot appear in a tag unescaped.
+--
+-- This lives in ONE place because the producer and the consumer disagreed for as long
+-- as it lived in two - which is to say, only the parser enforced it, and the exporter
+-- happily wrote tags the parser then refused. Depending on the character, the result
+-- was either a confusing rejection of Valuate's OWN output, or worse: a name
+-- containing "{" parsed as a silently TRUNCATED name, so exporting "My{Scale" and
+-- importing it produced a scale called "My" with no error at all.
+--
+-- Returns ok, reason.
+function Valuate:IsValidScaleTagName(name)
+    if type(name) ~= "string" or strtrim(name) == "" then
+        return false, "Scale name cannot be empty"
+    end
+    if string.match(name, "[{}|]") then
+        return false, "Scale name cannot contain '{', '}', or '|' characters"
+    end
+    return true
+end
+
 -- ========================================
 -- Export Functions
 -- ========================================
@@ -40,6 +61,14 @@ function Valuate:GetScaleTag(scaleName)
     
     -- Start building the tag: {Valuate:v1:ScaleName{...}}
     local displayName = scale.DisplayName or scaleName
+
+    -- Refuse rather than emit a tag we cannot read back. Handing someone a tag that
+    -- this very addon rejects is the worst outcome available: the error they get
+    -- blames the tag's FORMAT, with nothing pointing at the name.
+    local nameOk, nameReason = Valuate:IsValidScaleTagName(displayName)
+    if not nameOk then
+        return nil, nameReason .. " - rename '" .. tostring(displayName) .. "' before exporting it"
+    end
     local tag = string.format("{Valuate:v%d:%s{", SCALE_TAG_VERSION, displayName)
     
     local parts = {}
@@ -127,16 +156,29 @@ function Valuate:ExportAllScales()
     end
     table.sort(scaleNames)
     
-    -- Generate tag for each scale
+    -- Generate tag for each scale.
+    --
+    -- A scale that cannot be exported is REPORTED, not quietly dropped. Silently
+    -- returning nine tags when you have ten is the same silent-loss failure this
+    -- whole area was fixed for - and "export everything" is exactly when nobody
+    -- counts the results.
+    local skipped = {}
     for _, scaleName in ipairs(scaleNames) do
-        local tag = self:GetScaleTag(scaleName)
+        local tag, why = self:GetScaleTag(scaleName)
         if tag then
             table.insert(tags, tag)
+        else
+            table.insert(skipped, { name = scaleName, reason = why })
         end
     end
-    
+
+    for _, s in ipairs(skipped) do
+        print("|cFFFF8800Valuate|r: skipped '" .. s.name .. "' - " ..
+            (s.reason or "could not be exported"))
+    end
+
     -- Join with double space for readability
-    return table.concat(tags, "  ")
+    return table.concat(tags, "  "), skipped
 end
 
 -- ========================================
@@ -170,16 +212,13 @@ function Valuate:ParseScaleTag(scaleTag)
         return nil, nil, "Invalid version number in scale tag"
     end
     
-    -- Trim scale name
+    -- Trim scale name, then apply the SAME rule the exporter applies. Shared so the
+    -- two cannot drift: this check existing only here is what let the exporter emit
+    -- tags this parser refuses.
     scaleName = strtrim(scaleName)
-    if scaleName == "" then
-        return nil, nil, "Scale name cannot be empty"
-    end
-    
-    -- Validate scale name doesn't contain characters that could break the UI
-    -- Disallow: { } | (used in scale tag format) and control characters
-    if string.match(scaleName, "[{}|]") then
-        return nil, nil, "Scale name cannot contain '{', '}', or '|' characters"
+    local nameOk, nameReason = Valuate:IsValidScaleTagName(scaleName)
+    if not nameOk then
+        return nil, nil, nameReason
     end
     
     -- Check version compatibility
@@ -453,8 +492,10 @@ function Valuate:SaveScaleToLibrary(scaleName)
     local scale = Valuate:GetScales()[scaleName]
     if not scale then return false, "no such scale on this character" end
 
-    local tag = Valuate:GetScaleTag(scaleName)
-    if not tag or tag == "" then return false, "couldn't serialise that scale" end
+    local tag, why = Valuate:GetScaleTag(scaleName)
+    -- Pass the reason through. "couldn't serialise that scale" is unactionable when
+    -- the actual problem is a brace in the name, which the user can simply fix.
+    if not tag or tag == "" then return false, why or "couldn't serialise that scale" end
 
     local entryName = scale.DisplayName or scaleName
     Valuate:GetScaleLibrary()[entryName] = tag

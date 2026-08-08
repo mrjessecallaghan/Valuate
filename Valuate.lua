@@ -7247,13 +7247,13 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             
             if foundScale and foundName then
-                local scaleTag = Valuate:GetScaleTag(foundName)
+                local scaleTag, whyNot = Valuate:GetScaleTag(foundName)
                 if scaleTag then
                     print("|cFF00FF00Valuate|r: Scale tag for |cFFFFFFFF" .. (foundScale.DisplayName or foundName) .. "|r:")
                     print(scaleTag)
                     print("|cFFFFFF00Tip:|r Open the Valuate UI (/valuate) to use the Export button for easier copying.")
                 else
-                    print("|cFFFF0000Valuate|r: Failed to generate export string for scale.")
+                    print("|cFFFF0000Valuate|r: " .. (whyNot or "Failed to generate export string for scale."))
                 end
             else
                 print("|cFFFF0000Valuate|r: Scale not found: " .. scaleName)
