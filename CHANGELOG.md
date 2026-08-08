@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.39.1a] - 2026-08-09 — Deleting or renaming a scale refreshes the tooltips
+
+### Fixed
+- **Deleting a scale, or renaming one, didn't invalidate tooltip state.** `Valuate:ResetTooltips`
+  carries a comment saying it is called *"whenever scoring inputs change — a stat weight edited, a
+  stat banned, a scale toggled"*, and it also drops the upgrade-arrow cache. Removing a scale
+  entirely is plainly such a change, and **none of the three sites called it**: shift-delete,
+  confirmed delete, and rename.
+- Effect was small — a tooltip already built for an item could keep that scale's cached border
+  colour until you hovered something else, and a rename left the "Best for" line keyed on the old
+  name. Small, but the claim in the comment was simply not true.
+
+### Notes
+- Found by testing the comment rather than trusting it: it names the inputs it covers, so the
+  check is just "is that list complete?" Three of the five paths were fine, two were covered
+  *transitively* (`LoadScaleFromLibrary` goes through `ImportScale`, which does reset), and
+  deletion was the gap.
+- **Two things confirmed correct on the way**, worth recording so they aren't re-examined: editing
+  a stat weight already drops the arrow cache explicitly — the signature is equipped-gear plus
+  primary-scale name, which a weight edit doesn't move, and the code says so. And
+  `DeleteScaleFromLibrary` correctly does *not* reset, because the library is account-wide storage
+  and removing an entry changes no scoring on this character.
+
 ## [0.39.0a] - 2026-08-09 — A tooltip can no longer score the wrong item
 
 ### Fixed

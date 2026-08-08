@@ -268,6 +268,11 @@ local function UpdateScaleList()
             -- If Shift key is held down, delete immediately without confirmation
             if IsShiftKeyDown() then
                 Valuate:GetScales()[scaleName] = nil
+                -- Removing a scale IS a scoring-input change, which is what
+                -- ResetTooltips says it is called for - it also drops the upgrade-arrow
+                -- cache. Without it a tooltip already built for an item keeps that
+                -- scale's cached border colour until you hover something else.
+                if Valuate.ResetTooltips then Valuate:ResetTooltips() end
                 if ns.CurrentSelectedScale == scaleName then
                     ns.CurrentSelectedScale = nil
                     ns.EditingScaleName = nil
@@ -285,6 +290,8 @@ local function UpdateScaleList()
                     cancelText = "Cancel",
                     onAccept = function()
                         Valuate:GetScales()[scaleName] = nil
+                        -- Same as the shift-delete path above.
+                        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
                         if ns.CurrentSelectedScale == scaleName then
                             ns.CurrentSelectedScale = nil
                             ns.EditingScaleName = nil

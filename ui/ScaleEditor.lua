@@ -1263,6 +1263,10 @@ local function CreateScaleEditor(parent)
                 ns.EditingScaleName = newName
                 ns.CurrentSelectedScale = newName
                 UpdateScaleList()
+                -- A rename moves the scale to a new key, so anything keyed on the old
+                -- name is now stale: the "Best for" line, and the upgrade-arrow cache
+                -- if this was your primary scale.
+                if Valuate.ResetTooltips then Valuate:ResetTooltips() end
             end
         end
         self:ClearFocus()
