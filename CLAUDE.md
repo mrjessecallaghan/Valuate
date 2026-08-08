@@ -65,6 +65,17 @@ that loses an entry does not complain, it just stops running.
   of the percentage matches the sign of the difference — and loops every baseline × difference
   × comparison mode. That found a second bug the hand-written cases missed, in the branch that
   prints `HUGE!` and no number. Formatting code has few enough inputs to enumerate; do.
+- **"Exactly one thing changed" is not the same as "the right thing changed."** The Settings
+  sweep clicks every checkbox and asserts one option moved and toggles back — and a box wired
+  to its *neighbour's* option satisfies all of that perfectly. It was caught passing during a
+  mutation run. `settingstest.js` now records which option each box **reads** to draw itself
+  (via a recording proxy on `GetOptions`) and requires it to match the one it **writes**. Any
+  sweep over near-identical controls needs that second half.
+- **Seed a fixture from the real defaults, not a hand-written stub.** The first version of
+  that sweep reported 23 failures, every one because an option started `nil` in the stub and
+  ended `false` after a round trip. The addon guarantees every key exists at load, so a stub
+  that doesn't was testing a state it never runs in. `settingstest.js` slices
+  `DEFAULT_OPTIONS` out of `Valuate.lua`.
 - **Run an accessibility branch through the same assertions as the normal one.** Reduce
   Motion had its own copy of the arrow-driver loop, which returned early and never pruned,
   so the leak existed only with the option ON — the branch nobody watching the screen would

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.49.2a] - 2026-08-09 — Every settings checkbox is checked against the option it owns
+
+### Development
+- **The Settings gate now clicks all 27 option checkboxes** and asserts three things per box:
+  exactly one option changes, clicking again puts it back, and — the important one — the
+  option it *writes* is the option it was *drawn from*.
+- **That third check exists because the first two aren't enough.** A settings panel is dozens
+  of near-identical controls built by copy-paste, and the failure that shape produces is a box
+  wired to its neighbour's key: the box ticks, something saves, and the feature you meant to
+  switch on stays off while an unrelated one changes. Exactly one option still moves and it
+  still toggles back. It was caught **passing** during a mutation run, which is how the check
+  came to exist.
+- The panel supplies the missing half itself: every box initialises with
+  `SetChecked(GetOptions().someKey == true)`, so a recording proxy on `GetOptions` says which
+  key each box read. Mutation-tested three ways — wired to a neighbour (*"drawn from
+  autoSellJunk, wrote autoRepair"*), writing two options, and writing `true` one-way.
+- **Result: no wiring bugs.** 27 checkboxes verified, 107 checks, no false positives on
+  correct code — which is only worth saying because the sweep is proven to catch all three.
+
+### Fixed (in the fixture, not the addon)
+- The first run of this sweep reported **23 failures, all of them mine**: the stub options
+  table started most keys `nil`, so a round trip ending in `false` read as "didn't toggle
+  back". The addon guarantees every key exists at load. The fixture now slices the real
+  `DEFAULT_OPTIONS` out of `Valuate.lua`, so it tests a state the addon actually runs in and
+  a newly added option can't quietly fall out of coverage.
+
 ## [0.49.1a] - 2026-08-09 — The Settings panel gets runtime coverage
 
 ### Development

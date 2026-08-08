@@ -23,7 +23,32 @@
  */
 "use strict";
 
-const { load } = require("./luaharness.js");
+const fs = require("fs");
+const path = require("path");
+const { load, ADDON_ROOT } = require("./luaharness.js");
+
+/*
+ * The options table is seeded from the REAL DEFAULT_OPTIONS.
+ *
+ * The first version of this fixture used a hand-written stub with three keys in it, and the
+ * checkbox sweep below duly reported twenty-three failures - every one of them because an
+ * option started `nil` in the stub and ended `false` after a round trip. Nothing was wrong
+ * with the addon; the fixture was.
+ *
+ * That is the whole argument for taking the defaults from source: the panel's controls are
+ * written against a table where every key exists, `ApplyOptionDefaults` guarantees that at
+ * load, and a fixture that does not is testing a state the addon never runs in. It also
+ * means adding an option cannot quietly fall out of this gate's coverage.
+ */
+const core = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
+const defaults = core.match(/local DEFAULT_OPTIONS\s*=\s*\{[\s\S]*?\n\}/);
+if (!defaults) {
+  console.error(
+    "  SLICE  could not find `local DEFAULT_OPTIONS` in Valuate.lua - the fixture would " +
+      "fall back to an option table the addon never actually runs with"
+  );
+  process.exit(1);
+}
 
 const run = load([
   "ui/Shared.lua",
@@ -83,7 +108,29 @@ function GameTooltip:IsOwned() return false end
 function GameTooltip:AddDoubleLine() end
 
 -- ---- the addon's own API, stubbed for this gate ------------------------------
-local OPTIONS = { reduceMotion = false, decimalPlaces = 1 }
+` + defaults[0] + `
+local STORE = DEFAULT_OPTIONS
+
+-- OPTIONS is a recording proxy, not the table itself.
+--
+-- The sweep at the bottom needs to know which option each checkbox is SUPPOSED to own, and
+-- the panel tells us without being asked: every box initialises itself with
+-- SetChecked(Valuate:GetOptions().someKey == true), so the last key read immediately before
+-- a SetChecked is that box's key. Compare it against the key the box WRITES when clicked
+-- and a control wired to its neighbour's option stops being invisible.
+--
+-- Without this the sweep proves only "exactly one option changed", which a mis-wired
+-- checkbox satisfies perfectly - it was caught doing so during a mutation run, which is why
+-- the proxy exists.
+--
+-- Empty table + metatable, deliberately: __index and __newindex only fire for keys the
+-- table does not have, so the store has to live elsewhere for every access to be seen.
+__lastRead = nil
+local OPTIONS = setmetatable({}, {
+    __index = function(_, k) __lastRead = k return STORE[k] end,
+    __newindex = function(_, k, v) STORE[k] = v end,
+    __pairs = function() return pairs(STORE) end,
+})
 Valuate.GetOptions = function() return OPTIONS end
 Valuate.GetScales = function() return {} end
 Valuate.GetActiveScales = function() return {} end
@@ -101,6 +148,29 @@ Valuate.LoadSettingsSnapshot = function() end
 Valuate.HasSettingsSnapshot = function() return false end
 Valuate.ShowConfirmDialog = function() end
 Valuate.GetProfessionOverrideChoices = function() return {} end
+
+-- Records the option key each checkbox initialises itself from.
+--
+-- Wrapped around CreateFrame because the mock gives every frame its own methods, so there
+-- is no single SetChecked to hook. Only the FIRST read is kept: the sweep below calls
+-- SetChecked itself, and that must not overwrite what the panel established.
+local realCreateFrame = CreateFrame
+function CreateFrame(...)
+    local f = realCreateFrame(...)
+    if f.__type == "CheckButton" then
+        local origSetChecked = f.SetChecked
+        f.SetChecked = function(self, v)
+            if self.__initKey == nil and __lastRead ~= nil then
+                self.__initKey = __lastRead
+            end
+            -- Cleared so the NEXT checkbox cannot inherit this one's key by being built
+            -- without reading an option of its own.
+            __lastRead = nil
+            return origSetChecked(self, v)
+        end
+    end
+    return f
+end
 
 -- ---- build it ----------------------------------------------------------------
 local parent = CreateFrame("Frame")
@@ -189,6 +259,89 @@ press("P")
 eq(__bindings["N"], nil, "rebinding clears the previous key")
 eq(__bindings["P"], "VALUATE_TOGGLE_UI", "...and the new one is bound")
 eq(capturing(), false, "still released at the end of it all")
+
+-- ---- every checkbox writes exactly one option, and toggles back --------------
+--
+-- A settings panel is dozens of near-identical controls built by copy-paste, and the
+-- failure that shape produces is a checkbox wired to its NEIGHBOUR'S option key. Nothing
+-- errors: the box ticks, something gets saved, and the feature you meant to switch on
+-- stays off while an unrelated one silently changes. Reading forty of them and checking
+-- each against its label is exactly the job to hand to a machine.
+--
+-- Two properties, both copy-paste-sensitive:
+--   * one click changes exactly ONE option (not zero, not two)
+--   * clicking again puts it back (so the write is a toggle, not a one-way set)
+local function snapshot()
+    local s = {}
+    for k, v in pairs(OPTIONS) do s[k] = v end
+    return s
+end
+
+local function changedKeys(before, after)
+    local seen, list = {}, {}
+    for k, v in pairs(after) do
+        if before[k] ~= v then seen[k] = true end
+    end
+    for k, v in pairs(before) do
+        if after[k] ~= v then seen[k] = true end
+    end
+    for k in pairs(seen) do list[#list + 1] = k end
+    table.sort(list)
+    return list
+end
+
+local boxes = {}
+for _, f in ipairs(__frames) do
+    -- A settings checkbox: a CheckButton with a click handler. The keybind button is a
+    -- plain Button, and the scale-list rows were built before this panel, so neither is
+    -- picked up here.
+    if f.__type == "CheckButton" and f.__scripts and f.__scripts.OnClick then
+        boxes[#boxes + 1] = f
+    end
+end
+ok(#boxes >= 10, "found the settings checkboxes (got " .. #boxes .. ")")
+
+local multi, none = {}, {}
+for i, box in ipairs(boxes) do
+    local before = snapshot()
+    box:SetChecked(not box:GetChecked())
+    local fired = pcall(box.__scripts.OnClick, box)
+    if fired then
+        local changed = changedKeys(before, snapshot())
+        if #changed > 1 then
+            multi[#multi + 1] = i .. " -> " .. table.concat(changed, "+")
+        elseif #changed == 0 then
+            none[#none + 1] = tostring(i)
+        else
+            -- THE copy-paste failure: the box reads one option to draw itself and writes a
+            -- different one when clicked. Exactly one option still changes and it still
+            -- toggles back, so every other check here passes while the control does the
+            -- wrong thing entirely.
+            if box.__initKey then
+                ok(box.__initKey == changed[1],
+                   "checkbox " .. i .. " writes the option it was drawn from (drawn from " ..
+                   tostring(box.__initKey) .. ", wrote " .. tostring(changed[1]) .. ")")
+            end
+
+            -- Toggle back: the same click again must restore exactly what it changed.
+            local key, mid = changed[1], snapshot()
+            box:SetChecked(not box:GetChecked())
+            pcall(box.__scripts.OnClick, box)
+            local back = snapshot()
+            ok(back[key] == before[key],
+               "checkbox " .. i .. " (" .. key .. ") toggles back to its starting value")
+            ok(#changedKeys(mid, back) <= 1,
+               "checkbox " .. i .. " (" .. key .. ") touches only its own option on the way back")
+        end
+    end
+end
+
+eq(#multi, 0, "no checkbox writes more than one option: " .. table.concat(multi, ", "))
+-- Some boxes legitimately change nothing in OPTIONS - they drive a saved variable
+-- elsewhere, or are disabled until a parent is on. Reported rather than failed, so the
+-- number is visible if it ever jumps.
+ok(#none <= #boxes / 2,
+   "most checkboxes write an option (" .. #none .. " of " .. #boxes .. " wrote none)")
 
 return failures, checks
 `,
