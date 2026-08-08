@@ -11,10 +11,10 @@ classless server. Branch: `claude-fork`.
 ## 1. Verification: what to run, and what it proves
 
 ```bash
-cd tools && node check.js && node tocsync.js && node globals.js && node animtest.js
+cd tools && node check.js && node tocsync.js && node globals.js && node animtest.js && node widgettest.js
 ```
 
-Run all four **before every commit**.
+Run all five **before every commit**.
 
 - `check.js` parses every Lua file with `luaparse` (Lua 5.1) and enforces the lint rules
   in §4. A Lua *syntax* error means the addon silently fails to load — this is the guard
@@ -229,6 +229,8 @@ callback either reschedule or be genuinely final.
 | `tools/options.js` | Every option is reachable from the UI or a command |
 | `tools/api.js` | Every method the selftest names actually exists |
 | `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
+| `tools/widgettest.js` | Runs input validation and colour handling for real |
+| `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
 

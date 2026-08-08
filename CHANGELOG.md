@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.27.1a] - 2026-07-31 — A bad colour no longer takes down a panel
+
+### Fixed
+- **`HexToRGB` errored on any six-character string that wasn't valid hex.** It checked the
+  *length* of a colour but not its *validity*, and `tonumber("ZZ", 16)` is nil — so the
+  division that followed raised, inside whichever panel happened to be building at the time,
+  taking the whole panel down rather than showing one wrong swatch. Scale colours come from
+  saved variables and imported scale tags, neither of which the addon controls, so a
+  hand-edited file or a malformed tag was enough. Invalid colours now fall back to white.
+
+### Added
+- **`tools/widgettest.js`** — a second runtime gate, covering `ui/Widgets.lua`: the stat-weight
+  input validation and colour handling. That is the addon's pure logic, it is all edge cases,
+  and every failure mode is quiet — a weight that silently becomes a different number, or a
+  colour that resolves to white and looks like a theme choice. 61 checks; the `HexToRGB` bug
+  above is what the first run found.
+- **`tools/luaharness.js`** — the fengari bootstrap and WoW mock, extracted from `animtest.js`
+  once there was a second file worth executing. Deliberately one mock: two drifting copies of
+  "what the client does" would be worse than none, since each gate would then be testing
+  against a different imaginary WoW.
+
+### Notes
+- The harness also pinned two behaviours that are correct but easy to misread: `RGBToHex`
+  **floors** rather than rounds (0.5 → `7F`, not `80`), and `ValidateWholeNumberInput` returns
+  exactly one value rather than leaking `gsub`'s replacement count as a second return.
+
 ## [0.27.0a] - 2026-07-31 — Arrows arrive
 
 ### Changed

@@ -2,120 +2,28 @@
 /*
  * Runs ui/Animations.lua for real, against a mocked WoW API.
  *
- * Every other gate here is static: check.js parses, globals.js resolves scope,
- * tocsync.js compares lists. None of them execute a single line of Valuate, so a
- * clamp with its comparison the wrong way round, or a tween that never leaves the
- * active list, passes all five and only shows up in the client.
+ * The other gates are static: check.js parses, globals.js resolves scope, tocsync.js
+ * compares lists. None of them execute a single line of Valuate, so a clamp with its
+ * comparison the wrong way round, or a tween that never leaves the active list, passes
+ * all of them and only shows up in the client.
  *
- * Animations.lua is the right file to start executing, because its entire external
- * surface is CreateFrame plus one option read - so the mock below is small enough to
- * trust. The engine is also the one file where a bug is systemic rather than local:
- * every animated thing in the addon runs through this driver.
+ * Animations.lua was the right file to start executing: its entire external surface is
+ * CreateFrame plus one option read, so the mock is small enough to trust. It is also the
+ * one file where a bug is systemic rather than local - every animated thing in the addon
+ * runs through this driver.
+ *
+ * The fengari bootstrap and the WoW mock live in luaharness.js, shared with the other
+ * runtime gates so there is exactly ONE idea of what the client does.
  *
  * Usage:  node tools/animtest.js        (run from the addon root or tools/)
  * Exits non-zero on the first failed assertion.
  */
 "use strict";
 
-const fs = require("fs");
-const path = require("path");
-const { lua, lauxlib, lualib, to_luastring, to_jsstring } = require("fengari");
+const { load } = require("./luaharness");
 
-const ADDON_ROOT = fs.existsSync("Valuate.toc") ? "." : path.resolve(__dirname, "..");
+const run = load(["ui/Shared.lua", "ui/Animations.lua"]);
 
-// The files under test, in .toc order. Shared.lua first: Animations.lua reads
-// ns.MOTION at call time, so the tokens must already be published.
-const FILES = ["ui/Shared.lua", "ui/Animations.lua"];
-
-const L = lauxlib.luaL_newstate();
-lualib.luaL_openlibs(L);
-
-function fail(msg) {
-  console.error("  " + msg);
-  process.exit(1);
-}
-
-function runLua(src, chunkName, nargs) {
-  if (lauxlib.luaL_loadbuffer(L, to_luastring(src), null, to_luastring("@" + chunkName)) !== lua.LUA_OK) {
-    fail("LOAD FAILED  " + chunkName + ": " + to_jsstring(lua.lua_tostring(L, -1)));
-  }
-  // Args were pushed by the caller *before* the chunk, so rotate them above it.
-  if (nargs) lua.lua_insert(L, -1 - nargs);
-  if (lua.lua_pcall(L, nargs || 0, 0, 0) !== lua.LUA_OK) {
-    fail("RUNTIME ERROR in " + chunkName + ": " + to_jsstring(lua.lua_tostring(L, -1)));
-  }
-}
-
-/*
- * The mock. Deliberately minimal and deliberately dumb - a mock that reimplements
- * behaviour can agree with a broken addon. It records, it does not decide.
- *
- * Two 3.3.5-vs-5.3 shims: math.pow was removed in 5.3 (outElastic uses it) and
- * `unpack` moved to table.unpack. Both exist in the game client, so restoring them
- * is matching the target runtime, not papering over anything.
- */
-const PRELUDE = `
-math.pow = math.pow or function(a, b) return a ^ b end
-unpack = unpack or table.unpack
-
-__frames = {}
-UIParent = { __name = "UIParent" }
-
-function CreateFrame(frameType, name, parent)
-    local f = {
-        __type = frameType, __name = name, __scripts = {},
-        __alpha = 1, __scale = 1, __height = 100,
-        __fill = {0, 0, 0, 1}, __border = {0, 0, 0, 1},
-    }
-    function f:SetScript(which, fn) self.__scripts[which] = fn end
-    function f:GetScript(which) return self.__scripts[which] end
-    function f:SetAlpha(a) self.__alpha = a end
-    function f:GetAlpha() return self.__alpha end
-    function f:SetScale(s) self.__scale = s end
-    function f:GetScale() return self.__scale end
-    function f:SetHeight(h) self.__height = h end
-    function f:GetHeight() return self.__height end
-    function f:SetBackdropColor(r, g, b, a) self.__fill = {r, g, b, a} end
-    function f:GetBackdropColor() return unpack(self.__fill) end
-    function f:SetBackdropBorderColor(r, g, b, a) self.__border = {r, g, b, a} end
-    function f:GetBackdropBorderColor() return unpack(self.__border) end
-    table.insert(__frames, f)
-    return f
-end
-
--- ReduceMotion() reads this. Off by default; a test flips it.
-__reduceMotion = false
-Valuate = { GetOptions = function() return { reduceMotion = __reduceMotion } end }
-
--- ReportAnimError print()s. Capture instead of spewing into the gate output.
-__printed = {}
-local realPrint = print
-function print(...)
-    local parts = {}
-    for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
-    table.insert(__printed, table.concat(parts, " "))
-end
-
-__ns = {}
-`;
-
-runLua(PRELUDE, "prelude", 0);
-
-for (const rel of FILES) {
-  const src = fs.readFileSync(path.join(ADDON_ROOT, rel), "utf8").replace(/^﻿/, "");
-  // Addon files are called as `local _, ns = ...`, so push both varargs.
-  lua.lua_pushstring(L, to_luastring("Valuate"));
-  lua.lua_getglobal(L, to_luastring("__ns"));
-  runLua(src, rel, 2);
-}
-
-/*
- * The assertions.
- *
- * Written in Lua rather than marshalled field-by-field into JS: these are statements
- * about Lua values, and reading them here as Lua keeps the test the same shape as the
- * thing it tests.
- */
 const TESTS = `
 local ns = __ns
 local Anim, MOTION = ns.Anim, ns.MOTION
@@ -435,30 +343,6 @@ advance(MOTION.fast * 2)
 local r = btn:GetBackdropColor()
 near(r, 1, "TweenBackdrop did not reach its target fill")
 
-return failures, checks
-`;
+return failures, checks`;
 
-if (lauxlib.luaL_loadbuffer(L, to_luastring(TESTS), null, to_luastring("@animtest")) !== lua.LUA_OK) {
-  fail("TEST LOAD FAILED: " + to_jsstring(lua.lua_tostring(L, -1)));
-}
-if (lua.lua_pcall(L, 0, 2, 0) !== lua.LUA_OK) {
-  fail("TEST ERROR: " + to_jsstring(lua.lua_tostring(L, -1)));
-}
-
-const checks = lua.lua_tointeger(L, -1);
-lua.lua_pop(L, 1);
-
-const failures = [];
-const n = lauxlib.luaL_len(L, -1);
-for (let i = 1; i <= n; i++) {
-  lua.lua_geti(L, -1, i);
-  failures.push(to_jsstring(lua.lua_tostring(L, -1)));
-  lua.lua_pop(L, 1);
-}
-
-if (failures.length) {
-  for (const f of failures) console.error("  FAIL  " + f);
-  console.error("\nui/Animations.lua FAILED " + failures.length + " of " + checks + " checks.");
-  process.exit(1);
-}
-console.log("OK  ui/Animations.lua passed " + checks + " runtime checks against a mocked WoW API.");
+run(TESTS, "animtest", "ui/Animations.lua");

@@ -1,0 +1,165 @@
+#!/usr/bin/env node
+/*
+ * Shared bootstrap for the runtime gates: loads real Valuate files under fengari
+ * against a mocked WoW API, then runs a block of Lua assertions against them.
+ *
+ * Extracted once there was a second file worth executing. The mock is the valuable
+ * part and it must stay ONE mock - two drifting copies of "what the WoW API does"
+ * would be worse than none, because each gate would be testing against a different
+ * imaginary client.
+ *
+ * The mock is deliberately dumb: it records what it was told and hands it back. A
+ * mock that reimplements behaviour can agree with a broken addon.
+ */
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { lua, lauxlib, lualib, to_luastring, to_jsstring } = require("fengari");
+
+const ADDON_ROOT = fs.existsSync("Valuate.toc") ? "." : path.resolve(__dirname, "..");
+
+/*
+ * Two 3.3.5-vs-5.3 shims: math.pow was removed in 5.3 (outElastic uses it) and
+ * `unpack` moved to table.unpack. Both exist in the game client, so restoring them is
+ * matching the target runtime rather than papering over anything.
+ */
+const PRELUDE = `
+math.pow = math.pow or function(a, b) return a ^ b end
+unpack = unpack or table.unpack
+strsub, strlower, strtrim = string.sub, string.lower, function(s) return (s:gsub("^%s*(.-)%s*$", "%1")) end
+tinsert, tremove = table.insert, table.remove
+
+__frames = {}
+UIParent = { __name = "UIParent" }
+UISpecialFrames = {}
+
+function CreateFrame(frameType, name, parent, template)
+    local f = {
+        __type = frameType, __name = name, __template = template, __scripts = {},
+        __alpha = 1, __scale = 1, __height = 100, __width = 100,
+        __shown = true, __points = {},
+        __fill = {0, 0, 0, 1}, __border = {0, 0, 0, 1},
+    }
+    function f:SetScript(which, fn) self.__scripts[which] = fn end
+    function f:GetScript(which) return self.__scripts[which] end
+    function f:SetAlpha(a) self.__alpha = a end
+    function f:GetAlpha() return self.__alpha end
+    function f:SetScale(s) self.__scale = s end
+    function f:GetScale() return self.__scale end
+    function f:SetHeight(h) self.__height = h end
+    function f:GetHeight() return self.__height end
+    function f:SetWidth(w) self.__width = w end
+    function f:GetWidth() return self.__width end
+    function f:Show() self.__shown = true end
+    function f:Hide() self.__shown = false end
+    function f:IsShown() return self.__shown end
+    function f:IsVisible() return self.__shown end
+    function f:SetPoint(...) table.insert(self.__points, {...}) end
+    function f:ClearAllPoints() self.__points = {} end
+    function f:SetBackdrop(bd) self.__backdrop = bd end
+    function f:SetBackdropColor(r, g, b, a) self.__fill = {r, g, b, a} end
+    function f:GetBackdropColor() return unpack(self.__fill) end
+    function f:SetBackdropBorderColor(r, g, b, a) self.__border = {r, g, b, a} end
+    function f:GetBackdropBorderColor() return unpack(self.__border) end
+    function f:SetText(t) self.__text = t end
+    function f:GetText() return self.__text end
+    function f:SetTextColor(...) self.__textColor = {...} end
+    function f:SetCursorPosition(p) self.__cursor = p end
+    function f:GetCursorPosition() return self.__cursor or 0 end
+    function f:CreateFontString()
+        local fs = CreateFrame("FontString")
+        return fs
+    end
+    function f:CreateTexture() return CreateFrame("Texture") end
+    function f:SetTexture(t) self.__texture = t; return true end
+    function f:SetVertexColor(...) self.__vertex = {...} end
+    table.insert(__frames, f)
+    return f
+end
+
+-- ReduceMotion() reads this. Off by default; a test flips it.
+__reduceMotion = false
+Valuate = { GetOptions = function() return { reduceMotion = __reduceMotion } end }
+
+-- Capture print() rather than spewing addon chatter into the gate output.
+__printed = {}
+function print(...)
+    local parts = {}
+    for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
+    table.insert(__printed, table.concat(parts, " "))
+end
+
+__ns = {}
+`;
+
+function fail(msg) {
+  console.error("  " + msg);
+  process.exit(1);
+}
+
+/*
+ * Loads `files` (paths relative to the addon root, in .toc order) into a fresh Lua
+ * state, then returns a runner for an assertion block.
+ */
+function load(files) {
+  const L = lauxlib.luaL_newstate();
+  lualib.luaL_openlibs(L);
+
+  function exec(src, chunkName, nargs) {
+    if (lauxlib.luaL_loadbuffer(L, to_luastring(src), null, to_luastring("@" + chunkName)) !== lua.LUA_OK) {
+      fail("LOAD FAILED  " + chunkName + ": " + to_jsstring(lua.lua_tostring(L, -1)));
+    }
+    // Args were pushed by the caller *before* the chunk, so rotate them above it.
+    if (nargs) lua.lua_insert(L, -1 - nargs);
+    if (lua.lua_pcall(L, nargs || 0, 0, 0) !== lua.LUA_OK) {
+      fail("RUNTIME ERROR in " + chunkName + ": " + to_jsstring(lua.lua_tostring(L, -1)));
+    }
+  }
+
+  exec(PRELUDE, "prelude", 0);
+
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(ADDON_ROOT, rel), "utf8").replace(/^﻿/, "");
+    // Addon files are called as `local _, ns = ...`, so push both varargs.
+    lua.lua_pushstring(L, to_luastring("Valuate"));
+    lua.lua_getglobal(L, to_luastring("__ns"));
+    exec(src, rel, 2);
+  }
+
+  /*
+   * Runs a Lua assertion block, which must `return failures, checks`.
+   *
+   * Assertions are written in Lua rather than marshalled field-by-field into JS:
+   * they are statements about Lua values, and keeping them in Lua keeps the test the
+   * same shape as the thing it tests.
+   */
+  return function run(testSrc, label, subject) {
+    if (lauxlib.luaL_loadbuffer(L, to_luastring(testSrc), null, to_luastring("@" + label)) !== lua.LUA_OK) {
+      fail("TEST LOAD FAILED: " + to_jsstring(lua.lua_tostring(L, -1)));
+    }
+    if (lua.lua_pcall(L, 0, 2, 0) !== lua.LUA_OK) {
+      fail("TEST ERROR: " + to_jsstring(lua.lua_tostring(L, -1)));
+    }
+
+    const checks = lua.lua_tointeger(L, -1);
+    lua.lua_pop(L, 1);
+
+    const failures = [];
+    const n = lauxlib.luaL_len(L, -1);
+    for (let i = 1; i <= n; i++) {
+      lua.lua_geti(L, -1, i);
+      failures.push(to_jsstring(lua.lua_tostring(L, -1)));
+      lua.lua_pop(L, 1);
+    }
+
+    if (failures.length) {
+      for (const f of failures) console.error("  FAIL  " + f);
+      console.error("\n" + subject + " FAILED " + failures.length + " of " + checks + " checks.");
+      process.exit(1);
+    }
+    console.log("OK  " + subject + " passed " + checks + " runtime checks against a mocked WoW API.");
+  };
+}
+
+module.exports = { load, ADDON_ROOT };

@@ -137,10 +137,21 @@ local function HexToRGB(hex)
     if not hex or #hex ~= 6 then
         return 1, 1, 1
     end
-    local r = tonumber(string.sub(hex, 1, 2), 16) / 255
-    local g = tonumber(string.sub(hex, 3, 4), 16) / 255
-    local b = tonumber(string.sub(hex, 5, 6), 16) / 255
-    return r, g, b
+    -- Six characters is not the same as six HEX characters, and the difference is a
+    -- crash rather than a wrong colour: tonumber("ZZ", 16) is nil, and nil/255 raises.
+    --
+    -- Worth guarding because these values are not ours. Scale colours come from saved
+    -- variables and from imported scale tags - a hand-edited SavedVariables file or a
+    -- malformed tag pasted from elsewhere is enough. The old version errored INSIDE
+    -- whichever panel was mid-build, taking the whole panel down; falling back to
+    -- white costs one wrong swatch.
+    local r = tonumber(string.sub(hex, 1, 2), 16)
+    local g = tonumber(string.sub(hex, 3, 4), 16)
+    local b = tonumber(string.sub(hex, 5, 6), 16)
+    if not r or not g or not b then
+        return 1, 1, 1
+    end
+    return r / 255, g / 255, b / 255
 end
 
 local function RGBToHex(r, g, b)
