@@ -1428,6 +1428,10 @@ end
 local CurrentTooltipItem = nil
 local CurrentTooltipStats = nil
 local ValuateLinesAdded = false
+-- Tracked separately from ValuateLinesAdded: the junk verdict is added independently of
+-- the score lines, and the tooltip refresh runs every frame - without its own flag the
+-- line would be appended sixty times a second.
+local ValuateJunkLineAdded = false
 -- Cached border color for the current hovered item, computed once per item
 -- instead of every OnUpdate frame. nil = not computed yet; false = "no coloring";
 -- otherwise a {r, g, b} table.
@@ -2259,6 +2263,7 @@ function Valuate:HookTooltips()
                 CurrentTooltipStats = nil
                 CurrentTooltipBorderColor = nil
                 ValuateLinesAdded = false
+                ValuateJunkLineAdded = false
             end
         end
     end
@@ -2354,6 +2359,7 @@ function Valuate:HookTooltips()
             CurrentTooltipStats = Valuate:GetStatsFromDisplayedTooltip("GameTooltip")
             CurrentTooltipBorderColor = nil  -- recompute border once for this item
             ValuateLinesAdded = false
+            ValuateJunkLineAdded = false
         end
         
         -- Add our lines if we have stats
@@ -2381,6 +2387,39 @@ function Valuate:HookTooltips()
             end
         end
         
+        -- Cleanup verdict: would this item be sold or deleted?
+        --
+        -- Shown ONLY while a cleanup feature is armed, so it configures itself: users
+        -- who never enable selling or deleting never see it, and nobody needs a
+        -- forty-eighth option to turn it off.
+        --
+        -- This is the line the junk features have always needed. "Make sure the auto
+        -- junk is robust" is not really a request for more guards - it is a request to
+        -- be able to SEE what it would do, on the item, before switching it on.
+        if itemLink and (options.autoDeleteJunk or options.autoSellJunk) then
+            local bagInfo = LastBagSlot
+            local isJunk, keptReason, partial = Valuate:GetJunkVerdict(
+                itemLink, bagInfo and bagInfo.bag, bagInfo and bagInfo.slot)
+            if isJunk and not ValuateJunkLineAdded then
+                ValuateJunkLineAdded = true
+                self:AddLine(" ")
+                if keptReason then
+                    self:AddLine(VALUATE_MARKER_FULL .. " Junk, but kept: " .. keptReason,
+                        0.55, 0.85, 0.55, true)
+                elseif partial then
+                    -- Say so rather than promising. Without a bag and slot the quest-item
+                    -- and equipment-set protections could not be checked, and claiming
+                    -- "will be removed" about a quest item would be a bad way to find out.
+                    self:AddLine(VALUATE_MARKER_FULL .. " Junk - would be removed from your bags",
+                        1.0, 0.65, 0.2, true)
+                else
+                    self:AddLine(VALUATE_MARKER_FULL .. " Junk - nothing is protecting this",
+                        1.0, 0.5, 0.3, true)
+                end
+                self:Show()
+            end
+        end
+
         -- Apply border coloring based on displayed scale
         if CurrentTooltipStats and next(CurrentTooltipStats) then
             -- Store default border color on first run
@@ -2427,6 +2466,7 @@ function Valuate:HookTooltips()
         CurrentTooltipStats = nil
         CurrentTooltipBorderColor = nil
         ValuateLinesAdded = false
+        ValuateJunkLineAdded = false
         LastInventorySlot = nil
         LastBagSlot = nil
         
@@ -5253,6 +5293,34 @@ function Valuate:IsItemJunk(itemId, quality)
     return IsItemJunk(AdiBags, junkModule, itemId, quality)
 end
 
+-- What Valuate makes of an item for cleanup purposes: is it junk, and if so is
+-- anything protecting it?
+--
+-- Exists so the TOOLTIP can answer the question the cleanup features raise but never
+-- answered on the item itself - "would this get sold or deleted?". Until now that was
+-- only available by remembering to type /valuate why, which is the wrong moment: you
+-- want it while looking at the item, before switching automation on.
+--
+-- A method rather than a file-local because the tooltip code sits some 3,600 lines
+-- ABOVE IsProtectedFromDelete, and a local declared here would be a nil global up
+-- there. That trap has produced two real bugs in this file already.
+--
+-- bag/slot are optional. IsProtectedFromDelete pcalls both of the checks that need
+-- them, so passing nil is safe - it just means the quest-item and equipment-set
+-- protections cannot be evaluated, which the caller is told via `partial`.
+--
+-- Returns: isJunk, protectedReason, partial
+function Valuate:GetJunkVerdict(link, bag, slot)
+    if not link then return false end
+
+    local itemId = GetItemIdFromLink(link)
+    local _, _, quality = GetItemInfo(link)
+    if not itemId or not Valuate:IsItemJunk(itemId, quality) then return false end
+
+    local _, reason = IsProtectedFromDelete(bag, slot, link)
+    return true, reason, (bag == nil or slot == nil)
+end
+
 -- Deletes the least valuable junk until the configured number of bag slots is free.
 -- Only ever considers items AdiBags classes as Junk (which honours its own
 -- include/exclude lists) or, without AdiBags, poor/grey quality.
@@ -6302,7 +6370,7 @@ function Valuate:RunSelfTest()
         "SaveSettingsSnapshot", "LoadSettingsSnapshot", "HasSettingsSnapshot",
         "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
-        "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList",
+        "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList", "GetJunkVerdict",
         "ReportRuntimeError",
     }
     for _, m in ipairs(methods) do
@@ -6785,6 +6853,13 @@ local VERIFY_CHECKS = {
         steps = "Open the Best Equipment tab and leave it open. Put a clear upgrade for one slot in your bags, then run /valuate scan.",
         expect = "Exactly that slot's row lights up green briefly. Rows that did not change stay dark, and nothing lights up on the first visit to the tab.",
         broke = "New in this version - never run.",
+    },
+    {
+        id = "junkline", since = "0.34.0a",
+        title = "The tooltip says whether an item would be cleaned up",
+        steps = "Turn on auto-sell or auto-delete, then hover a grey item, a green item that is best-in-slot, and a quest item that AdiBags calls junk.",
+        expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all.",
+        broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
     },
     {
         id = "statgrid", since = "0.33.0a",

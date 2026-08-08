@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.33.1a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.34.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -49,6 +49,7 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 | **Quest rewards** | Pre-selects the reward that's the biggest *upgrade*, not just the highest score. Optional full auto turn-in and auto-accept. | `/valuate quest`, `turnin`, `accept` |
 | **Loot rolls** | Need on an upgrade for any of your scales, Greed otherwise. Also **unlearned recipes** for professions you have — including ones above your current skill, since you'll train into them — and **crafting materials** your professions use. | `/valuate roll`, `why <item>` |
 | **Upgrade prompt** | When an equippable upgrade lands in your bags, offers one-click Equip Best Set. | `/valuate notify`, `notifycheck` |
+| **Cleanup verdict on tooltips** | While auto-sell or auto-delete is on, item tooltips say whether Valuate would remove the item, or what is protecting it. No setting - it appears only when cleanup is armed. | (automatic) |
 | **Junk auto-delete** | Keeps N bag slots free by removing the least valuable junk. **Irreversible.** | `/valuate autodelete`, `deletepreview`, `deletenow`, `keepfree <n>` |
 | **Merchant** | Sells junk and repairs on arrival. Safer than deleting — gold, plus Buyback. | `/valuate sell`, `sellnow`, `repair` |
 | **Surplus gear as junk** *(AdiBags)* | Routes gear that is neither best-in-slot nor a future upgrade into the Junk section. **Off by default** — junk feeds auto-delete. Re-evaluated live, so an item that later becomes your best un-marks itself. | `/valuate junkmarks` |

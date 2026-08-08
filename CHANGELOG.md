@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.34.0a] - 2026-07-31 — The tooltip tells you what cleanup would do
+
+### Added
+- **Item tooltips now say whether Valuate would sell or delete the item**, and what is
+  protecting it if not:
+  - `Junk, but kept: best-in-slot` (or *quest item*, *in an equipment set*, *future upgrade*, …)
+  - `Junk — nothing is protecting this`
+- The cleanup features have always been able to answer this — but only if you remembered to type
+  `/valuate why`, which is the wrong moment. You want it while looking at the item, *before*
+  switching automation on. "Make sure the auto junk is robust" was never really a request for
+  more guards; it was a request to be able to see what it would do.
+- **It configures itself: no new option.** The line only appears while auto-sell or auto-delete is
+  armed, so people who don't use cleanup never see it, and nobody needs a 48th setting to turn it
+  off. It also only ever appears on items that *are* junk.
+- When the tooltip doesn't know the item's bag and slot, it says "would be removed from your bags"
+  rather than "nothing is protecting this" — the quest-item and equipment-set protections can't be
+  evaluated without them, and claiming a quest item was unprotected would be a poor way to find out.
+
+### Notes
+- `Valuate:GetJunkVerdict` is a method rather than a file-local because the tooltip code sits ~3,600
+  lines *above* `IsProtectedFromDelete`, and a local declared down there would be a nil global up
+  here. That trap has produced two real bugs in this file already.
+- The line has its own added-flag, reset everywhere the score lines' flag is. The tooltip refresh
+  runs every frame, so without one the line would be appended sixty times a second — which is
+  exactly what `/valuate verify junkline` tells you to watch for.
+
 ## [0.33.1a] - 2026-07-31 — Auto-delete won't touch a slot mid-move
 
 ### Fixed
