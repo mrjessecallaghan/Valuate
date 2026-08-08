@@ -7186,20 +7186,36 @@ local function VersionOlder(a, b)
     return false
 end
 
--- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
-local function VerifiedLabel(c)
+-- The STATE, separate from how it is drawn.
+--
+-- Returns: verifiedAtVersion (nil if unchecked), isStale.
+--
+-- Split out because the summary line used to count progress by pattern-matching the
+-- formatted label - searching it for "[x]" and "STALE". That works right up until the
+-- marker or the wording changes, at which point the count silently becomes "0 of 16
+-- checked" and looks entirely authoritative. Deriving data from presentation is the
+-- same silent-wrongness this checklist exists to catch, so it had no business being
+-- inside the checklist.
+local function VerifiedState(c)
     local opts = Valuate:GetOptions()
     local at = opts.verifiedChecks and opts.verifiedChecks[c.id]
+    if not at then return nil, false end
+    -- `since` is the version the check was introduced or last revised at. Newer than
+    -- when you ticked it means what you verified is not what ships now.
+    local stale = (c.since and at ~= "?" and VersionOlder(at, c.since)) and true or false
+    return at, stale
+end
+
+-- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
+local function VerifiedLabel(c)
+    local at, stale = VerifiedState(c)
     if not at then return "|cFF888888[ ]|r" end
-    -- `since` is the version the CHECK was introduced or last revised at. If that is
-    -- newer than when you ticked it, what you verified is not what ships now - and a
-    -- tick that quietly goes stale is precisely the failure this checklist exists to
-    -- catch, so it would be a poor thing to build into the checklist.
-    if c.since and at ~= "?" and VersionOlder(at, c.since) then
+    if stale then
         return "|cFFFF8800[x] " .. at .. " - STALE, changed in v" .. c.since .. "|r"
     end
     return "|cFF00FF00[x] " .. at .. "|r"
 end
+
 
 function Valuate:RunVerify(which)
     which = which and strtrim(which) or ""
@@ -7253,15 +7269,17 @@ function Valuate:RunVerify(which)
     print("|cFFAAAAAAto see one in detail; some will set themselves up for you.|r")
     print(" ")
 
+    -- Counted from the STATE, never from the rendered label. Reformatting the list must
+    -- not be able to change the tally.
     local done, stale = 0, 0
     for i, c in ipairs(VERIFY_CHECKS) do
-        local label = VerifiedLabel(c)
-        if label:find("%[x%]") then
+        local at, isStale = VerifiedState(c)
+        if at then
             done = done + 1
-            if label:find("STALE") then stale = stale + 1 end
+            if isStale then stale = stale + 1 end
         end
         print(string.format("%s |cFF00FF00%d. %s|r  -  /valuate verify %s",
-            label, i, c.title, c.id))
+            VerifiedLabel(c), i, c.title, c.id))
     end
 
     print(" ")

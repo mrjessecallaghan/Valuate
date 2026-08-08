@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.8a] - 2026-08-09 — The progress count stops reading its own output
+
+### Fixed
+- **`/valuate verify` counted progress by pattern-matching its own display string.** It searched
+  the formatted label for `[x]` and `STALE` to decide how many checks were done. That works right
+  up until the marker or the wording changes — at which point the tally silently becomes
+  *"0 of 16 checked"* and looks entirely authoritative.
+- State and presentation are now separate: `VerifiedState` returns the facts, `VerifiedLabel`
+  draws them, and the count reads the former. Reformatting the list can no longer change the
+  tally.
+
+### Notes
+- **Deriving data from presentation is the same silent-wrongness this checklist exists to catch**,
+  which made it a poor thing to have inside the checklist. Fifth self-audit pass, fifth defect, all
+  in code from the last dozen releases.
+- Proven through the harness, including the two cases most likely to be got wrong: a check ticked
+  *before* its behaviour changed counts as done **and** stale, and a tick with an unknown version
+  (`"?"`) counts as done but is never called stale — there is nothing to compare it against.
+- The superseded function was deleted rather than left beside its replacement.
+
 ## [0.38.7a] - 2026-08-09 — The staleness warning stops going stale
 
 ### Fixed
