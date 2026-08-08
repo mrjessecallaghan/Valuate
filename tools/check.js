@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 13 lint rules
+ * @gate Lua syntax + 14 lint rules
  *
  * Valuate syntax + lint gate.
  *
@@ -163,6 +163,7 @@ const RULES = [
  */
 const STRUCTURAL_RULES = [
   "delete-protections-complete",
+  "destructive-paths-reverify",
   "settings-anchor-chain",
   "sort-needs-tiebreaker",
   "no-bank-in-destructive-path",
@@ -271,6 +272,85 @@ for (const file of files) {
           );
           lintFailures++;
         }
+      }
+    }
+  }
+
+  /*
+   * --- destructive-paths-reverify ----------------------------------------------
+   *
+   * The other half of the deletion safety promise: "both re-verify a slot still holds
+   * the vetted item immediately before acting."
+   *
+   * Both paths queue candidates and act on them later - deletion in a loop, selling in
+   * batches across several ticks. Bags shift in between: another addon moves something,
+   * a stack merges, you drag an item while it is selling. Without the re-check, the
+   * bag/slot pair is just coordinates, and coordinates point at whatever is there NOW.
+   *
+   * Deleting is irreversible, and UseContainerItem on the wrong item at a merchant can
+   * USE it rather than sell it - so the failure is destroying something that was never
+   * vetted.
+   *
+   * Requires, in each act path: the link re-read, a comparison against the stored
+   * `c.link`, and the locked check - alongside the destructive call. The point is that
+   * removing a guard while leaving the action cannot pass.
+   */
+  if (path.resolve(file) === path.resolve(ADDON_ROOT, "Valuate.lua")) {
+    const PATHS = [
+      { name: "Valuate:AutoDeleteJunk", start: /function Valuate:AutoDeleteJunk\b/, action: "DeleteCursorItem" },
+      { name: "SellNextBatch", start: /local function SellNextBatch\b/, action: "UseContainerItem" },
+    ];
+    for (const p of PATHS) {
+      const at = src.search(p.start);
+      if (at < 0) {
+        console.error(`LINT   ${rel}  [destructive-paths-reverify] ${p.name} not found - its safety guard cannot be verified`);
+        lintFailures++;
+        continue;
+      }
+      // To the next top-level `end` (these are both top-level functions).
+      const rest = src.slice(at);
+      const stop = rest.search(/\r?\nend\r?\n/);
+      const body = stop < 0 ? rest : rest.slice(0, stop);
+
+      /*
+       * Strip comments before locating the call.
+       *
+       * Both functions MENTION their destructive call in a comment near the top, well
+       * above the guards - so searching the raw text found the comment, took a window
+       * before it that contained nothing, and reported all three guards missing on
+       * perfectly good code. Caught by re-running the mutation test and noticing the
+       * BASELINE had started failing, which is the only reason to always restore and
+       * re-check rather than trusting the mutations alone.
+       *
+       * Blanked rather than deleted so every offset still lines up with the original.
+       */
+      const code = body.replace(/--[^\r\n]*/g, (m) => " ".repeat(m.length));
+
+      const actionAt = code.indexOf(p.action + "(");
+      if (actionAt < 0) continue; // action gone; nothing destructive left to guard
+
+      /*
+       * Look only at the window immediately BEFORE the destructive call, not the whole
+       * function.
+       *
+       * The first version searched the entire body, and AutoDeleteJunk calls
+       * GetContainerItemInfo in its SCAN loop as well - so deleting the act-time locked
+       * check still passed, because the scan-time one was found instead. The rule looked
+       * correct and was answering a weaker question, which is the exact failure it exists
+       * to catch. Verified by removing that guard and watching the rule stay silent.
+       */
+      const guard = code.slice(Math.max(0, actionAt - 700), actionAt);
+
+      const missing = [];
+      if (!guard.includes("GetContainerItemLink")) missing.push("re-read the slot's link");
+      if (!/[~=]=\s*c\.link|c\.link\s*[~=]=/.test(guard)) missing.push("compare it against the vetted c.link");
+      if (!/GetContainerItemInfo/.test(guard)) missing.push("check the slot is not locked");
+
+      for (const m of missing) {
+        console.error(
+          `LINT   ${rel}  [destructive-paths-reverify] ${p.name} calls ${p.action} but does not ${m}. Bags shift between vetting and acting - without this it destroys whatever is in the slot now.`
+        );
+        lintFailures++;
       }
     }
   }

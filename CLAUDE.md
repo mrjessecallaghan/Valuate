@@ -114,6 +114,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
 | `anim-tween-needs-owner` | a bare `Anim.tween` outside the engine | §9 |
 | `delete-protections-complete` | removing a protection the deletion promise names | §12 |
+| `destructive-paths-reverify` | acting on a slot without re-checking it first | §12 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
 
 > **Known false positive:** the rule matches the anchor's *identifier text*, so two

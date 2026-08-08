@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.40.1a] - 2026-08-09 — And the re-check before acting is enforced too
+
+### Added
+- **Lint rule `destructive-paths-reverify`** (14th rule), completing the other half of the deletion
+  safety promise: *"both re-verify a slot still holds the vetted item immediately before acting."*
+- Both paths queue candidates and act later — deletion in a loop, selling in batches across ticks.
+  Bags shift in between. Without the re-check a bag/slot pair is just coordinates, and coordinates
+  point at whatever is there **now**. The rule requires the link re-read, the comparison against the
+  vetted `c.link`, and the locked check, in the window immediately before the destructive call.
+
+### Notes — two false results caught while building it
+- **First version searched the whole function** and passed while the act-time locked check was
+  deleted, because `AutoDeleteJunk` also calls `GetContainerItemInfo` in its *scan* loop. The rule
+  looked right and was answering a weaker question — exactly the failure it exists to catch.
+- **Second version matched a comment.** Both functions name their destructive call in a comment
+  near the top, so `indexOf` found that instead of the call, took a window containing no guards,
+  and reported all three missing on perfectly good code. Comments are now blanked before the search.
+- That one was caught only because the mutation run restores the original and re-checks the
+  **baseline** afterwards. Trusting the mutations alone would have shipped a rule that failed on
+  correct code — and the first thing anyone does with a gate that cries wolf is weaken it.
+
 ## [0.40.0a] - 2026-08-09 — The deletion promise is enforced, not just written down
 
 ### Added
