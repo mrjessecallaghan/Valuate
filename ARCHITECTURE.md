@@ -138,6 +138,58 @@ definition of "upgrade" across the addon.
 
 ---
 
+## Animation (`ui/Animations.lua`)
+
+One shared ticker drives every tween in the addon. Not a style preference — a frame has
+exactly **one** `OnUpdate` slot, so two features animating the same frame silently
+overwrite each other, and the loser's cleanup never runs.
+
+```
+Anim.tween{duration, ease, delay, onUpdate, onDone}   -- raw
+Anim.owned(frame, propKey, opts)                      -- re-triggering REPLACES
+Anim.cancelProp(frame, propKey)                       -- stop, hand the property back
+Anim.setHeight(frame, h, animate)                     -- the ONLY writer of a shared height
+Anim.revealIn(frame, delay)  /  Anim.staggerFor(n)    -- cascades
+Anim.popIn(frame, fromScale, duration)                -- standard entrance
+```
+
+- **Ownership is by named property**, not by frame. So a frame can have an alpha tween and
+  a size tween at once, while a second alpha tween cleanly replaces the first.
+- **Durations come from `ns.MOTION`** (`ui/Shared.lua`) — `instant`/`fast`/`base`/`slow`/
+  `count`, plus `cascade`/`stagger`/`staggerMin`. Chosen by *intent*. Motion that varies
+  without meaning reads as sloppy the way mismatched spacing does.
+- **Cascade gaps are derived**, not picked: `Anim.staggerFor(count)` divides a total window
+  by the item count. Five reveals had each grown their own hand-tuned gap.
+- **Reduce Motion is handled inside the engine** — every tween jumps to its final state, so
+  callers never branch on it. The one exception is a *notification* (the minimap pulse), where
+  the honest instant form is "don't play it".
+- Every easing returns **exactly 1 at t=1**. Several things depend on it, and it is pinned by
+  `tools/animtest.js` rather than assumed.
+- `Anim.owned` works on any **table**, not just frames — `ui/UpgradeArrows.lua` owns its tweens
+  on its own records so it never writes a field onto a Blizzard button.
+
+A raw `frame:SetScript("OnUpdate", …)` is a lint failure unless annotated (CLAUDE.md §9).
+What legitimately remains is dedicated driver and throttle frames.
+
+## Frame pooling
+
+**WoW never frees a `CreateFrame` widget.** `SetParent(nil)` does not free it; nothing does.
+A refresh function that rebuilds its rows therefore leaks, permanently, every time it runs.
+
+| Panel | State |
+|---|---|
+| `ui/BestEquipment.lua` | pooled — structure built once, content and closures rebound |
+| `ui/ScaleEditor.lua` (stat grid) | pooled — grid built once, `row.populate(scale)` per scale |
+| `ui/ScaleEditor.lua` (library list) | pooled by index |
+| `ui/ScaleList.lua` | **rebuilds** — see the comment there for why it was left |
+
+The stat grid is poolable because its layout comes from static category tables and a row
+captures nothing about its scale: every handler reads `ns.EditingScaleName` when it fires.
+That is the pattern — **read the current state at call time, don't capture it** — and it is
+also what makes the editor survive an import replacing the scale table underneath it.
+
+---
+
 ## Events → behaviour
 
 | Event | Does |
@@ -187,3 +239,45 @@ automation (see `CLAUDE.md` §6).
 
 Junk classification is **only** `IsItemJunk()` (delegates to AdiBags' Junk module).
 Deletion/selling additionally require `IsProtectedFromDelete()` to pass.
+
+---
+
+## Verification: what proves what
+
+Three layers, and it matters which is which — a green run does not mean "this works".
+
+**Static gates** — `check.js` (syntax + 10 lint rules), `globals.js` (scope analysis and the
+`ns.*` contract), `options.js`, `api.js`, `tocsync.js`. These prove a file *loads* and its
+wiring is consistent. They cannot see behaviour.
+
+**Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`. These
+*execute real Lua* under fengari against a mocked WoW API (`luaharness.js` — deliberately one
+mock, since two would drift into testing different imaginary clients). Every substantive bug
+found in this codebase has come from these four, because the static gates can only read.
+
+Run everything with **`node tools/gates.js`** (~1.3s), or install the pre-commit hook once via
+`tools/install-hooks.cmd`. Gates **discover themselves** — a file in `tools/` is a gate if its
+header carries an `@gate` line — so there is no list to fall out of step.
+
+**In-game** — `/valuate check` (is it loaded, configured, doing something?) and
+`/valuate verify` (behaviours no gate can answer). The verify list is deliberately short: only
+things that fail *silently*, and several arm themselves, because "find an upgrade while in
+combat, then leave combat" is not a test anyone runs by hand.
+
+New behaviour that a gate cannot see should gain a `/valuate verify` entry. `tocsync.js` checks
+the ids are unique and the versions real, but only a person can notice one is missing.
+
+### The recurring bug shape
+
+Almost nothing here has been a typo. The bugs have been **code that was correct when written and
+quietly stopped being correct when something underneath it moved**, or a principle this codebase
+already states, applied everywhere except one place:
+
+- error containment in three hot handlers, but not the fourth (the tooltip)
+- `pairs()` sorted in six places, but not `GetActiveScales`
+- `SetScript("OnUpdate", nil)` to cancel, after tweens moved to the shared driver
+- frame pooling in `BestEquipment`, but not the stat grid
+- reading state at call time in `CommitValue`, but not in the weapon-set handlers
+- a locked-slot check when selling, but not when deleting
+
+Auditing for *that shape* has been far more productive than looking for mistakes.

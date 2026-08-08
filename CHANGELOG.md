@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.34.1a] - 2026-07-31 — ARCHITECTURE.md catches up
+
+### Changed
+- **`ARCHITECTURE.md` documented none of this session's subsystems.** It was last touched before
+  the animation engine gained its ownership model, before the runtime harness existed, and before
+  two panels were converted to frame pools. That is the document a fresh session reads instead of
+  re-deriving the codebase, so a stale one is worse than none — the same drift found in the README
+  four releases ago, in the document where it costs most.
+- Three sections added: **Animation** (the shared driver, why ownership is by named property, the
+  motion tokens, the easing invariant), **Frame pooling** (what WoW does not free, which panels
+  pool and which does not), and **Verification** (what static gates prove, what the runtime gates
+  prove, and what only a person in the game can answer).
+- The verification section also records **the recurring bug shape** this session kept finding:
+  not typos, but code that was correct when written and quietly stopped being correct — or a
+  principle the codebase already states, applied everywhere except one place. Six concrete
+  instances are listed. Auditing for that shape found more than looking for mistakes did.
+
 ## [0.34.0a] - 2026-07-31 — The tooltip tells you what cleanup would do
 
 ### Added
