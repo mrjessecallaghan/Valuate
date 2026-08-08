@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.50.3a] - 2026-08-09 — Our colour-picker callback stops answering other addons' cancels
+
+### Fixed
+- **`ColorPickerFrame` is Blizzard's and shared with every addon.** Valuate installed `func`
+  and `cancelFunc` on it and nothing ever removed them, so they outlived our use of the
+  picker. Most addons set `func` before showing it, which displaces ours — but plenty set
+  only `func` and leave `cancelFunc` alone. Then someone else's picker is cancelled, **our**
+  `cancelFunc` runs, and writes a Valuate scale's colour back to whatever `previousValues`
+  we left behind.
+- The obvious fix — clear the fields on hide — is the wrong one. 3.3.5's cancel button
+  **hides the frame first and calls `cancelFunc` after** (which is why it passes
+  `previousValues` explicitly), so clearing on `OnHide` would delete the callback moments
+  before it was due to run and break cancel entirely.
+- The guard is ownership instead: a callback acts only while our `func` is still the
+  installed one. That needs no cleanup and doesn't care what order Blizzard hides and
+  cancels in — which matters, because the ordering isn't something I can check from here.
+
+### Honest uncertainty
+- **I haven't observed this happening.** It requires another addon to open the colour picker
+  setting `func` but not `cancelFunc`, and for you to cancel. That's a common enough shape to
+  be worth guarding, but this is a defensive fix, not a reproduced bug — the same footing as
+  the `SetColorTexture` sweep.
+
+### Development
+- 4 more checks in `scalelisttest.js` (34 total), including that **our own** cancel still
+  restores the colour we opened with — a guard that broke the normal path would be worse than
+  the hazard. Mutation-tested: removing it lets a foreign cancel clobber the scale.
+- **This came from applying the rule written down last release** rather than waiting to trip
+  over a third instance. The sweep also checked `ui/Pickers.lua`, which **already** clears its
+  callback on `OnHide` — so the icon picker was right all along and the colour picker was the
+  only site left.
+
 ## [0.50.2a] - 2026-08-09 — The minimap button stops following the cursor after you let go
 
 ### Fixed

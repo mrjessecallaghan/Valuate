@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.50.2a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.50.3a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.50.2a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.50.3a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -446,6 +446,9 @@ local function CreateChangelogPanel(parent)
         "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
         "   never re-animating as you move things around your bags.\n" ..
         "• The window resizes smoothly instead of snapping between tabs.\n" ..
+        "• FIXED: Valuate left its handlers installed on the shared colour picker, so\n" ..
+        "   cancelling ANOTHER addon's colour picker could reset one of your scale\n" ..
+        "   colours. Ours now only answers while it still owns the picker.\n" ..
         "• FIXED: hiding the minimap button while dragging it left the button still\n" ..
         "   following your cursor, so it started moving again the moment you showed\n" ..
         "   it. Letting go while hovering it also dropped the hover colour.\n" ..

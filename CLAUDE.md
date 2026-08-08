@@ -80,6 +80,13 @@ that loses an entry does not complain, it just stops running.
   ended `false` after a round trip. The addon guarantees every key exists at load, so a stub
   that doesn't was testing a state it never runs in. `settingstest.js` slices
   `DEFAULT_OPTIONS` out of `Valuate.lua`.
+- **State installed on a BLIZZARD frame outlives you hardest.** `ColorPickerFrame.func` /
+  `.cancelFunc` are shared with every other addon, and Valuate's stayed installed after its
+  own use ended — so another addon's cancel could run our handler. Clearing on `OnHide` was
+  the wrong fix (3.3.5 hides before calling `cancelFunc`); the right one is an **ownership
+  check** — act only while our `func` is still installed. No cleanup, no ordering assumption.
+  `ui/Pickers.lua` shows the other valid shape: it owns its own frame, so clearing the
+  callback on `OnHide` is safe there.
 - **An armed state must not outlive the thing that armed it.** Twice now: the Settings
   keybind capture had two exits and both needed the panel in front of you, and the minimap
   drag was cleared only by OnDragStop. Both left the control armed when the frame was

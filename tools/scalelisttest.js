@@ -192,6 +192,42 @@ vrow.visCheckbox:GetScript("OnClick")(vrow.visCheckbox)
 eq(SCALES.Charlie.Visible, false, "unticking row 2 hides Charlie, not the previous occupant")
 eq(SCALES.Alpha.Visible, true, "...and leaves Alpha alone")
 
+-- ---- the colour picker does not answer someone else's cancel -----------------
+--
+-- ColorPickerFrame is Blizzard's and shared with every other addon. Valuate installs func
+-- and cancelFunc on it and nothing removes them, so they outlive our use. Most addons set
+-- func before showing it, which displaces ours - but plenty set only func and leave
+-- cancelFunc alone, and then OUR cancelFunc answers THEIR cancel and writes a Valuate
+-- scale's colour back to whatever previousValues we left behind.
+--
+-- Clearing the fields on hide would be the obvious fix and the wrong one: 3.3.5's cancel
+-- button hides the frame before calling cancelFunc. So the guard is ownership instead -
+-- act only while our func is still installed - which needs no cleanup and does not care
+-- what order Blizzard hides and cancels in.
+setScales({ "Alpha", "Bravo" })
+ns.UpdateScaleList()
+SCALES.Alpha.Color = "FF0000"
+
+local crow = ns.ScaleListButtons[1]
+crow.colorBtn:GetScript("OnClick")(crow.colorBtn)
+ok(type(ColorPickerFrame.func) == "function", "opening the picker installs our handler")
+ok(type(ColorPickerFrame.cancelFunc) == "function", "...and a cancel handler")
+
+local ourFunc = ColorPickerFrame.func
+local ourCancel = ColorPickerFrame.cancelFunc
+
+-- Our own cancel still works: it restores the colour we opened with.
+SCALES.Alpha.Color = "00FF00"
+ourCancel()
+eq(SCALES.Alpha.Color, "FF0000", "our own cancel restores the colour we opened with")
+
+-- Now another addon opens the picker: it sets func and leaves cancelFunc alone, which is
+-- the common shape. Our stale cancelFunc must decline to act.
+SCALES.Alpha.Color = "0000FF"
+ColorPickerFrame.func = function() end
+ourCancel()
+eq(SCALES.Alpha.Color, "0000FF", "a cancel belonging to another addon does not touch our scale")
+
 -- ---- the primary marker moves ----------------------------------------------
 setScales({ "Alpha", "Bravo" })
 primary = "Alpha"

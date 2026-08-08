@@ -111,8 +111,31 @@ local function BuildScaleRow(index)
             local scaleName = btn.scaleName
 
             ColorPickerFrame.previousValues = { cr, cg, cb }
-            
-            ColorPickerFrame.func = function()
+
+            -- ColorPickerFrame belongs to Blizzard and is SHARED with every other addon.
+            --
+            -- We install func and cancelFunc on it and nothing ever removes them, so they
+            -- outlive our use of the picker. Most addons set `func` before showing it, which
+            -- displaces ours - but plenty set only `func` and leave `cancelFunc` alone. Then
+            -- someone else's picker is cancelled, OUR cancelFunc runs, and it writes a
+            -- Valuate scale's colour back to whatever previousValues we left behind.
+            --
+            -- The obvious fix - clear the fields when the picker hides - is the wrong one.
+            -- The 3.3.5 cancel button hides the frame FIRST and calls cancelFunc after
+            -- (which is why it passes previousValues explicitly), so clearing on OnHide
+            -- would delete the callback moments before it was due to run and break cancel
+            -- entirely. This is the sort of ordering I cannot check from here, so the fix
+            -- must not depend on it.
+            --
+            -- Instead: a callback only acts while OUR func is still the installed one. That
+            -- is precisely "is this still our session", it needs no cleanup, and it is
+            -- correct whichever order Blizzard hides and cancels in.
+            --
+            -- Declared before the closures below so both can see it - the same
+            -- local-above-its-readers rule that has cost this project three bugs.
+            local myFunc
+
+            myFunc = function()
                 local newR, newG, newB = ColorPickerFrame:GetColorRGB()
                 local newColor = RGBToHex(newR, newG, newB)
                 local scales = Valuate:GetScales()
@@ -138,7 +161,12 @@ local function BuildScaleRow(index)
                 end
             end
             
+            ColorPickerFrame.func = myFunc
+
             ColorPickerFrame.cancelFunc = function()
+                -- Someone else owns the picker now, so this cancel is not ours to answer.
+                if ColorPickerFrame.func ~= myFunc then return end
+
                 local prev = ColorPickerFrame.previousValues
                 local scales = Valuate:GetScales()
                 if prev and scales[scaleName] then
@@ -389,6 +417,7 @@ local function BuildScaleRow(index)
         btn.colorPreview = colorPreview
         btn.visCheckbox = visCheckbox
         btn.deleteBtn = deleteBtn
+        btn.colorBtn = colorBtn
         btn.primaryMark = primaryMark
         btn.updateVisualState = UpdateVisualState
         btn.scaleColor = { r = 1, g = 1, b = 1 }
