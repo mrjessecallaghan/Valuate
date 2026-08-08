@@ -15,6 +15,7 @@ local BUTTON_HEIGHT = ns.BUTTON_HEIGHT
 local FONT_BODY = ns.FONT_BODY
 -- From ui/Animations.lua (loaded before this file) - drives the button hover fade.
 local TweenBackdrop = ns.TweenBackdrop
+local Anim = ns.Anim
 
 -- Validates and cleans numeric stat value input
 -- Allows: up to 5 digits, one decimal point, minus sign at start only
@@ -177,7 +178,13 @@ local function CreateStyledButton(parent, text, width, height)
         TweenBackdrop(self, COLORS.buttonBg, COLORS.border, MOTION.fast)
     end)
     btn:SetScript("OnMouseDown", function(self)
-        self:SetScript("OnUpdate", nil)  -- cancel any running fade
+        -- Stop the hover fade FIRST. This used to read
+        --     self:SetScript("OnUpdate", nil)  -- cancel any running fade
+        -- which stopped meaning anything when tweens moved onto the shared driver:
+        -- TweenBackdrop never touches this frame's script slot, so the line cancelled
+        -- nothing and the still-running hover fade overwrote the pressed colour on the
+        -- very next frame. Clicking quickly after hovering showed no press at all.
+        Anim.cancelProp(self, "backdrop")
         self:SetBackdropColor(unpack(COLORS.buttonPressed))
     end)
     btn:SetScript("OnMouseUp", function(self)

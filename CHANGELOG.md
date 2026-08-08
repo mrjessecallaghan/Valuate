@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.23.2a] - 2026-07-31 — The one OnUpdate slot
+
+### Fixed
+- **Buttons showed no pressed state on a quick click.** `OnMouseDown` cancelled the running
+  hover fade with `SetScript("OnUpdate", nil)` — correct before tweens moved onto the shared
+  driver, and a silent no-op ever since, because clearing a script slot that was never set
+  raises nothing. The hover tween simply overwrote the pressed colour on the next frame.
+- **The character-sheet fallback gave up after one attempt.** Its comment says "also try
+  periodically in case event doesn't fire", but it cleared its own `OnUpdate` unconditionally
+  after the first try — so if the character UI was still loading one second in (exactly the
+  case it exists for), the score never appeared. It now retries once a second until it
+  succeeds, stopping after 15 attempts so a client with no character UI isn't polled forever.
+
+### Added
+- **`Anim.cancelProp(frame, propKey)`** — "stop animating this and give me the property
+  back", the counterpart to `Anim.owned`. There was previously no way to express it, which
+  is why the dead `SetScript` line survived. Three new harness checks, all mutation-verified.
+- **Lint rule `raw-onupdate-needs-reason`** (9th rule). A frame has one `OnUpdate` slot, and
+  two bugs this session came from sharing it. The rule doesn't try to guess which uses are
+  wrong — it flags every raw `OnUpdate` and makes the legitimate ones (dedicated driver and
+  throttle frames) state their reason inline. All 15 existing sites now name their sole
+  owner. Documented as CLAUDE.md §9.
+
 ## [0.23.1a] - 2026-07-31 — Two silent bugs, both found by tightening a gate
 
 ### Fixed

@@ -51,6 +51,7 @@ local shownArrows = {}
 -- otherwise mean dozens of OnUpdate handlers doing identical work.
 local pulseDriver = CreateFrame("Frame")
 pulseDriver.t = 0
+-- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated pulse driver; an endless loop the tween engine cannot express
 pulseDriver:SetScript("OnUpdate", function(self, e)
     if not next(shownArrows) then return end
 

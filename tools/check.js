@@ -72,6 +72,28 @@ const RULES = [
       ) && /=/.test(l),
   },
   {
+    // Two bugs in one session came from a raw OnUpdate while a shared animation
+    // engine and a shared timer helper both already existed:
+    //
+    //   * MinimapButton's pulse and its drag handler both wrote the button's single
+    //     OnUpdate slot, so whichever wrote second silently discarded the other's
+    //     cleanup - leaving a starburst glow stuck on screen at 1.14x scale.
+    //   * ui/Widgets.lua cancelled a hover fade with SetScript("OnUpdate", nil).
+    //     That worked before tweens moved onto the shared driver and became a no-op
+    //     afterwards, with nothing to notice: clearing a script slot that was never
+    //     set raises no error. Pressed buttons stopped showing a pressed state.
+    //
+    // Neither is visible to a parser, and both look completely ordinary in review.
+    // So: a raw OnUpdate is allowed, but it has to be a decision someone wrote down.
+    // Animations belong on ns.Anim (Anim.owned / Anim.cancelProp own a named
+    // property rather than the frame's one script slot); delays belong on
+    // ValuateAfter. What is left is drivers and throttles, which are real - annotate
+    // them and the gate holds the line against the next accidental one.
+    name: "raw-onupdate-needs-reason",
+    why: "A frame has ONE OnUpdate slot, so two features that both use it silently overwrite each other, and cancelling via it is a no-op for anything on the shared animation driver. Use Anim.owned/Anim.cancelProp for animation and ValuateAfter for delays - or annotate this line with -- valuate-lint-ignore: raw-onupdate-needs-reason  <why it must be raw>.",
+    test: (l) => /:SetScript\s*\(\s*["']OnUpdate["']/.test(l),
+  },
+  {
     name: "no-duplicate-junk-logic",
     why: "Junk classification must go through the single IsItemJunk() helper - duplicating it is how the '0 junk found' bug survived two fixes.",
     test: (l, file) =>

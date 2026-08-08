@@ -424,9 +424,11 @@ end
 local refreshTimer = CreateFrame("Frame")
 local function ScheduleDisplayRefresh(delay)
     refreshTimer.remaining = delay or 0.1
+    -- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated coalescing debounce frame; resets rather than stacking
     refreshTimer:SetScript("OnUpdate", function(self, elapsed)
         self.remaining = self.remaining - (elapsed or 0)
         if self.remaining <= 0 then
+            -- valuate-lint-ignore: raw-onupdate-needs-reason  this frame is its own timer clearing itself
             self:SetScript("OnUpdate", nil)
             UpdateCharacterWindowDisplay()
         end
@@ -701,10 +703,12 @@ CharacterWindowEventFrame:SetScript("OnEvent", function(self, event, unit)
             if not updateThrottleFrame then
                 updateThrottleFrame = CreateFrame("Frame")
             end
+            -- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated throttle frame; nothing else animates it
             updateThrottleFrame:SetScript("OnUpdate", function(updateSelf, elapsed)
                 updateSelf.elapsed = (updateSelf.elapsed or 0) + elapsed
                 if updateSelf.elapsed >= 0.2 then
                     UpdateCharacterWindowDisplay()
+                    -- valuate-lint-ignore: raw-onupdate-needs-reason  this frame is its own throttle clearing itself
                     updateSelf:SetScript("OnUpdate", nil)
                     updateSelf.elapsed = 0
                 end
@@ -747,18 +751,36 @@ local function InitializeCharacterWindowUI()
             end
         end)
         
-        -- Also try periodically in case event doesn't fire
+        -- Also try periodically, in case ADDON_LOADED doesn't fire for the character
+        -- UI (it doesn't, on some Ascension builds - which is the whole reason this
+        -- fallback exists).
+        --
+        -- It used to clear its own OnUpdate after the FIRST attempt, unconditionally.
+        -- So if GetCharacterFrame() was still nil one second in - exactly the slow-load
+        -- case this is here to survive - it gave up permanently and the character sheet
+        -- never got its score. "Periodically" was one try.
+        --
+        -- Now it retries once a second and stops on success, or after RETRY_LIMIT so a
+        -- client that never loads a character UI at all is not polled forever.
+        local RETRY_LIMIT = 15
         local retryFrame = CreateFrame("Frame")
+        -- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated one-shot retry frame; nothing else animates it
         retryFrame:SetScript("OnUpdate", function(self, elapsed)
             self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 1 then
-                local cFrame = GetCharacterFrame()
-                if cFrame and not CharacterWindowInitialized then
-                    CreateCharacterWindowUI()
-                    if cFrame:IsVisible() and CharacterWindowFrame then
-                        UpdateCharacterWindowDisplay()
-                    end
+            if self.elapsed < 1 then return end
+            self.elapsed = 0
+            self.attempts = (self.attempts or 0) + 1
+
+            local cFrame = GetCharacterFrame()
+            if cFrame and not CharacterWindowInitialized then
+                CreateCharacterWindowUI()
+                if cFrame:IsVisible() and CharacterWindowFrame then
+                    UpdateCharacterWindowDisplay()
                 end
+            end
+
+            if CharacterWindowInitialized or self.attempts >= RETRY_LIMIT then
+                -- valuate-lint-ignore: raw-onupdate-needs-reason  this frame's own timer clearing itself
                 self:SetScript("OnUpdate", nil)
             end
         end)

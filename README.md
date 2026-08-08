@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.23.1a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.23.2a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -93,7 +93,7 @@ be deliberate about the destructive features (deletion is permanent — WoW has 
 
 ```bash
 cd tools && npm install     # once: installs luaparse + fengari
-node check.js               # syntax + 8 lint rules
+node check.js               # syntax + 9 lint rules
 node globals.js             # scope analysis + namespace contract
 node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
 node options.js             # every option is reachable from the UI or a command

@@ -54,6 +54,7 @@ local function ReportAnimError(err)
     print("  |cFFAAAAAAThe UI keeps working; only that one animation stopped.|r")
 end
 
+-- valuate-lint-ignore: raw-onupdate-needs-reason  this IS the shared animation driver
 animDriver:SetScript("OnUpdate", function(_, elapsed)
     local n = #activeTweens
     if n == 0 then return end
@@ -140,6 +141,27 @@ end
 function Anim.owned(frame, propKey, opts)
     if not frame or not propKey or not opts then return end
     return startProp(frame, propKey, opts)
+end
+
+-- Counterpart to Anim.owned: stop the tween on (frame, propKey) and hand the property
+-- back to the caller.
+--
+-- Needed because "stop animating this" is not the same as "start a different tween",
+-- and there is no way to express it otherwise. Before the shared engine existed, code
+-- cancelled an animation with frame:SetScript("OnUpdate", nil) - which stopped working
+-- the moment tweens moved onto the shared driver, silently, because nothing errors
+-- when you clear a script slot that was never set. ui/Widgets.lua carried exactly that
+-- dead line, so a button pressed mid-hover-fade had its pressed colour overwritten on
+-- the next frame and the click looked like it had not registered.
+--
+-- Does NOT run onDone: the caller is taking the property over and setting the value it
+-- wants, so running the tween's own finishing state would fight it.
+function Anim.cancelProp(frame, propKey)
+    if not frame or not propKey then return end
+    local key = "__anim_" .. propKey
+    if not frame[key] then return end
+    Anim.cancel(frame[key])
+    frame[key] = nil
 end
 
 -- Convenience: fade a frame's alpha from its current value to `to`.

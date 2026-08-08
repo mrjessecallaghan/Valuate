@@ -109,6 +109,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 > still catching the real case everywhere else.
 | `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
 | `no-bank-in-destructive-path` | bank-cache reads inside delete/sell/free-slot code | §8 |
+| `raw-onupdate-needs-reason` | any `SetScript("OnUpdate"` without a written justification | §9 |
 
 ### §7 — Sorting must define a TOTAL order
 
@@ -264,3 +265,36 @@ once, content updated per refresh). WoW never frees `CreateFrame` widgets, so re
 rows each refresh leaks them — don't "simplify" that away.
 
 See `ARCHITECTURE.md` for the data model and event flow.
+
+### §9 — A raw `OnUpdate` must be a decision, not a habit
+
+A frame has exactly **one** `OnUpdate` slot. Two features that both use it on the same
+frame silently overwrite each other, and the loser's cleanup never runs. Two bugs in one
+session came from this:
+
+- `MinimapButton`'s upgrade pulse and its drag handler both wrote the button's slot.
+  Dragging during a pulse left the starburst glow on screen and the button stuck at up to
+  1.14× scale, permanently.
+- `ui/Widgets.lua` cancelled a hover fade with `SetScript("OnUpdate", nil)`. That worked
+  before tweens moved onto the shared driver and became a **no-op** afterwards — clearing
+  a slot that was never set raises nothing. Buttons stopped showing a pressed state.
+
+Neither is visible to a parser and both read as completely ordinary. So the gate does not
+try to be clever about which ones are wrong: **every** raw `OnUpdate` is flagged, and the
+legitimate ones carry their reason inline.
+
+| Instead of | Use |
+|---|---|
+| `frame:SetScript("OnUpdate", ...)` to animate | `Anim.owned(frame, propKey, opts)` — owns a *named property*, so unrelated animations on one frame coexist and related ones replace cleanly |
+| `frame:SetScript("OnUpdate", nil)` to cancel | `Anim.cancelProp(frame, propKey)` |
+| `frame:SetScript("OnUpdate", ...)` to wait | `ValuateAfter(delay, fn)` |
+
+What legitimately remains is **dedicated driver and throttle frames** — one frame that
+exists only to tick, with no other owner. Annotate those:
+
+```lua
+-- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated throttle frame; nothing else animates it
+throttleFrame:SetScript("OnUpdate", function(self, elapsed)
+```
+
+If you cannot write a reason that names the frame's sole owner, it is the bug.

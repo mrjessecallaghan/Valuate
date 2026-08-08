@@ -161,6 +161,7 @@ local function EnsurePopup()
 
     -- One driver for the glow pulse, running only while the popup is shown.
     f.pulse = 0
+    -- valuate-lint-ignore: raw-onupdate-needs-reason  endless glow pulse the tween engine cannot express; popIn uses named props, no clash
     f:SetScript("OnUpdate", function(self, e)
         if ns.ReduceMotion and ns.ReduceMotion() then
             self.glow:SetAlpha(0.5)

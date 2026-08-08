@@ -106,6 +106,7 @@ local function CreateMinimapButton()
     minimapButton:SetScript("OnDragStart", function(self)
         self:LockHighlight()
         self.vText:SetTextColor(unpack(BUTTON_COLORS.accent))  -- Highlight text when dragging
+        -- valuate-lint-ignore: raw-onupdate-needs-reason  cursor-follow drag, not an animation; sole owner of this slot
         self:SetScript("OnUpdate", function(self)
             local mx, my = Minimap:GetCenter()
             local px, py = GetCursorPosition()
@@ -130,6 +131,7 @@ local function CreateMinimapButton()
     minimapButton:SetScript("OnDragStop", function(self)
         self:UnlockHighlight()
         self.vText:SetTextColor(1, 1, 1, 1)  -- Restore white color
+        -- valuate-lint-ignore: raw-onupdate-needs-reason  ends the drag started directly above
         self:SetScript("OnUpdate", nil)
     end)
     

@@ -226,6 +226,7 @@ local function ValuateAfter(delay, callback)
 
         local handle = { cancelled = false, elapsed = 0, frame = timerFrame }
         local function release(self)
+            -- valuate-lint-ignore: raw-onupdate-needs-reason  this IS the shared timer helper (ValuateAfter)
             self:SetScript("OnUpdate", nil)
             if handle.frame then
                 handle.frame = nil
@@ -241,6 +242,7 @@ local function ValuateAfter(delay, callback)
             if self.frame then release(self.frame) end
         end
 
+        -- valuate-lint-ignore: raw-onupdate-needs-reason  this IS the shared timer helper (ValuateAfter)
         timerFrame:SetScript("OnUpdate", function(self, e)
             handle.elapsed = handle.elapsed + (e or 0)
             if handle.elapsed >= delay then
@@ -403,6 +405,7 @@ end
 local junkTicker = CreateFrame("Frame")
 junkTicker.elapsed = 0
 junkTicker.poll = 0
+-- valuate-lint-ignore: raw-onupdate-needs-reason  dedicated periodic-cleanup driver frame
 junkTicker:SetScript("OnUpdate", function(self, e)
     -- OnUpdate fires every frame (60+/sec), so the per-frame cost here is one add
     -- and one compare. The options lookup happens at most every POLL seconds; at a

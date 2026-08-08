@@ -302,6 +302,35 @@ Anim.owned(ownedFrame, "scale", { duration = 0.3, onUpdate = function() coB = co
 advance(0.5, 25)
 ok(coA > 0 and coB > 0, "two different owned properties on one frame cancelled each other")
 
+-- ------------------------------------------------------------- Anim.cancelProp
+-- "Stop animating this and give me the property back." The pressed-button case: a
+-- hover fade must actually stop, or it overwrites the pressed colour a frame later.
+local pressed = CreateFrame("Button")
+pressed:SetBackdropColor(0, 0, 0, 1)
+pressed:SetBackdropBorderColor(0, 0, 0, 1)
+ns.TweenBackdrop(pressed, {1, 1, 1, 1}, {1, 1, 1, 1}, 0.4)
+advance(0.1, 5)
+Anim.cancelProp(pressed, "backdrop")
+pressed:SetBackdropColor(0.5, 0.5, 0.5, 1)      -- what OnMouseDown does
+advance(0.5, 25)
+local pr = pressed:GetBackdropColor()
+near(pr, 0.5, "a cancelled backdrop tween kept writing - the pressed colour was overwritten")
+
+-- Cancelling must not disturb a DIFFERENT property on the same frame.
+local multi = CreateFrame("Frame")
+local otherTicks = 0
+Anim.owned(multi, "keep", { duration = 0.4, onUpdate = function() otherTicks = otherTicks + 1 end })
+Anim.owned(multi, "drop", { duration = 0.4 })
+Anim.cancelProp(multi, "drop")
+local atCancel = otherTicks
+advance(0.3, 15)
+ok(otherTicks > atCancel, "cancelProp took down an unrelated property on the same frame")
+
+-- Safe on a frame that was never animated, and on an already-finished tween.
+Anim.cancelProp(CreateFrame("Frame"), "never")
+Anim.cancelProp(pressed, "backdrop")
+ok(true, "cancelProp errored on a frame with no such tween")
+
 -- -------------------------------------------------------------- TweenBackdrop
 -- Reads the CURRENT colour as its start, so an interrupted hover resumes from where
 -- it actually is rather than snapping back.
