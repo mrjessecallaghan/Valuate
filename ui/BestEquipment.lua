@@ -168,6 +168,28 @@ local function CreateBestEquipmentPanel(parent)
     parent.UpdateScanAge = UpdateScanAge
     UpdateScanAge()
 
+    -- Keep it honest while you sit here.
+    --
+    -- Without this the label was its own bug: it is here to tell you the data might be
+    -- old, and it would itself freeze at "Scanned moments ago" for as long as the tab
+    -- stayed open. Leave it twenty minutes and it still claims the scan just happened -
+    -- a staleness warning going stale is worse than none, because it is the thing you
+    -- were relying on to notice.
+    --
+    -- The tick itself runs for the session; only the UPDATE is skipped while hidden.
+    -- Stopping and restarting it would need an OnShow hook for one no-op comparison
+    -- every twenty seconds, which is not a trade worth making - but it is worth saying
+    -- accurately rather than claiming it only runs when visible.
+    --
+    -- ns.ValuateAfter is the shared timer, reachable from ui/ since v0.37.0a. Before
+    -- that this file would have had to roll its own OnUpdate frame, which is precisely
+    -- what that release was about.
+    local function TickScanAge()
+        if parent:IsShown() then UpdateScanAge() end
+        if ns.ValuateAfter then ns.ValuateAfter(20, TickScanAge) end
+    end
+    if ns.ValuateAfter then ns.ValuateAfter(20, TickScanAge) end
+
     scanButton:SetScript("OnClick", function()
         Valuate:ScanBestEquipment()
         -- Refresh display after scan

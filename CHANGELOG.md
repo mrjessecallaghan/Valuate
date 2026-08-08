@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.7a] - 2026-08-09 — The staleness warning stops going stale
+
+### Fixed
+- **The "Scanned N ago" label never updated while you sat with the tab open.** It exists to tell
+  you the data might be old — and it would itself freeze at *"Scanned moments ago"* for as long as
+  the panel stayed up. Leave it twenty minutes and it still claimed the scan had just happened. A
+  staleness warning going stale is worse than none, because it's the thing you were relying on to
+  notice. It now refreshes every twenty seconds.
+- This is the first use of `ns.ValuateAfter` from `ui/`. Before v0.37.0a this file would have had
+  to roll its own `OnUpdate` frame — which is exactly what publishing that primitive was for.
+
+### Notes
+- Also corrected my own comment on the way in: it claimed the tick "only runs while the panel is
+  visible", when in fact only the *update* is skipped while hidden. Stopping and restarting the
+  timer would need an `OnShow` hook for one no-op comparison every twenty seconds — not a trade
+  worth making, but worth describing accurately rather than flattering.
+- Fourth self-audit pass. Confirmed two things were **not** bugs before finding this one:
+  `GetScales()` self-initialises so first login can't fault on `next(nil)`, and the pooled stat
+  grid handles its scale being deleted underneath it because every handler reads
+  `ns.EditingScaleName` when it fires.
+
 ## [0.38.6a] - 2026-08-09 — The settings search says how many it found
 
 ### Added
