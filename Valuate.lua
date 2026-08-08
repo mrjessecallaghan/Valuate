@@ -516,6 +516,14 @@ local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
         -- Addon loaded, initialize
         Valuate:Initialize()
+    elseif event == "PLAYER_LEVEL_UP" then
+        -- The new level arrives in the first vararg slot, which this handler names
+        -- `addonName` because ADDON_LOADED got there first. Fall back to UnitLevel if
+        -- it is missing rather than trusting the parameter name.
+        local newLevel = tonumber(addonName) or (UnitLevel and UnitLevel("player"))
+        if Valuate.AnnounceUnlockedUpgrades then
+            Valuate:AnnounceUnlockedUpgrades(newLevel)
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 
@@ -4094,6 +4102,72 @@ function Valuate:GetFutureUpgradeScales(itemLink)
     return #results > 0 and results or nil
 end
 
+-- Announces gear that the level you just gained has made wearable.
+--
+-- The addon already tracks items you own that would be upgrades if you were high
+-- enough - bestEquipment[scale].future[slotId], each carrying its reqLevel - and
+-- nothing ever looked at them at the moment that data is FOR. Levelling on its own
+-- triggers no rescan under most autoScan settings, so a piece carried since level 18
+-- could sit in your bags long after it became wearable, with the addon quietly knowing.
+--
+-- Deliberately reports only what ACTUALLY left the future list, rather than everything
+-- whose reqLevel you now meet. An item can sit there for reasons a level does not fix -
+-- an unmet proficiency, for instance - and "your level is high enough" is not the same
+-- claim as "you can wear this". So: note the candidates, rescan, then report the
+-- difference.
+function Valuate:AnnounceUnlockedUpgrades(newLevel)
+    if not newLevel then return end
+
+    local candidates = {}
+    local bestEquipment = Valuate:GetBestEquipment()
+    for _, scaleName in ipairs(Valuate:GetActiveScales()) do
+        local future = bestEquipment[scaleName] and bestEquipment[scaleName].future
+        if future then
+            for _, f in pairs(future) do
+                if f and f.itemLink and (f.reqLevel or 0) <= newLevel then
+                    candidates[f.itemLink] = true
+                end
+            end
+        end
+    end
+    if not next(candidates) then return end
+
+    -- Let the level actually apply before rescanning; PLAYER_LEVEL_UP fires before
+    -- UnitLevel reports the new value on some 3.3.5 clients.
+    ValuateAfter(2, function()
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+
+        local stillFuture = {}
+        local after = Valuate:GetBestEquipment()
+        for _, scaleName in ipairs(Valuate:GetActiveScales()) do
+            local future = after[scaleName] and after[scaleName].future
+            if future then
+                for _, f in pairs(future) do
+                    if f and f.itemLink then stillFuture[f.itemLink] = true end
+                end
+            end
+        end
+
+        local unlocked = {}
+        for link in pairs(candidates) do
+            if not stillFuture[link] then tinsert(unlocked, link) end
+        end
+        if #unlocked == 0 then return end
+        -- pairs() gave no order and this is user-visible; sort it.
+        table.sort(unlocked)
+
+        print(string.format("|cFF00FF00Valuate|r: level %d unlocked %d item(s) you already have:",
+            newLevel, #unlocked))
+        for i = 1, math.min(#unlocked, 5) do
+            print("  " .. unlocked[i])
+        end
+        if #unlocked > 5 then
+            print(string.format("  |cFFAAAAAA...and %d more.|r", #unlocked - 5))
+        end
+        print("  |cFFAAAAAA/valuate equip|r equips the best set, or check Best Equipment.")
+    end)
+end
+
 -- Checks if the player owns an item (equipped or in bags)
 -- itemLink: The item link to check
 -- Returns: true if player owns the item, false otherwise
@@ -6136,6 +6210,9 @@ end
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+-- Levelling can make gear you already carry wearable; nothing else triggers a rescan
+-- for it, since your bags did not change.
+frame:RegisterEvent("PLAYER_LEVEL_UP")
 frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
 frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
 frame:RegisterEvent("BAG_UPDATE")
@@ -6449,6 +6526,7 @@ function Valuate:RunSelfTest()
         "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList", "GetJunkVerdict",
+        "AnnounceUnlockedUpgrades",
         "ReportRuntimeError",
     }
     for _, m in ipairs(methods) do
@@ -6938,6 +7016,13 @@ local VERIFY_CHECKS = {
         steps = "Turn on auto-sell or auto-delete, then hover a grey item, a green item that is best-in-slot, and a quest item that AdiBags calls junk.",
         expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all.",
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
+    },
+    {
+        id = "levelup", since = "0.38.0a",
+        title = "Levelling tells you what it just made wearable",
+        steps = "Carry an upgrade you are too low-level for (Best Equipment lists these as future upgrades), then gain the level that unlocks it.",
+        expect = "About two seconds after dinging, a message names the item. Nothing appears if you had no future upgrades, or if the item is still gated by something a level does not fix.",
+        broke = "New in this version. Levelling triggered no rescan under most autoScan settings, so gear could sit in your bags long after it became wearable - with the addon already knowing.",
     },
     {
         id = "firstrun", since = "0.37.1a",

@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.0a] - 2026-08-09 — Levelling tells you what it unlocked
+
+### Added
+- **Gaining a level now names the gear it just made wearable.** The addon already tracked items
+  you own that would be upgrades if you were high enough — `future[slotId]`, each with its
+  `reqLevel` — and nothing ever looked at that data at the moment it exists for. `PLAYER_LEVEL_UP`
+  was not even registered.
+- Levelling triggers no rescan under most `autoScan` settings, because your bags did not change.
+  So a piece carried since level 18 could sit there long after it became wearable, with the addon
+  quietly knowing.
+
+### Notes
+- It reports only what **actually left** the future list, not everything whose `reqLevel` you now
+  meet. An item can sit there for reasons a level does not fix — an unmet proficiency, say — and
+  *"your level is high enough"* is a different claim from *"you can wear this"*. So it notes the
+  candidates, rescans, and reports the difference.
+- The rescan is deferred two seconds: `PLAYER_LEVEL_UP` fires before `UnitLevel` reports the new
+  value on some 3.3.5 clients, and the level arrives in the first vararg — which this handler names
+  `addonName`, because `ADDON_LOADED` got there first. It falls back to `UnitLevel` rather than
+  trusting a parameter name.
+- Output capped at five items, and the list is sorted — it is built from `pairs()` and is
+  user-visible, which is the rule `pairs-list-needs-sort` exists to enforce.
+
 ## [0.37.2a] - 2026-08-09 — An alt is told its scales already exist
 
 ### Changed
