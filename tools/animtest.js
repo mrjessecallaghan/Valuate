@@ -118,6 +118,22 @@ ok(panel:GetAlpha() == 0, "revealIn must start from 0, not from wherever the fra
 advance(MOTION.base * 2)
 ok(panel:GetAlpha() == 1, "revealIn left alpha at " .. tostring(panel:GetAlpha()) .. ", not exactly 1")
 
+-- Re-revealing REPLACES the reveal already running, rather than adding a second.
+-- Cascades get re-triggered constantly - switching tabs, a scan landing while the
+-- panel is open - and two tweens writing one frame's alpha is the fault this engine
+-- exists to prevent. Harmless for alpha alone (both end at 1); NOT harmless for
+-- anything carrying a value, which is how the Best Equipment count-ups could finish
+-- on the previous scan's number.
+local restarted = CreateFrame("Frame")
+Anim.revealIn(restarted, 0)
+advance(0.05, 3)
+local firstHandle = restarted.__anim_revealin
+Anim.revealIn(restarted, 0)
+ok(restarted.__anim_revealin ~= nil, "revealIn should own its tween so it can be replaced")
+ok(restarted.__anim_revealin ~= firstHandle, "re-revealing did not replace the running tween")
+advance(MOTION.base * 2)
+ok(restarted:GetAlpha() == 1, "a replaced reveal must still land at 1")
+
 -- Delay is honoured: still invisible before its turn comes round.
 local delayed = CreateFrame("Frame")
 Anim.revealIn(delayed, 0.5)

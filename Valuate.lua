@@ -6866,6 +6866,13 @@ local VERIFY_CHECKS = {
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
     },
     {
+        id = "scoreroll", since = "0.36.1a",
+        title = "Best Equipment scores land on the CURRENT scan, not the previous one",
+        steps = "Open Best Equipment and watch the numbers count up. Before they finish, switch to another tab and straight back. Also run /valuate scan while the tab is open.",
+        expect = "Every score settles on the value for the latest scan. A row must never come to rest showing an older number.",
+        broke = "The count-ups were unowned tweens capturing the score they started with, writing to a POOLED label. A re-reveal left the old run going, and it could finish last and win.",
+    },
+    {
         id = "statgrid", since = "0.33.0a",
         title = "The stat editor shows the right values after switching scales",
         steps = "Open Scales. Click between two scales with clearly different weights several times. Ban a stat on one, switch away, switch back. Then import or load a scale over the one you are editing and toggle a weapon set.",

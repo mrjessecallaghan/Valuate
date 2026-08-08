@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.36.1a] - 2026-07-31 — Scores stop landing on the previous scan
+
+### Fixed
+- **A Best Equipment score could come to rest showing the PREVIOUS scan's number.** The per-row
+  count-ups were bare `Anim.tween` calls, not owned ones. Each captured the score it started
+  with and wrote to a **pooled** label, so re-revealing the tab — switching away and back, or a
+  scan landing while it was open — left the earlier run going. It kept writing the old value and
+  finished on it. The staggered delays made it worse: an old tween can outlive a new one, so it
+  was not even reliably the newest value that won.
+- **`Anim.revealIn` is now owned too.** Every cascade in the addon uses it and they are
+  re-triggered constantly. Harmless for alpha alone — both runs end at 1 — but it was the same
+  one-property-two-owners fault, and the engine exists to prevent exactly that.
+
+### Notes
+- This is the fault `Anim.owned` was added for in v0.23.1a, in code I wrote afterwards. Having a
+  correct primitive is not the same as reaching for it; the pattern only holds where it is
+  actually applied.
+- Pinned in the harness: re-revealing must replace the running tween, and the replacement must
+  still land at 1. Reverting `revealIn` to an unowned tween fails the gate. 131 runtime checks.
+- `/valuate verify scoreroll` covers the visible symptom.
+
 ## [0.36.0a] - 2026-07-31 — `/valuate verify` keeps your place
 
 ### Added

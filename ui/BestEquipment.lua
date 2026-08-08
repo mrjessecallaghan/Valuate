@@ -1205,7 +1205,22 @@ local function CreateBestEquipmentPanel(parent)
                             label:SetText("|cFF" .. hex .. string.format(fmt, v) .. "|r")
                         end
                         render(0)
-                        Anim.tween({
+                        -- OWNED by the row, not a bare tween.
+                        --
+                        -- Rows are pooled, so `label` is the same FontString across
+                        -- refreshes, and each count-up captures the score it started
+                        -- with. Reveal, then switch tabs and come back - or let a scan
+                        -- land mid-reveal - and the previous run's tweens were still
+                        -- going, writing the OLD score over the new one and finishing on
+                        -- it. The row would then display the previous scan's number
+                        -- until something else redrew it.
+                        --
+                        -- The delays make it worse: an old tween can outlive a new one,
+                        -- so it is not even reliably the newest value that wins.
+                        --
+                        -- `r` is our own row table, so nothing is written onto a
+                        -- Blizzard frame (see ui/UpgradeArrows.lua, same reasoning).
+                        Anim.owned(r, "scorecount", {
                             duration = MOTION.count, ease = "outCubic",
                             delay = colDelay + (rowIndex - 1) * rowGap,
                             onUpdate = function(e) render(target * e) end,

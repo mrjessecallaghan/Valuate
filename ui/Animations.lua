@@ -231,10 +231,18 @@ end
 --
 -- Three of the four cascades this replaced had the guard and the fourth didn't, which
 -- is the kind of gap that only closes by there being one implementation.
+-- OWNED, so re-revealing a frame replaces the reveal already running on it rather than
+-- adding a second. Cascades get re-triggered all the time - switching tabs, a scan
+-- landing while the panel is open - and two fades on one frame both writing alpha is
+-- the same one-property-two-owners fault this engine exists to prevent.
+--
+-- Harmless for alpha alone, since both end at 1. It is not harmless for anything that
+-- ALSO carries a value: the Best Equipment score count-ups had exactly this shape and
+-- could finish on the previous scan's number.
 function Anim.revealIn(frame, delay, duration, ease)
     if not frame or not frame.SetAlpha then return end
     frame:SetAlpha(0)
-    return Anim.tween({
+    return Anim.owned(frame, "revealin", {
         duration = duration or (ns.MOTION and ns.MOTION.base) or 0.24,
         delay = delay or 0,
         ease = ease or "outCubic",
