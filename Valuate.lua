@@ -254,6 +254,20 @@ local function ValuateAfter(delay, callback)
     end
 end
 
+-- Published so the ui/ layer can actually use it.
+--
+-- CLAUDE.md §9 tells you delays belong on ValuateAfter rather than a raw OnUpdate - but
+-- it was a file-local here, so nothing in ui/ could reach it and the advice was
+-- impossible to follow. ui/CharacterWindow.lua consequently rolled its own timer three
+-- times, each needing a lint annotation to explain why it was raw.
+--
+-- A rule that cannot be obeyed is not a rule, it is a trap for whoever reads it next.
+--
+-- Both branches return a handle with :Cancel(), so callers can treat the return
+-- uniformly regardless of which C_Timer flavour this client shipped.
+ns.ValuateAfter = ValuateAfter
+Valuate.After = ValuateAfter
+
 -- Schedule a scan with proper delays
 local scanBurstStartedAt
 -- Burst cap now comes from ScanTiming().defer, so "always" mode isn't held to the

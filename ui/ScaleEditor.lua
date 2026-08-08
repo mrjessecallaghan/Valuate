@@ -331,7 +331,7 @@ local function UpdateStatWeightsList(scaleName, scale)
         -- Heights are a function of the layout, which has not changed - so they are
         -- reapplied from the values computed when it was built rather than recomputed.
         ns.ScaleEditorFrame.animContainers = statGrid.animContainers
-        ns.ScaleEditorFrame:SetHeight(statGrid.editorHeight)
+        Anim.setHeight(ns.ScaleEditorFrame, statGrid.editorHeight, false)
         if ns.ValuateUIFrame and statGrid.windowHeight then
             Anim.setHeight(ns.ValuateUIFrame, statGrid.windowHeight, true)
         end
@@ -669,7 +669,7 @@ local function UpdateStatWeightsList(scaleName, scale)
         local editorHeight = math.max(totalContentHeight, 100)
         local windowHeight = nil
         if ns.ScaleEditorFrame then
-            ns.ScaleEditorFrame:SetHeight(editorHeight)
+            Anim.setHeight(ns.ScaleEditorFrame, editorHeight, false)
 
             -- Resize main window to fit content
             if ns.ValuateUIFrame then
@@ -700,7 +700,7 @@ local function UpdateStatWeightsList(scaleName, scale)
     
     -- If no equipment categories, just set ns.ScaleEditorFrame height based on Item Stats
     if ns.ScaleEditorFrame then
-        ns.ScaleEditorFrame:SetHeight(math.max(itemStatsMaxHeight, 100))
+        Anim.setHeight(ns.ScaleEditorFrame, math.max(itemStatsMaxHeight, 100), false)
         
         -- Resize main window to fit content
         if ns.ValuateUIFrame then

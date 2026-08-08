@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.37.0a] - 2026-07-31 — Rules you can actually follow
+
+### Fixed
+- **CLAUDE.md §9 told you delays belong on `ValuateAfter` — and the `ui/` layer could not reach
+  it.** It was a file-local in `Valuate.lua`, never published, so nothing in `ui/` could call it.
+  `ui/CharacterWindow.lua` consequently rolled its own timer three separate times, each needing a
+  lint annotation to explain why it was raw. **A rule that cannot be obeyed is not a rule; it is a
+  trap for whoever reads it next.** Now published as `ns.ValuateAfter` and `Valuate.After`.
+- **`Anim.setHeight` was documented as "the ONLY writer of a shared height" and was not.**
+  `ns.ScaleEditorFrame` had three direct `SetHeight` calls. No bug today — none of them animate,
+  so there was no tween to fight — but the claim was false, and it is the claim that makes it safe
+  for anyone to animate that frame later. All three now go through it.
+
+### Notes
+- The existing `CharacterWindow` timers are **left alone**. They are throttles and debounces
+  rather than one-shot delays, they are annotated, and they work; rewriting live UI blind to
+  satisfy tidiness is the wrong trade. What changed is that the next one written there has a
+  choice.
+- Both `ValuateAfter` branches return a handle with `:Cancel()`, so callers can treat the return
+  uniformly regardless of which `C_Timer` flavour the client shipped.
+- Verified afterwards: **no direct `__anim_` access anywhere outside the engine**, so every
+  animation cancel already goes through `Anim.cancelProp`. That primitive needed no work.
+
 ## [0.36.3a] - 2026-07-31 — `/valuate errors` stops under-reporting
 
 ### Fixed

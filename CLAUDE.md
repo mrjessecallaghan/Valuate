@@ -325,7 +325,7 @@ legitimate ones carry their reason inline.
 |---|---|
 | `frame:SetScript("OnUpdate", ...)` to animate | `Anim.owned(frame, propKey, opts)` — owns a *named property*, so unrelated animations on one frame coexist and related ones replace cleanly |
 | `frame:SetScript("OnUpdate", nil)` to cancel | `Anim.cancelProp(frame, propKey)` |
-| `frame:SetScript("OnUpdate", ...)` to wait | `ValuateAfter(delay, fn)` |
+| `frame:SetScript("OnUpdate", ...)` to wait | `ValuateAfter(delay, fn)` — reachable from `ui/` as `ns.ValuateAfter`, and as `Valuate.After` |
 
 What legitimately remains is **dedicated driver and throttle frames** — one frame that
 exists only to tick, with no other owner. Annotate those:
