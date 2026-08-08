@@ -214,6 +214,7 @@ callback either reschedule or be genuinely final.
 | `tools/globals.js` | Scope analysis: undefined globals + the `ns.*` contract |
 | `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
 | `tools/options.js` | Every option is reachable from the UI or a command |
+| `tools/api.js` | Every method the selftest names actually exists |
 
 ### `ui/` modules (load order matters — see the `.toc`)
 

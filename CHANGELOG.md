@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.21.2a] - 2026-07-31 — Catch phantom methods in the selftest
+
+### Added
+- **`tools/api.js`** fails the build if `/valuate selftest` names a method that does not exist.
+  Those names are plain strings, so a typo or an entry left behind by a rename would surface
+  in game as `method GetScaelLibrary` — reading like a broken build rather than a bad list.
+- Deliberately **not** "every method must be listed": that list is curated to cover the
+  load-bearing API, and demanding completeness would produce noise instead of signal.
+
 ## [0.21.1a] - 2026-07-31 — Settings snapshot gets buttons
 
 ### Added
