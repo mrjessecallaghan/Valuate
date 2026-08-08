@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.2a] - 2026-07-31 — Stop leaking a frame every time you open your character sheet
+
+### Fixed
+- **Opening the character sheet allocated a new frame each time.** WoW never frees frames, so
+  they accumulated for the whole session — a few hundred over an evening of gear checks. The
+  three delayed refreshes now share one reusable timer, which also debounces them.
+
 ## [0.22.1a] - 2026-07-31 — Contain the per-frame paths too
 
 ### Fixed

@@ -411,6 +411,27 @@ function Valuate:RefreshCharacterWindowVisibility()
 end
 
 -- Create character window UI elements
+-- ONE reusable timer for "refresh the score shortly".
+--
+-- This used to be a CreateFrame inside the character sheet's OnShow hook, so every
+-- time you opened your character sheet another frame was allocated - and WoW never
+-- frees frames, so they accumulated for the whole session. Same trap the junk ticker
+-- and the arrow pulse were written to avoid.
+--
+-- Reusing one frame also debounces: opening and closing rapidly re-arms the single
+-- pending refresh instead of stacking several.
+local refreshTimer = CreateFrame("Frame")
+local function ScheduleDisplayRefresh(delay)
+    refreshTimer.remaining = delay or 0.1
+    refreshTimer:SetScript("OnUpdate", function(self, elapsed)
+        self.remaining = self.remaining - (elapsed or 0)
+        if self.remaining <= 0 then
+            self:SetScript("OnUpdate", nil)
+            UpdateCharacterWindowDisplay()
+        end
+    end)
+end
+
 local function CreateCharacterWindowUI()
     if CharacterWindowInitialized then
         return
@@ -648,14 +669,7 @@ local function CreateCharacterWindowUI()
                 -- Only show if feature is enabled
                 if Valuate:GetOptions().showCharacterWindowDisplay ~= false then
                     CharacterWindowFrame:Show()
-                    local updateFrame = CreateFrame("Frame")
-                    updateFrame:SetScript("OnUpdate", function(self, elapsed)
-                        self.elapsed = (self.elapsed or 0) + elapsed
-                        if self.elapsed >= 0.1 then
-                            UpdateCharacterWindowDisplay()
-                            self:SetScript("OnUpdate", nil)
-                        end
-                    end)
+                    ScheduleDisplayRefresh(0.1)
                 end
             end
         end)
@@ -668,14 +682,7 @@ local function CreateCharacterWindowUI()
     
     -- Initial update if already visible and feature enabled
     if Valuate.GetOptions and charFrame:IsVisible() and Valuate:GetOptions().showCharacterWindowDisplay ~= false then
-        local initUpdateFrame = CreateFrame("Frame")
-        initUpdateFrame:SetScript("OnUpdate", function(self, elapsed)
-            self.elapsed = (self.elapsed or 0) + elapsed
-            if self.elapsed >= 0.3 then
-                UpdateCharacterWindowDisplay()
-                self:SetScript("OnUpdate", nil)
-            end
-        end)
+        ScheduleDisplayRefresh(0.3)
     elseif Valuate.GetOptions and Valuate:GetOptions().showCharacterWindowDisplay == false then
         container:Hide()
     end
@@ -716,16 +723,10 @@ local function InitializeCharacterWindowUI()
         CreateCharacterWindowUI()
         -- If character frame is already visible, update immediately
         if charFrame:IsVisible() then
-            local updateFrame = CreateFrame("Frame")
-            updateFrame:SetScript("OnUpdate", function(self, elapsed)
-                self.elapsed = (self.elapsed or 0) + elapsed
-                if self.elapsed >= 0.3 then
-                    if CharacterWindowFrame then
-                        UpdateCharacterWindowDisplay()
-                    end
-                    self:SetScript("OnUpdate", nil)
-                end
-            end)
+            -- Shared timer, same as the OnShow path. UpdateCharacterWindowDisplay
+            -- already returns early without CharacterWindowFrame, so the guard the
+            -- old inline version carried is not lost.
+            ScheduleDisplayRefresh(0.3)
         end
     else
         -- Wait for character UI to load
