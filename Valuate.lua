@@ -6123,6 +6123,8 @@ function Valuate:RunSelfTest()
         "IsItemLinkUpgrade", "ResetUpgradeArrowCache",
         "IsLearnableRecipe", "IsUsefulTradeGood", "GetProfessionOverrideChoices",
         "GetScaleLibrary", "SaveScaleToLibrary", "LoadScaleFromLibrary", "ListScaleLibrary",
+        "SaveSettingsSnapshot", "LoadSettingsSnapshot", "HasSettingsSnapshot",
+        "RestoreDefaultOptions", "IsPassLootRollingToo",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }

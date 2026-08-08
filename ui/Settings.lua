@@ -1877,6 +1877,63 @@ local function CreateSettingsPanel(parent)
     end)
     restoreButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
+
+    -- Settings snapshot (Column 3, below Restore Defaults). Two buttons on one row:
+    -- the column is about 270px wide, so 128 each with a gap fits comfortably.
+    local snapshotLabel = col3:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    snapshotLabel:SetPoint("TOPLEFT", restoreButton, "BOTTOMLEFT", 0, -(ELEMENT_SPACING + 4))
+    snapshotLabel:SetText("Share settings with your other characters:")
+    snapshotLabel:SetTextColor(unpack(COLORS.textDim))
+
+    local saveSettingsButton = CreateStyledButton(col3, "Save For Alts", 128, 22)
+    saveSettingsButton:SetPoint("TOPLEFT", snapshotLabel, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    saveSettingsButton:SetScript("OnClick", function()
+        local n = Valuate:SaveSettingsSnapshot()
+        print(string.format("|cFF00FF00[Valuate]|r Saved %d setting(s) for your other characters.", n))
+    end)
+    saveSettingsButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Save For Alts", 1, 1, 1)
+            GameTooltip:AddLine("Stores this character's settings so any other character can load them.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Not included: window position, this character's professions, and the character-window scale - those describe the character, not your preferences.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    saveSettingsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local loadSettingsButton = CreateStyledButton(col3, "Load Saved", 128, 22)
+    loadSettingsButton:SetPoint("LEFT", saveSettingsButton, "RIGHT", ELEMENT_SPACING, 0)
+    loadSettingsButton:SetScript("OnClick", function()
+        if not Valuate:HasSettingsSnapshot() then
+            print("|cFFFF8800[Valuate]|r No settings saved yet - use Save For Alts on a character you've set up.")
+            return
+        end
+        Valuate:ShowConfirmDialog({
+            text = "Apply your saved settings to this character?\n\n"
+                .. "|cFF00FF00Your scales are not affected.|r",
+            acceptText = "Apply",
+            cancelText = "Cancel",
+            onAccept = function()
+                local ok, result = Valuate:LoadSettingsSnapshot()
+                if ok then
+                    print(string.format("|cFF00FF00[Valuate]|r Applied %d saved setting(s).", result))
+                    print("|cFFAAAAAA[Valuate]|r Close and reopen this window to see the updated controls.")
+                else
+                    print("|cFFFF0000[Valuate]|r " .. tostring(result))
+                end
+            end,
+        })
+    end)
+    loadSettingsButton:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Load Saved", 1, 1, 1)
+            GameTooltip:AddLine("Applies the settings you saved on another character. Your scales are untouched.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    loadSettingsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[3] = columnHeights[3] + 44 + ELEMENT_SPACING
     
     -- ========================================
     -- Delete Saved Variables Button (Bottom Right)

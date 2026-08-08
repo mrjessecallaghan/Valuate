@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.21.1a] - 2026-07-31 — Settings snapshot gets buttons
+
+### Added
+- **Save For Alts / Load Saved** buttons under Advanced, so the settings snapshot is not
+  command-only. Loading asks for confirmation and states that your scales are untouched.
+- `/valuate selftest` now also checks the snapshot, restore-defaults and PassLoot-conflict
+  methods exist.
+
 ## [0.21.0a] - 2026-07-31 — Copy your settings to your other characters
 
 ### Added
