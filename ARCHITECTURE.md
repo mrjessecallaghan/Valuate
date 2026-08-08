@@ -263,10 +263,17 @@ wiring is consistent. They cannot see behaviour.
 `Valuate-PassLoot` or `Valuate-TSM` must exist. Those integrations load separately, so a method
 renamed here breaks them at loot time or on a bag repaint — not at load, where you would notice.
 
-**Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`. These
-*execute real Lua* under fengari against a mocked WoW API (`luaharness.js` — deliberately one
-mock, since two would drift into testing different imaginary clients). Every substantive bug
-found in this codebase has come from these four, because the static gates can only read.
+**Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`,
+`verifytest.js`. These 5 *execute real Lua* under fengari against a mocked WoW API
+(`luaharness.js` — deliberately one mock, since two would drift into testing different
+imaginary clients). Every substantive bug found in this codebase has come from these, because
+the static gates can only read.
+
+Four of them load whole `ui/` files. `verifytest.js` instead **slices three functions out of
+`Valuate.lua`** by source match, because the core file needs most of the WoW API to reach its
+end while those functions need none of it. Slicing runs the shipped source rather than a copy;
+a failed slice exits non-zero and a truncated one will not compile as Lua, so neither can pass
+quietly. Reach for it when core logic is worth executing but its file is not loadable.
 
 Run everything with **`node tools/gates.js`** (~1.3s), or install the pre-commit hook once via
 `tools/install-hooks.cmd`. Gates **discover themselves** — a file in `tools/` is a gate if its

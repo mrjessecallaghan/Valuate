@@ -34,11 +34,17 @@ that loses an entry does not complain, it just stops running.
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
 - `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
-  It is the only gate that runs Valuate code rather than reading it, which matters because
-  the other four all pass on a clamp whose comparison is the wrong way round. Start here
-  when extending runtime coverage: the engine's whole external surface is `CreateFrame`
-  plus one option read, so its mock is small enough to trust. Mutation-tested — every
-  check in it has been shown to fail when the behaviour it names is broken.
+  It, `widgettest.js`, `importtest.js`, `datatest.js` and `verifytest.js` run Valuate code
+  rather than reading it, which matters because every static gate passes on a clamp whose
+  comparison is the wrong way round. Start with `animtest.js` when extending runtime
+  coverage: the engine's whole external surface is `CreateFrame` plus one option read, so
+  its mock is small enough to trust. Mutation-tested — every check in it has been shown to
+  fail when the behaviour it names is broken.
+- **When the logic is worth running but its file is not loadable**, do what `verifytest.js`
+  does: match the functions out of `Valuate.lua` by source and execute those. The core file
+  needs most of the WoW API to reach its end; three self-contained functions need none of
+  it. A failed match exits non-zero and a truncated one will not compile, so this cannot
+  degrade into a gate that silently tests nothing.
 - `globals.js` does **scope analysis** and reports identifiers read as globals that
   aren't a known API. This is the guard against the worst bug class here: a reference
   that resolves to a nil global instead of the local you meant — Lua raises no error, the
@@ -242,6 +248,7 @@ callback either reschedule or be genuinely final.
 | `tools/widgettest.js` | Runs input validation and colour handling for real |
 | `tools/importtest.js` | Runs scale-tag parsing and the export/import round trip |
 | `tools/datatest.js` | Cross-checks the spec templates against the stat definitions |
+| `tools/verifytest.js` | Runs the `/valuate verify` walkthrough's pending/staleness logic |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

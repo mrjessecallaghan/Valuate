@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.40.2a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.41.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -86,10 +86,11 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. Four subsystems — the animation engine, input
-validation and colour handling, scale-tag parsing, and the spec templates — are executed
-headlessly against a mocked WoW API and are genuinely behaviour-tested. **Everything else
-is statically verified only**: it loads, it resolves, its wiring is consistent.
+Developed without the game running. 5 subsystems — the animation engine, input
+validation and colour handling, scale-tag parsing, the spec templates, and the verify
+walkthrough — are executed headlessly against a mocked WoW API and are genuinely
+behaviour-tested. **Everything else is statically verified only**: it loads, it resolves, its
+wiring is consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -108,6 +109,7 @@ Then, in-game, for anything the gates structurally cannot see:
 ```
 /valuate check              # is it loaded, configured and actually doing something?
 /valuate verify             # behavioural checks a human has to look at
+/valuate verify next        # hand me the next one, set up and ready
 ```
 
 Every gate encodes a bug that actually shipped here — addon taint, duplicated junk logic,
@@ -115,14 +117,17 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-Four of them **execute real Lua** under fengari against a mocked WoW API — the animation
-engine, input validation and colour handling, scale-tag parsing, and the spec templates.
-Those four are where every substantive bug has been found, because the static gates can
-only see structure. The rest check wiring: that a file loads, a symbol resolves, a list
-stays in step.
+5 of them **execute real Lua** under fengari against a mocked WoW API — the animation
+engine, input validation and colour handling, scale-tag parsing, the spec templates, and the
+verify walkthrough. Those are where every substantive bug has been found, because the static
+gates can only see structure. The rest check wiring: that a file loads, a symbol resolves, a
+list stays in step.
 
 Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
 in-game, and its list is short on purpose — only behaviours that fail *silently*.
+**`/valuate verify next`** walks you through it one at a time, arming each check that can
+arm itself. Ticks record the version they were made at, so a check comes round again by
+itself once the behaviour underneath it changes.
 
 See **`CLAUDE.md`** for the constraints when editing (taint rules, external contracts,
 conventions) and **`ARCHITECTURE.md`** for the data model and load order.

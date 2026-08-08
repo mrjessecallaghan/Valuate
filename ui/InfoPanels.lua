@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.40.2a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.41.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.40.2a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.41.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -447,7 +447,9 @@ local function CreateChangelogPanel(parent)
         "   never re-animating as you move things around your bags.\n" ..
         "• The window resizes smoothly instead of snapping between tabs.\n" ..
         "• /valuate verify - a short list of behaviours worth checking by hand,\n" ..
-        "   several of which set themselves up for you.\n" ..
+        "   several of which set themselves up for you. /valuate verify next walks\n" ..
+        "   you through them one at a time, and a tick expires by itself once the\n" ..
+        "   behaviour it covered changes.\n" ..
         "• FIXED: an upgrade found during combat is now actually offered when you\n" ..
         "   leave combat. It never was - the flag was read from the wrong place.\n" ..
         "• FIXED: weapon-set toggles could silently do nothing after importing or\n" ..

@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.41.0a] - 2026-08-09 — The checklist becomes a walkthrough
+
+### Added
+- **`/valuate verify next`** hands you the next outstanding check — details, reason it exists, and
+  it arms itself where it can. Then `/valuate verify done <name>` ticks it and names the next one,
+  so the sixteen checks are a loop you work through rather than a list you read.
+- **A stale tick comes round again by itself.** Ticks have recorded the version they were made at
+  since v0.37.0a, but only the list ever showed it; the walkthrough now treats "verified at v0.30.0a,
+  changed in v0.33.0a" as outstanding and says why when it offers it back to you.
+
+### Changed
+- Ticking the last outstanding check says so, rather than leaving you to count.
+
+### Fixed
+- **A check named after a command verb could never be opened.** `RunVerify` tests `next` / `done` /
+  `undo` / `reset` before it searches the list, so an id colliding with one would silently run the
+  verb instead. Now a gate rule, with the verbs read out of `RunVerify` rather than listed — a
+  hand-maintained copy is the exact drift this checker exists to catch.
+- **The docs said four gates execute real Lua while five did.** That count is how a reader decides
+  which parts of this addon are behaviour-tested rather than merely known to parse, so it is worth
+  being right. Now counted from the gates that pull in the harness and checked against both
+  `README.md` and `ARCHITECTURE.md` — the eighth hand-maintained list here to drift, and the fifth
+  to drift by *adding* something, which is the direction nobody re-reads for.
+- **`CLAUDE.md` said `animtest.js` was the only gate running Valuate code.** Three runtime gates
+  ago that stopped being true.
+
+### Development
+- **A tenth gate, `tools/verifytest.js`** — 16 runtime checks on the pending/staleness logic.
+  Every way it can be wrong is quiet: a stale tick counted as finished, a version compared as text,
+  an unknown version treated as old. Mutation-tested.
+- It **slices three functions out of `Valuate.lua`** and runs those, rather than loading the file —
+  the core file needs most of the WoW API to reach its end, and these need none of it. That makes
+  core logic testable for the first time; previously only `ui/` modules were reachable. A failed
+  slice exits non-zero and a truncated one will not compile, so it cannot degrade into a gate that
+  silently tests nothing.
+
+### Notes
+- `done` deliberately **names** the next check without arming it. Arming has side effects — it
+  starts a pulse, it fires a combat-exit — and firing one the moment you ticked something else
+  means it goes off while you aren't watching, which wastes the check rather than running it.
+- 16 runtime checks against the real sliced source of the pending/staleness logic, including that
+  `0.9.0a` is older than `0.10.0a` (true as versions, false as text) and that an unknown recorded
+  version is treated as unknown rather than old.
+
 ## [0.40.2a] - 2026-08-09 — The invariant no gate could reach
 
 ### Added

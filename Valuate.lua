@@ -7295,6 +7295,24 @@ local function VerifiedState(c)
     return at, stale
 end
 
+-- The first check still wanting attention, in list order, plus how many do.
+--
+-- STALE COUNTS AS PENDING. A tick recorded at v0.30.0a against behaviour reworked in
+-- v0.33.0a is not evidence about what ships; treating it as finished is how a checklist
+-- ends up reporting "16 of 16" while testing nothing. The list has always drawn the
+-- distinction - this makes the walkthrough act on it.
+local function NextPendingCheck()
+    local first, firstIndex, pending = nil, nil, 0
+    for i, c in ipairs(VERIFY_CHECKS) do
+        local at, stale = VerifiedState(c)
+        if (not at) or stale then
+            pending = pending + 1
+            if not first then first, firstIndex = c, i end
+        end
+    end
+    return first, firstIndex, pending
+end
+
 -- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
 local function VerifiedLabel(c)
     local at, stale = VerifiedState(c)
@@ -7319,6 +7337,37 @@ function Valuate:RunVerify(which)
         return true
     end
 
+    -- /valuate verify next - hand out the next one and set it up.
+    --
+    -- The whole list is sixteen checks that each need a client, a character and a bag of
+    -- gear, so it gets run in one long sitting or not at all. Making that sitting a loop
+    -- (next, do it, done, next) rather than a lookup is the difference between a
+    -- checklist you work through and one you read.
+    if verb == "next" and not target then
+        local c, index, pending = NextPendingCheck()
+        if not c then
+            print(string.format("|cFF00FF00[Valuate]|r All %d behavioural checks are ticked at the current version.",
+                #VERIFY_CHECKS))
+            print("|cFFAAAAAAThey un-tick themselves when the behaviour they cover changes, so this is worth re-running after an update.|r")
+            return true
+        end
+        local at, stale = VerifiedState(c)
+        print(string.format("|cFF00FF00[Valuate]|r %d left to check.", pending))
+        if stale then
+            print(string.format("|cFFFF8800Re-check:|r you ticked this at v%s, but it changed in v%s.", at, c.since))
+        end
+        PrintVerifyCheck(c, index)
+        if c.arm then
+            local ok, message = c.arm()
+            print(ok and ("   |cFF00FF00Armed:|r " .. message)
+                     or ("   |cFFFF8800Cannot arm:|r " .. message))
+        else
+            print("   |cFFAAAAAAThis one cannot be armed - it needs you to do it.|r")
+        end
+        print("   |cFFAAAAAAThen: /valuate verify done " .. c.id .. "|r")
+        return true
+    end
+
     if (verb == "done" or verb == "undo") and target then
         for _, c in ipairs(VERIFY_CHECKS) do
             if c.id == target then
@@ -7327,6 +7376,17 @@ function Valuate:RunVerify(which)
                     c.id, verb == "done"
                         and ("checked at v" .. (Valuate.version or "?"))
                         or "unchecked"))
+                -- Point at the next one, but do NOT arm it. Arming has side effects - it
+                -- starts a pulse, it fires a combat-exit - and firing one the moment you
+                -- ticked something else means it goes off while you are not watching,
+                -- which is a check wasted rather than a check run.
+                local nxt, _, pending = NextPendingCheck()
+                if nxt then
+                    print(string.format("|cFFAAAAAA%d left. Next: /valuate verify next  (%s)|r",
+                        pending, nxt.id))
+                elseif verb == "done" then
+                    print("|cFF00FF00That was the last one - every behavioural check is ticked at this version.|r")
+                end
                 return true
             end
         end
@@ -7354,8 +7414,8 @@ function Valuate:RunVerify(which)
     end
 
     print("|cFF00FF00[Valuate]|r Behavioural checks - the things no gate can answer")
-    print("|cFFAAAAAAEverything here fails SILENTLY when it fails. Run /valuate verify <name>|r")
-    print("|cFFAAAAAAto see one in detail; some will set themselves up for you.|r")
+    print("|cFFAAAAAAEverything here fails SILENTLY when it fails. Run /valuate verify next|r")
+    print("|cFFAAAAAAto be handed the next one, set up and ready; or name one to jump to it.|r")
     print(" ")
 
     -- Counted from the STATE, never from the rendered label. Reformatting the list must
@@ -7372,10 +7432,10 @@ function Valuate:RunVerify(which)
     end
 
     print(" ")
-    print(string.format("|cFFAAAAAA%d of %d checked%s. Mark one with /valuate verify done <name>, " ..
-        "or start over with /valuate verify reset.|r",
+    print(string.format("|cFFAAAAAA%d of %d checked%s. Work through them with /valuate verify next, " ..
+        "tick one with /valuate verify done <name>, or start over with /valuate verify reset.|r",
         done, #VERIFY_CHECKS,
-        stale > 0 and (", " .. stale .. " now STALE") or ""))
+        stale > 0 and (", " .. stale .. " now STALE - those come round again") or ""))
     print("|cFFAAAAAA/valuate check covers the other half: is the addon loaded and configured.|r")
     return true
 end

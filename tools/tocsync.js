@@ -115,10 +115,15 @@ try {
  * is worse than most if it rots, because its entire purpose is telling someone what to
  * trust - a checklist that names a version nobody shipped is actively misleading.
  *
- * Two things are checkable without judgement:
+ * Three things are checkable without judgement:
  *   - every `since` names a real CHANGELOG release
  *   - every `id` is unique, since /valuate verify <id> takes the FIRST match and a
  *     duplicate would silently shadow the other entry
+ *   - no `id` collides with a verb of the command itself. RunVerify tests the verbs
+ *     BEFORE it searches the list, so a check called "next" or "reset" could never be
+ *     opened by name - and the wrong thing would happen instead, which is worse than
+ *     nothing happening. The verbs are read out of RunVerify rather than listed here,
+ *     because a hand-maintained list is the exact thing this file exists to catch.
  */
 try {
   const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
@@ -135,8 +140,25 @@ try {
       ok = false;
     }
 
+    const runVerify = lua.match(/function Valuate:RunVerify[\s\S]*?\nend\n/);
+    const verbs = new Set(
+      runVerify ? [...runVerify[0].matchAll(/verb == "(\w+)"/g)].map((m) => m[1]) : []
+    );
+    if (!verbs.size) {
+      console.error("  VERIFY  found no verbs in RunVerify - the shape changed, so ids are unguarded");
+      ok = false;
+    }
+
     const seen = new Set();
     for (const [, id, since] of entries) {
+      if (verbs.has(id)) {
+        console.error(
+          "  VERIFY  check id '" + id + "' is also a /valuate verify verb - " +
+            "the verb wins, so that check could never be opened by name"
+        );
+        ok = false;
+      }
+
       if (seen.has(id)) {
         console.error(
           "  VERIFY  duplicate check id '" + id +
@@ -157,12 +179,72 @@ try {
     if (ok) {
       console.log(
         "OK  /valuate verify: " + entries.length +
-          " behavioural checks, all ids unique and all versions real."
+          " behavioural checks, all ids unique, all versions real, " +
+          "none shadowed by the " + verbs.size + " command verbs."
       );
     }
   }
 } catch (e) {
   // No Valuate.lua or no CHANGELOG: covered by other checks.
+}
+
+/*
+ * "N of them execute real Lua."
+ *
+ * README.md and ARCHITECTURE.md both make that claim, and it is the load-bearing one in
+ * both files: it is how a reader decides which parts of this addon are behaviour-tested
+ * and which are merely known to parse. It said "Four" while five gates were running -
+ * the eighth hand-maintained list here to drift, and the fifth to drift by ADDING
+ * something rather than removing it, which is the direction nobody re-reads for.
+ *
+ * A gate is a runtime gate if it pulls in the shared fengari harness. Counted, not
+ * listed. Number words are accepted because the prose reads better with them, and a
+ * rule that quietly ignores "Four" would be no rule at all.
+ */
+const WORD_NUMBERS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+                       eight: 8, nine: 9, ten: 10 };
+try {
+  const toolFiles = fs.readdirSync(path.join(ADDON_ROOT, "tools"))
+    .filter((n) => n.endsWith(".js") && n !== "gates.js" && n !== "luaharness.js");
+  const runtimeGates = toolFiles.filter((n) => {
+    const src = fs.readFileSync(path.join(ADDON_ROOT, "tools", n), "utf8");
+    return /require\(\s*["'][^"']*luaharness/.test(src) && /@gate\s/.test(src.slice(0, 2000));
+  });
+
+  const claim = /(\w+)\s+(?:of\s+(?:them|these)\s+)?\**execute real Lua|(\w+)\s+subsystems\b/gi;
+  for (const rel of ["README.md", "ARCHITECTURE.md"]) {
+    const text = fs.readFileSync(path.join(ADDON_ROOT, rel), "utf8");
+    let m, found = 0;
+    claim.lastIndex = 0;
+    while ((m = claim.exec(text))) {
+      const word = (m[1] || m[2] || "").toLowerCase();
+      const stated = WORD_NUMBERS[word] !== undefined ? WORD_NUMBERS[word] : parseInt(word, 10);
+      if (isNaN(stated)) continue;
+      found++;
+      if (stated !== runtimeGates.length) {
+        console.error(
+          "  GATES  " + rel + " says " + word + " gate(s) execute real Lua, but " +
+            runtimeGates.length + " do: " + runtimeGates.join(", ")
+        );
+        ok = false;
+      }
+    }
+    if (!found) {
+      console.error(
+        "  GATES  " + rel + " no longer states how many gates execute real Lua - " +
+          "either restore the claim or drop this rule; a claim nobody checks is worse than none"
+      );
+      ok = false;
+    }
+  }
+  if (ok) {
+    console.log(
+      "OK  " + runtimeGates.length + " gate(s) execute real Lua, and both docs say so."
+    );
+  }
+} catch (e) {
+  console.error("  GATES  could not count the runtime gates: " + e.message);
+  ok = false;
 }
 
 /*
