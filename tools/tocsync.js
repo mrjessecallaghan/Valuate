@@ -83,6 +83,27 @@ if (fs.existsSync(claudeMd)) {
   }
 }
 
+// README version vs .toc version.
+//
+// The README states the current version in its "This is a fork" note, and that
+// line has silently gone ten releases stale once already. It is the repo's front
+// page, so a wrong version there is the first thing anyone reads - and it is the
+// sixth hand-maintained thing in this project to drift.
+try {
+  const tocVersion = (toc.match(/^##\s*Version:\s*(\S+)/m) || [])[1];
+  const readme = fs.readFileSync(path.join(ADDON_ROOT, "README.md"), "utf8");
+  const readmeVersion = (readme.match(/currently \*\*v([^*]+)\*\*/) || [])[1];
+
+  if (tocVersion && readmeVersion && tocVersion !== readmeVersion) {
+    console.error(
+      `MISMATCH  README says v${readmeVersion}, .toc says ${tocVersion}`
+    );
+    ok = false;
+  }
+} catch (e) {
+  // No README, or it doesn't state a version: not a sync failure.
+}
+
 if (!ok) {
   console.error("\n.toc / ui/ / CLAUDE.md are OUT OF SYNC.");
   process.exit(1);

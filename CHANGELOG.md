@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.4a] - 2026-07-31 — One command to check it works
+
+### Added
+- **`/valuate check`** — the answer to "is this actually doing anything?". It runs the
+  self-test, then triages the states that *look* broken but are not errors: no active scale,
+  no scan has run, a scan that produced nothing, or something that errored earlier.
+- The README and in-game help now point at it first.
+- `tools/tocsync.js` also checks the README's stated version against the `.toc`, since that
+  line had already gone ten releases stale once.
+
 ## [0.22.3a] - 2026-07-31 — Close the last frame leak
 
 ### Fixed

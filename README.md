@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.21.2a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.22.4a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -67,6 +67,7 @@ Every automated path has a diagnostic that explains why it did *nothing* — tha
 ```
 /valuate                  open the UI
 /valuate scan             rescan bags and equipped gear
+/valuate check            is it actually working? start here
 /valuate report           what's armed, when each automation last ran, and what it concluded
 /valuate why <item>       explain this item: roll decision, upgrade arrow, junk status
 /valuate library          scales shared across all your characters

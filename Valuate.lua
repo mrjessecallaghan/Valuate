@@ -6582,6 +6582,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate check - Is Valuate actually working? Start here")
         print("  /valuate errors - Anything that errored this session (empty is expected)")
         print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
@@ -6593,6 +6594,59 @@ SlashCmdList["VALUATE"] = function(msg)
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "report" then
         Valuate:PrintReport()
+    elseif command == "check" then
+        -- One command to answer "is this actually working?".
+        --
+        -- Not a wrapper around the other four: it triages. selftest proves the build
+        -- loaded, but a fully-loaded addon can still be doing nothing useful - no
+        -- scan has run, no scale is active, every feature is off. Those are the
+        -- states that read as "broken" to someone who just installed it, and none of
+        -- them is an error.
+        print("|cFF00FF00[Valuate]|r Health check")
+        local problems = {}
+
+        local passed = Valuate:RunSelfTest()
+        if not passed then
+            problems[#problems + 1] = "the self-test failed - see the FAIL lines above"
+        end
+
+        local errs = Valuate:GetEventErrors()
+        if #errs > 0 then
+            problems[#problems + 1] = #errs .. " event(s) errored - /valuate errors"
+        end
+
+        local activeScales = Valuate:GetActiveScales()
+        if #activeScales == 0 then
+            problems[#problems + 1] = "no active scale - nothing can be scored until you tick one"
+        end
+
+        local scanAgo = Valuate:GetAutomationHeartbeat("scan")
+        if not scanAgo then
+            problems[#problems + 1] = "no gear scan has run yet - try /valuate scan"
+        end
+
+        local be = Valuate:GetBestEquipment()
+        local haveBest = false
+        for _, name in ipairs(activeScales) do
+            local entry = be[name]
+            if type(entry) == "table" then
+                for slotId = 1, 18 do
+                    if entry[slotId] then haveBest = true break end
+                end
+            end
+            if haveBest then break end
+        end
+        if #activeScales > 0 and scanAgo and not haveBest then
+            problems[#problems + 1] = "a scan ran but found no best-in-slot gear - check your scale has stat weights"
+        end
+
+        if #problems == 0 then
+            print("  |cFF00FF00Everything looks healthy.|r")
+            print("  |cFFAAAAAA/valuate report for what's armed, /valuate profile for timings.|r")
+        else
+            print(string.format("  |cFFFF8800%d thing(s) worth looking at:|r", #problems))
+            for _, p in ipairs(problems) do print("   - " .. p) end
+        end
     elseif command == "selftest" then
         Valuate:RunSelfTest()
     elseif command == "pulse" then
