@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.36.0a] - 2026-07-31 — `/valuate verify` keeps your place
+
+### Added
+- **The verification checklist now tracks what you have already checked**, across sessions:
+  ```
+  /valuate verify              [x] and [ ] per check, with a count
+  /valuate verify done <id>    mark one as passed
+  /valuate verify undo <id>    unmark it
+  /valuate verify reset        start over
+  ```
+- Ten checks is more than anyone holds in their head, and losing your place halfway is the
+  difference between doing the pass and abandoning it. This is the work I keep calling the
+  bottleneck, so making it tractable beats adding more surface that would need verifying too.
+- Each tick records **which version it was checked at**, and a check whose behaviour changed
+  since then shows as **STALE** rather than done. A tick that quietly goes out of date is
+  exactly the failure this checklist exists to catch — it would be a poor thing to build into
+  the checklist itself.
+- Detail view now ends with the exact command to mark it off, so the loop closes without
+  needing to remember the syntax.
+
+### Notes
+- Version comparison is **numeric**, component by component. As strings, `"0.9.0a" < "0.10.0a"`
+  is false while as versions it is true. Nothing in this project can hit that today — every
+  version in play has a two-digit minor — but a comparison that is wrong only for inputs which
+  "cannot happen" is a trap left for later, and it cost six lines to do properly. Proven with
+  six cases through the existing fengari harness.
+
 ## [0.35.1a] - 2026-07-31 — Enforcing the constraint TSM integration rests on
 
 ### Added

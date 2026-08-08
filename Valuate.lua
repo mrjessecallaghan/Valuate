@@ -693,6 +693,10 @@ local DEFAULT_OPTIONS = {
     uiPosition = {},                      -- table default: fresh copy per character
     normalizeDisplay = false,
     reduceMotion = false,                 -- collapse all UI animations to instant
+    -- id -> addon version it was checked at. /valuate verify keeps your place across
+    -- sessions: ten checks is more than anyone holds in their head, and losing track
+    -- halfway is the difference between doing the pass and abandoning it.
+    verifiedChecks = {},
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     notifyBagUpgrade = false,             -- popup when an equippable upgrade for the current scale is in bags
@@ -6905,7 +6909,79 @@ local function PrintVerifyCheck(c, index)
     print("   |cFFAAAAAAWhy:|r " .. c.broke)
 end
 
+-- Marks a check done (or not), remembering WHICH VERSION it was checked at.
+--
+-- The version matters. A tick that just says "done" goes stale silently the moment the
+-- behaviour changes underneath it - which is the failure mode this entire checklist
+-- exists to catch, so it would be a poor thing to build into the checklist itself.
+-- Storing the version means a check verified at v0.30.0a against a behaviour reworked
+-- in v0.33.0a can say so rather than looking finished.
+local function SetVerified(id, done)
+    local opts = Valuate:GetOptions()
+    opts.verifiedChecks = opts.verifiedChecks or {}
+    opts.verifiedChecks[id] = done and (Valuate.version or "?") or nil
+end
+
+-- true when version string `a` is older than `b`.
+--
+-- Compared NUMERICALLY, component by component, not as strings: "0.9.0a" < "0.10.0a" is
+-- true as versions and false as text, because "9" sorts after "1". Nothing in this
+-- project can hit that today - every version in play has a two-digit minor - but a
+-- comparison that is wrong only for inputs which "cannot happen" is a trap left for
+-- later, and this one costs six lines to do properly.
+local function VersionOlder(a, b)
+    if not a or not b then return false end
+    local ai, bi = string.gmatch(a, "%d+"), string.gmatch(b, "%d+")
+    for _ = 1, 3 do
+        local x, y = tonumber(ai() or 0), tonumber(bi() or 0)
+        if x ~= y then return x < y end
+    end
+    return false
+end
+
+-- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
+local function VerifiedLabel(c)
+    local opts = Valuate:GetOptions()
+    local at = opts.verifiedChecks and opts.verifiedChecks[c.id]
+    if not at then return "|cFF888888[ ]|r" end
+    -- `since` is the version the CHECK was introduced or last revised at. If that is
+    -- newer than when you ticked it, what you verified is not what ships now - and a
+    -- tick that quietly goes stale is precisely the failure this checklist exists to
+    -- catch, so it would be a poor thing to build into the checklist.
+    if c.since and at ~= "?" and VersionOlder(at, c.since) then
+        return "|cFFFF8800[x] " .. at .. " - STALE, changed in v" .. c.since .. "|r"
+    end
+    return "|cFF00FF00[x] " .. at .. "|r"
+end
+
 function Valuate:RunVerify(which)
+    which = which and strtrim(which) or ""
+
+    -- /valuate verify done <id> | undo <id> | reset
+    local verb, target = strmatch(which, "^(%a+)%s+(.+)$")
+    if not verb then verb = strmatch(which, "^(%a+)$") end
+
+    if verb == "reset" then
+        Valuate:GetOptions().verifiedChecks = {}
+        print("|cFF00FF00[Valuate]|r Cleared every verification tick.")
+        return true
+    end
+
+    if (verb == "done" or verb == "undo") and target then
+        for _, c in ipairs(VERIFY_CHECKS) do
+            if c.id == target then
+                SetVerified(c.id, verb == "done")
+                print(string.format("|cFF00FF00[Valuate]|r %s: %s",
+                    c.id, verb == "done"
+                        and ("checked at v" .. (Valuate.version or "?"))
+                        or "unchecked"))
+                return true
+            end
+        end
+        print("|cFFFF0000[Valuate]|r No such check: " .. target)
+        return true
+    end
+
     if which and which ~= "" then
         for i, c in ipairs(VERIFY_CHECKS) do
             if c.id == which then
@@ -6918,6 +6994,7 @@ function Valuate:RunVerify(which)
                 else
                     print("   |cFFAAAAAAThis one cannot be armed - it needs you to do it.|r")
                 end
+                print("   |cFFAAAAAAWhen it passes: /valuate verify done " .. c.id .. "|r")
                 return true
             end
         end
@@ -6928,11 +7005,23 @@ function Valuate:RunVerify(which)
     print("|cFFAAAAAAEverything here fails SILENTLY when it fails. Run /valuate verify <name>|r")
     print("|cFFAAAAAAto see one in detail; some will set themselves up for you.|r")
     print(" ")
+
+    local done, stale = 0, 0
     for i, c in ipairs(VERIFY_CHECKS) do
-        print(string.format("|cFF00FF00%d. %s|r |cFFAAAAAA(v%s)|r  -  /valuate verify %s",
-            i, c.title, c.since, c.id))
+        local label = VerifiedLabel(c)
+        if label:find("%[x%]") then
+            done = done + 1
+            if label:find("STALE") then stale = stale + 1 end
+        end
+        print(string.format("%s |cFF00FF00%d. %s|r  -  /valuate verify %s",
+            label, i, c.title, c.id))
     end
+
     print(" ")
+    print(string.format("|cFFAAAAAA%d of %d checked%s. Mark one with /valuate verify done <name>, " ..
+        "or start over with /valuate verify reset.|r",
+        done, #VERIFY_CHECKS,
+        stale > 0 and (", " .. stale .. " now STALE") or ""))
     print("|cFFAAAAAA/valuate check covers the other half: is the addon loaded and configured.|r")
     return true
 end
@@ -6973,7 +7062,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate check - Is Valuate actually working? Start here")
-        print("  /valuate verify - Behavioural checks a human has to look at (some self-arming)")
+        print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
         print("  /valuate errors - Anything that errored this session (empty is expected)")
         print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
