@@ -5613,6 +5613,23 @@ function Valuate:IsLearnableRecipe(itemLink, tooltipSetter, ...)
     return true, itemSubType
 end
 
+-- Is PassLoot also going to roll on this loot?
+--
+-- Valuate-PassLoot registers a RULE that PassLoot evaluates - it doesn't roll
+-- itself - so with both Valuate's auto-roll and a PassLoot rule active, TWO addons
+-- act on the same START_LOOT_ROLL. They can disagree (Valuate Needs an unlearned
+-- recipe while a PassLoot rule passes on it), and which one lands is a race.
+--
+-- Deliberately not arbitrated: there is no way to know which the player meant, and
+-- silently overriding the other addon would be worse than saying so. This just
+-- makes the overlap visible where the user is already looking.
+function Valuate:IsPassLootRollingToo()
+    local pl = _G.PassLoot
+    if not pl or not pl.GetModule then return false end
+    local ok, mod = pcall(pl.GetModule, pl, "Valuate", true)
+    return (ok and mod) and true or false
+end
+
 function Valuate:AutoRollOnLoot(rollID, isRetry)
     local options = Valuate:GetOptions()
     if not options.autoRollLoot or not rollID then return end
@@ -5969,6 +5986,11 @@ function Valuate:PrintReport()
     local abMod = ab and ab.GetModule and select(2, pcall(ab.GetModule, ab, "ValuateBestItems", true))
     if type(abMod) == "table" and abMod.db and abMod.db.profile.markNonBestAsJunk then
         add(true, "|cFFFF8800mark surplus gear as junk|r")
+    end
+
+    -- Conflicts belong next to the list of what's armed, not buried in a sub-command.
+    if options.autoRollLoot and Valuate:IsPassLootRollingToo() then
+        add(true, "|cFFFF8800PassLoot also rolling - they can disagree|r")
     end
     if #on > 0 then
         print("  Automation on: |cFF00FF00" .. table.concat(on, ", ") .. "|r")
@@ -6540,6 +6562,10 @@ SlashCmdList["VALUATE"] = function(msg)
         local options = Valuate:GetOptions()
         options.autoRollLoot = not options.autoRollLoot
         print("|cFF00FF00Valuate|r: Auto roll on loot " .. (options.autoRollLoot and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        if options.autoRollLoot and Valuate:IsPassLootRollingToo() then
+            print("  |cFFFF8800PassLoot is also rolling|r - it has a Valuate rule loaded, so two addons")
+            print("  will act on the same roll and can disagree. Turn off one of them.")
+        end
         if options.autoRollLoot then
             local wantsRecipes = options.autoRollRecipes ~= false
             local wantsMats = options.autoRollTradeGoods ~= false

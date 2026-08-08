@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.20.2a] - 2026-07-31 — Warn when PassLoot is rolling too
+
+### Added
+- **Valuate now tells you when PassLoot is also rolling on your loot.** The Valuate-PassLoot
+  module registers a *rule* that PassLoot acts on — it does not roll itself — so with Valuate's
+  own auto-roll enabled as well, two addons act on the same roll and can disagree. Which one
+  lands is a race.
+- Shown in both `/valuate roll` and `/valuate report`, next to what is armed. It is deliberately
+  **not** arbitrated: there is no way to know which you meant, and silently overriding the other
+  addon would be worse than saying so.
+
 ## [0.20.1a] - 2026-07-31 — The report knows about everything again
 
 ### Fixed
