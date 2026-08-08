@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.39.2a] - 2026-08-09 — The deletion promise, verified
+
+### Verified — no bug
+- The README and the in-game tooltip both promise deletion **never touches**: best-in-slot,
+  **weapon-set members**, future upgrades, anything that's an upgrade for any scale, quest items,
+  or items in a WoW equipment set. Five of those six have an explicit branch in
+  `IsProtectedFromDelete`; **weapon-set members do not**, which is what prompted the check.
+- **The promise holds.** `GetBestForInfo` consults `weaponKeep` *first*, so an off-set weapon —
+  your two-hander while 1H+Shield is active — comes back with a category and is protected by the
+  best-in-slot branch. That the protection lives there rather than in a branch of its own is now
+  written at the site, since it isn't obvious from the six-item list.
+
+### Changed
+- **The protection *reason* now distinguishes the two.** Both were reported as `best-in-slot`, and
+  "kept: best-in-slot" on a weapon you aren't currently using reads like a mistake. It now says
+  `weapon-set member (twohander)`. The tooltip cleanup verdict shows this string verbatim, so the
+  imprecision was user-facing.
+
+### Notes
+- Same technique as last release: **a comment that names a set is a testable claim.** This is the
+  highest-stakes one in the project — it describes the only irreversible thing the addon does — so
+  it was worth checking even though it turned out to be sound.
+
 ## [0.39.1a] - 2026-08-09 — Deleting or renaming a scale refreshes the tooltips
 
 ### Fixed

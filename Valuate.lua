@@ -5452,9 +5452,26 @@ local function IsProtectedFromDelete(bag, slot, link)
         if ok and inSet then return true, "in an equipment set" end
     end
 
-    -- Best-in-slot / weapon-set member for any scale
-    if Valuate.GetBestForInfo and Valuate:GetBestForInfo(link) then
-        return true, "best-in-slot"
+    -- Best-in-slot / weapon-set member for any scale.
+    --
+    -- GetBestForInfo checks weaponKeep FIRST, so an off-set weapon - your 2H while
+    -- 1H+Shield is active, say - comes back with a `category` and is protected here.
+    -- That is what makes the "never deletes weapon-set members" promise true, and it
+    -- is worth knowing that the protection is this branch rather than one of its own.
+    --
+    -- The REASON now distinguishes them. Both are protected either way, but "kept:
+    -- best-in-slot" on a weapon you are not currently using reads like a mistake, and
+    -- the tooltip verdict shows this string verbatim.
+    if Valuate.GetBestForInfo then
+        local info = Valuate:GetBestForInfo(link)
+        if info then
+            for _, entry in ipairs(info) do
+                if entry.category then
+                    return true, "weapon-set member (" .. tostring(entry.category) .. ")"
+                end
+            end
+            return true, "best-in-slot"
+        end
     end
 
     -- Tracked future upgrade (can't use it yet, but will)
