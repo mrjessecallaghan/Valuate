@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.34.2a] - 2026-07-31 — The integrations are checked too
+
+### Added
+- **`tools/api.js` now verifies every `Valuate:X()` that the integration addons call.**
+  `Valuate-AdiBags`, `Valuate-PassLoot` and `Valuate-TSM` load separately from Valuate, so a
+  method renamed here breaks them **at loot time or on a bag repaint** — not at load, where you
+  would notice. Nothing checked this. 29 calls across the three now resolve, and renaming one
+  fails the gate with the exact method and file.
+- Guarded calls (`if Valuate.X then`) are checked as well. A defensive guard means the caller
+  degrades instead of erroring; it does not mean the name may be wrong.
+
+### Notes
+- Found by auditing `Valuate-PassLoot`, the one component untouched all session while Valuate's
+  API moved underneath it. **All ten of its calls were already correct** — no bug. The gate is
+  the deliverable, not a fix.
+- `ui/ScaleList.lua` was re-examined for the captured-scale problem that was real in the weapon-set
+  handlers. It is **not** present: its handlers capture only the scale *name* and re-read the table
+  by that name when they fire. Another negative result worth recording so it is not re-checked.
+
 ## [0.34.1a] - 2026-07-31 — ARCHITECTURE.md catches up
 
 ### Changed

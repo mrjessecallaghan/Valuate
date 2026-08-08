@@ -250,6 +250,10 @@ Three layers, and it matters which is which — a green run does not mean "this 
 `ns.*` contract), `options.js`, `api.js`, `tocsync.js`. These prove a file *loads* and its
 wiring is consistent. They cannot see behaviour.
 
+`api.js` also checks **across addons**: every `Valuate:X()` called by `Valuate-AdiBags`,
+`Valuate-PassLoot` or `Valuate-TSM` must exist. Those integrations load separately, so a method
+renamed here breaks them at loot time or on a bag repaint — not at load, where you would notice.
+
 **Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`. These
 *execute real Lua* under fengari against a mocked WoW API (`luaharness.js` — deliberately one
 mock, since two would drift into testing different imaginary clients). Every substantive bug

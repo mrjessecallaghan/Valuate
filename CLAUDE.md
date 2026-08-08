@@ -233,7 +233,7 @@ callback either reschedule or be genuinely final.
 | `tools/globals.js` | Scope analysis: undefined globals + the `ns.*` contract |
 | `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
 | `tools/options.js` | Every option is reachable from the UI or a command |
-| `tools/api.js` | Every method the selftest names actually exists |
+| `tools/api.js` | Selftest-listed methods exist; integration addons call real ones |
 | `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
 | `tools/widgettest.js` | Runs input validation and colour handling for real |
 | `tools/importtest.js` | Runs scale-tag parsing and the export/import round trip |

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Every method the selftest names actually exists
+ * @gate Selftest-listed methods exist, and integration addons call real ones
  *
  * Selftest method-list checker.
  *
@@ -79,6 +79,63 @@ if (missing.length) {
   process.exit(1);
 }
 
+/*
+ * The integration addons call INTO Valuate, and nothing checked that those calls land.
+ *
+ * Valuate-AdiBags and Valuate-PassLoot live in separate folders with their own load
+ * cycle, so a method renamed here breaks them silently - and not at load, but at loot
+ * time or on the next bag repaint, which is the worst possible moment to discover it.
+ * They are also the two least-visited parts of this project: PassLoot went a whole
+ * session untouched while Valuate's API moved underneath it.
+ *
+ * Guarded calls (`if Valuate.X then`) are checked too. A defensive guard means the
+ * caller degrades instead of erroring - it does not mean the name may be wrong.
+ */
+const ADDONS_DIR = path.resolve(ADDON_ROOT, "..");
+const INTEGRATIONS = ["Valuate-AdiBags", "Valuate-PassLoot", "Valuate-TSM"];
+
+const CALL_RE = /\bValuate[:.]([A-Za-z_]\w*)\s*\(/g;
+const crossMissing = [];
+let crossChecked = 0;
+let integrationsSeen = 0;
+
+for (const addon of INTEGRATIONS) {
+  const dir = path.join(ADDONS_DIR, addon);
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith(".lua"));
+  } catch (e) {
+    continue; // not installed here; not this gate's business
+  }
+  integrationsSeen++;
+
+  for (const file of files) {
+    const src = fs.readFileSync(path.join(dir, file), "utf8");
+    const seen = new Set();
+    let m;
+    while ((m = CALL_RE.exec(src))) {
+      const name = m[1];
+      if (seen.has(name)) continue;
+      seen.add(name);
+      crossChecked++;
+      if (!defined.has(name)) {
+        crossMissing.push(`${addon}/${file}  calls Valuate:${name}()`);
+      }
+    }
+  }
+}
+
+if (crossMissing.length) {
+  console.error("Integration addons call Valuate methods that do not exist:");
+  for (const line of crossMissing) console.error("  " + line);
+  console.error(
+    "\nThese fail at loot time or on a bag repaint, not at load. Rename the call, " +
+    "or restore the method."
+  );
+  process.exit(1);
+}
+
 console.log(
-  `OK  all ${listed.length} selftest-listed methods exist (${defined.size} defined in total).`
+  `OK  all ${listed.length} selftest-listed methods exist (${defined.size} defined in total); ` +
+  `${crossChecked} call(s) from ${integrationsSeen} integration addon(s) all resolve.`
 );
