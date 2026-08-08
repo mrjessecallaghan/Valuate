@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.33.0a] - 2026-07-31 — The stat grid is a pool at last
+
+### Fixed
+- **Clicking a scale no longer orphans ~250 UI frames.** The stat editor discarded every row
+  and rebuilt the grid on each call — ~60 stat rows plus their columns and containers — and
+  `SetParent(nil)` does not free a frame in WoW; nothing does. Clicking through ten scales cost
+  on the order of 2,500 frames, permanently, and frame count is a global UI cost rather than
+  just this addon's problem. The grid is now built once and repopulated.
+- `ui/BestEquipment.lua` was rewritten around a pool for exactly this reason back in v0.9.5a.
+  This function never got the same treatment; now it has.
+
+### Notes — why this was safe to do, having not been before
+- The layout is **scale-invariant**: it is generated from `ValuateStatCategories` and
+  `ValuateEquipmentCategories`, which are static data. Only the values differ.
+- A row captures nothing about its scale except two values — every handler on it already reads
+  `ns.EditingScaleName` when it fires. So reuse only has to re-run `row.populate`, which is the
+  same code a freshly built row runs. A reused row cannot reach a state a new one could not.
+- `UpdateBannedState` is symmetric, so a stat banned by the previous scale is cleanly un-banned
+  rather than left greyed out. Order matters there and is documented at the call: the value is
+  set *before* it, because it finishes by reading the box.
+- The weapon-set widgets were the one exception — they captured their scale table — which is why
+  **v0.32.1a had to land first**. That was a real bug in its own right.
+- **The old rebuild remains as a fallback.** Reuse is attempted only when the cached grid still
+  belongs to the current editor frame; otherwise the function falls through and rebuilds exactly
+  as before. The worst case of a stale cache is the old behaviour, not a broken editor.
+- `/valuate verify statgrid` covers it. The symptom to watch for is a row showing the *previous*
+  scale's value — which matters more than it sounds, because you might then "correct" a value
+  that was never wrong.
+
 ## [0.32.1a] - 2026-07-31 — Weapon-set toggles write to the scale you're editing
 
 ### Fixed

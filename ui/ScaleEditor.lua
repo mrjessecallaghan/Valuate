@@ -3,8 +3,10 @@
 -- boxes and ban checkboxes), the Equipment Types and Weapon Sets groups, and the
 -- import/export dialogs.
 --
--- StatWeightRows is file-local - it is the editor's own widget pool, rebuilt whenever a
--- different scale is opened. Shared state comes from the namespace
+-- StatWeightRows is file-local - it is the editor's own widget pool. Genuinely a pool
+-- since v0.33.0a: it is built once and REPOPULATED when a different scale is opened.
+-- Before that it was emptied and rebuilt, which orphaned ~250 frames per scale click,
+-- because WoW never frees a frame. Shared state comes from the namespace
 -- (ns.EditingScaleName, ns.ScaleEditorFrame, ns.ValuateUIFrame).
 --
 -- ValuateUI_UpdateScaleEditor / ValuateUI_CreateScaleFromTemplate / ValuateUI_NewScale
@@ -40,6 +42,19 @@ local Anim = ns.Anim
 -- ========================================
 
 local StatWeightRows = {}
+
+-- The built stat grid, kept between calls so showing a different scale repopulates it
+-- instead of rebuilding it. nil means "not built yet".
+--
+-- This is what makes the grid a real pool. WoW never frees a frame, and the old code
+-- discarded roughly 250 of them on every scale you clicked.
+--
+-- Reuse is only attempted when the cached grid still belongs to the CURRENT editor
+-- frame. If it does not - or if it was never cached, which is what happens on the
+-- defensive no-equipment-categories path - the function falls through and rebuilds
+-- exactly as it always did. The worst case of a stale cache is therefore the old
+-- behaviour, not a broken editor.
+local statGrid = nil
 
 -- Helper to create a stat row
 local function CreateStatRow(parent, statName, scale, yOffset)
@@ -176,23 +191,37 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         end
     end
     
-    -- Check if this stat is marked as unusable
-    local isUnusable = (scale and scale.Unusable and scale.Unusable[statName])
-    unusableCheckbox:SetChecked(isUnusable == true)
-    
-    -- Set initial visual state
-    if isUnusable then
-        UpdateBannedState(true)
-    else
-        local value = (scale and scale.Values and scale.Values[statName])
-        if value and value ~= 0 then
-            editBox:SetText(tostring(value))
+    -- Everything that depends on WHICH scale is being edited, in one place.
+    --
+    -- Separated from construction so a row can be shown for a different scale instead
+    -- of being thrown away and rebuilt. That is the whole reason the grid can be
+    -- pooled: nothing else in this row captures the scale - every other handler reads
+    -- ns.EditingScaleName when it runs.
+    --
+    -- It is called once during construction, so a freshly built row takes exactly the
+    -- same path it always did.
+    local function Populate(forScale)
+        local isUnusable = (forScale and forScale.Unusable and forScale.Unusable[statName]) == true
+        unusableCheckbox:SetChecked(isUnusable)
+
+        if isUnusable then
+            UpdateBannedState(true)   -- clears the text itself
         else
-            editBox:SetText("")
+            local value = (forScale and forScale.Values and forScale.Values[statName])
+            editBox:SetText((value and value ~= 0) and tostring(value) or "")
+            -- Text FIRST. UpdateBannedState(false) finishes by calling
+            -- ApplyWeightedLook, which reads the box - set the value afterwards and the
+            -- highlight would still be describing the previous scale's weight.
+            --
+            -- A fresh row is already un-banned so this is a no-op for it; a REUSED row
+            -- may have been banned by the scale shown before, and this is what clears
+            -- that.
+            UpdateBannedState(false)
         end
-        ApplyWeightedLook()
     end
-    
+
+    Populate(scale)
+
     -- OnClick handler for ban checkbox
     unusableCheckbox:SetScript("OnClick", function(self)
         local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
@@ -238,28 +267,69 @@ local function CreateStatRow(parent, statName, scale, yOffset)
     row.editBox = editBox
     row.unusableCheckbox = unusableCheckbox
     row.updateBannedState = UpdateBannedState
+    row.populate = Populate
+    row.statName = statName
     
     return row
 end
 
--- KNOWN LEAK, not yet fixed, and the larger of the two.
+-- Builds the stat grid once, then reuses it.
 --
--- This discards every row and rebuilds the grid on each call - roughly 250 frames for
--- ~60 stat rows plus their columns and containers. SetParent(nil) does not free a frame
--- in WoW, so each call orphans all of them permanently. Selecting ten scales in a
--- session leaks on the order of 2,500 frames, and frame count is a global UI cost, not
--- just this addon's problem.
+-- It used to discard every row and rebuild on each call - roughly 250 frames for ~60
+-- stat rows plus their columns and containers. SetParent(nil) does not free a frame in
+-- WoW, so each call orphaned all of them permanently: clicking through ten scales cost
+-- on the order of 2,500 frames, and frame count is a global UI cost rather than just
+-- this addon's problem. ui/BestEquipment.lua had already been rewritten around a pool
+-- for exactly this reason; this function had not.
 --
--- The file header calls StatWeightRows a "pool", which it is not: it is emptied and
--- refilled. ui/BestEquipment.lua solved the same problem properly - build structure
--- once, then only set content and rebind closures - and that is the shape this needs.
+-- Three facts make the reuse safe, and it would not have been without them:
 --
--- Deliberately not attempted blind: it is a ~250-line layout builder driving live UI,
--- and a botched conversion breaks the stat editor outright. Recorded here so the next
--- person to open this file knows, rather than rediscovering it.
+--   * The layout is scale-INVARIANT. It is generated from ValuateStatCategories and
+--     ValuateEquipmentCategories, which are static data.
+--   * A row captures nothing about its scale except two values. Every handler on it
+--     already reads ns.EditingScaleName when it fires, so only row.populate has to run
+--     again - and it is the same code a fresh row runs.
+--   * UpdateBannedState is symmetric, so a row banned by the previous scale can be
+--     cleanly un-banned rather than staying visually disabled.
+--
+-- The weapon-set widgets were the exception - they captured their scale table - which
+-- is why that had to be fixed (v0.32.1a) before this was possible at all.
 local function UpdateStatWeightsList(scaleName, scale)
     if not ns.ScaleEditorFrame then return end
 
+    -- ---- Fast path: the grid already exists, so show this scale in it ----------
+    --
+    -- The layout is identical for every scale: it comes entirely from
+    -- ValuateStatCategories and ValuateEquipmentCategories, which are static. Only the
+    -- VALUES differ, and each row knows how to apply them - row.populate runs the same
+    -- code a freshly built row runs, so a reused row cannot end up in a state a new one
+    -- could not.
+    if statGrid and statGrid.parent == ns.ScaleEditorFrame then
+        for _, row in ipairs(statGrid.rows) do
+            if row.populate then row.populate(scale) end
+        end
+
+        -- The weapon-set widgets are not rows and hold their own scale-dependent state.
+        -- Their click handlers already read the scale being edited (see CurrentScale
+        -- below), so only the displayed state needs refreshing.
+        for _, entry in ipairs(statGrid.weaponSetChecks) do
+            entry.cb:SetChecked(Valuate:IsWeaponSetEnabled(scale, entry.key))
+        end
+        if statGrid.activeSetButton and statGrid.activeSetDisplay then
+            statGrid.activeSetButton.label:SetText(statGrid.activeSetDisplay())
+        end
+
+        -- Heights are a function of the layout, which has not changed - so they are
+        -- reapplied from the values computed when it was built rather than recomputed.
+        ns.ScaleEditorFrame.animContainers = statGrid.animContainers
+        ns.ScaleEditorFrame:SetHeight(statGrid.editorHeight)
+        if ns.ValuateUIFrame and statGrid.windowHeight then
+            Anim.setHeight(ns.ValuateUIFrame, statGrid.windowHeight, true)
+        end
+        return
+    end
+
+    -- ---- Slow path: build it (first time, or the editor frame was replaced) -----
     -- Clear existing rows
     for _, row in pairs(StatWeightRows) do
         if row.Hide then row:Hide() end
@@ -510,6 +580,10 @@ local function UpdateStatWeightsList(scaleName, scale)
             return editing and Valuate:GetScales()[editing] or nil
         end
 
+        -- Collected so the fast path at the top can refresh their checked state
+        -- without rebuilding them.
+        local wsChecks = {}
+
         local wsCheckY = (HEADER_HEIGHT + 4) + ROW_HEIGHT + ROW_SPACING
         for idx, def in ipairs(wsDefs) do
             local cb = CreateFrame("CheckButton", nil, weaponSetsContainer)
@@ -539,6 +613,7 @@ local function UpdateStatWeightsList(scaleName, scale)
                 if Valuate.ResetTooltips then Valuate:ResetTooltips() end
             end)
             tinsert(StatWeightRows, cb)
+            tinsert(wsChecks, { cb = cb, key = def.key })
         end
 
         -- Active-set selector: click to cycle Auto -> each enabled config.
@@ -582,19 +657,35 @@ local function UpdateStatWeightsList(scaleName, scale)
                                    + ELEMENT_SPACING * 2 + weaponSetsHeight
         
         -- Update ns.ScaleEditorFrame height
+        local editorHeight = math.max(totalContentHeight, 100)
+        local windowHeight = nil
         if ns.ScaleEditorFrame then
-            ns.ScaleEditorFrame:SetHeight(math.max(totalContentHeight, 100))
-            
+            ns.ScaleEditorFrame:SetHeight(editorHeight)
+
             -- Resize main window to fit content
             if ns.ValuateUIFrame then
                 -- Calculate needed window height:
                 -- Title bar (40) + Tab bar (30) + Scale editor header (40) + Element spacing (8) + Content + Bottom padding (PADDING)
                 local neededHeight = 40 + 30 + 40 + ELEMENT_SPACING + totalContentHeight + PADDING
-                local windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
+                windowHeight = math.max(MIN_WINDOW_HEIGHT, math.min(MAX_WINDOW_HEIGHT, neededHeight))
                 Anim.setHeight(ns.ValuateUIFrame, windowHeight, true)
             end
         end
-        
+
+        -- Cache what was just built, so the next scale reuses it. Recorded only on this
+        -- path: it is the one that builds the complete grid, and caching a partial one
+        -- would be worse than not caching at all.
+        statGrid = {
+            parent = ns.ScaleEditorFrame,
+            rows = StatWeightRows,
+            weaponSetChecks = wsChecks,
+            activeSetButton = wsActiveButton,
+            activeSetDisplay = activeSetDisplay,
+            animContainers = ns.ScaleEditorFrame and ns.ScaleEditorFrame.animContainers or nil,
+            editorHeight = editorHeight,
+            windowHeight = windowHeight,
+        }
+
         return -- Exit early since we've handled equipment types
     end
     

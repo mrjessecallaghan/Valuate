@@ -6770,6 +6770,13 @@ local VERIFY_CHECKS = {
         broke = "New in this version - never run.",
     },
     {
+        id = "statgrid", since = "0.33.0a",
+        title = "The stat editor shows the right values after switching scales",
+        steps = "Open Scales. Click between two scales with clearly different weights several times. Ban a stat on one, switch away, switch back. Then import or load a scale over the one you are editing and toggle a weapon set.",
+        expect = "Every value, ban checkbox and weapon-set tick matches the scale you selected - no leftovers from the previous one, and no row stuck greyed out.",
+        broke = "The grid is now built once and repopulated rather than rebuilt, which stopped it orphaning ~250 frames per click. If reuse missed anything, the symptom is a row showing the PREVIOUS scale - which matters, because you might then correct a value that was never wrong.",
+    },
+    {
         id = "search", since = "0.29.0a",
         title = "Settings search dims everything except what you typed",
         steps = "Open Settings and type 'junk' in the search box at the top. Then clear it, and press Escape with text in the box.",
