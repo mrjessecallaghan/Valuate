@@ -495,6 +495,21 @@ local function UpdateStatWeightsList(scaleName, scale)
         wsDesc:SetTextColor(unpack(COLORS.textDim))
 
         local wsDefs = Valuate:GetWeaponSetDefinitions()
+        -- The handlers below must read the CURRENT scale, not the one that was passed
+        -- in when they were built.
+        --
+        -- CommitValue further up this file already does exactly this, and says why:
+        -- importing a scale tag or loading one from the library REPLACES the scale
+        -- table wholesale (scales[name] = newData). A captured reference then points at
+        -- an orphan, so toggling a weapon set writes to a table nothing reads - the
+        -- checkbox moves, the setting does not stick, and nothing errors.
+        --
+        -- Same reasoning, four functions apart; these had not been given it.
+        local function CurrentScale()
+            local editing = ns.EditingScaleName
+            return editing and Valuate:GetScales()[editing] or nil
+        end
+
         local wsCheckY = (HEADER_HEIGHT + 4) + ROW_HEIGHT + ROW_SPACING
         for idx, def in ipairs(wsDefs) do
             local cb = CreateFrame("CheckButton", nil, weaponSetsContainer)
@@ -511,12 +526,14 @@ local function UpdateStatWeightsList(scaleName, scale)
             cbLabel:SetTextColor(unpack(COLORS.textBody))
             cb:SetScript("OnClick", function(self)
                 local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-                if not scale.WeaponSets then
+                local cur = CurrentScale()
+                if not cur then return end
+                if not cur.WeaponSets then
                     -- Materialize the implicit "all enabled" default before editing.
-                    scale.WeaponSets = {}
-                    for _, d in ipairs(wsDefs) do scale.WeaponSets[d.key] = true end
+                    cur.WeaponSets = {}
+                    for _, d in ipairs(wsDefs) do cur.WeaponSets[d.key] = true end
                 end
-                scale.WeaponSets[def.key] = checked or nil
+                cur.WeaponSets[def.key] = checked or nil
                 Valuate:ScanBestEquipment()
                 if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end
                 if Valuate.ResetTooltips then Valuate:ResetTooltips() end
@@ -526,7 +543,8 @@ local function UpdateStatWeightsList(scaleName, scale)
 
         -- Active-set selector: click to cycle Auto -> each enabled config.
         local function activeSetDisplay()
-            local key = scale.ActiveWeaponSet
+            local cur = CurrentScale()
+            local key = cur and cur.ActiveWeaponSet
             if not key or key == "auto" then return "Auto (equipped / highest)" end
             for _, d in ipairs(wsDefs) do if d.key == key then return d.label end end
             return "Auto (equipped / highest)"
@@ -539,14 +557,16 @@ local function UpdateStatWeightsList(scaleName, scale)
         local wsActiveButton = CreateStyledButton(weaponSetsContainer, activeSetDisplay(), 200, 20)
         wsActiveButton:SetPoint("LEFT", wsActiveLabel, "RIGHT", 8, 0)
         wsActiveButton:SetScript("OnClick", function(self)
+            local editScale = CurrentScale()
+            if not editScale then return end
             local order = { "auto" }
             for _, d in ipairs(wsDefs) do
-                if Valuate:IsWeaponSetEnabled(scale, d.key) then tinsert(order, d.key) end
+                if Valuate:IsWeaponSetEnabled(editScale, d.key) then tinsert(order, d.key) end
             end
-            local cur = scale.ActiveWeaponSet or "auto"
+            local cur = editScale.ActiveWeaponSet or "auto"
             local curIdx = 1
             for i, k in ipairs(order) do if k == cur then curIdx = i break end end
-            scale.ActiveWeaponSet = order[(curIdx % #order) + 1]
+            editScale.ActiveWeaponSet = order[(curIdx % #order) + 1]
             self.label:SetText(activeSetDisplay())
             Valuate:ScanBestEquipment()
             if Valuate.RefreshBestEquipmentDisplay then Valuate:RefreshBestEquipmentDisplay() end

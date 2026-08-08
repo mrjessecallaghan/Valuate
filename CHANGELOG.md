@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.32.1a] - 2026-07-31 — Weapon-set toggles write to the scale you're editing
+
+### Fixed
+- **A weapon-set toggle could silently do nothing.** The Weapon Sets checkboxes and the active-set
+  button captured the scale table they were built with. Importing a scale tag, or loading one from
+  the library, **replaces that table wholesale** (`scales[name] = newData`) — so after either, the
+  captured reference pointed at an orphan. Clicking a weapon-set checkbox moved the checkbox and
+  wrote the setting to a table nothing reads. No error, no visible sign, setting lost.
+- All four handlers now read the current scale via `ns.EditingScaleName` at click time, and bail if
+  there isn't one.
+
+### Notes
+- `CommitValue`, four functions up in the same file, already did exactly this and carries a comment
+  giving this reason. Same file, same problem, the principle applied to one and not the other — the
+  fourth time that pattern has produced a real bug in as many releases.
+- This is also the prerequisite for pooling the stat grid: handlers that read the current scale can
+  be reused across scales, which ones capturing a table cannot. The pooling itself is still
+  outstanding (~250 frames orphaned per scale you click) and remains documented at the function.
+
 ## [0.32.0a] - 2026-07-31 — Dragging the colour wheel stops leaking frames
 
 ### Fixed
