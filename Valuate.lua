@@ -4173,8 +4173,20 @@ function Valuate:AnnounceUnlockedUpgrades(newLevel)
 
     -- Let the level actually apply before rescanning; PLAYER_LEVEL_UP fires before
     -- UnitLevel reports the new value on some 3.3.5 clients.
-    ValuateAfter(2, function()
-        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    --
+    -- `attempt` exists because ScanBestEquipment REFUSES while an equipment swap is in
+    -- flight, returning false. The first version ignored that return, so dinging in the
+    -- middle of a swap meant the scan was declined, the future list was unchanged, and
+    -- the announcement vanished - silently, at exactly the moment it was wanted.
+    -- Bounded at three tries: if gear is still moving six seconds later, the next
+    -- ordinary scan will fold the items in anyway, and it is not worth a timer that
+    -- outlives the moment.
+    local function attempt(triesLeft)
+        local scanned = Valuate.ScanBestEquipment and Valuate:ScanBestEquipment()
+        if not scanned and triesLeft > 0 then
+            ValuateAfter(3, function() attempt(triesLeft - 1) end)
+            return
+        end
 
         local stillFuture = {}
         local after = Valuate:GetBestEquipment()
@@ -4204,7 +4216,9 @@ function Valuate:AnnounceUnlockedUpgrades(newLevel)
             print(string.format("  |cFFAAAAAA...and %d more.|r", #unlocked - 5))
         end
         print("  |cFFAAAAAA/valuate equip|r equips the best set, or check Best Equipment.")
-    end)
+    end
+
+    ValuateAfter(2, function() attempt(3) end)
 end
 
 -- Checks if the player owns an item (equipped or in bags)

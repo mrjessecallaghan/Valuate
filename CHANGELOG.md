@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.5a] - 2026-08-09 — Levelling mid-swap no longer loses the announcement
+
+### Fixed
+- **The level-up notice could vanish silently.** `ScanBestEquipment` *refuses* while an equipment
+  swap is in flight and returns `false`; the level-up code ignored that return. Ding while gear is
+  moving and the scan was declined, the future list was unchanged, and the announcement
+  disappeared — at exactly the moment it was wanted. It now retries, up to three times at three
+  seconds apart.
+
+### Notes
+- The self-audit that found this started from a different worry: that calling `ScanBestEquipment`
+  directly might bypass the in-transit guards, which are a standing "never touch" in this project.
+  **It doesn't** — the function guards itself rather than relying on `ScheduleScan`, so the direct
+  call was always safe. The bug was the opposite of the one I went looking for: not that the guard
+  would fail to fire, but that I never noticed when it did.
+- Bounded on purpose. If gear is still moving nine seconds later, the next ordinary scan folds the
+  items in anyway, and a timer that outlives the moment is worse than a missed message.
+- Retry shape proven through the harness, including permanent refusal — it stops after the
+  allowance and falls through silently rather than looping.
+
 ## [0.38.4a] - 2026-08-09 — The new notices honour "chat messages" like everything else
 
 ### Fixed
