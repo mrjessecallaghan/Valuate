@@ -6442,7 +6442,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
-        print("  /valuate rollcheck [itemlink] - Explain what auto-roll would do with an item")
+        print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
@@ -6456,7 +6456,14 @@ SlashCmdList["VALUATE"] = function(msg)
     elseif command == "pulse" then
         -- Preview the minimap upgrade-pulse animation.
         if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
-    elseif strsub(command, 1, 9) == "rollcheck" then
+    elseif strsub(command, 1, 3) == "why" or strsub(command, 1, 9) == "rollcheck" then
+        -- "why" is the honest name now that this explains arrows and junk as well as
+        -- rolls; "rollcheck" stays because it is already documented and in muscle
+        -- memory. Both take the item link at the same offset, since "why " and
+        -- "rollcheck " differ in length - normalise before parsing.
+        if strsub(command, 1, 3) == "why" then
+            command = "rollcheck " .. strtrim(strsub(command, 5) or "")
+        end
         -- Explains, step by step, what auto-roll would decide for an item and why.
         -- Written because "it greeded on a recipe I can learn" has several possible
         -- causes that look identical from outside: the profession list couldn't be
@@ -6518,6 +6525,37 @@ SlashCmdList["VALUATE"] = function(msg)
                     end
                 else
                     print("  Not a recipe or trade good; only gear upgrades roll Need.")
+                end
+
+                -- Upgrade arrows were the one automated decision with no way to ask
+                -- "why not?" - and since they became spec-only and cached, there are
+                -- several answers that look identical from the outside.
+                print("  |cFFAAAAAA-- upgrade arrow --|r")
+                if not options.showUpgradeArrows then
+                    print("  |cFFFF8800Arrows are off|r in Settings.")
+                else
+                    local _, primaryName = Valuate:GetPrimaryScale()
+                    if not primaryName then
+                        print("  |cFFFF8800No active scale|r, so nothing can be an upgrade.")
+                    else
+                        local isUp, delta = Valuate:IsItemLinkUpgrade(itemLink)
+                        if isUp then
+                            print(string.format("  |cFF00FF00Arrow shown|r - +%.1f for %s.",
+                                delta or 0, primaryName))
+                        else
+                            print(string.format("  |cFFFF8800No arrow|r - not an upgrade for %s (your current spec).",
+                                primaryName))
+                            print("  |cFFAAAAAAArrows follow the CURRENT spec only; it may still be an upgrade for another scale.|r")
+                        end
+                    end
+                end
+
+                -- And whether the bag integrations would act on it.
+                if Valuate.IsItemJunk then
+                    local id = GetItemIdFromLink(itemLink)
+                    if id and Valuate:IsItemJunk(id) then
+                        print("  |cFFFF8800Classed as JUNK|r - auto-sell and auto-delete can act on it.")
+                    end
                 end
             end
         end

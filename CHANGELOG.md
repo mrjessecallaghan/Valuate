@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.20.4a] - 2026-07-31 — Ask why about any item
+
+### Added
+- **`/valuate why [itemlink]`** explains everything Valuate thinks of an item: whether it would
+  roll Need and why, whether it gets a **green arrow** and why not, and whether it is classed as
+  junk (so auto-sell and auto-delete could act on it).
+- **Upgrade arrows were the one automated decision with no diagnostic.** Since they became
+  spec-only and cached, "no arrow" has several possible causes that look identical — arrows off,
+  no active scale, or simply not an upgrade for the spec you are currently on.
+- `/valuate rollcheck` still works; `why` is just the honest name now that it covers more than
+  rolls.
+
 ## [0.20.3a] - 2026-07-31 — The minimap button tells you something
 
 ### Added
