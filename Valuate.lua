@@ -728,6 +728,65 @@ function Valuate:RestoreDefaultOptions()
     return changed
 end
 
+-- ============================================================================
+-- Settings snapshot (shared across characters)
+-- ============================================================================
+-- The scale library solved "set it up again on every alt" for scales; 48 options
+-- have exactly the same problem and nothing solved it. This is one account-wide
+-- snapshot you can save on a configured character and apply to any other.
+--
+-- Three options are NEVER copied, because they describe the character rather than
+-- your preferences:
+local SNAPSHOT_EXCLUDED = {
+    -- Where you dragged the window; screen-specific, and not what "settings" means.
+    uiPosition = true,
+    -- Which professions this character has. Copying a blacksmith's overrides onto a
+    -- tailor would make auto-roll Need recipes they can never learn - and quietly.
+    professionOverrides = true,
+    -- Names a scale that may not exist on the target character.
+    characterWindowScale = true,
+}
+
+function Valuate:SaveSettingsSnapshot()
+    local snapshot, count = {}, 0
+    for key, value in pairs(Valuate:GetOptions()) do
+        -- Only plain values: the excluded keys cover the tables, and copying a table
+        -- by reference would alias two characters' settings to the same object.
+        if not SNAPSHOT_EXCLUDED[key] and type(value) ~= "table" then
+            snapshot[key] = value
+            count = count + 1
+        end
+    end
+    ValuateSettingsSnapshot = snapshot
+    return count
+end
+
+function Valuate:LoadSettingsSnapshot()
+    local snapshot = ValuateSettingsSnapshot
+    if type(snapshot) ~= "table" or not next(snapshot) then
+        return false, "no settings have been saved yet"
+    end
+
+    local options = Valuate:GetOptions()
+    local applied = 0
+    for key, value in pairs(snapshot) do
+        -- Only keys that are still real options, so a snapshot taken before an
+        -- option was renamed can't reintroduce a dead key.
+        if DEFAULT_OPTIONS[key] ~= nil and not SNAPSHOT_EXCLUDED[key] then
+            options[key] = value
+            applied = applied + 1
+        end
+    end
+
+    if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+    if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    return true, applied
+end
+
+function Valuate:HasSettingsSnapshot()
+    return type(ValuateSettingsSnapshot) == "table" and next(ValuateSettingsSnapshot) ~= nil
+end
+
 -- Get character-specific scales table
 function Valuate:GetScales()
     if not ValuateScales then
@@ -6444,6 +6503,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
+        print("  /valuate settings save|load - Copy your settings to your other characters")
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
@@ -6730,6 +6790,29 @@ SlashCmdList["VALUATE"] = function(msg)
             print("|cFFFF0000Valuate|r: No active scale - activate one first.")
         else
             Valuate:EquipBestSet(scaleName)
+        end
+    elseif strsub(command, 1, 8) == "settings" then
+        -- /valuate settings [save|load]
+        local verb = strtrim(strsub(command, 10) or "")
+        if verb == "save" then
+            local n = Valuate:SaveSettingsSnapshot()
+            print(string.format("|cFF00FF00Valuate|r: Saved %d setting(s) for use on your other characters.", n))
+            print("  |cFFAAAAAANot copied: window position, this character's professions, and the character-window scale.|r")
+        elseif verb == "load" then
+            local ok, result = Valuate:LoadSettingsSnapshot()
+            if ok then
+                print(string.format("|cFF00FF00Valuate|r: Applied %d saved setting(s) to this character.", result))
+                print("  |cFFAAAAAAReopen the Valuate window to see the updated controls.|r")
+            else
+                print("|cFFFF0000Valuate|r: " .. tostring(result) .. " - run /valuate settings save on a configured character first.")
+            end
+        else
+            print("|cFF00FF00[Valuate]|r Settings snapshot |cFFAAAAAA(shared by all your characters)|r")
+            if Valuate:HasSettingsSnapshot() then
+                print("  A snapshot exists. |cFFFFFFFF/valuate settings load|r applies it here.")
+            else
+                print("  |cFFAAAAAANone saved.|r Use |cFFFFFFFF/valuate settings save|r on a character you've configured.")
+            end
         end
     elseif strsub(command, 1, 7) == "library" then
         -- /valuate library [save|load|delete] <name>

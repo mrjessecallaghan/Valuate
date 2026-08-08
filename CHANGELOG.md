@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.21.0a] - 2026-07-31 — Copy your settings to your other characters
+
+### Added
+- **`/valuate settings save` and `/valuate settings load`.** The scale library solved "set it up
+  again on every alt" for scales; 48 options had the same problem and nothing solved it. Save a
+  snapshot on a configured character, apply it anywhere.
+- **Three things are deliberately never copied**, because they describe the character rather
+  than your preferences: the window position, this character's professions, and the
+  character-window scale (which names a scale the target may not have).
+
 ## [0.20.4a] - 2026-07-31 — Ask why about any item
 
 ### Added
