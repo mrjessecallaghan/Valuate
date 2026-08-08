@@ -119,6 +119,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 > name (`afterFrame`, `existingHeader`) rather than suppressing the rule — it is
 > still catching the real case everywhere else.
 | `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
+| `pairs-list-needs-sort` | a list built in a `pairs()` loop and returned unsorted | §7 |
 | `no-bank-in-destructive-path` | bank-cache reads inside delete/sell/free-slot code | §8 |
 | `raw-onupdate-needs-reason` | any `SetScript("OnUpdate"` without a written justification | §9 |
 
@@ -280,6 +281,26 @@ once, content updated per refresh). WoW never frees `CreateFrame` widgets, so re
 rows each refresh leaks them — don't "simplify" that away.
 
 See `ARCHITECTURE.md` for the data model and event flow.
+
+### §10 — A list built from `pairs()` has no order until you give it one
+
+`pairs()` order is **undefined**. A function that builds a list inside a `pairs()` loop and
+returns it is returning an arbitrary order, and every caller that indexes `[1]`, renders it in
+sequence, or takes a "first" inherits that. It looks perfectly stable until a reload.
+
+`Valuate:GetActiveScales` did exactly this. Its order decided the **Best Equipment column
+layout**, and `GetPrimaryScale` took element `[1]` as its fallback — so which scale drove the
+**upgrade arrows**, the **character-sheet score** and the **auto-roll baseline** was whichever
+one Lua happened to hand over first.
+
+`sort-needs-tiebreaker` (§7) covers the half that already calls `table.sort`.
+`pairs-list-needs-sort` covers the half that never sorts at all. Between them, seven instances
+of this one bug class.
+
+Sort before returning, with a unique tiebreaker — and if a caller reads only one element,
+consider finding it directly instead: `GetPrimaryScale` now scans for its minimum rather than
+building and sorting a list to read `[1]`, which is both deterministic and free of the
+per-item-per-repaint allocation it used to cost.
 
 ### §9 — A raw `OnUpdate` must be a decision, not a habit
 

@@ -3014,7 +3014,23 @@ function Valuate:GetActiveScales()
             tinsert(active, scaleName)
         end
     end
-    
+
+    -- SORTED, because pairs() order is undefined and a dozen callers treat this list as
+    -- if it had one. The Best Equipment tab lays its columns out in this order, so the
+    -- scales could appear left-to-right differently after a reload; GetPrimaryScale
+    -- took element [1] as its fallback, so which scale drove the upgrade arrows, the
+    -- character-sheet score and the auto-roll baseline was likewise arbitrary.
+    --
+    -- Ordered by DISPLAY name so the columns match the scale list beside them, with the
+    -- key as a tiebreaker: two scales may share a display name, and without a unique
+    -- second key table.sort (which is not stable) would put them in either order.
+    table.sort(active, function(a, b)
+        local da = (scales[a].DisplayName or a)
+        local db = (scales[b].DisplayName or b)
+        if da ~= db then return da < db end
+        return a < b
+    end)
+
     return active
 end
 
@@ -4568,27 +4584,48 @@ end
 -- Determines which scale drives automatic decisions (currently quest rewards).
 -- Prefers the character-window scale if it is active, otherwise the first
 -- active scale. Returns scaleData, scaleName - or nil if no scale is active.
+-- Deliberately does NOT go through GetActiveScales, for two reasons.
+--
+-- Correctness: that list used to be built in pairs() order, so "the first active
+-- scale" was whichever one Lua happened to hand over first. This is the answer that
+-- decides which scale drives the upgrade arrows, the character-sheet score and the
+-- auto-roll baseline, so it must not vary between reloads. GetActiveScales is sorted
+-- now, but picking the minimum directly says what is meant rather than depending on
+-- somebody else's ordering staying put.
+--
+-- Cost: this is called for EVERY item icon on EVERY bag repaint, from the top of
+-- IsItemLinkUpgrade, before its cache is even consulted - so the cache never saved
+-- this part. Building and sorting a list to read one element from it, a hundred times
+-- per repaint, is pure garbage for the collector to deal with mid-combat. Scanning for
+-- the minimum allocates nothing.
 function Valuate:GetPrimaryScale()
-    local activeScales = Valuate:GetActiveScales()
-    if #activeScales == 0 then
-        return nil, nil
+    local scales = Valuate:GetScales()
+    if not scales then return nil, nil end
+
+    -- The explicitly-chosen scale wins, provided it is actually active.
+    local preferred = Valuate:GetOptions().characterWindowScale
+    if preferred and preferred ~= "" then
+        local chosen = scales[preferred]
+        if chosen and chosen.Values and chosen.Visible ~= false then
+            return chosen, preferred
+        end
     end
 
-    local scales = Valuate:GetScales()
-    local preferred = Valuate:GetOptions().characterWindowScale
-
-    -- Use the explicitly-selected character window scale when it is active
-    if preferred and preferred ~= "" then
-        for _, name in ipairs(activeScales) do
-            if name == preferred then
-                return scales[name], name
+    -- Otherwise the first active scale in the same order GetActiveScales uses, found
+    -- without building the list.
+    local bestName, bestDisplay
+    for name, data in pairs(scales) do
+        if data.Values and data.Visible ~= false then
+            local display = data.DisplayName or name
+            if not bestName or display < bestDisplay
+               or (display == bestDisplay and name < bestName) then
+                bestName, bestDisplay = name, display
             end
         end
     end
 
-    -- Otherwise fall back to the first active scale
-    local firstName = activeScales[1]
-    return scales[firstName], firstName
+    if not bestName then return nil, nil end
+    return scales[bestName], bestName
 end
 
 -- Scores a single quest reward choice for the given scale.
@@ -6220,6 +6257,29 @@ function Valuate:RunSelfTest()
     -- Data structures well-formed.
     check(type(Valuate:GetScales()) == "table", "GetScales structure")
     check(type(Valuate:GetActiveScales()) == "table", "GetActiveScales structure")
+
+    -- GetPrimaryScale finds the first active scale WITHOUT building the sorted list,
+    -- because it runs for every item icon on every bag repaint. Two orderings written
+    -- separately is exactly how they drift, and the symptom would be quiet: arrows
+    -- following one scale while the Best Equipment columns lead with another.
+    --
+    -- Only meaningful when no explicit character-window scale is in force; that path
+    -- is an override, so disagreeing with the list order there is correct.
+    do
+        local activeList = Valuate:GetActiveScales()
+        local preferred = Valuate:GetOptions().characterWindowScale
+        local preferredActive = false
+        for _, n in ipairs(activeList) do
+            if n == preferred then preferredActive = true break end
+        end
+        if #activeList > 0 and not preferredActive then
+            local _, primaryName = Valuate:GetPrimaryScale()
+            check(primaryName == activeList[1], "primary scale matches the active-scale order",
+                  primaryName ~= activeList[1]
+                      and ("primary is " .. tostring(primaryName) ..
+                           " but the list leads with " .. tostring(activeList[1])) or nil)
+        end
+    end
     check(type(Valuate:GetBestEquipment()) == "table", "GetBestEquipment structure")
 
     -- Bank snapshot: well-formed, and consistent with what the panel claims.

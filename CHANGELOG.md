@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.31.0a] - 2026-07-31 — Which scale is your primary, deterministically
+
+### Fixed
+- **Your scales could change order between reloads, and so could which one Valuate treats as
+  primary.** `Valuate:GetActiveScales` built its list with `pairs()`, whose order is undefined,
+  and never sorted it. Twelve callers treat that list as if it had an order — the **Best
+  Equipment tab lays its columns out in it**, and `GetPrimaryScale` took element `[1]` as its
+  fallback, which decides which scale drives the **upgrade arrows**, the **character-sheet
+  score** and the **auto-roll baseline**. It's now sorted by display name (matching the scale
+  list beside it) with the scale key as a tiebreaker.
+- **`GetPrimaryScale` no longer builds a list to read one element from it.** It ran for every
+  item icon on every bag repaint — from the top of `IsItemLinkUpgrade`, *before* that function's
+  cache was consulted, so the cache never saved this part. A hundred icons meant a hundred table
+  allocations and sorts per repaint, purely to answer a question whose answer changes only when
+  you toggle a scale. It now scans for the minimum directly and allocates nothing.
+
+### Added
+- **Lint rule `pairs-list-needs-sort`** (10th rule, and the first that works on the AST rather
+  than a single line). It flags a function that appends to a list inside a `pairs()` loop and
+  returns it unsorted. `sort-needs-tiebreaker` covered the half that already calls `table.sort`;
+  this covers the half that never sorts at all. Between them: seven instances of this one bug
+  class. It fires on nothing in the codebase today, and on `GetActiveScales` the moment its sort
+  is removed.
+- A self-test assertion that `GetPrimaryScale()` agrees with `GetActiveScales()[1]`. The two now
+  implement the same ordering separately, which is precisely how orderings drift — and the
+  symptom would be quiet: arrows following one scale while the columns lead with another.
+
+### Changed
+- `check.js` reported `RULES.length + 3` rules — a magic number needing to be remembered every
+  time a structural rule was added, and silently under-reporting when it wasn't. The four
+  non-array rules are now named in one list, so the count is derived and the list doubles as
+  their only index.
+
 ## [0.30.0a] - 2026-07-31 — The gates run themselves
 
 ### Added

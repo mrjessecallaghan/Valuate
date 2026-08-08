@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 9 lint rules
+ * @gate Lua syntax + 10 lint rules
  *
  * Valuate syntax + lint gate.
  *
@@ -105,6 +105,22 @@ const RULES = [
   },
 ];
 
+/*
+ * Rules implemented OUTSIDE the RULES array, because one line of context is not enough
+ * for them - they need the AST, or a whole file of accumulated state.
+ *
+ * Named rather than counted. This was "RULES.length + 3", a magic number that had to be
+ * remembered every time a structural rule was added and which silently under-reported
+ * the moment it was not. Listing them makes the reported count derived, and doubles as
+ * the only index of what these rules are.
+ */
+const STRUCTURAL_RULES = [
+  "settings-anchor-chain",
+  "sort-needs-tiebreaker",
+  "no-bank-in-destructive-path",
+  "pairs-list-needs-sort",
+];
+
 // Rules that are allowed to match inside the shared helper / rule definitions
 // themselves. Keyed by rule name -> regex describing an exempt context line.
 // An ignore directive may sit on the offending line or on the line directly above it
@@ -154,8 +170,9 @@ for (const file of files) {
   }
 
   // --- 1. Syntax ---
+  let ast = null;
   try {
-    luaparse.parse(src, { luaVersion: "5.1" });
+    ast = luaparse.parse(src, { luaVersion: "5.1", locations: true });
   } catch (e) {
     const loc = e.line ? `:${e.line}:${e.column || 0}` : "";
     console.error(`FAIL   ${rel}${loc}  ${e.message}`);
@@ -166,6 +183,85 @@ for (const file of files) {
   // --- 2. Lint ---
   const lines = src.split(/\r?\n/);
   const anchorTargets = new Map(); // settings-anchor-chain
+
+  /*
+   * --- pairs-list-needs-sort (AST, not line-based) -----------------------------
+   *
+   * A function that builds a LIST inside a pairs() loop and then returns it is
+   * returning an arbitrary order, because pairs() has none. Every caller that indexes
+   * [1], renders the list in order, or picks a "first" is then arbitrary too - and it
+   * looks completely stable right up until a reload, a scale rename, or a different
+   * machine.
+   *
+   * This is the most persistent bug class in the project: six unstable table.sort
+   * comparators, then Valuate:GetActiveScales, which built the active-scale list this
+   * way. Its order decided the Best Equipment column layout AND, through
+   * GetPrimaryScale taking element [1], which scale drove the upgrade arrows, the
+   * character-sheet score and the auto-roll baseline.
+   *
+   * sort-needs-tiebreaker catches only the half that already calls table.sort. This
+   * catches the half that never sorts at all.
+   *
+   * Narrow on purpose: it needs an ARRAY APPEND (tinsert / table.insert) inside a
+   * pairs() loop, and the same local returned. Populating a keyed table is a set, where
+   * order is meaningless, and is not flagged. Across the whole addon it currently fires
+   * on nothing, and fires on GetActiveScales the moment its sort is removed.
+   */
+  if (ast) {
+    const walk = (node, visit) => {
+      if (!node || typeof node !== "object") return;
+      visit(node);
+      for (const k of Object.keys(node)) {
+        if (k === "loc") continue;
+        const v = node[k];
+        if (Array.isArray(v)) v.forEach((n) => walk(n, visit));
+        else if (v && typeof v === "object") walk(v, visit);
+      }
+    };
+    const isInsertCall = (n) =>
+      n.type === "CallExpression" && n.base &&
+      (n.base.name === "tinsert" ||
+        (n.base.type === "MemberExpression" && n.base.identifier &&
+          n.base.identifier.name === "insert"));
+
+    walk(ast, (fn) => {
+      if (fn.type !== "FunctionDeclaration") return;
+      const appended = new Set(), sorted = new Set(), returned = new Set();
+
+      walk(fn, (n) => {
+        if (n.type === "ForGenericStatement") {
+          const it = (n.iterators || [])[0];
+          if (it && it.type === "CallExpression" && it.base && it.base.name === "pairs") {
+            walk(n.body, (b) => {
+              if (isInsertCall(b)) {
+                const t = (b.arguments || [])[0];
+                if (t && t.type === "Identifier") appended.add(t.name);
+              }
+            });
+          }
+        }
+        if (n.type === "CallExpression" && n.base && n.base.type === "MemberExpression" &&
+            n.base.identifier && n.base.identifier.name === "sort") {
+          const t = (n.arguments || [])[0];
+          if (t && t.type === "Identifier") sorted.add(t.name);
+        }
+        if (n.type === "ReturnStatement") {
+          for (const a of n.arguments || []) if (a.type === "Identifier") returned.add(a.name);
+        }
+      });
+
+      for (const name of appended) {
+        if (!returned.has(name) || sorted.has(name)) continue;
+        const lineNo = (fn.loc && fn.loc.start.line) || 0;
+        if (isIgnored(lines[lineNo - 1] || "", lines[lineNo - 2] || "", "pairs-list-needs-sort")) continue;
+        console.error(
+          `LINT   ${rel}:${lineNo}  [pairs-list-needs-sort] Builds '${name}' from pairs() and returns it, so its order is arbitrary - every caller that indexes it, renders it in order, or takes a "first" inherits that. Sort before returning.`
+        );
+        console.error(`         ${(lines[lineNo - 1] || "").trim()}`);
+        lintFailures++;
+      }
+    });
+  }
 
   lines.forEach((line, i) => {
     const lineNo = i + 1;
@@ -293,5 +389,5 @@ if (parseFailures || lintFailures) {
   process.exit(1);
 }
 console.log(
-  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + 3} lint rules passed.`
+  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + STRUCTURAL_RULES.length} lint rules passed.`
 );
