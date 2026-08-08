@@ -133,6 +133,52 @@ local function CreateMinimapButton()
         self.vText:SetTextColor(unpack(BUTTON_COLORS.accent))  -- Blue accent on hover
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("|cFF00FF00Valuate|r", 1, 1, 1)
+
+        -- Status, not just controls. The three things worth knowing - which spec is
+        -- active, what your gear scores, and whether anything is waiting - were all
+        -- a window-open away, which is a poor trade for a glance.
+        --
+        -- Everything is guarded and pcall'd: this is a hover handler, so an error
+        -- here fires on every pass of the mouse and would be miserable.
+        local ok = pcall(function()
+            local scale, scaleName = Valuate:GetPrimaryScale()
+            if not scale then
+                GameTooltip:AddLine("No active scale", 1, 0.5, 0.3)
+                return
+            end
+
+            local label = scale.DisplayName or scaleName
+            local colour = scale.Color or "FFFFFF"
+            local decimals = Valuate:GetOptions().decimalPlaces or 1
+            local fmt = "%." .. decimals .. "f"
+
+            local total = Valuate.CalculateTotalEquippedScore
+                and Valuate:CalculateTotalEquippedScore(scale) or nil
+            if total then
+                GameTooltip:AddDoubleLine("|cFF" .. colour .. label .. "|r",
+                    string.format(fmt, total), 1, 1, 1, 1, 1, 1)
+            else
+                GameTooltip:AddLine("|cFF" .. colour .. label .. "|r", 1, 1, 1)
+            end
+
+            if Valuate.CountEquippableUpgrades then
+                local count, _, bankCount = Valuate:CountEquippableUpgrades(scaleName)
+                if count > 0 then
+                    GameTooltip:AddLine(string.format("|cFF00FF00%d upgrade%s in your bags|r",
+                        count, count == 1 and "" or "s"), 1, 1, 1)
+                elseif (bankCount or 0) == 0 then
+                    GameTooltip:AddLine("|cFF888888Wearing your best|r", 1, 1, 1)
+                end
+                if (bankCount or 0) > 0 then
+                    GameTooltip:AddLine(string.format("|cFFFF8800%d in your bank|r", bankCount), 1, 1, 1)
+                end
+            end
+        end)
+        if not ok then
+            GameTooltip:AddLine("|cFFFF8800Status unavailable|r", 1, 1, 1)
+        end
+
+        GameTooltip:AddLine(" ")
         GameTooltip:AddLine("Click to open Valuate UI", 0.85, 0.85, 0.85)
         GameTooltip:AddLine("Drag to move", 0.5, 0.5, 0.5)
         GameTooltip:Show()

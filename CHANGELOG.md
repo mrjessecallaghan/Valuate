@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.20.3a] - 2026-07-31 — The minimap button tells you something
+
+### Added
+- **The minimap tooltip now shows status**: your current spec and its colour, what your gear
+  scores, and how many upgrades are waiting — including any sitting in your bank. It previously
+  only said "Click to open" and "Drag to move".
+- All of it is guarded, so if anything cannot be worked out the tooltip says "Status
+  unavailable" rather than erroring on every pass of your mouse.
+
 ## [0.20.2a] - 2026-07-31 — Warn when PassLoot is rolling too
 
 ### Added
