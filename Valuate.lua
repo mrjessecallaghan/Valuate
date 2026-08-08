@@ -5080,6 +5080,60 @@ function Valuate:GetEquippedStatTotals()
     return totals, slotsRead
 end
 
+-- Cached equipped totals, for callers on a hover path.
+--
+-- GetEquippedStatTotals reads seventeen slots through the private tooltip, which is what
+-- a scan costs and far too much to repeat every time the mouse crosses a row. The totals
+-- only change when you change gear, so a short TTL is enough - and it is a TTL rather than
+-- event invalidation deliberately: hooking PLAYER_EQUIPMENT_CHANGED would mean editing the
+-- handler that carries the in-transit scan guards, which is the one place in this addon
+-- not worth touching for a tooltip.
+--
+-- Five seconds. Long enough that hovering along a column of sixty stat rows costs one
+-- scan, short enough that gear you just equipped is reflected by the time you look.
+local statTotalsCache, statTotalsAt, statTotalsSlots = nil, 0, 0
+local STAT_TOTALS_TTL = 5
+
+function Valuate:GetCachedEquippedStatTotals()
+    local now = (GetTime and GetTime()) or 0
+    -- `now < statTotalsAt` catches a clock that went backwards (a /reload resets GetTime),
+    -- which would otherwise pin a stale cache for as long as the difference.
+    if not statTotalsCache or now - statTotalsAt > STAT_TOTALS_TTL or now < statTotalsAt then
+        statTotalsCache, statTotalsSlots = Valuate:GetEquippedStatTotals()
+        statTotalsAt = now
+    end
+    return statTotalsCache, statTotalsSlots
+end
+
+-- What one stat is doing for one scale, right now.
+--
+-- Goes through RankStatShares - the same function /valuate weights uses - rather than
+-- doing the arithmetic again here. Two copies of one calculation is how the tooltip and
+-- its row ended up disagreeing about empty slots, and how the percentage ended up dividing
+-- by a signed baseline in one place and a magnitude in the other.
+--
+-- The RANKING is recomputed per call while the TOTALS are cached: your weights change as
+-- you type, and a share that did not move when you changed the number would be worse than
+-- no share at all.
+--
+-- Returns: entry (nil if the stat contributes nothing), isIdle, slotsRead.
+function Valuate:GetStatShareInfo(statName, scale)
+    if not statName or not scale or not scale.Values then return nil, false, 0 end
+    local totals, slotsRead = Valuate:GetCachedEquippedStatTotals()
+    if slotsRead == 0 then return nil, false, 0 end
+
+    local ranked, idle = RankStatShares(totals, scale)
+    if not ranked then return nil, false, slotsRead end
+
+    for _, entry in ipairs(ranked) do
+        if entry.stat == statName then return entry, false, slotsRead end
+    end
+    for _, name in ipairs(idle) do
+        if name == statName then return nil, true, slotsRead end
+    end
+    return nil, false, slotsRead
+end
+
 -- /valuate weights - which of this scale's weights are actually doing anything.
 function Valuate:PrintStatShares(scaleName)
     local scale
@@ -7300,6 +7354,13 @@ local VERIFY_CHECKS = {
             OnEvent(frame, "PLAYER_REGEN_ENABLED")
             return true, "Fired with " .. count .. " upgrade(s) waiting - the prompt should be on screen."
         end,
+    },
+    {
+        id = "share", since = "0.48.0a",
+        title = "A stat's weight box says what that weight is doing",
+        steps = "Open the Scale Editor and hover the weight box of a stat you have a lot of, then one you have weighted but carry none of, then one with no weight at all. Now type a bigger number into the first and hover it again.",
+        expect = "Three different answers - a percentage, \"you are carrying none of this stat\", and \"no weight set\". After typing, the percentage has MOVED: the ranking is recomputed per hover even though the equipped totals are cached for five seconds.",
+        broke = "New in this version. Watch for every row claiming the same figure, which would mean the lookup is ignoring the stat name, and for a percentage that never changes as you type, which would mean the ranking got cached along with the totals.",
     },
     {
         id = "solidcolour", since = "0.46.0a",

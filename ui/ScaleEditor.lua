@@ -162,6 +162,51 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         })
     end
 
+    -- What this weight is actually doing, at the moment you are deciding what to type.
+    --
+    -- /valuate weights answers the same question for the whole scale, but the answer
+    -- belongs here: with ~60 rows across five columns, "is this one worth tuning?" is asked
+    -- per row, and going to the chat frame to find out breaks the thing you were doing.
+    --
+    -- Hover only, no layout. A share column on every row would need width this grid does
+    -- not have, and would put a number next to fifty-odd stats that contribute nothing.
+    editBox:SetScript("OnEnter", function(self)
+        if not ShowTooltipSafe(self, "ANCHOR_RIGHT") then return end
+        local statLabel = ValuateStatNames[statName] or statName
+        GameTooltip:AddLine(statLabel, 1, 1, 1)
+
+        local currentScale = ns.EditingScaleName and Valuate:GetScales()[ns.EditingScaleName]
+        local entry, isIdle, slotsRead
+        if currentScale and Valuate.GetStatShareInfo then
+            entry, isIdle, slotsRead = Valuate:GetStatShareInfo(statName, currentScale)
+        end
+
+        if entry then
+            GameTooltip:AddLine(string.format("|cFF00FF00%.1f%%|r of this scale's score on your gear",
+                entry.share), 0.8, 0.8, 0.8)
+            GameTooltip:AddLine(string.format("You are wearing %s of it, weighted %s.",
+                tostring(entry.value), tostring(entry.weight)), 0.7, 0.7, 0.7, true)
+        elseif isIdle then
+            -- Not an error. A weight for a stat you pick up twenty levels from now is a
+            -- plan, and a tooltip that calls it a mistake teaches you to stop reading.
+            GameTooltip:AddLine("|cFFFF8800You are carrying none of this stat|r", 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("The weight is saved and changes nothing until you equip some.",
+                0.7, 0.7, 0.7, true)
+        elseif slotsRead and slotsRead > 0 then
+            GameTooltip:AddLine("No weight set, so it does not count toward this scale.",
+                0.7, 0.7, 0.7, true)
+        else
+            -- Says WHY there is no figure rather than showing a confident zero.
+            GameTooltip:AddLine("Equipped gear not readable yet - hover again in a moment.",
+                0.7, 0.7, 0.7, true)
+        end
+
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("|cFF888888/valuate weights ranks every stat at once|r", 0.6, 0.6, 0.6)
+        GameTooltip:Show()
+    end)
+    editBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     -- Focus handling
     editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     editBox:SetScript("OnEnterPressed", function(self)

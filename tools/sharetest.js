@@ -26,14 +26,22 @@ const path = require("path");
 const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
-const m = lua.match(/^local function RankStatShares\(([\s\S]*?)\nend\n/m);
-if (!m) {
-  console.error(
-    "  SLICE  could not find `local function RankStatShares` in Valuate.lua - " +
-      "it was renamed, moved or reshaped, so this gate is testing nothing"
-  );
-  process.exit(1);
+
+function slice(header) {
+  const re = new RegExp("^" + header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\(([\\s\\S]*?)\\nend\\n", "m");
+  const hit = lua.match(re);
+  if (!hit) {
+    console.error(
+      `  SLICE  could not find \`${header}\` in Valuate.lua - ` +
+        "it was renamed, moved or reshaped, so this gate is testing nothing"
+    );
+    process.exit(1);
+  }
+  return hit[0];
 }
+
+const m = [slice("local function RankStatShares")];
+const CACHE = slice("function Valuate:GetCachedEquippedStatTotals");
 
 const run = load([]);
 
@@ -57,6 +65,20 @@ end
 tinsert = table.insert
 
 ` + m[0] + `
+
+-- The cache's own file-locals, declared here because the slice does not carry them.
+local statTotalsCache, statTotalsAt, statTotalsSlots = nil, 0, 0
+local STAT_TOTALS_TTL = 5
+__now = 100
+function GetTime() return __now end
+__scans = 0
+Valuate = Valuate or {}
+Valuate.GetEquippedStatTotals = function()
+    __scans = __scans + 1
+    return { Strength = 10 * __scans }, 3
+end
+
+` + CACHE + `
 
 -- ---- the ordinary case -------------------------------------------------------
 local scale = { Values = { Strength = 2, Stamina = 1, Agility = 0.5 } }
@@ -134,6 +156,41 @@ near(total, 0, "and the total is zero rather than nil")
 ok(RankStatShares(nil, scale) == nil, "nil totals returns nil")
 ok(RankStatShares({}, nil) == nil, "nil scale returns nil")
 ok(RankStatShares({}, {}) == nil, "a scale with no Values returns nil")
+
+-- ---- the totals cache --------------------------------------------------------
+-- Reading seventeen slots through the private tooltip is what a SCAN costs, so the hover
+-- path must not do it per row. Everything here is about not scanning, and about not
+-- serving something stale for longer than a person would tolerate.
+__scans = 0
+__now = 100
+local t, slots = Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 1, "the first call scans")
+eq(slots, 3, "slot count is returned alongside the totals")
+eq(t.Strength, 10, "the totals come from the scan")
+
+Valuate:GetCachedEquippedStatTotals()
+Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 1, "hovering along a column of rows costs no further scans")
+
+__now = 104.9
+Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 1, "still cached just inside the TTL")
+
+__now = 106
+t = Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 2, "expired past the TTL, so gear you just equipped shows up")
+eq(t.Strength, 20, "and the fresh totals replace the old ones")
+
+-- A /reload resets GetTime, so the clock CAN go backwards. Without the guard, now-then is
+-- negative, that reads as "not expired", and the cache pins whatever it last held for as
+-- long as the difference - which after a long session is the rest of the session.
+__now = 3
+t = Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 3, "a clock that went backwards forces a rescan rather than pinning the cache")
+
+__now = 5
+Valuate:GetCachedEquippedStatTotals()
+eq(__scans, 3, "...and the cache works normally again from the new clock")
 
 return failures, checks
 `,

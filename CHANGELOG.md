@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.48.0a] - 2026-08-09 — The answer moves to where the decision is
+
+### Added
+- **Hovering a stat's weight box in the Scale Editor now says what that weight is doing** —
+  its share of your equipped score, how much of the stat you're wearing, and the weight
+  itself. `/valuate weights` answers this for the whole scale, but with ~60 rows across five
+  columns the question is asked *per row*, and going to the chat frame to find out breaks the
+  thing you were doing.
+- Three distinct answers, because they mean different things: a percentage, **"you are
+  carrying none of this stat"**, and "no weight set". The middle one is deliberately not
+  phrased as an error — a weight for a stat you'll pick up twenty levels from now is a plan,
+  and a tooltip that calls it a mistake teaches you to stop reading tooltips.
+- Hover only, no layout change. A share column on every row would need width this grid
+  doesn't have, and would put a number beside fifty-odd stats that contribute nothing.
+
+### Implementation
+- The tooltip goes through **the same `RankStatShares`** `/valuate weights` uses. Two copies
+  of one calculation is how the Best Equipment row and its tooltip ended up disagreeing about
+  empty slots, and how the percentage ended up dividing by a signed baseline in one place and
+  a magnitude in the other.
+- **Totals are cached for 5s; the ranking is not.** Reading 17 slots through the private
+  tooltip costs what a scan costs and can't run per row — but your weights change *as you
+  type*, and a share that didn't move when you changed the number would be worse than no
+  share at all.
+- A TTL rather than event invalidation on purpose: hooking `PLAYER_EQUIPMENT_CHANGED` would
+  mean editing the handler carrying the in-transit scan guards, which is the one place in
+  this addon not worth touching for a tooltip.
+
+### Development
+- 9 more checks in `sharetest.js` (44 total), all on the cache. Mutation-tested three ways:
+  dropping the clock-went-backwards guard, never expiring, and not caching at all.
+- That guard matters because a `/reload` resets `GetTime`. Without it, `now - then` goes
+  negative, which reads as "not expired", and the cache pins whatever it last held — after a
+  long session, for the rest of the session.
+
 ## [0.47.0a] - 2026-08-09 — Which of your stat weights actually matter
 
 ### Added
