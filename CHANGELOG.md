@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.4a] - 2026-08-09 — The new notices honour "chat messages" like everything else
+
+### Fixed
+- **The level-up and bank notices ignored the `chatMessages` option.** Both were added in the last
+  few releases and neither was wired to the existing verbosity control — so someone who had
+  deliberately turned chat down still got a message on **every level** (sixty-odd times while
+  levelling) and on **every bank visit**. That is precisely the noise problem I warned about when
+  adding the bank notice, introduced two releases later by the same hand.
+
+### Notes
+- **The first-run message deliberately stays ungated**, and that is now written down at the site so
+  it isn't "tidied up" later. It fires once in a character's entire life and is the difference
+  between the addon working for you and sitting there scoring everything the same. Silencing
+  routine chatter is not a request to be left guessing on your first login.
+- Same distinction the deletion announcements already make: **safety and orientation are not
+  verbosity.** Convenience that repeats is.
+- Also worth recording: the audit command I used to check this reported a false negative, because
+  its search range began *below* the guard it was looking for. Reading the actual code is what
+  settled it — a grep that answers the wrong question confidently is its own small version of the
+  bug being fixed here.
+
 ## [0.38.3a] - 2026-08-09 — A scale that can't work now says so
 
 ### Added

@@ -675,6 +675,9 @@ local function OnEvent(self, event, addonName, ...)
                     if bankJustOpened then
                         ValuateAfter(1.2, function()
                             if not Valuate.CountEquippableUpgrades then return end
+                            -- Convenience, so it honours the verbosity option. Fires on
+                            -- every bank visit that has an upgrade in it.
+                            if not Valuate:GetOptions().chatMessages then return end
                             local _, scaleName = Valuate:GetPrimaryScale()
                             if not scaleName then return end
                             local _, _, bankCount = Valuate:CountEquippableUpgrades(scaleName)
@@ -1027,6 +1030,12 @@ function Valuate:CreateDefaultScale()
 
     -- Deferred so it lands after the addon's own load line rather than above it, and
     -- after whatever else is still printing at login.
+    --
+    -- Deliberately NOT gated on chatMessages, unlike the level-up and bank notices.
+    -- Those are conveniences that repeat; this fires once in a character's entire life
+    -- and is the difference between the addon working for you and sitting there scoring
+    -- everything the same. Silencing routine chatter is not a request to be left
+    -- guessing on your first login.
     ValuateAfter(2, function()
         print("|cFF00FF00Valuate|r: created a |cFFFFFFFFStarter|r scale to get you going.")
         print("  |cFFFFFF00It weights every stat the same|r, so its scores only really mean")
@@ -4143,6 +4152,10 @@ end
 -- difference.
 function Valuate:AnnounceUnlockedUpgrades(newLevel)
     if not newLevel then return end
+    -- Convenience, not safety: this fires on every level, which for someone actually
+    -- levelling is sixty-odd times. Anyone who turned chat messages off asked for
+    -- exactly this to stop.
+    if not Valuate:GetOptions().chatMessages then return end
 
     local candidates = {}
     local bestEquipment = Valuate:GetBestEquipment()
