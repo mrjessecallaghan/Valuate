@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.39.3a] - 2026-08-09 — "Opt-in and off by default" is now enforced
+
+### Verified — no bug
+- The README promises **"every automation feature is opt-in and off by default."** Checked against
+  `DEFAULT_OPTIONS`: every feature in that table — quest rewards, loot rolls, the upgrade prompt,
+  auto-delete, auto-sell, repair, quest accept and turn-in — defaults to `false`. **The claim
+  holds.**
+- Two options *do* default to `true` — `autoRollRecipes` and `autoRollTradeGoods` — but both are
+  modifiers gated behind `autoRollLoot`, which is `false`. `AutoRollOnLoot` returns immediately
+  unless that parent is on, so neither can act by itself.
+
+### Added
+- **`tools/options.js` now enforces it.** A boolean option whose name begins `auto` or `notify`
+  must default to `false`. This is the promise a new install rests on — you add the addon and it
+  does not start deleting, selling, rolling or accepting on your behalf until you say so — and it
+  only takes one default flipped during a debugging session to make the README a lie about an
+  irreversible feature.
+- Modifiers can be exempted, but each **must name the parent that gates it**, and the gate checks
+  that parent actually guards something. Claiming a parent that doesn't exist fails, so the
+  exemption list can't quietly become a dumping ground.
+
+### Notes
+- Third consecutive pass to find no bug. That is worth stating plainly rather than padding — but
+  a hand-verification that isn't recorded anywhere decays to nothing, so the durable move was to
+  convert it into a gate rather than a paragraph.
+
 ## [0.39.2a] - 2026-08-09 — The deletion promise, verified
 
 ### Verified — no bug

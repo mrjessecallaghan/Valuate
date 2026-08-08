@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Every option is reachable from the UI or a command
+ * @gate Options are reachable, and every automation defaults to off
  *
  * Unreachable-option checker.
  *
@@ -90,4 +90,55 @@ if (unreachable.length) {
   process.exit(1);
 }
 
-console.log(`OK  all ${keys.length} options are reachable from the UI or a command.`);
+/*
+ * "Every automation feature is opt-in and off by default."
+ *
+ * That is stated in the README and it is the promise a new install rests on: you add
+ * the addon and it does not start deleting, selling, rolling or accepting on your
+ * behalf until you say so. Verified by hand and found sound - which is exactly the
+ * kind of check that rots, because it only takes one default flipped during a
+ * debugging session to make the README a lie about an irreversible feature.
+ *
+ * So: a BOOLEAN option whose name begins "auto" or "notify" must default to false.
+ *
+ * The exceptions are modifiers, not features - they widen something already switched
+ * on and cannot act by themselves. Each must name the parent that gates it, so the
+ * exemption stays justified rather than becoming a dumping ground.
+ */
+const GATED_MODIFIERS = {
+  autoRollRecipes: "autoRollLoot",
+  autoRollTradeGoods: "autoRollLoot",
+};
+
+const defaultedOn = [];
+for (const line of block[1].split(/\r?\n/)) {
+  const m = line.match(/^\s*(\w+)\s*=\s*(true|false)\s*,/);
+  if (!m) continue;
+  const [, name, value] = m;
+  if (value !== "true") continue;
+  if (!/^(auto|notify)/.test(name)) continue;
+
+  const parent = GATED_MODIFIERS[name];
+  if (!parent) {
+    defaultedOn.push(`  ${name} defaults to TRUE and nothing gates it`);
+  } else if (!new RegExp(`\\bnot\\s+options\\.${parent}\\b`).test(core)) {
+    // The exemption claims a parent; make sure that parent actually guards something.
+    defaultedOn.push(
+      `  ${name} is exempted as gated by ${parent}, but no "not options.${parent}" guard exists`
+    );
+  }
+}
+
+if (defaultedOn.length) {
+  console.error("Automation options must default to OFF (README: every automation feature is opt-in):");
+  for (const line of defaultedOn) console.error(line);
+  console.error(
+    "\nIf one is a modifier rather than a feature, add it to GATED_MODIFIERS naming the option that gates it."
+  );
+  process.exit(1);
+}
+
+console.log(
+  `OK  all ${keys.length} options are reachable from the UI or a command; ` +
+  `every automation defaults to off.`
+);

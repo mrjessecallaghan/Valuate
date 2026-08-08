@@ -234,7 +234,7 @@ callback either reschedule or be genuinely final.
 | `tools/check.js` | Syntax + lint gate |
 | `tools/globals.js` | Scope analysis: undefined globals + the `ns.*` contract |
 | `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
-| `tools/options.js` | Every option is reachable from the UI or a command |
+| `tools/options.js` | Options are reachable; every automation defaults to off |
 | `tools/api.js` | Selftest-listed methods exist; integration addons call real ones |
 | `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
 | `tools/widgettest.js` | Runs input validation and colour handling for real |
