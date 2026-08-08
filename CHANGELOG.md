@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.39.0a] - 2026-08-09 — A tooltip can no longer score the wrong item
+
+### Fixed
+- **A malformed item link could be replaced by an unrelated item's link, and the tooltip would
+  then parse, score and colour that one instead.** When `GetItem()` returns a link too malformed
+  to yield an item ID, the code substitutes the link from the last remembered bag or inventory
+  slot. But those were only ever cleared *by each other* — `SetMerchantItem`, `SetLootItem`,
+  `SetHyperlink` and the quest setters clear neither — so a bag slot remembered from an earlier
+  hover survived onto a completely different item.
+- Both are now cleared in `OnTooltipSet`, which every `Set*` hook calls **first**; the two setters
+  that know their source then populate it. After it runs, the pair describes the item now being
+  shown, or nothing at all.
+
+### Notes
+- This is **pre-existing** code, not mine — but it's the same class as the cleanup-verdict bug
+  fixed last release, found by asking where else that same stale state was trusted. Worth doing
+  in the same pass while the shape was fresh.
+- The declarations moved **above** `OnTooltipSet` so it can clear them. A local declared below its
+  reader is a nil global, silently — the single most productive bug in this file's history, and
+  the reason that move needed care rather than a one-line edit.
+- The per-setter clears are now redundant. They're kept as belt-and-braces, but their comments no
+  longer imply they're the mechanism — a comment that overstates its own line is how the next
+  person misplaces the real guard.
+
 ## [0.38.9a] - 2026-08-09 — The cleanup verdict stops reading the wrong bag slot
 
 ### Fixed

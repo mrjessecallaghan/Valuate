@@ -2371,8 +2371,29 @@ end
 
 -- Hooks into tooltip display functions to parse and display item scores
 function Valuate:HookTooltips()
+    -- Where the tooltip's current item came from, when we know.
+    --
+    -- Declared ABOVE OnTooltipSet because that function clears them - a local declared
+    -- below its reader is a nil global up here, silently, which is the single most
+    -- productive bug in this file's history.
+    local LastInventorySlot = nil
+    local LastBagSlot = nil
+
     -- Hook the Set* methods to parse stats and mark for update
     local function OnTooltipSet(self)
+        -- Forget the previous item's source.
+        --
+        -- Every Set* hook calls this FIRST and the two that know their source then set
+        -- it, so after this runs the pair describes the item now being shown or nothing
+        -- at all. Without it they only ever cleared each other: SetMerchantItem,
+        -- SetLootItem, SetHyperlink and the quest setters clear neither, so a bag slot
+        -- remembered from an earlier hover survived onto an unrelated item.
+        --
+        -- That matters below, where a malformed link is REPLACED by the link from the
+        -- remembered slot. Stale slot, and the tooltip would then parse, score and
+        -- colour a different item than the one under the cursor.
+        LastInventorySlot = nil
+        LastBagSlot = nil
         -- GetItem() returns name, link - use the real LINK (the name-only first
         -- return was why the malformed-link workaround below was always needed).
         local itemName, itemLink = self:GetItem()
@@ -2390,19 +2411,16 @@ function Valuate:HookTooltips()
     end
     
     -- Special hooks to capture item source for proper item link retrieval
-    local LastInventorySlot = nil
-    local LastBagSlot = nil
-    
     hooksecurefunc(GameTooltip, "SetBagItem", function(self, bag, slot)
         OnTooltipSet(self)
         LastBagSlot = {bag = bag, slot = slot}
-        LastInventorySlot = nil  -- Clear inventory slot when showing bag item
+        LastInventorySlot = nil  -- belt-and-braces; OnTooltipSet above already cleared both
     end)
     
     hooksecurefunc(GameTooltip, "SetInventoryItem", function(self, unit, slot)
         OnTooltipSet(self)
         LastInventorySlot = {unit = unit, slot = slot}
-        LastBagSlot = nil  -- Clear bag slot when showing inventory item
+        LastBagSlot = nil  -- belt-and-braces; OnTooltipSet above already cleared both
     end)
     
     hooksecurefunc(GameTooltip, "SetHyperlink", OnTooltipSet)
