@@ -392,7 +392,19 @@ junkTicker:SetScript("OnUpdate", function(self, e)
     -- this matters, and deletion is not a protected action in 3.3.5.
     -- Safe to call unconditionally - AutoDeleteJunk returns silently unless free
     -- slots are already below the keep-free target.
-    if Valuate.AutoDeleteJunk then Valuate:AutoDeleteJunk() end
+    --
+    -- Contained and reported once. This is the timer that DELETES things: an error
+    -- part-way through would otherwise be silent (script errors are off by default)
+    -- and repeat every interval, which is the last place that should happen quietly.
+    if Valuate.AutoDeleteJunk then
+        local ok, err = pcall(Valuate.AutoDeleteJunk, Valuate)
+        if not ok and not self.errorReported then
+            self.errorReported = true
+            print("|cFFFF0000[Valuate]|r Automatic junk cleanup errored and has been reported once:")
+            print("  " .. tostring(err))
+            print("  |cFFAAAAAARun /valuate deletepreview to check what it would act on.|r")
+        end
+    end
 end)
 
 -- Debounced "something entered your bags -> is it an upgrade?" check. Shared by every

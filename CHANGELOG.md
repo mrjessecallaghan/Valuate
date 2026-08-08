@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.1a] - 2026-07-31 — Contain the per-frame paths too
+
+### Fixed
+- **A failing animation callback would have errored on every frame, forever.** The tween is
+  only removed by code that ran *after* the callback, so an error meant it never finished and
+  never left the queue. The offending animation is now cancelled and reported once; everything
+  else carries on.
+- **The automatic junk-cleanup timer is now error-contained.** That is the timer that deletes
+  things, so an error part-way through was the last place that should fail quietly.
+
 ## [0.22.0a] - 2026-07-31 — Errors stop being silent
 
 ### Added

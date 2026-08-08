@@ -43,6 +43,17 @@ local Easing = {
     end,
 }
 
+-- Reported once, because an animation error is a UI bug worth knowing about but not
+-- worth a wall of text.
+local animErrorReported = false
+local function ReportAnimError(err)
+    if animErrorReported then return end
+    animErrorReported = true
+    print("|cFFFF0000[Valuate]|r An animation callback errored and was cancelled:")
+    print("  " .. tostring(err))
+    print("  |cFFAAAAAAThe UI keeps working; only that one animation stopped.|r")
+end
+
 animDriver:SetScript("OnUpdate", function(_, elapsed)
     local n = #activeTweens
     if n == 0 then return end
@@ -53,11 +64,27 @@ animDriver:SetScript("OnUpdate", function(_, elapsed)
             tw.elapsed = tw.elapsed + elapsed
             local raw = tw.duration > 0 and (tw.elapsed / tw.duration) or 1
             if raw > 1 then raw = 1 end
-            local eased = tw.ease(raw)
-            if tw.onUpdate then tw.onUpdate(eased, raw) end
-            if raw >= 1 then
+
+            -- Callbacks come from all over the UI, so this driver runs arbitrary
+            -- code every frame. An erroring callback would otherwise NEVER finish -
+            -- the tween stays in the list because the code that removes it is past
+            -- the error - so it would fail again on every frame, forever. Cancel the
+            -- offender instead and let everything else carry on.
+            local ok, err = pcall(function()
+                local eased = tw.ease(raw)
+                if tw.onUpdate then tw.onUpdate(eased, raw) end
+            end)
+            if not ok then
                 table.remove(activeTweens, i)
-                if tw.onDone then tw.onDone() end
+                ReportAnimError(err)
+            elseif raw >= 1 then
+                table.remove(activeTweens, i)
+                -- Removed BEFORE onDone, so a throwing onDone can't resurrect it
+                -- either. Its error is reported the same way.
+                local okDone, errDone = pcall(function()
+                    if tw.onDone then tw.onDone() end
+                end)
+                if not okDone then ReportAnimError(errDone) end
             end
         end
     end
