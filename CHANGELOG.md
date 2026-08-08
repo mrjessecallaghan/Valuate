@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.3a] - 2026-07-31 — Close the last frame leak
+
+### Fixed
+- **The timer fallback allocated a frame per call.** It only runs on clients without `C_Timer`
+  — not this one — but Valuate schedules timers constantly, so it would have leaked steadily
+  there. Frames are now pooled and returned on completion *and* on cancellation, which matters
+  because scan scheduling cancels far more timers than it lets finish.
+
 ## [0.22.2a] - 2026-07-31 — Stop leaking a frame every time you open your character sheet
 
 ### Fixed

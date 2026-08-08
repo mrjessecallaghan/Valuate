@@ -187,6 +187,11 @@ local recentEquipmentChange = false  -- Track if we recently had equipment chang
 -- :Cancel(). This makes scan-throttling actually work instead of silently
 -- leaking overlapping scans (the previous code called C_Timer.Cancel on a
 -- handle that C_Timer.After never returned).
+-- Free list for the no-C_Timer fallback below. Only ever touched on clients that
+-- lack C_Timer; this one has it (AdiBags uses it unguarded), so the pool normally
+-- stays empty.
+local timerFramePool = {}
+
 local function ValuateAfter(delay, callback)
     if C_Timer and C_Timer.NewTimer then
         -- Native cancelable timer object.
@@ -201,17 +206,36 @@ local function ValuateAfter(delay, callback)
         return handle
     else
         -- Pure OnUpdate fallback for clients lacking C_Timer entirely.
-        local handle = { cancelled = false, elapsed = 0 }
-        local timerFrame = CreateFrame("Frame")
-        handle.frame = timerFrame
+        --
+        -- POOLED. WoW never frees frames, and this addon calls ValuateAfter
+        -- constantly - scan scheduling, retries, the bank snapshot, the login
+        -- passes - so allocating one per call would leak steadily on those clients.
+        -- The pool keeps the count at the high-water mark of CONCURRENT timers,
+        -- which is a handful, instead of the total ever scheduled.
+        local timerFrame = tremove(timerFramePool)
+        if not timerFrame then timerFrame = CreateFrame("Frame") end
+
+        local handle = { cancelled = false, elapsed = 0, frame = timerFrame }
+        local function release(self)
+            self:SetScript("OnUpdate", nil)
+            if handle.frame then
+                handle.frame = nil
+                tinsert(timerFramePool, self)
+            end
+        end
+
         function handle:Cancel()
             self.cancelled = true
-            if self.frame then self.frame:SetScript("OnUpdate", nil) end
+            -- Cancelling returns the frame too; otherwise a cancelled timer's frame
+            -- would be lost, which is the leak this pool exists to prevent - and
+            -- ScheduleScan cancels far more timers than it lets finish.
+            if self.frame then release(self.frame) end
         end
+
         timerFrame:SetScript("OnUpdate", function(self, e)
             handle.elapsed = handle.elapsed + (e or 0)
             if handle.elapsed >= delay then
-                self:SetScript("OnUpdate", nil)
+                release(self)
                 if not handle.cancelled then callback() end
             end
         end)
