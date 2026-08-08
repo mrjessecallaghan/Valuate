@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.1a] - 2026-08-09 — The bank tells you while you're standing in it
+
+### Added
+- **Opening a bank now says whether anything in it beats what you're wearing.** The count already
+  existed — `CountEquippableUpgrades` has always returned a bank figure, and the minimap tooltip
+  shows it — but only if you went looking. An open bank is the one moment it's directly
+  actionable: the item is an arm's reach away and you're about to walk off without it.
+
+### Notes
+- **Scoped to the open event only.** That handler also serves `PLAYERBANKSLOTS_CHANGED`, which
+  fires on every item moved in or out — so without the guard, shuffling five things through the
+  bank would have printed five times. Caught before shipping by checking what else routes through
+  that branch rather than assuming it was bank-open.
+- Silent when nothing in the bank is an upgrade, which is the common case. A notification that
+  fires when there's nothing to do stops being read.
+
 ## [0.38.0a] - 2026-08-09 — Levelling tells you what it unlocked
 
 ### Added

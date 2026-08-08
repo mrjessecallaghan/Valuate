@@ -652,6 +652,7 @@ local function OnEvent(self, event, addonName, ...)
         end
     elseif event == "BANKFRAME_OPENED" or event == "PLAYERBANKSLOTS_CHANGED"
            or event == "PLAYERBANKBAGSLOTS_CHANGED" then
+        local bankJustOpened = (event == "BANKFRAME_OPENED")
         -- The bank is the only time its containers are readable, so snapshot it now.
         -- Delayed slightly on open so every bank bag has reported its contents, and
         -- re-run on change so moving gear in or out updates the snapshot. This only
@@ -660,6 +661,31 @@ local function OnEvent(self, event, addonName, ...)
             ValuateAfter(0.4, function()
                 if Valuate:ScanBankContents() then
                     ScheduleScan(0.6, "bank")  -- fold new candidates into best-in-slot
+                    -- ...then say whether anything in there beats what you are wearing.
+                    --
+                    -- The count already existed - CountEquippableUpgrades has always
+                    -- returned a bank figure, and the minimap tooltip shows it - but
+                    -- only if you went looking. Standing at an open bank is the one
+                    -- moment it is directly actionable: the item is an arm's reach away
+                    -- and you are about to walk off without it.
+                    --
+                    -- ONLY on open. This branch also handles PLAYERBANKSLOTS_CHANGED,
+                    -- which fires on every item moved in or out - so without this guard,
+                    -- shuffling five things through the bank would print five times.
+                    if bankJustOpened then
+                        ValuateAfter(1.2, function()
+                            if not Valuate.CountEquippableUpgrades then return end
+                            local _, scaleName = Valuate:GetPrimaryScale()
+                            if not scaleName then return end
+                            local _, _, bankCount = Valuate:CountEquippableUpgrades(scaleName)
+                            if (bankCount or 0) > 0 then
+                                print(string.format(
+                                    "|cFF00FF00Valuate|r: |cFFFF8800%d item(s) in this bank|r beat what you are wearing for %s.",
+                                    bankCount, scaleName))
+                                print("  |cFFAAAAAATake them out and Valuate will treat them as equippable.|r")
+                            end
+                        end)
+                    end
                 end
             end)
         end
@@ -7016,6 +7042,13 @@ local VERIFY_CHECKS = {
         steps = "Turn on auto-sell or auto-delete, then hover a grey item, a green item that is best-in-slot, and a quest item that AdiBags calls junk.",
         expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all.",
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
+    },
+    {
+        id = "bankvisit", since = "0.38.1a",
+        title = "Opening a bank says whether anything in it is an upgrade",
+        steps = "Put an item better than what you are wearing into your bank, walk away, then come back and open it. Then move a few items in and out while it is open.",
+        expect = "About a second and a half after opening, one message names how many banked items beat your gear. Moving items around must NOT print it again.",
+        broke = "New in this version. The count already existed and the minimap tooltip showed it, but only if you went looking - never at the moment the item is an arm reach away.",
     },
     {
         id = "levelup", since = "0.38.0a",
