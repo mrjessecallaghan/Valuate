@@ -128,11 +128,38 @@ local function CreateMinimapButton()
         end)
     end)
     
-    minimapButton:SetScript("OnDragStop", function(self)
+    -- One place that ends a drag, so the two ways out cannot drift apart.
+    --
+    -- The resting text colour depends on where the cursor is. Releasing the button while
+    -- still hovering it used to hand back the un-hovered white, so the button looked
+    -- un-hovered while the mouse sat on it, until you moved away and came back. OnEnter and
+    -- OnLeave are the only other writers of this colour and they agree with this.
+    local function EndDrag(self)
         self:UnlockHighlight()
-        self.vText:SetTextColor(1, 1, 1, 1)  -- Restore white color
+        if self.IsMouseOver and self:IsMouseOver() then
+            self.vText:SetTextColor(unpack(BUTTON_COLORS.accent))
+        else
+            self.vText:SetTextColor(1, 1, 1, 1)
+        end
         -- valuate-lint-ignore: raw-onupdate-needs-reason  ends the drag started directly above
         self:SetScript("OnUpdate", nil)
+    end
+
+    minimapButton:SetScript("OnDragStop", EndDrag)
+
+    -- Hiding the button mid-drag must end the drag too.
+    --
+    -- OnDragStop is the only thing that cleared the cursor-follow handler, and it needs the
+    -- button to still be there to fire. Hide it while dragging - Settings has a toggle, and
+    -- so does /valuate minimap - and the handler stays installed. Hidden frames get no
+    -- OnUpdate, so nothing happens until you show it again, at which point the button
+    -- resumes following the cursor with no mouse button held.
+    --
+    -- Same shape as the Settings keybind capture, which had exactly two exits and both
+    -- needed the panel in front of you. An armed state must not be able to outlive the
+    -- thing that armed it.
+    minimapButton:SetScript("OnHide", function(self)
+        if self:GetScript("OnUpdate") then EndDrag(self) end
     end)
     
     -- Hover effects

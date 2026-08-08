@@ -33,11 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Fourteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Fifteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
-  `tabtest.js`, `dialogtest.js`. This matters because every static gate passes on a clamp
-  whose comparison is the wrong way round, a correct-looking branch in the wrong order, a
+  `tabtest.js`, `dialogtest.js`, `minimaptest.js`. This matters because every static gate
+  passes on a clamp whose comparison is the wrong way round, a correct-looking branch in the wrong order, a
   division by a signed value that should have been a magnitude, or a cleanup step in one branch
   of a copied loop and missing from the other.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
@@ -80,6 +80,12 @@ that loses an entry does not complain, it just stops running.
   ended `false` after a round trip. The addon guarantees every key exists at load, so a stub
   that doesn't was testing a state it never runs in. `settingstest.js` slices
   `DEFAULT_OPTIONS` out of `Valuate.lua`.
+- **An armed state must not outlive the thing that armed it.** Twice now: the Settings
+  keybind capture had two exits and both needed the panel in front of you, and the minimap
+  drag was cleared only by OnDragStop. Both left the control armed when the frame was
+  hidden, and hidden frames get no input — so the trap springs when you come back. Give
+  every arming path an `OnHide`, and assert the general form (*after any way this ends, it
+  is not armed*) so a third exit added later has a check waiting.
 - **Run an accessibility branch through the same assertions as the normal one.** Reduce
   Motion had its own copy of the arrow-driver loop, which returned early and never pruned,
   so the leak existed only with the option ON — the branch nobody watching the screen would
@@ -309,6 +315,7 @@ callback either reschedule or be genuinely final.
 | `tools/settingstest.js` | Builds the Settings panel; keybind capture always releases the keyboard |
 | `tools/tabtest.js` | Builds the main window; arrivals only play on arrival |
 | `tools/dialogtest.js` | The reused confirm dialog runs the callback it is currently showing |
+| `tools/minimaptest.js` | The minimap drag cannot outlive the drag; the pulse stays off OnUpdate |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

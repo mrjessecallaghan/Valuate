@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.50.2a] - 2026-08-09 — The minimap button stops following the cursor after you let go
+
+### Fixed
+- **Hiding the minimap button mid-drag left it following the cursor.** The cursor-follow is
+  installed on `OnDragStart` and was cleared only by `OnDragStop` — which needs the button to
+  still be there. Hide it while dragging (Settings has a toggle, so does `/valuate minimap`)
+  and the handler stayed installed. Hidden frames get no `OnUpdate`, so nothing happened
+  until you showed it again, at which point it resumed following the cursor with no mouse
+  button held.
+- **Releasing the button while still hovering it handed back the un-hovered colour**, so the
+  button looked un-hovered with the mouse sitting on it until you moved away and back. The
+  resting colour now depends on where the cursor actually is, and matches what `OnEnter`
+  gives you rather than being a third value.
+- Both exits now go through one `EndDrag`, so they cannot drift apart.
+
+### Development
+- **A twentieth gate, `tools/minimaptest.js`** — 15 checks on a file that had none. It states
+  the general form (*after any way a drag can end, the button is not following the cursor*)
+  so a third exit added later has an assertion waiting for it.
+- **It also checks the pulse stayed off the frame's `OnUpdate`.** The pulse and the drag once
+  shared that single slot and the drag discarded the pulse's cleanup, leaving a starburst
+  stuck on at 1.14× scale. The pulse moved to the animation engine's named-property
+  ownership; moving it back would silently restore that bug, so now it can't.
+- Mutation-tested three ways, all caught: removing the `OnHide` disarm, always restoring
+  white, and putting the pulse back on `OnUpdate`.
+- `math.atan2` joins `math.pow` and `unpack` in the harness shims — removed in 5.3, present
+  in the 5.1 client, so restoring it is matching the target runtime rather than papering
+  over anything.
+
+### Notes
+- **This is the second time an armed state has outlived its trigger** (the Settings keybind
+  capture was the first, three releases ago). Written up in `CLAUDE.md` as a rule rather than
+  fixed twice and forgotten: give every arming path an `OnHide`, and assert the general form.
+
 ## [0.50.1a] - 2026-08-09 — The confirm dialog is pinned to the question it's asking
 
 ### Development

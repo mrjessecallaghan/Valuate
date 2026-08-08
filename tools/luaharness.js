@@ -26,6 +26,8 @@ const ADDON_ROOT = fs.existsSync("Valuate.toc") ? "." : path.resolve(__dirname, 
  */
 const PRELUDE = `
 math.pow = math.pow or function(a, b) return a ^ b end
+-- Removed in 5.3, present in the 5.1 client. MinimapButton uses it for the drag angle.
+math.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
 unpack = unpack or table.unpack
 strsub, strlower, strtrim = string.sub, string.lower, function(s) return (s:gsub("^%s*(.-)%s*$", "%1")) end
 tinsert, tremove = table.insert, table.remove
@@ -142,6 +144,12 @@ function CreateFrame(frameType, name, parent, template)
         return #(self.__text or "") * 6
     end
     function f:GetStringHeight() return 12 end
+    function f:SetFont(...) self.__font = {...} end
+    function f:GetFont() return unpack(self.__font or {}) end
+    function f:SetShadowOffset(...) self.__shadowOffset = {...} end
+    function f:SetShadowColor(...) self.__shadowColor = {...} end
+    function f:LockHighlight() self.__highlightLocked = true end
+    function f:UnlockHighlight() self.__highlightLocked = false end
     function f:SetTextInsets(...) self.__textInsets = {...} end
     function f:SetNumeric(n) self.__numeric = n end
     function f:HighlightText(...) self.__highlight = {...} end
@@ -187,6 +195,11 @@ function UIDropDownMenu_AddButton(info) table.insert(__dropdownButtons, info) re
 function UIDropDownMenu_Initialize(f, initFn) if f then f.__ddInit = initFn end end
 function ToggleDropDownMenu() end
 function CloseDropDownMenus() end
+
+-- Addon presence. Reports nothing loaded, which is the honest default: a gate that wants
+-- an integration present says so itself rather than inheriting one.
+function IsAddOnLoaded() return false end
+function GetAddOnMetadata() return nil end
 
 -- ReduceMotion() reads this. Off by default; a test flips it.
 __reduceMotion = false
