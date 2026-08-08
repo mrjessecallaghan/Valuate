@@ -34,17 +34,21 @@ that loses an entry does not complain, it just stops running.
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
 - `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
-  It, `widgettest.js`, `importtest.js`, `datatest.js` and `verifytest.js` run Valuate code
+  It, `widgettest.js`, `importtest.js`, `datatest.js`, `verifytest.js` and `deletetest.js`
+  run Valuate code
   rather than reading it, which matters because every static gate passes on a clamp whose
   comparison is the wrong way round. Start with `animtest.js` when extending runtime
   coverage: the engine's whole external surface is `CreateFrame` plus one option read, so
   its mock is small enough to trust. Mutation-tested — every check in it has been shown to
   fail when the behaviour it names is broken.
 - **When the logic is worth running but its file is not loadable**, do what `verifytest.js`
-  does: match the functions out of `Valuate.lua` by source and execute those. The core file
-  needs most of the WoW API to reach its end; three self-contained functions need none of
-  it. A failed match exits non-zero and a truncated one will not compile, so this cannot
-  degrade into a gate that silently tests nothing.
+  and `deletetest.js` do: match the functions out of `Valuate.lua` by source and execute
+  those. The core file needs most of the WoW API to reach its end; a self-contained function
+  needs none of it. A failed match exits non-zero and a truncated one will not compile, so
+  this cannot degrade into a gate that silently tests nothing.
+- **Prove one branch at a time.** `deletetest.js` switches every protection off and enables
+  exactly one per case, because a test where several branches could account for the same
+  answer passes with five of six broken — and reads as thorough coverage while doing it.
 - `globals.js` does **scope analysis** and reports identifiers read as globals that
   aren't a known API. This is the guard against the worst bug class here: a reference
   that resolves to a nil global instead of the local you meant — Lua raises no error, the
@@ -249,6 +253,7 @@ callback either reschedule or be genuinely final.
 | `tools/importtest.js` | Runs scale-tag parsing and the export/import round trip |
 | `tools/datatest.js` | Cross-checks the spec templates against the stat definitions |
 | `tools/verifytest.js` | Runs the `/valuate verify` walkthrough's pending/staleness logic |
+| `tools/deletetest.js` | Runs each of the six deletion protections and proves it fires |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
@@ -382,10 +387,15 @@ Deletion is the only irreversible thing this addon does, so that sentence is the
 load-bearing one in the project. `delete-protections-complete` checks that
 `IsProtectedFromDelete` still returns a reason for each of the six.
 
-It checks the **reason strings**, not the logic — a gate can't tell whether a protection
-is *correct*, but it can tell when one has been deleted or quietly renamed, which is the
-failure that would otherwise ship in silence. Those strings are user-visible anyway: the
-tooltip cleanup verdict prints them verbatim as `Junk, but kept: <reason>`.
+It checks the **reason strings**, not the logic — it catches a branch deleted or quietly
+renamed, which is the failure that would otherwise ship in silence. Those strings are
+user-visible anyway: the tooltip cleanup verdict prints them verbatim as
+`Junk, but kept: <reason>`.
+
+`deletetest.js` covers the other half: it **executes** `IsProtectedFromDelete` and proves
+each of the six actually fires, one at a time with the rest switched off. A branch that is
+still present and no longer working — an inverted condition, a dropped option — is invisible
+to the string check, and a deleted branch is invisible to the runtime one. Keep both.
 
 Note that **weapon-set members are protected by the best-in-slot branch** —
 `GetBestForInfo` consults `weaponKeep` first, so an off-set weapon comes back with a

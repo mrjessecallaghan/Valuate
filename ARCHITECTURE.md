@@ -264,16 +264,23 @@ wiring is consistent. They cannot see behaviour.
 renamed here breaks them at loot time or on a bag repaint — not at load, where you would notice.
 
 **Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`,
-`verifytest.js`. These 5 *execute real Lua* under fengari against a mocked WoW API
+`verifytest.js`, `deletetest.js`. These 6 *execute real Lua* under fengari against a mocked WoW API
 (`luaharness.js` — deliberately one mock, since two would drift into testing different
 imaginary clients). Every substantive bug found in this codebase has come from these, because
 the static gates can only read.
 
-Four of them load whole `ui/` files. `verifytest.js` instead **slices three functions out of
-`Valuate.lua`** by source match, because the core file needs most of the WoW API to reach its
-end while those functions need none of it. Slicing runs the shipped source rather than a copy;
-a failed slice exits non-zero and a truncated one will not compile as Lua, so neither can pass
-quietly. Reach for it when core logic is worth executing but its file is not loadable.
+Four of them load whole `ui/` files. `verifytest.js` and `deletetest.js` instead **slice
+functions out of `Valuate.lua`** by source match, because the core file needs most of the WoW
+API to reach its end while those functions need none of it. Slicing runs the shipped source
+rather than a copy; a failed slice exits non-zero and a truncated one will not compile as Lua,
+so neither can pass quietly. Reach for it when core logic is worth executing but its file is
+not loadable.
+
+`deletetest.js` is the one to copy. It proves each of the six deletion protections **alone**,
+with every other protection switched off — a test where several branches could account for the
+same answer passes with five of six broken. Mutation-tested: inverting the quest-item `or`,
+dropping `includeInactive`, or killing the equipment-set condition each fail exactly the checks
+that name them.
 
 Run everything with **`node tools/gates.js`** (~1.3s), or install the pre-commit hook once via
 `tools/install-hooks.cmd`. Gates **discover themselves** — a file in `tools/` is a gate if its

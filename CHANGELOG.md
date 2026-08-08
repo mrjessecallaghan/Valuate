@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.42.0a] - 2026-08-09 — The deletion promise is executed, not just read
+
+### Development
+- **The six deletion protections are now proven to fire**, in a new gate (`tools/deletetest.js`)
+  that runs `IsProtectedFromDelete` for real: quest items, equipment-set members, weapon-set
+  members, best-in-slot, future upgrades, and upgrades for any scale. 28 runtime checks.
+- **Each protection is proven alone**, with the other five switched off. A test where several
+  branches could account for the same answer passes with five of six broken — and reads as
+  thorough coverage while doing it.
+- **The gap this closes:** `delete-protections-complete` has checked since v0.40.0a that each
+  category still has a branch returning its reason string. It cannot see a branch that is still
+  present and no longer working — an inverted condition, a dropped option, a lookup that stopped
+  returning what the branch tests for. The string is there, the build is green, and gear is
+  deleted. Deletion is irreversible, so that was the worst remaining blind spot.
+- Mutation-tested: inverting the quest-item `or`, dropping `includeInactive`, killing the
+  equipment-set condition, and un-protecting future upgrades each fail exactly the checks that
+  name them.
+- Also pinned: the upgrade check is asked about **inactive scales too** (drop that and gear that
+  is an upgrade for a scale you haven't switched on becomes deletable, silently); a throwing
+  container API doesn't propagate out of the scan; and with no client APIs at all the function
+  answers rather than errors.
+
+### Fixed
+- **The docs said five gates execute real Lua while six did** — caught automatically by the rule
+  added last release, on its first opportunity.
+- `CLAUDE.md` and `check.js` both stated that a gate cannot tell whether a protection is
+  *correct*, only whether it still exists. True when written; this release is the counter-example.
+
 ## [0.41.0a] - 2026-08-09 — The checklist becomes a walkthrough
 
 ### Added

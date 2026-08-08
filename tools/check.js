@@ -242,9 +242,12 @@ for (const file of files) {
    * prints them verbatim as "Junk, but kept: <reason>". So checking the branches
    * exist is the same as checking the promise is kept.
    *
-   * Deliberately checks for the REASON STRINGS rather than the logic. A gate cannot
-   * tell whether a protection is correct, but it can tell when one has been deleted
-   * or quietly renamed - which is the failure that would otherwise ship silently.
+   * Deliberately checks for the REASON STRINGS rather than the logic, and that is now
+   * half the job rather than all of it: `deletetest.js` executes this function and proves
+   * each protection actually FIRES, one at a time. The split is worth keeping. This rule
+   * catches a branch deleted or renamed, which is a promise broken in the docs and the
+   * tooltip as much as in the code; that one catches a branch still present and no longer
+   * working. Neither failure is visible to the other.
    */
   // Matched by full PATH, not basename: Valuate-PassLoot ships its own Valuate.lua,
   // and a basename check flagged it for not containing a function it has no business
