@@ -33,10 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Sixteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Seventeen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
-  `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`. This matters because
+  `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`.
+  This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
   been a magnitude, or a cleanup step in one branch of a copied loop and missing from the
@@ -88,6 +89,12 @@ that loses an entry does not complain, it just stops running.
   check** — act only while our `func` is still installed. No cleanup, no ordering assumption.
   `ui/Pickers.lua` shows the other valid shape: it owns its own frame, so clearing the
   callback on `OnHide` is safe there.
+- **A re-entrancy guard must be released on EVERY exit.** `UpdateCharacterWindowDisplay`
+  had two near-identical branches that blank the display and only one released the flag —
+  which is tested on the function's first line, so the failure is not a wrong number but
+  the display never updating again, silently, until a `/reload`. Make the blank-and-release
+  one function rather than a pair, and have the gate ask for a real update AFTER the blank:
+  a test that only inspects the blank state passes with the guard stuck.
 - **An armed state must not outlive the thing that armed it.** Twice now: the Settings
   keybind capture had two exits and both needed the panel in front of you, and the minimap
   drag was cleared only by OnDragStop. Both left the control armed when the frame was
@@ -329,6 +336,7 @@ callback either reschedule or be genuinely final.
 | `tools/dialogtest.js` | The reused confirm dialog runs the callback it is currently showing |
 | `tools/minimaptest.js` | The minimap drag cannot outlive the drag; the pulse stays off OnUpdate |
 | `tools/statsearchtest.js` | The stat search dims non-matching rows and touches nothing else |
+| `tools/charwindowtest.js` | The character-sheet score still updates after it blanks |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

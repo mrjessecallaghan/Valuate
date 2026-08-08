@@ -45,6 +45,17 @@ function CreateFrame(frameType, name, parent, template)
     }
     function f:SetScript(which, fn) self.__scripts[which] = fn end
     function f:GetScript(which) return self.__scripts[which] end
+    -- HookScript ADDS to a handler rather than replacing it, which is the whole reason
+    -- addons use it on Blizzard frames. Modelled properly: replacing here would let a gate
+    -- pass while the real client ran two handlers.
+    function f:HookScript(which, fn)
+        local prev = self.__scripts[which]
+        if prev then
+            self.__scripts[which] = function(...) prev(...) return fn(...) end
+        else
+            self.__scripts[which] = fn
+        end
+    end
     function f:SetAlpha(a) self.__alpha = a end
     function f:GetAlpha() return self.__alpha end
     function f:SetScale(s) self.__scale = s end

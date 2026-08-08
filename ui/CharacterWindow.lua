@@ -200,6 +200,28 @@ local function HideBreakdownTooltip()
 end
 
 -- Update the character window display
+-- Blanks the character-sheet score, and releases the re-entrancy guard.
+--
+-- Both jobs, always, because separating them is what went wrong. There were two branches
+-- that blank the display - "no scales at all" and "the selected scale is not in the table" -
+-- written as near-identical copies, and only the first cleared CharacterWindowUpdating. The
+-- second returned with the guard still set.
+--
+-- That guard is tested on the FIRST line of UpdateCharacterWindowDisplay, so leaving it set
+-- did not cause a wrong number: it stopped the character-sheet score updating at all, for
+-- the rest of the session, with no error and nothing on screen to say why. A /reload was the
+-- only way out, and nobody would know to try one.
+--
+-- One function now, so a third caller cannot reintroduce half of it.
+local function BlankCharacterWindowDisplay()
+    if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
+    if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
+    if CharacterWindowScoreText then CharacterWindowScoreText:SetText("--") end
+    -- The next real score starts fresh rather than rolling up from a stale one.
+    CharacterWindowLastScore = nil
+    CharacterWindowUpdating = false
+end
+
 local function UpdateCharacterWindowDisplay()
     if CharacterWindowUpdating then
         return
@@ -237,21 +259,16 @@ local function UpdateCharacterWindowDisplay()
             Valuate:GetOptions().characterWindowScale = selectedScaleName
         else
             -- No scales available - hide display
-            if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
-            if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
-            if CharacterWindowScoreText then CharacterWindowScoreText:SetText("--") end
-            CharacterWindowLastScore = nil  -- next real score starts fresh, not rolled from a stale one
-            CharacterWindowUpdating = false
+            BlankCharacterWindowDisplay()
             return
         end
     end
-    
+
     local scale = Valuate:GetScales()[selectedScaleName]
     if not scale then
-        if CharacterWindowIconTexture then CharacterWindowIconTexture:Hide() end
-        if CharacterWindowNameText then CharacterWindowNameText:SetText("") end
-        if CharacterWindowScoreText then CharacterWindowScoreText:SetText("--") end
-        CharacterWindowLastScore = nil
+        -- The name survived the check above but is not in the table - GetActiveScales can
+        -- name a scale that has since gone. Same outcome, same cleanup.
+        BlankCharacterWindowDisplay()
         return
     end
     

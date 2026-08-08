@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.51.1a] - 2026-08-09 — A latent trap in the character-sheet score, removed
+
+### Fixed
+- **One branch of `UpdateCharacterWindowDisplay` returned without releasing its re-entrancy
+  guard.** That flag is tested on the function's *first line*, so leaving it set wouldn't
+  produce a wrong number — it would stop the character-sheet score updating **at all**, for
+  the rest of the session, with no error and nothing on screen to say why. A `/reload` is the
+  only way out and nobody would know to try one.
+- Two branches blank the display — "no scales at all" and "the selected scale is not in the
+  table" — written as near-identical copies. Only the first cleared the flag. They are now
+  one function, so a third caller can't reintroduce half of it.
+
+### Reachability — worth being plain about
+- **That branch is unreachable today.** `GetActiveScales` builds its list from the keys of
+  `GetScales()`, so the name it hands back is always present in the table a moment later. I
+  went looking for a path a user could hit and there isn't one.
+- It's still worth removing: the consequence is severe and completely silent, it activates
+  the moment `GetActiveScales` gains any other source, and the duplicated pair it came from
+  had already diverged once. This is a trap being defused, not a bug being reported.
+
+### Development
+- **A twenty-second gate, `tools/charwindowtest.js`** — 9 checks, and every one blanks the
+  display and then asks for a *real update*, because a test that only inspects the blank
+  state passes with the guard stuck. It also runs the same sequence twice, since a guard
+  released by luck rather than design shows up on the second pass.
+- Mutation-tested: restoring the missing release fails three checks, all of them
+  "the score never comes back".
+- `HookScript` joins the mock, modelled properly as **adding** to a handler rather than
+  replacing it — that's the whole reason addons use it on Blizzard frames, and a replacing
+  mock would let a gate pass while the real client ran two handlers.
+
 ## [0.51.0a] - 2026-08-09 — Find a stat without reading all sixty
 
 ### Added
