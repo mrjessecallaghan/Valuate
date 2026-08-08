@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.26.0a] - 2026-07-31 — `/valuate verify`
+
+### Added
+- **`/valuate verify`** — the behavioural checks no gate can answer. Six static gates parse
+  and scope-check every file and a headless harness runs the animation engine, but none of
+  them can tell you whether a button looks pressed. Several releases have now shipped fixes
+  whose only proof was that the reasoning was careful; this is the list of what that leaves.
+- **Checks arm themselves where they can.** `/valuate verify combat` sets the deferred-upgrade
+  flag and runs the leave-combat path directly, because "find an upgrade while in combat, then
+  leave combat" is not a test anyone performs by hand. `/valuate verify minimap` starts a pulse
+  so you can interrupt it with a drag.
+- **A check that cannot possibly fire says so first.** Arming the combat check with no upgrade
+  in your bags reports exactly that, rather than showing nothing and letting it read as a
+  failure. Same for Reduce Motion being on when the check is about motion.
+- Every entry names the version that introduced it, the steps, what to expect, and **what broke
+  last time** — the failure mode is the part worth knowing, since all of these fail silently.
+
+### Changed
+- `tools/tocsync.js` now checks the verify list itself: ids must be unique (`/valuate verify
+  <id>` takes the first match, so a duplicate would silently shadow the other entry) and every
+  `since` must name a real CHANGELOG release. Seven hand-maintained lists in this project have
+  drifted; a checklist that cites a version nobody shipped is worse than no checklist.
+- `RunVerify` and `CountEquippableUpgrades` added to the self-test's method list.
+
 ## [0.25.0a] - 2026-07-31 — See what the scan changed
 
 ### Added

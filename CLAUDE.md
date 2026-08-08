@@ -22,6 +22,12 @@ Run all four **before every commit**.
 - `tocsync.js` checks the `.toc`'s `ui\*.lua` list against what's on disk. A module that
   exists but isn't listed **never loads**, and a stripped backslash (`uiDialog.lua`)
   looks fine to a parser — both are invisible to `check.js` and were real bugs here.
+- **None of these can tell you the UI looks right.** That is what `/valuate verify` is for,
+  in-game: a short list of behaviours that fail SILENTLY, each saying what to do, what to
+  expect, and what broke last time. Several arm themselves, because "find an upgrade while in
+  combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
+  you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
+  versions are real, but only a person can notice an entry is missing.
 - `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
   It is the only gate that runs Valuate code rather than reading it, which matters because
   the other four all pass on a clamp whose comparison is the wrong way round. Start here

@@ -104,6 +104,65 @@ try {
   // No README, or it doesn't state a version: not a sync failure.
 }
 
+/*
+ * The /valuate verify checklist.
+ *
+ * It is a hand-maintained list, which in this project is a category with a track
+ * record: six of them have silently drifted (report toggles, the Instructions tab, the
+ * options table, the selftest method list, the README version, the changelog). This one
+ * is worse than most if it rots, because its entire purpose is telling someone what to
+ * trust - a checklist that names a version nobody shipped is actively misleading.
+ *
+ * Two things are checkable without judgement:
+ *   - every `since` names a real CHANGELOG release
+ *   - every `id` is unique, since /valuate verify <id> takes the FIRST match and a
+ *     duplicate would silently shadow the other entry
+ */
+try {
+  const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
+  const block = lua.match(/local VERIFY_CHECKS = \{([\s\S]*?)\n\}/);
+  if (block) {
+    const changelog = fs.readFileSync(path.join(ADDON_ROOT, "CHANGELOG.md"), "utf8");
+    const released = new Set(
+      [...changelog.matchAll(/^## \[([^\]]+)\]/gm)].map((m) => m[1])
+    );
+
+    const entries = [...block[1].matchAll(/id = "([^"]+)", since = "([^"]+)"/g)];
+    if (!entries.length) {
+      console.error("  VERIFY  VERIFY_CHECKS parsed to zero entries - the shape changed");
+      ok = false;
+    }
+
+    const seen = new Set();
+    for (const [, id, since] of entries) {
+      if (seen.has(id)) {
+        console.error(
+          "  VERIFY  duplicate check id '" + id +
+            "' - /valuate verify " + id + " would only ever reach the first"
+        );
+        ok = false;
+      }
+      seen.add(id);
+
+      if (!released.has(since)) {
+        console.error(
+          "  VERIFY  check '" + id + "' says since v" + since +
+            ", which is not a release in CHANGELOG.md"
+        );
+        ok = false;
+      }
+    }
+    if (ok) {
+      console.log(
+        "OK  /valuate verify: " + entries.length +
+          " behavioural checks, all ids unique and all versions real."
+      );
+    }
+  }
+} catch (e) {
+  // No Valuate.lua or no CHANGELOG: covered by other checks.
+}
+
 if (!ok) {
   console.error("\n.toc / ui/ / CLAUDE.md are OUT OF SYNC.");
   process.exit(1);

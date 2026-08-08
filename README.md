@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.25.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.26.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -99,6 +99,13 @@ node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
 node options.js             # every option is reachable from the UI or a command
 node api.js                 # every method the selftest names actually exists
 node animtest.js            # runs the animation engine against a mocked WoW API
+```
+
+Then, in-game, for anything the gates structurally cannot see:
+
+```
+/valuate check              # is it loaded, configured and actually doing something?
+/valuate verify             # behavioural checks a human has to look at
 ```
 
 Every gate encodes a bug that actually shipped here — addon taint, duplicated junk logic,

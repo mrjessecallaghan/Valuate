@@ -6211,7 +6211,7 @@ function Valuate:RunSelfTest()
         "SaveSettingsSnapshot", "LoadSettingsSnapshot", "HasSettingsSnapshot",
         "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
-        "RunProfile",
+        "RunProfile", "RunVerify", "CountEquippableUpgrades",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)
@@ -6560,6 +6560,139 @@ function Valuate:RunProfile()
     return true
 end
 
+-- ========================================
+-- Behavioural verification (/valuate verify)
+-- ========================================
+-- Six static gates parse and scope-check every file, and tools/animtest.js runs the
+-- animation engine headlessly against a mocked API. None of them can answer "does the
+-- button look pressed", and a run of releases has now shipped fixes whose only proof
+-- is that the reasoning was careful.
+--
+-- This is the list of what that leaves. Deliberately SHORT - not everything the addon
+-- does, only behaviours that fail SILENTLY (nothing errors, it just quietly does
+-- nothing), and that are awkward to stumble into on purpose. "Find a gear upgrade
+-- while in combat, then leave combat" is not a test anyone actually runs, so the
+-- checks that can arm themselves do.
+--
+-- Each entry names the version that introduced it, so a stale list is visible rather
+-- than merely wrong: entries far behind the current version are ones nobody got to.
+local VERIFY_CHECKS = {
+    {
+        id = "press", since = "0.23.2a",
+        title = "Buttons show a pressed state on a fast click",
+        steps = "Open the UI, hover any button, then click it within about a fifth of a second.",
+        expect = "It visibly darkens while the mouse button is held.",
+        broke = "The hover fade overwrote the pressed colour on the very next frame, so quick clicks looked like they had not registered.",
+    },
+    {
+        id = "minimap", since = "0.23.1a",
+        title = "The minimap pulse survives being interrupted by a drag",
+        steps = "This command starts a pulse. Immediately drag the minimap button around and let go.",
+        expect = "The button follows the cursor, and when the pulse ends no starburst is left behind and the button is back to its normal size.",
+        broke = "The pulse and the drag handler shared the button's single OnUpdate slot, so the drag discarded the pulse's cleanup and left the glow stuck on at up to 1.14x scale.",
+        arm = function()
+            if not Valuate.PulseMinimapButton then
+                return false, "PulseMinimapButton is missing - the minimap module did not load."
+            end
+            if Valuate:GetOptions().reduceMotion then
+                return false, "Reduce Motion is on, so there is no pulse to interrupt. Turn it off in Settings first."
+            end
+            if Valuate:GetOptions().minimapButtonHidden then
+                return false, "The minimap button is hidden. Enable it in Settings first."
+            end
+            Valuate:PulseMinimapButton()
+            return true, "Pulse started - drag the button NOW."
+        end,
+    },
+    {
+        id = "combat", since = "0.23.1a",
+        title = "An upgrade found during combat is offered when you leave it",
+        steps = "This command sets the deferred flag and runs the leave-combat path directly.",
+        expect = "The bag-upgrade prompt appears, exactly as if you had just dropped out of combat.",
+        broke = "The flag was declared 3,500 lines BELOW the handler that reads it, so that handler saw a nil global. Every in-combat upgrade was silently dropped. Nothing errored.",
+        arm = function()
+            local scale, scaleName = Valuate:GetPrimaryScale()
+            if not scale then
+                return false, "No active scale, so there is nothing to be an upgrade for."
+            end
+            if not Valuate:GetOptions().notifyBagUpgrade then
+                return false, "The bag-upgrade prompt is turned off - enable it in Settings, or this proves nothing."
+            end
+            -- Say this UP FRONT. Arming a check that cannot possibly fire and letting
+            -- the result read as a failure is worse than not offering the check.
+            local count = Valuate.CountEquippableUpgrades
+                and Valuate:CountEquippableUpgrades(scaleName) or 0
+            if count == 0 then
+                return false, "You have no equippable upgrade in your bags for '" .. scaleName ..
+                    "', so nothing would appear even if this works. Put one in your bags first."
+            end
+            bagUpgradePending = true
+            OnEvent(frame, "PLAYER_REGEN_ENABLED")
+            return true, "Fired with " .. count .. " upgrade(s) waiting - the prompt should be on screen."
+        end,
+    },
+    {
+        id = "flash", since = "0.25.0a",
+        title = "Best Equipment marks the slots a scan changed",
+        steps = "Open the Best Equipment tab and leave it open. Put a clear upgrade for one slot in your bags, then run /valuate scan.",
+        expect = "Exactly that slot's row lights up green briefly. Rows that did not change stay dark, and nothing lights up on the first visit to the tab.",
+        broke = "New in this version - never run.",
+    },
+    {
+        id = "resize", since = "0.24.0a",
+        title = "The window resizes smoothly instead of snapping",
+        steps = "Open the UI and switch between the Scales, Best Equipment and Settings tabs.",
+        expect = "The window eases between heights. It must never overshoot and spring back, which would mean something is still setting the height directly.",
+        broke = "New in this version - never run.",
+    },
+    {
+        id = "charsheet", since = "0.23.2a",
+        title = "The character sheet score appears even on a slow load",
+        steps = "Fully log out and back in (not /reload), then open your character sheet.",
+        expect = "The Valuate score is there.",
+        broke = "The fallback that waits for a slow character UI cleared its own timer after ONE attempt, so if the UI was not ready one second in it gave up permanently.",
+    },
+}
+
+local function PrintVerifyCheck(c, index)
+    print(string.format("|cFF00FF00%d. %s|r |cFFAAAAAA(since v%s)|r", index, c.title, c.since))
+    print("   |cFFFFFF00Do:|r " .. c.steps)
+    print("   |cFF88FF88Expect:|r " .. c.expect)
+    print("   |cFFAAAAAAWhy:|r " .. c.broke)
+end
+
+function Valuate:RunVerify(which)
+    if which and which ~= "" then
+        for i, c in ipairs(VERIFY_CHECKS) do
+            if c.id == which then
+                print("|cFF00FF00[Valuate]|r Behavioural check: " .. c.id)
+                PrintVerifyCheck(c, i)
+                if c.arm then
+                    local ok, message = c.arm()
+                    print(ok and ("   |cFF00FF00Armed:|r " .. message)
+                             or ("   |cFFFF8800Cannot arm:|r " .. message))
+                else
+                    print("   |cFFAAAAAAThis one cannot be armed - it needs you to do it.|r")
+                end
+                return true
+            end
+        end
+        print("|cFFFF0000[Valuate]|r No such check: " .. which)
+    end
+
+    print("|cFF00FF00[Valuate]|r Behavioural checks - the things no gate can answer")
+    print("|cFFAAAAAAEverything here fails SILENTLY when it fails. Run /valuate verify <name>|r")
+    print("|cFFAAAAAAto see one in detail; some will set themselves up for you.|r")
+    print(" ")
+    for i, c in ipairs(VERIFY_CHECKS) do
+        print(string.format("|cFF00FF00%d. %s|r |cFFAAAAAA(v%s)|r  -  /valuate verify %s",
+            i, c.title, c.since, c.id))
+    end
+    print(" ")
+    print("|cFFAAAAAA/valuate check covers the other half: is the addon loaded and configured.|r")
+    return true
+end
+
 -- Slash command handler (basic)
 SLASH_VALUATE1 = "/valuate"
 SLASH_VALUATE2 = "/val"
@@ -6596,6 +6729,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate check - Is Valuate actually working? Start here")
+        print("  /valuate verify - Behavioural checks a human has to look at (some self-arming)")
         print("  /valuate errors - Anything that errored this session (empty is expected)")
         print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
@@ -6660,6 +6794,8 @@ SlashCmdList["VALUATE"] = function(msg)
             print(string.format("  |cFFFF8800%d thing(s) worth looking at:|r", #problems))
             for _, p in ipairs(problems) do print("   - " .. p) end
         end
+    elseif strsub(command, 1, 6) == "verify" then
+        Valuate:RunVerify(strtrim(strsub(command, 7)))
     elseif command == "selftest" then
         Valuate:RunSelfTest()
     elseif command == "pulse" then
