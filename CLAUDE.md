@@ -40,6 +40,11 @@ that loses an entry does not complain, it just stops running.
   in the wrong order, a division by a signed value that should have been a magnitude, or a
   cleanup step present in one branch of a copied loop and missing from the other.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
+  **`ui/Settings.lua` (2,232 lines) has no runtime coverage.** It loads under the harness
+  and builds about a third of the way before it needs `Valuate:` API surface mocked
+  (`GetProfessionOverrideChoices` was the first). That is a test fixture, not a harness gap
+  — do not add those to `luaharness.js`; they belong in the gate that wants them. Worth
+  doing: reading it turned up a keybind capture that never released the keyboard.
   Start with `animtest.js` when extending runtime coverage: the engine's whole external
   surface is `CreateFrame` plus one option read, so its mock is small enough to trust.
   Mutation-tested — every check in it has been shown to fail when the behaviour it names

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.49.0a] - 2026-08-09 — The keybind button lets go of your keyboard
+
+### Fixed
+- **Right-clicking the Toggle UI keybind button to clear it never ended the capture.**
+  Right-click clears regardless of state, so doing it while the button said *"Press Key..."*
+  left `isCapturingKeybind` true and the keyboard still enabled: the next key you pressed was
+  silently bound, the button stayed capture-blue, and its hover styling stayed suppressed
+  because both `OnEnter` and `OnLeave` skip themselves mid-capture.
+- **Nothing ended the capture when the window closed either.** It had exactly two exits —
+  Escape, or pressing a key — and both need the panel in front of you. Click away and it
+  stayed armed; reopen Settings and it was still waiting, and still bound the next thing you
+  typed. Hidden frames get no input, so the trap only sprang when you came back, which is
+  when you'd forgotten about it.
+- On 3.3.5 that's worse than a stuck colour: there's no `SetPropagateKeyboardInput` until
+  4.0, so a frame holding `EnableKeyboard(true)` **consumes** what you type. An armed button
+  on a visible panel eats keystrokes.
+- Both paths now go through `StopKeybindCapture`, and the button disarms on `OnHide`.
+
+### Notes
+- Found by reading `ui/Settings.lua`, which at **2,232 lines has no runtime coverage at
+  all** — the largest untested surface left. It does load under the harness and builds about
+  a third of the way before it needs `Valuate:` API surface mocked, which is a test fixture
+  rather than a harness gap. Recorded in `CLAUDE.md` so the next attempt doesn't restart
+  from nothing.
+- `/valuate verify keybind` covers it: no gate can watch a button hold the keyboard.
+
 ## [0.48.0a] - 2026-08-09 — The answer moves to where the decision is
 
 ### Added

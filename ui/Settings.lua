@@ -1612,7 +1612,18 @@ local function CreateSettingsPanel(parent)
         if key1 then SetBinding(key1) end
         if key2 then SetBinding(key2) end
         SaveBindings(GetCurrentBindingSet())
-        keybindButton.label:SetText("Not Bound")
+        -- Ends the capture too, and sets the label from the binding we just cleared.
+        --
+        -- It used to only set the label. Right-click clears REGARDLESS of capture state,
+        -- so clearing while "Press Key..." was showing left isCapturingKeybind true and the
+        -- keyboard still enabled: the next key you pressed was silently bound, the button
+        -- stayed capture-blue, and its hover styling stayed suppressed because both OnEnter
+        -- and OnLeave skip themselves mid-capture.
+        --
+        -- On 3.3.5 that is worse than a stuck colour. There is no SetPropagateKeyboardInput
+        -- until 4.0, so a frame with EnableKeyboard(true) CONSUMES what you type - an armed
+        -- button sitting on a visible panel eats keystrokes.
+        StopKeybindCapture()
     end
     
     -- Button click handler
@@ -1689,6 +1700,17 @@ local function CreateSettingsPanel(parent)
             self:SetBackdropBorderColor(unpack(COLORS.border))
         end
         GameTooltip:Hide()
+    end)
+
+    -- Closing the window mid-capture must disarm it.
+    --
+    -- Capture had exactly two exits, Escape and pressing a key, and both require the panel
+    -- to be in front of you. Clicking away or closing the window left it armed forever:
+    -- reopen Settings and the button still says "Press Key...", still has the keyboard, and
+    -- binds the next thing you type. Hidden frames get no input, so the trap only springs
+    -- when you come back - which is exactly when you have forgotten about it.
+    keybindButton:SetScript("OnHide", function()
+        if isCapturingKeybind then StopKeybindCapture() end
     end)
     
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING

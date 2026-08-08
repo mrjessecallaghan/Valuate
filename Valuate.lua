@@ -7356,6 +7356,13 @@ local VERIFY_CHECKS = {
         end,
     },
     {
+        id = "keybind", since = "0.49.0a",
+        title = "The keybind button lets go of your keyboard",
+        steps = "Settings > the Toggle UI keybind button. Left-click it so it says \"Press Key...\", then RIGHT-click to clear instead of pressing a key. Then do it again, and this time close the window while it is still waiting. Reopen Settings.",
+        expect = "Both times the button goes back to its normal colour and stops saying \"Press Key...\". After reopening, typing does not bind anything, and chat still receives what you type.",
+        broke = "Right-click cleared the binding but never ended the capture, and nothing ended it when the window closed. The button kept EnableKeyboard(true) - and 3.3.5 has no SetPropagateKeyboardInput, so a frame holding the keyboard CONSUMES what you type. Reopening Settings re-armed it, and the next key you pressed was silently bound.",
+    },
+    {
         id = "share", since = "0.48.0a",
         title = "A stat's weight box says what that weight is doing",
         steps = "Open the Scale Editor and hover the weight box of a stat you have a lot of, then one you have weighted but carry none of, then one with no weight at all. Now type a bigger number into the first and hover it again.",

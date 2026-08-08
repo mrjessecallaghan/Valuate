@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.48.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.49.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.48.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.49.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -446,6 +446,10 @@ local function CreateChangelogPanel(parent)
         "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
         "   never re-animating as you move things around your bags.\n" ..
         "• The window resizes smoothly instead of snapping between tabs.\n" ..
+        "• FIXED: the Toggle UI keybind button could keep hold of your keyboard.\n" ..
+        "   Right-clicking to clear while it was waiting for a key, or closing the\n" ..
+        "   window mid-capture, left it armed - so it bound the next key you pressed\n" ..
+        "   and swallowed your typing until then.\n" ..
         "• NEW: hover a stat's weight box in the Scale Editor and it tells you what\n" ..
         "   that weight is doing - its share of your equipped score, or that you are\n" ..
         "   carrying none of the stat. Type a new number and hover again; the share\n" ..
