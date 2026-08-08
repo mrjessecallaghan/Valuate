@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate .toc / ui/ / CLAUDE.md / the verify list stay in step
+ *
  * Verifies the .toc's ui\*.lua list matches what's actually in ui/.
  *
  * This exists because of a real incident: a shell edit stripped the backslashes from

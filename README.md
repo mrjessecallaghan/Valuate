@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.29.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.30.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -85,23 +85,21 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without a local Lua runtime, so changes are **statically verified, not
-behaviour-tested**. Assume anything you haven't personally exercised is unverified, and
-be deliberate about the destructive features (deletion is permanent — WoW has no undo).
+Developed without the game running. Four subsystems — the animation engine, input
+validation and colour handling, scale-tag parsing, and the spec templates — are executed
+headlessly against a mocked WoW API and are genuinely behaviour-tested. **Everything else
+is statically verified only**: it loads, it resolves, its wiring is consistent.
+
+So assume anything you haven't personally exercised is unverified, and be deliberate about
+the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
+the specific things worth checking by hand.
 
 ## Development
 
 ```bash
 cd tools && npm install     # once: installs luaparse + fengari
-node check.js               # syntax + 9 lint rules
-node globals.js             # scope analysis + namespace contract
-node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
-node options.js             # every option is reachable from the UI or a command
-node api.js                 # every method the selftest names actually exists
-node animtest.js            # runs the animation engine against a mocked WoW API
-node widgettest.js          # runs input validation + colour handling for real
-node importtest.js          # runs scale-tag parsing + the export/import round trip
-node datatest.js            # cross-checks spec templates against the stat definitions
+node gates.js               # run every gate (about 1.3s)
+node gates.js --list        # ...or just see what would run
 ```
 
 Then, in-game, for anything the gates structurally cannot see:
@@ -116,10 +114,17 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-They check *structure*, never behaviour: there is no Lua runtime here, so a green run means
-"this can load and its wiring is consistent", not "this works". See **`CLAUDE.md`** for the
-constraints when editing (taint rules, external contracts, conventions) and
-**`ARCHITECTURE.md`** for the data model and load order.
+Four of them **execute real Lua** under fengari against a mocked WoW API — the animation
+engine, input validation and colour handling, scale-tag parsing, and the spec templates.
+Those four are where every substantive bug has been found, because the static gates can
+only see structure. The rest check wiring: that a file loads, a symbol resolves, a list
+stays in step.
+
+Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
+in-game, and its list is short on purpose — only behaviours that fail *silently*.
+
+See **`CLAUDE.md`** for the constraints when editing (taint rules, external contracts,
+conventions) and **`ARCHITECTURE.md`** for the data model and load order.
 
 ## Credits
 

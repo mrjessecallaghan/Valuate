@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Runs the animation engine against a mocked WoW API
+ *
  * Runs ui/Animations.lua for real, against a mocked WoW API.
  *
  * The other gates are static: check.js parses, globals.js resolves scope, tocsync.js

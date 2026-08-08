@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Runs input validation + colour handling for real
+ *
  * Runs ui/Widgets.lua for real, against a mocked WoW API.
  *
  * Widgets.lua is the addon's pure logic: what happens to the characters you type into

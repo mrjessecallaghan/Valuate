@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Valuate pre-commit hook: runs every gate before a commit is allowed.
+#
+# Installed by tools/install-hooks.cmd (or by copying this file to .git/hooks/).
+# .git/hooks is not version-controlled, so the hook lives in the repo and is copied
+# into place - otherwise it would only ever exist on one machine.
+#
+# Why this exists: nine gates that run only when someone remembers to run them are
+# nine gates that will eventually not run. Every real bug found in this project came
+# from something that was correct when written and quietly stopped being correct, and
+# "I ran the gates" is exactly that kind of quiet assumption.
+#
+# The whole suite takes about 1.3 seconds. That is cheap enough that there is no
+# argument for skipping it.
+#
+# To bypass in a genuine emergency:  git commit --no-verify
+# If you find yourself doing that twice, the gate is wrong - fix the gate.
+
+ROOT=$(git rev-parse --show-toplevel)
+
+if [ ! -f "$ROOT/tools/gates.js" ]; then
+    echo "Valuate: tools/gates.js not found; skipping gates."
+    exit 0
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+    # Refuse rather than pass. A missing toolchain silently letting every commit
+    # through is worse than an inconvenient failure - it looks exactly like success.
+    echo "Valuate: node is not on PATH, so the gates cannot run."
+    echo "         Install Node, or use 'git commit --no-verify' if you accept the risk."
+    exit 1
+fi
+
+echo "Valuate: running gates..."
+if ! node "$ROOT/tools/gates.js"; then
+    echo ""
+    echo "Commit blocked: at least one gate failed (see above)."
+    echo "Fix it, or 'git commit --no-verify' if you are certain."
+    exit 1
+fi
+
+exit 0

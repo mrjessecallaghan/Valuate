@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Every option is reachable from the UI or a command
+ *
  * Unreachable-option checker.
  *
  * Every option in DEFAULT_OPTIONS should be reachable by the user: a control in the

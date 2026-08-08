@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.30.0a] - 2026-07-31 — The gates run themselves
+
+### Added
+- **`tools/gates.js`** — one command runs every gate (about 1.3s). Nothing else lists them:
+  a file in `tools/` **is** a gate if its header comment carries an `@gate` line, so gates
+  declare themselves and adding one has no second step to forget.
+- **A `pre-commit` hook**, installable by double-clicking `tools/install-hooks.cmd`. Nine
+  gates that run only when someone remembers to run them are nine gates that will eventually
+  not run — and "I ran the gates" is exactly the kind of quiet assumption that every real bug
+  this project has found was made of. `git commit --no-verify` bypasses it; needing that twice
+  means the gate is wrong.
+- The hook **refuses** if `node` isn't on PATH rather than passing. A missing toolchain that
+  silently lets every commit through looks identical to success, which is the worse failure.
+
+### Changed
+- The gate list had reached four copies (`package.json`, `CLAUDE.md`, `README.md`, and whatever
+  got typed at the shell). Seven hand-maintained lists here have drifted, and a gate list is the
+  worst one to lose an entry from: the missing gate doesn't complain, it just stops running while
+  everything keeps reporting OK. There is now one source, and it's discovery rather than a list.
+- `gates.js` **refuses to report success** if discovery finds fewer than five gates, for the same
+  reason — a broken discovery would otherwise wave every commit through with a green "0 passed".
+
+### Fixed
+- **README documentation drift.** It still claimed the gates "check *structure*, never behaviour:
+  there is no Lua runtime here" — false since the fengari harness four gates ago, and the Status
+  section repeated it. Both now say what's actually true: four subsystems are genuinely
+  behaviour-tested, everything else is statically verified only.
+
 ## [0.29.0a] - 2026-07-31 — Find the setting you're looking for
 
 ### Added

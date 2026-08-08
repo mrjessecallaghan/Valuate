@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Cross-checks spec templates against the stat definitions
+ *
  * Cross-checks ui/Data.lua's class/spec templates against StatDefinitions.lua.
  *
  * Both files are pure data with no WoW API calls, and between them they hold roughly a

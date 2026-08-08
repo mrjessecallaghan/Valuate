@@ -11,10 +11,15 @@ classless server. Branch: `claude-fork`.
 ## 1. Verification: what to run, and what it proves
 
 ```bash
-cd tools && node check.js && node tocsync.js && node globals.js && node animtest.js && node widgettest.js && node importtest.js && node datatest.js
+node tools/gates.js
 ```
 
-Run all seven **before every commit**.
+Run this **before every commit** - or install the hook once and stop thinking about
+it: `toolsinstall-hooks.cmd` (double-click, or run it from a terminal).
+
+Gates **discover themselves**: a file in `tools/` is a gate if its header comment
+contains an `@gate` line. There is deliberately no list to keep in step - a gate list
+that loses an entry does not complain, it just stops running.
 
 - `check.js` parses every Lua file with `luaparse` (Lua 5.1) and enforces the lint rules
   in §4. A Lua *syntax* error means the addon silently fails to load — this is the guard

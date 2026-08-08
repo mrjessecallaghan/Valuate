@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Runs scale-tag parsing + the export/import round trip
+ *
  * Runs ImportExport.lua for real, against a mocked WoW API.
  *
  * This file makes ZERO WoW API calls - it is string parsing over text a user pasted

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Every method the selftest names actually exists
+ *
  * Selftest method-list checker.
  *
  * /valuate selftest verifies a curated list of method NAMES exist on the Valuate

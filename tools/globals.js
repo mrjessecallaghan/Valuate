@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Scope analysis: undefined globals + the ns.* contract
+ *
  * Undefined-global checker.
  *
  * Catches the worst bug class in this codebase: an identifier that resolves to a nil

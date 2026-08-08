@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 /*
+ * @gate Lua syntax + 9 lint rules
+ *
  * Valuate syntax + lint gate.
  *
  * 1. Parses every Lua file with a Lua 5.1 parser. A WoW addon with a syntax error
