@@ -5893,7 +5893,43 @@ frame:RegisterEvent("BANKFRAME_OPENED")
 frame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
 frame:RegisterEvent("PLAYERBANKBAGSLOTS_CHANGED")
 frame:RegisterEvent("ITEM_PUSH")
-frame:SetScript("OnEvent", OnEvent)
+-- Event errors, remembered per event so a failure in a frequently-firing branch
+-- (BAG_UPDATE, ITEM_PUSH) reports once instead of once per fire.
+local eventErrors = {}
+local eventErrorOrder = {}
+
+-- Wrapped so a bug in one event branch cannot silently disable part of the addon.
+--
+-- Most players run with scriptErrors OFF, which is the default: an unhandled error
+-- there is swallowed entirely, so the symptom is "some feature just stopped" with
+-- nothing to point at. That is the worst possible failure mode for an addon this
+-- size, and every silent-failure bug in this project has cost more to find than it
+-- did to fix.
+--
+-- The trade: with scriptErrors ON you would otherwise get a full traceback, and now
+-- you get the message only. The message carries file:line, which is usually enough,
+-- and it is a good deal in exchange for the errors being visible at all by default.
+frame:SetScript("OnEvent", function(self, event, ...)
+    local ok, err = pcall(OnEvent, self, event, ...)
+    if ok or eventErrors[event] then return end
+
+    eventErrors[event] = tostring(err)
+    eventErrorOrder[#eventErrorOrder + 1] = event
+    print("|cFFFF0000[Valuate]|r Error while handling " .. tostring(event) .. ":")
+    print("  " .. tostring(err))
+    print("  |cFFAAAAAAReported once per event. /valuate errors to list them again.|r")
+end)
+
+-- Lists what has gone wrong this session. Empty is the expected answer; anything
+-- here is worth reporting, since it means a code path is broken rather than merely
+-- switched off.
+function Valuate:GetEventErrors()
+    local list = {}
+    for _, event in ipairs(eventErrorOrder) do
+        list[#list + 1] = { event = event, message = eventErrors[event] }
+    end
+    return list
+end
 
 -- Re-evaluate the bag-upgrade prompt whenever best-equipment data changes (any scan).
 -- "scan" trigger hides the popup once you're wearing the best set, and drives the
@@ -6124,7 +6160,7 @@ function Valuate:RunSelfTest()
         "IsLearnableRecipe", "IsUsefulTradeGood", "GetProfessionOverrideChoices",
         "GetScaleLibrary", "SaveScaleToLibrary", "LoadScaleFromLibrary", "ListScaleLibrary",
         "SaveSettingsSnapshot", "LoadSettingsSnapshot", "HasSettingsSnapshot",
-        "RestoreDefaultOptions", "IsPassLootRollingToo",
+        "RestoreDefaultOptions", "IsPassLootRollingToo", "GetEventErrors",
         "ShowUpgradePopup", "HideUpgradePopup",
         "RunProfile",
     }
@@ -6167,6 +6203,13 @@ function Valuate:RunSelfTest()
         check(orphaned == 0, "bank-sourced best items exist in the snapshot",
               orphaned > 0 and (orphaned .. " orphaned; re-visit a bank to refresh") or nil)
     end
+
+    -- Anything that errored this session. Worth failing on: it means a code path is
+    -- broken rather than merely switched off, and with scriptErrors off by default
+    -- this is otherwise invisible.
+    local errs = Valuate:GetEventErrors()
+    check(#errs == 0, "no event errors this session",
+          #errs > 0 and (#errs .. " - see /valuate errors") or nil)
 
     -- Scale library: entries must be TAGS (strings). Storing a scale table here by
     -- mistake would import as garbage on another character, and the failure would
@@ -6503,6 +6546,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate errors - Anything that errored this session (empty is expected)")
         print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
         print("  /valuate library - Scales shared across all your characters (save/load/delete)")
         print("  /valuate settings save|load - Copy your settings to your other characters")
@@ -6861,6 +6905,18 @@ SlashCmdList["VALUATE"] = function(msg)
                 end
                 print("  |cFFAAAAAALoad onto this character: /valuate library load <name>|r")
             end
+        end
+    elseif command == "errors" then
+        local errs = Valuate:GetEventErrors()
+        if #errs == 0 then
+            print("|cFF00FF00[Valuate]|r No errors this session.")
+        else
+            print(string.format("|cFFFF0000[Valuate]|r %d event(s) errored this session:", #errs))
+            for _, e in ipairs(errs) do
+                print("  |cFFFFFFFF" .. e.event .. "|r")
+                print("    " .. tostring(e.message))
+            end
+            print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
         end
     elseif command == "junkmarks" then
         -- Diagnostic for the AdiBags "mark surplus gear as junk" option. Lives here

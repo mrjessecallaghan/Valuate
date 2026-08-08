@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.0a] - 2026-07-31 — Errors stop being silent
+
+### Added
+- **Event handlers are now error-contained and report themselves.** Most players run with
+  script errors **off** — the default — so a bug in one event branch would silently disable
+  part of the addon with nothing to point at. That is the worst failure mode for an addon this
+  size, and the one this project has repeatedly paid for.
+- Each event reports **once**, so a failure in a constantly-firing branch like `BAG_UPDATE`
+  cannot spam your chat.
+- **`/valuate errors`** lists anything that has gone wrong this session, and `/valuate selftest`
+  now fails if there is anything to list.
+
 ## [0.21.2a] - 2026-07-31 — Catch phantom methods in the selftest
 
 ### Added
