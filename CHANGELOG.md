@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.51.0a] - 2026-08-09 — Find a stat without reading all sixty
+
+### Added
+- **A search box in the Scale Editor header.** The stat grid is around sixty rows across five
+  columns; finding the one you want meant reading all of them. Settings solved this for a
+  smaller list a while back — the editor is where it actually hurts.
+- Matches the **label or the internal name**, so someone who knows the data can type
+  `TwoHandDps` without guessing what it's called on screen. Case-insensitive, Escape clears
+  it, and a count (`4/76`) sits beside the box — or **"no match"**, so an entirely dim grid
+  doesn't read as a rendering fault.
+- **Dims rather than hides**, like the Settings search and for a stronger reason: this is a
+  fixed five-column grid built from static category tables, so hiding rows would leave holes
+  or force a relayout of all sixty on every keystroke.
+- **The filter survives switching scales.** The rows are pooled and repopulating never
+  touches alpha, so the dim persists by itself — clearing the query while the grid stayed
+  dim would leave the box and the grid disagreeing.
+
+### Implementation
+- Dimming writes the **row's alpha**, deliberately not its text colour. `ApplyWeightedLook`
+  already owns the label colour and the input border — it's what marks a stat that carries a
+  weight — and a second writer on one property is the fault this codebase keeps finding.
+  Alpha is uncontested, so the two compose: a weighted stat that matches your search still
+  reads as weighted.
+- **Instant, with no tween.** This runs on every keystroke; an animated filter would still be
+  catching up with what you typed three characters ago.
+
+### Development
+- **A twenty-first gate, `tools/statsearchtest.js`** — builds the real grid (76 rows) and
+  drives the box. Mutation-tested three ways: dimming everything, dimming the containers too
+  (which fades whole columns and reads as a rendering fault), and writing the label colour
+  instead of alpha.
+- The gate asserts the *second* claim explicitly — **that nothing but the stat rows is
+  touched** — because containers, column frames and section headers share a table with the
+  rows.
+- The search box is **named** (`ValuateStatSearchBox`). The first version of the gate looked
+  for "the EditBox with an `OnTextChanged` handler" and found a stat weight box: all sixty
+  have one, for input validation. It spent its assertions typing into the last row of the
+  grid.
+
 ## [0.50.3a] - 2026-08-09 — Our colour-picker callback stops answering other addons' cancels
 
 ### Fixed

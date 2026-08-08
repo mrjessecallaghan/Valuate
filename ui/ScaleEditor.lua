@@ -56,6 +56,57 @@ local StatWeightRows = {}
 -- behaviour, not a broken editor.
 local statGrid = nil
 
+-- ========================================
+-- Stat search
+-- ========================================
+
+-- The current filter, remembered across scale switches.
+--
+-- Kept rather than cleared because the rows are POOLED: their alpha survives a
+-- repopulate anyway, so clearing the query while the rows stayed dim would leave the
+-- box and the grid disagreeing. Remembering it also matches what you are usually
+-- doing - comparing one stat across several scales.
+local statQuery = ""
+
+-- Dims the rows that do not match, instead of hiding them.
+--
+-- Same choice as the Settings search and for a stronger reason: this is a fixed
+-- five-column grid built from static category tables, so hiding rows would either
+-- leave holes or force a relayout of all sixty on every keystroke.
+--
+-- Dimming is done with the ROW's alpha, deliberately not its text colour.
+-- ApplyWeightedLook already owns the label colour and the input border - it is what
+-- marks a stat that carries a weight - and a second writer on that property is the
+-- fault this codebase keeps finding. Alpha is uncontested, so the two compose: a
+-- weighted stat that matches your search still reads as weighted.
+--
+-- Instant, with no tween. This runs on every keystroke, and an animated filter would
+-- still be catching up with what you typed three characters ago.
+local DIM_ALPHA = 0.25
+
+local function ApplyStatFilter(query)
+    statQuery = strlower(strtrim(query or ""))
+    if not statGrid or not statGrid.rows then return 0, 0 end
+
+    local shown, total = 0, 0
+    for _, row in ipairs(statGrid.rows) do
+        -- Stat rows are the ones that can be repopulated; the rest of this table is
+        -- containers, column frames and section headers, which must never dim.
+        if row.populate and row.statName then
+            total = total + 1
+            local display = ValuateStatNames[row.statName] or row.statName
+            local match = statQuery == ""
+                or string.find(strlower(display), statQuery, 1, true) ~= nil
+                -- The raw key too: someone who knows the data can type "TwoHandDps"
+                -- and not have to guess the label.
+                or string.find(strlower(row.statName), statQuery, 1, true) ~= nil
+            if match then shown = shown + 1 end
+            row:SetAlpha(match and 1 or DIM_ALPHA)
+        end
+    end
+    return shown, total
+end
+
 -- Helper to create a stat row
 local function CreateStatRow(parent, statName, scale, yOffset)
     local row = CreateFrame("Frame", nil, parent)
@@ -740,6 +791,12 @@ local function UpdateStatWeightsList(scaleName, scale)
             windowHeight = windowHeight,
         }
 
+        -- A freshly built grid starts at full alpha, so an active search has to be
+        -- re-applied or the box would say one thing and the grid show another. The
+        -- CACHED path above needs no such call: rows are pooled and populate never
+        -- touches alpha, so their dim survives a repopulate by itself.
+        ApplyStatFilter(statQuery)
+
         return -- Exit early since we've handled equipment types
     end
     
@@ -1289,6 +1346,76 @@ local function CreateScaleEditor(parent)
     nameEditBox:SetBackdropColor(unpack(COLORS.inputBg))
     nameEditBox:SetBackdropBorderColor(unpack(COLORS.border))
     nameEditBox:SetTextInsets(6, 6, 0, 0)
+
+    -- Stat search, on the right of the same header row.
+    --
+    -- There are around sixty stat rows across five columns. Finding the one you want
+    -- meant reading all of them, which is exactly the problem the Settings panel's
+    -- search already solved for a smaller list.
+    local searchCount = headerFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchCount:SetPoint("RIGHT", headerFrame, "RIGHT", -4, 0)
+    searchCount:SetTextColor(unpack(COLORS.textDim))
+    searchCount:SetText("")
+
+    -- Named, unlike most frames here. Every stat weight box carries an OnTextChanged
+    -- handler too (input validation), so "the EditBox that reacts to typing" does not
+    -- identify this one - a name does, and it is the same thing the confirm dialog and the
+    -- upgrade popup do.
+    local searchBox = CreateFrame("EditBox", "ValuateStatSearchBox", headerFrame)
+    searchBox:SetHeight(22)
+    searchBox:SetWidth(150)
+    searchBox:SetPoint("RIGHT", searchCount, "LEFT", -6, 0)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject(_G[FONT_BODY])
+    searchBox:SetBackdrop(BACKDROP_INPUT)
+    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
+    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
+    searchBox:SetTextInsets(6, 6, 0, 0)
+
+    local searchHint = headerFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchHint:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
+    searchHint:SetText("Find a stat...")
+    searchHint:SetTextColor(unpack(COLORS.textDim))
+
+    local function RunStatSearch(self)
+        local text = self:GetText() or ""
+        -- Show/Hide rather than SetShown: that is a later-expansion API, and this file
+        -- already carries a note saying so.
+        if text == "" then searchHint:Show() else searchHint:Hide() end
+
+        local shown, total = ApplyStatFilter(text)
+        if text == "" or total == 0 then
+            searchCount:SetText("")
+        elseif shown == 0 then
+            -- Says nothing matched rather than leaving a uniformly dim grid looking
+            -- like a rendering fault.
+            searchCount:SetText("|cFFFF8800no match|r")
+        else
+            searchCount:SetText("|cFF888888" .. shown .. "/" .. total .. "|r")
+        end
+    end
+
+    searchBox:SetScript("OnTextChanged", RunStatSearch)
+    searchBox:SetScript("OnEscapePressed", function(self)
+        self:SetText("")
+        self:ClearFocus()
+        RunStatSearch(self)
+    end)
+    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    searchBox:SetScript("OnEditFocusGained", function() searchHint:Hide() end)
+    searchBox:SetScript("OnEditFocusLost", function(self)
+        if (self:GetText() or "") == "" then searchHint:Show() end
+    end)
+    searchBox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_BOTTOM") then
+            GameTooltip:AddLine("Find a stat", 1, 1, 1)
+            GameTooltip:AddLine("Dims the stats that do not match, rather than hiding them, so nothing moves while you type.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine("Matches the label or the internal name. Escape clears it.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    searchBox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     nameEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     nameEditBox:SetScript("OnEnterPressed", function(self)
         if not ns.EditingScaleName or not Valuate:GetScales()[ns.EditingScaleName] then

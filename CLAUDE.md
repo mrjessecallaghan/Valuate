@@ -33,13 +33,14 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Fifteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Sixteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
-  `tabtest.js`, `dialogtest.js`, `minimaptest.js`. This matters because every static gate
-  passes on a clamp whose comparison is the wrong way round, a correct-looking branch in the wrong order, a
-  division by a signed value that should have been a magnitude, or a cleanup step in one branch
-  of a copied loop and missing from the other.
+  `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`. This matters because
+  every static gate passes on a clamp whose comparison is the wrong way round, a
+  correct-looking branch in the wrong order, a division by a signed value that should have
+  been a magnitude, or a cleanup step in one branch of a copied loop and missing from the
+  other.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
   `settingstest.js` **builds the whole 2,232-line Settings panel** and drives its keybind
   button. Getting there needed the client's dropdown API and a few EditBox methods in the
@@ -93,6 +94,10 @@ that loses an entry does not complain, it just stops running.
   hidden, and hidden frames get no input — so the trap springs when you come back. Give
   every arming path an `OnHide`, and assert the general form (*after any way this ends, it
   is not armed*) so a third exit added later has a check waiting.
+- **Find a control by NAME, not by the handler it happens to carry.** `statsearchtest.js`
+  first looked for "the EditBox with an OnTextChanged handler" and got a stat weight box —
+  all sixty have one, for input validation. Name the frame (as the confirm dialog and the
+  upgrade popup already do) and find it by that.
 - **Run an accessibility branch through the same assertions as the normal one.** Reduce
   Motion had its own copy of the arrow-driver loop, which returned early and never pruned,
   so the leak existed only with the option ON — the branch nobody watching the screen would
@@ -323,6 +328,7 @@ callback either reschedule or be genuinely final.
 | `tools/tabtest.js` | Builds the main window; arrivals only play on arrival |
 | `tools/dialogtest.js` | The reused confirm dialog runs the callback it is currently showing |
 | `tools/minimaptest.js` | The minimap drag cannot outlive the drag; the pulse stays off OnUpdate |
+| `tools/statsearchtest.js` | The stat search dims non-matching rows and touches nothing else |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
