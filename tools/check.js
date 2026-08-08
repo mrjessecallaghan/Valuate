@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 12 lint rules
+ * @gate Lua syntax + 13 lint rules
  *
  * Valuate syntax + lint gate.
  *
@@ -162,6 +162,7 @@ const RULES = [
  * the only index of what these rules are.
  */
 const STRUCTURAL_RULES = [
+  "delete-protections-complete",
   "settings-anchor-chain",
   "sort-needs-tiebreaker",
   "no-bank-in-destructive-path",
@@ -225,6 +226,53 @@ for (const file of files) {
     console.error(`FAIL   ${rel}${loc}  ${e.message}`);
     parseFailures++;
     continue; // don't lint a file that doesn't parse
+  }
+
+  /*
+   * --- delete-protections-complete ---------------------------------------------
+   *
+   * The README and the in-game tooltip both promise deletion never touches six
+   * things. Deletion is the only irreversible thing this addon does, so that promise
+   * is the most load-bearing sentence in the project - and it was verified by hand
+   * once, which is a guarantee with a shelf life.
+   *
+   * Each promised category has a branch in IsProtectedFromDelete returning its own
+   * reason string, and those strings are user-visible: the tooltip cleanup verdict
+   * prints them verbatim as "Junk, but kept: <reason>". So checking the branches
+   * exist is the same as checking the promise is kept.
+   *
+   * Deliberately checks for the REASON STRINGS rather than the logic. A gate cannot
+   * tell whether a protection is correct, but it can tell when one has been deleted
+   * or quietly renamed - which is the failure that would otherwise ship silently.
+   */
+  // Matched by full PATH, not basename: Valuate-PassLoot ships its own Valuate.lua,
+  // and a basename check flagged it for not containing a function it has no business
+  // having.
+  if (path.resolve(file) === path.resolve(ADDON_ROOT, "Valuate.lua")) {
+    const fn = src.match(/local function IsProtectedFromDelete[\s\S]*?\n end\n|local function IsProtectedFromDelete[\s\S]*?\nend\n/);
+    if (!fn) {
+      console.error(
+        `LINT   ${rel}  [delete-protections-complete] IsProtectedFromDelete not found - the deletion safety promise cannot be verified`
+      );
+      lintFailures++;
+    } else {
+      const REQUIRED = [
+        "quest item",
+        "in an equipment set",
+        "weapon-set member",
+        "best-in-slot",
+        "future upgrade",
+        "an upgrade",
+      ];
+      for (const reason of REQUIRED) {
+        if (!fn[0].includes(`return true, "${reason}`)) {
+          console.error(
+            `LINT   ${rel}  [delete-protections-complete] IsProtectedFromDelete no longer protects "${reason}", which the README and the in-game tooltip both promise it does. Deletion is irreversible - restore the branch, or change the promise.`
+          );
+          lintFailures++;
+        }
+      }
+    }
   }
 
   // --- 2. Lint ---

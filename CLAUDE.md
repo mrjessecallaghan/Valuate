@@ -113,6 +113,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
 | `anim-tween-needs-owner` | a bare `Anim.tween` outside the engine | §9 |
+| `delete-protections-complete` | removing a protection the deletion promise names | §12 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
 
 > **Known false positive:** the rule matches the anchor's *identifier text*, so two
@@ -361,3 +362,28 @@ Reads are fine and everywhere (`#rt.headCols`, `rt.headCols[i]:SetWidth(…)`). 
 
 This constraint was written down in `Valuate-TSM/Core.lua` and enforced by nothing for as
 long as it existed — the same shape as most of the bugs found in this project.
+
+### §12 — The deletion promise is enforced, not just written down
+
+The README and the Auto Delete tooltip both say deletion **never touches**:
+
+> best-in-slot, weapon-set members, future upgrades, anything that's an upgrade for any
+> scale, quest items, or items in a WoW equipment set.
+
+Deletion is the only irreversible thing this addon does, so that sentence is the most
+load-bearing one in the project. `delete-protections-complete` checks that
+`IsProtectedFromDelete` still returns a reason for each of the six.
+
+It checks the **reason strings**, not the logic — a gate can't tell whether a protection
+is *correct*, but it can tell when one has been deleted or quietly renamed, which is the
+failure that would otherwise ship in silence. Those strings are user-visible anyway: the
+tooltip cleanup verdict prints them verbatim as `Junk, but kept: <reason>`.
+
+Note that **weapon-set members are protected by the best-in-slot branch** —
+`GetBestForInfo` consults `weaponKeep` first, so an off-set weapon comes back with a
+category. That's why the branch reports `weapon-set member (twohander)` rather than
+`best-in-slot`: both are protected, but "kept: best-in-slot" on a weapon you aren't
+using reads like a mistake.
+
+If you genuinely need to change what's protected, change the README and the tooltip in
+the same commit. The gate exists to make that a decision rather than an accident.

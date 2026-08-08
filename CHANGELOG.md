@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.40.0a] - 2026-08-09 — The deletion promise is enforced, not just written down
+
+### Added
+- **Lint rule `delete-protections-complete`** (13th rule). The README and the Auto Delete tooltip
+  both promise deletion never touches best-in-slot, weapon-set members, future upgrades, anything
+  that's an upgrade for any scale, quest items, or items in a WoW equipment set. The gate checks
+  `IsProtectedFromDelete` still returns a reason for each of the six.
+- Verified two releases ago by hand and found sound — but deletion is the only irreversible thing
+  this addon does, and a guarantee that was checked once has a shelf life. Removing or renaming
+  any of the six branches now fails the build. Tested by doing exactly that to three of them.
+
+### Notes
+- It checks the **reason strings**, not the logic. A gate can't tell whether a protection is
+  *correct*; it can tell when one has been deleted or quietly renamed, which is the failure that
+  would otherwise ship in silence. Those strings are user-visible anyway — the tooltip verdict
+  prints them verbatim as `Junk, but kept: <reason>`.
+- **Caught a false positive in my own rule before it shipped**: the guard was
+  `basename(file) === "Valuate.lua"`, and `Valuate-PassLoot` ships its own `Valuate.lua` — so the
+  gate flagged an integration addon for not containing a function it has no business having. Now
+  matched by full path. A check that fires on the wrong file is worse than no check, because the
+  first fix anyone reaches for is to weaken it.
+- Documented as CLAUDE.md §12, including the non-obvious part: weapon-set members are protected by
+  the *best-in-slot* branch, because `GetBestForInfo` consults `weaponKeep` first.
+
 ## [0.39.3a] - 2026-08-09 — "Opt-in and off by default" is now enforced
 
 ### Verified — no bug
