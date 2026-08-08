@@ -6666,6 +6666,43 @@ function Valuate:RunSelfTest()
     end
     check(type(Valuate:GetBestEquipment()) == "table", "GetBestEquipment structure")
 
+    -- THE key invariant, and the only one that cannot be checked without a running
+    -- client: [slotId] holds an item equippable RIGHT NOW, and anything gated behind
+    -- level or proficiency lives in .future instead.
+    --
+    -- Three features rest on it. The upgrade prompt treats a slot mismatch as a
+    -- genuinely wearable upgrade; Equip All tries to equip whatever is there; the
+    -- level-up announcement reports what has just LEFT .future. If a too-high-level
+    -- item ever reaches a slot, all three go wrong at once and none of them errors -
+    -- you are simply offered gear you cannot wear.
+    --
+    -- ARCHITECTURE.md states this as fact. Nothing verified it until now.
+    do
+        local playerLevel = (UnitLevel and UnitLevel("player")) or 0
+        local unwearable, firstBad = 0, nil
+        local be = Valuate:GetBestEquipment()
+        for _, scaleName in ipairs(Valuate:GetActiveScales()) do
+            local slots = be[scaleName]
+            if type(slots) == "table" then
+                for slotId = 1, 18 do
+                    local entry = slots[slotId]
+                    if type(entry) == "table" and entry.itemLink then
+                        local _, _, _, _, minLevel = GetItemInfo(entry.itemLink)
+                        -- minLevel nil means the item is not cached yet; skip rather
+                        -- than report a failure the client simply cannot answer.
+                        if minLevel and playerLevel > 0 and minLevel > playerLevel then
+                            unwearable = unwearable + 1
+                            firstBad = firstBad or (scaleName .. " slot " .. slotId
+                                .. " needs level " .. minLevel .. ": " .. entry.itemLink)
+                        end
+                    end
+                end
+            end
+        end
+        check(unwearable == 0, "best-in-slot entries are all equippable now",
+              unwearable > 0 and (unwearable .. " too high level, e.g. " .. tostring(firstBad)) or nil)
+    end
+
     -- Bank snapshot: well-formed, and consistent with what the panel claims.
     -- A best-in-slot entry flagged "bank" that is NOT in the snapshot means the two
     -- have desynced - the panel would badge an item Equip All then can't explain.

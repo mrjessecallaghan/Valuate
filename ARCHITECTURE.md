@@ -89,6 +89,11 @@ Key invariant: **`[slotId]` only ever holds an item equippable right now.** Anyt
 gated behind level/proficiency lives in `.future`. That's why the upgrade prompt can
 trust a slot mismatch to mean a genuinely wearable upgrade.
 
+**`/valuate selftest` asserts this**, because no static gate can — it needs your level and
+the live item cache. Three features break together if it slips (the upgrade prompt, Equip
+All, and the level-up announcement), and none of them errors when it does; you are simply
+offered gear you cannot wear.
+
 ---
 
 ## Weapon sets

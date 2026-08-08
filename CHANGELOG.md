@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.40.2a] - 2026-08-09 — The invariant no gate could reach
+
+### Added
+- **`/valuate selftest` now asserts the key best-in-slot invariant**: `[slotId]` only ever holds an
+  item equippable *right now*, with anything gated behind level or proficiency living in `.future`.
+  `ARCHITECTURE.md` stated this as fact and nothing verified it.
+- **Three features rest on it and break together if it slips** — the upgrade prompt treats a slot
+  mismatch as a genuinely wearable upgrade, Equip All tries to equip whatever is there, and the
+  level-up announcement reports what has just left `.future`. None of them errors when it goes
+  wrong; you're simply offered gear you can't wear.
+
+### Notes
+- This one **cannot** be a static gate — it needs your character's level and the live item cache.
+  That's the honest boundary: the last several releases converted hand-verifications into build
+  gates, and this is the first claim where the selftest is the only place it can live.
+- An uncached item is **skipped rather than failed**. `GetItemInfo` returns nil until the client
+  has seen an item, and reporting a violation the client can't answer would be a false alarm — the
+  fastest way to teach someone to ignore a diagnostic.
+- Scan logic proven through the harness, including the uncached and unknown-player-level cases.
+
 ## [0.40.1a] - 2026-08-09 — And the re-check before acting is enforced too
 
 ### Added
