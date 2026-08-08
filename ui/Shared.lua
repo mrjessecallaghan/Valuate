@@ -40,6 +40,23 @@ ns.BUTTON_HEIGHT = 24
 ns.ENTRY_HEIGHT = 24
 ns.SCROLLBAR_WIDTH = 20      -- Width reserved for scrollbars (18px bar + 2px gap)
 
+-- Motion tokens, in the same spirit as COLORS: a small fixed vocabulary rather than
+-- a number picked per animation.
+--
+-- These accumulated as eight different durations across about a dozen animations,
+-- each reasonable alone. The effect of that is subtle but real - motion that varies
+-- without meaning reads as slightly off rather than deliberate, in the same way
+-- mismatched spacing does.
+--
+-- Pick by INTENT, not by feel:
+ns.MOTION = {
+    instant = 0.10,  -- press/click feedback; must feel like it already happened
+    fast    = 0.16,  -- hover and other small state changes
+    base    = 0.24,  -- dialogs and panels arriving; the default
+    slow    = 0.34,  -- reveals where the motion itself carries the meaning
+    stagger = 0.05,  -- gap between items in a cascade
+}
+
 -- Stat editor sizing (5-column layout)
 ns.NUM_COLUMNS = 5           -- Number of stat columns
 ns.COLUMN_WIDTH = 160        -- Each stat column width

@@ -155,7 +155,7 @@ end
 -- state), so the frame still ends up fully visible at scale 1 either way.
 function Anim.popIn(frame, fromScale, duration)
     if not frame or not frame.SetAlpha then return end
-    duration = duration or 0.28
+    duration = duration or (ns.MOTION and ns.MOTION.base) or 0.24
     frame:SetAlpha(0)
     if frame.SetScale then frame:SetScale(fromScale or 0.92) end
     -- Alpha lands first: the shape settling after it is already solid reads as

@@ -9,6 +9,7 @@
 local _, ns = ...
 
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_BUTTON = ns.BACKDROP_BUTTON
 local BUTTON_HEIGHT = ns.BUTTON_HEIGHT
 local FONT_BODY = ns.FONT_BODY
@@ -163,20 +164,24 @@ local function CreateStyledButton(parent, text, width, height)
     label:SetTextColor(unpack(COLORS.textBody))
     btn.label = label
     
-    -- Hover fades in/out; the press is instant so clicks still feel snappy, then
-    -- the release eases back to the hover state.
+    -- Hover fades in/out at the same speed; the press is instant so clicks still
+    -- feel snappy, then the release eases back to the hover state.
+    --
+    -- In and out used to differ (0.12 / 0.18). Asymmetric hover can be deliberate,
+    -- but nothing here documented it as such and every other control in the addon
+    -- was symmetric, so this reads as drift rather than design. One duration now.
     btn:SetScript("OnEnter", function(self)
-        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.12)
+        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.fast)
     end)
     btn:SetScript("OnLeave", function(self)
-        TweenBackdrop(self, COLORS.buttonBg, COLORS.border, 0.18)
+        TweenBackdrop(self, COLORS.buttonBg, COLORS.border, MOTION.fast)
     end)
     btn:SetScript("OnMouseDown", function(self)
         self:SetScript("OnUpdate", nil)  -- cancel any running fade
         self:SetBackdropColor(unpack(COLORS.buttonPressed))
     end)
     btn:SetScript("OnMouseUp", function(self)
-        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.10)
+        TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.instant)
     end)
     
     return btn

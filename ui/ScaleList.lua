@@ -13,6 +13,7 @@ local PADDING, ELEMENT_SPACING, INNER_SPACING = ns.PADDING, ns.ELEMENT_SPACING, 
 local BUTTON_HEIGHT, ENTRY_HEIGHT, SCROLLBAR_WIDTH = ns.BUTTON_HEIGHT, ns.ENTRY_HEIGHT, ns.SCROLLBAR_WIDTH
 local SCALE_LIST_WIDTH = ns.SCALE_LIST_WIDTH
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
@@ -382,7 +383,7 @@ local function UpdateScaleList()
                     -- Faded rather than snapped, matching the styled buttons
                     -- elsewhere. Border is left as-is so the selected row's accent
                     -- stays the only strong edge in the list.
-                    TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, 0.12)
+                    TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.fast)
                 end
             end
 
@@ -405,9 +406,9 @@ local function UpdateScaleList()
                 local scale = Valuate:GetScales()[scaleData.name]
                 local vis = scale and scale.Visible ~= false
                 if vis then
-                    TweenBackdrop(self, COLORS.buttonBg, COLORS.border, 0.18)
+                    TweenBackdrop(self, COLORS.buttonBg, COLORS.border, MOTION.fast)
                 else
-                    TweenBackdrop(self, COLORS.disabled, COLORS.border, 0.18)
+                    TweenBackdrop(self, COLORS.disabled, COLORS.border, MOTION.fast)
                 end
             end
         end)
@@ -422,9 +423,9 @@ local function UpdateScaleList()
                 -- Faded out over the same beat the new row fades in, so selection
                 -- reads as a handoff between two rows rather than two separate pops.
                 if prevVis then
-                    TweenBackdrop(prevBtn, COLORS.buttonBg, COLORS.border, 0.14)
+                    TweenBackdrop(prevBtn, COLORS.buttonBg, COLORS.border, MOTION.fast)
                 else
-                    TweenBackdrop(prevBtn, COLORS.disabled, COLORS.borderDark, 0.14)
+                    TweenBackdrop(prevBtn, COLORS.disabled, COLORS.borderDark, MOTION.fast)
                 end
             end
             
@@ -432,7 +433,7 @@ local function UpdateScaleList()
             ns.CurrentSelectedScale = scaleData.name
             -- Slightly quicker than the hover fade: a click should feel like it
             -- landed, not like it's still deciding.
-            TweenBackdrop(self, COLORS.selected, COLORS.selectedBorder, 0.10)
+            TweenBackdrop(self, COLORS.selected, COLORS.selectedBorder, MOTION.instant)
             
             -- Update editor with current scale data from ValuateScales
             ValuateUI_UpdateScaleEditor(scaleData.name, Valuate:GetScales()[scaleData.name])

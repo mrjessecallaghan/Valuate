@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.22.5a] - 2026-07-31 — Motion becomes a vocabulary
+
+### Changed
+- **Animation timings are now design tokens**, like the colours. Eight different durations had
+  accumulated across about a dozen animations, each reasonable alone — but motion that varies
+  without meaning reads as slightly off rather than deliberate, the same way mismatched spacing
+  does. There are now four, chosen by intent: `instant`, `fast`, `base`, `slow`.
+- Button hover in/out were 0.12 and 0.18; both are now `fast`. Asymmetric hover can be
+  deliberate, but nothing documented it as such and every other control was symmetric.
+
 ## [0.22.4a] - 2026-07-31 — One command to check it works
 
 ### Added
