@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.25.0a] - 2026-07-31 — See what the scan changed
+
+### Added
+- **Slots whose best item changed since you last looked now light up briefly** in the Best
+  Equipment tab. A scan used to rewrite the panel in silence — with seventeen slots per scale
+  across several columns, finding the one that moved meant remembering what was there before.
+- The comparison is against **the last state you actually saw**, not the last redraw. A scan
+  that happens while you are on the Settings tab is not consumed silently; switching to Best
+  Equipment still shows you what it did.
+- Nothing flashes on first sight of a scale, and nothing flashes on a refresh that changed
+  nothing — the two cases where a highlight would say nothing at all.
+- Under Reduce Motion the row simply never lights up. A notification has no meaningful
+  "instant" form, so there is nothing to collapse it to.
+
+### Notes
+- The change is keyed on the item **link** rather than the item id, so a differently-enchanted
+  version of the same base item correctly counts as a different best-in-slot.
+- This is cosmetic and its logic is not covered by the runtime harness — `ui/BestEquipment.lua`
+  has far too large an API surface to mock honestly. Worth a look in-game: run a scan that you
+  know changes one slot, and check that exactly that row lights up.
+
 ## [0.24.0a] - 2026-07-31 — The window resizes instead of snapping
 
 ### Changed

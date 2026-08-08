@@ -38,6 +38,64 @@ local BestEquipmentScrollFrame = nil
 local BestEquipmentContentFrame = nil
 -- (BestEquipmentScaleFrames removed: the panel now uses a persistent column pool)
 
+-- ========================================
+-- "What did that scan actually change?"
+-- ========================================
+-- A scan used to rewrite this panel in silence: rows changed and nothing said which.
+-- With seventeen slots per scale across several columns, spotting the one that moved
+-- meant remembering what was there before.
+--
+-- Keyed on scale+slot rather than on the row widget. Rows are pooled by column INDEX
+-- and which scale a column shows changes as scales are toggled, so a widget-keyed
+-- memory would end up comparing one scale's best item against another's.
+--
+-- The value is the item LINK, not the item id: a differently-enchanted version of the
+-- same base item genuinely is a different best-in-slot, and the link distinguishes
+-- them while the id does not.
+local lastBestLink = {}
+
+-- Deliberately NOT one of the MOTION tokens. Those describe transitions - something
+-- moving from A to B - and this is a notification: it exists to be noticed after a
+-- scan you were probably not watching. A second reads as "look here"; a quarter of
+-- one reads as a flicker you are not sure you saw.
+local CHANGE_FLASH_TIME = 1.0
+local CHANGE_FLASH_PEAK = 0.30
+
+local function FlashRowChanged(r)
+    if not r or not r.changeFlash or not r.slotRow then return end
+    local tex = r.changeFlash
+    tex:SetAlpha(CHANGE_FLASH_PEAK)
+    -- Owned, so a row that changes twice in quick succession restarts cleanly instead
+    -- of running two fades that fight over the same alpha.
+    --
+    -- Under Reduce Motion the engine jumps to the final state, which for this tween is
+    -- alpha 0 - so the row simply never lights up. That is the honest instant version:
+    -- there is no "final frame" of a notification worth showing.
+    Anim.owned(r.slotRow, "changeflash", {
+        duration = CHANGE_FLASH_TIME,
+        ease = "outCubic",
+        onUpdate = function(e) tex:SetAlpha(CHANGE_FLASH_PEAK * (1 - e)) end,
+        onDone = function() tex:SetAlpha(0) end,
+    })
+end
+
+-- Records what this slot now holds and reports whether that is a CHANGE.
+--
+-- A nil previous value means this scale+slot has never been drawn, which is not a
+-- change - it is the first sight of it. Without that distinction the first visit to
+-- the tab would light up every row in every column and mean nothing at all.
+-- Separator that cannot occur in a scale name (the UI validates them as text) and so
+-- cannot make "Fire" + slot 12 collide with "Fire1" + slot 2.
+local KEY_SEP = "\30"
+
+local function NoteBestItemAndDetectChange(scaleName, slotId, bestItem)
+    local key = scaleName .. KEY_SEP .. slotId
+    local newLink = (bestItem and bestItem.itemLink) or ""
+    local prevLink = lastBestLink[key]
+    lastBestLink[key] = newLink
+    return prevLink ~= nil and prevLink ~= newLink
+end
+
 local function CreateBestEquipmentPanel(parent)
     -- Safety check
     if not Valuate or not Valuate.GetOptions or not Valuate.GetScales then
@@ -397,6 +455,17 @@ local function CreateBestEquipmentPanel(parent)
             slotRow:SetPoint("TOPLEFT", equipmentContainer, "TOPLEFT", 3, yOffset)
             r.slotRow = slotRow
 
+            -- Brief tint behind the whole row, used to mark a slot whose best item
+            -- actually changed on the last scan. BACKGROUND layer on slotRow, so it
+            -- sits behind the icon and text rather than washing them out. Starts
+            -- invisible: most refreshes change nothing and must look like nothing.
+            local changeFlash = slotRow:CreateTexture(nil, "BACKGROUND")
+            changeFlash:SetAllPoints(slotRow)
+            changeFlash:SetTexture("Interface\\Buttons\\WHITE8X8")
+            changeFlash:SetVertexColor(0.35, 0.85, 0.45)
+            changeFlash:SetAlpha(0)
+            r.changeFlash = changeFlash
+
             local lockButton = CreateFrame("Button", nil, slotRow)
             lockButton:SetSize(16, 16)
             lockButton:SetPoint("LEFT", slotRow, "LEFT", 0, 0)
@@ -568,6 +637,10 @@ local function CreateBestEquipmentPanel(parent)
         if not ns.ValuateUIFrame or not ns.ValuateUIFrame:IsShown() then
             return
         end
+
+        -- Hoisted: the row loop below asks this once per slot per column otherwise, and
+        -- it cannot change midway through a single rebuild.
+        local panelVisible = parent:IsShown()
 
         local activeScales = Valuate:GetActiveScales()
         local scales = Valuate:GetScales()
@@ -755,6 +828,25 @@ local function CreateBestEquipmentPanel(parent)
                     r.bankBadge:Hide()
 
                     local bestItem = bestEquipment[scaleName] and bestEquipment[scaleName][slotId]
+
+                    -- Only while this panel is actually on screen. The enclosing guard
+                    -- checks the WINDOW is shown, which is not the same thing: a scan
+                    -- while you are reading the Settings tab would otherwise record the
+                    -- new items, consume the change, and leave nothing to see when you
+                    -- switch over. Skipping the record entirely means the comparison is
+                    -- against the last state you actually looked at, which is the
+                    -- question being asked - "what changed since I last saw this?"
+                    if panelVisible then
+                        if NoteBestItemAndDetectChange(scaleName, slotId, bestItem) then
+                            FlashRowChanged(r)
+                        else
+                            -- Clear through the engine, not by writing alpha directly: a
+                            -- fade may still be running on this pooled row from a previous
+                            -- draw, and it would overwrite a bare SetAlpha on its next frame.
+                            Anim.cancelProp(r.slotRow, "changeflash")
+                            r.changeFlash:SetAlpha(0)
+                        end
+                    end
                     local equippedStats = GetEquippedStatsForSlot(slotId)
                     local equippedScore = equippedStats and Valuate:CalculateItemScore(equippedStats, scale) or nil
 
