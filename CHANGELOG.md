@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.33.1a] - 2026-07-31 — Auto-delete won't touch a slot mid-move
+
+### Fixed
+- **Auto-delete could act on a bag slot that was mid-operation.** A `locked` slot is one the
+  client is still resolving — being moved, split, or awaiting the server. `AutoSellJunk` has
+  always skipped those, at both scan time and at the moment of sale. Auto-delete, the
+  **irreversible** path, checked at neither. It now does both.
+- The existing link re-verify does not cover this: a slot can be locked while still reporting
+  the same item link, so "the contents didn't change" was true and the delete proceeded anyway.
+- Locked slots are counted as protected rather than deletable, so `/valuate deletepreview` can
+  never claim an item is deletable that the same pass would refuse to touch.
+
+### Notes — what this audit did *not* find
+- The re-verify guard the README promises for **both** delete and sell is genuinely there in
+  both. My first check looked in `AutoSellJunk` and found nothing; the guard lives in
+  `SellNextBatch`, where the actual selling happens. No bug — worth stating plainly rather than
+  leaving the impression there was one.
+- `ui/ScaleList.lua` still rebuilds rather than pools, and I have deliberately **left it that
+  way**. It is the same pattern the stat grid just got, but the risk profile is different: the
+  leak is now ~5 frames per user action rather than 250 per click, while `scaleData` is captured
+  by ten handlers including **delete**, so a rebinding mistake deletes the wrong scale. Small
+  gain, irreversible failure, no way to test it — the trade doesn't hold.
+
 ## [0.33.0a] - 2026-07-31 — The stat grid is a pool at last
 
 ### Fixed

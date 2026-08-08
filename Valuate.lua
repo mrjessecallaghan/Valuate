@@ -5316,7 +5316,12 @@ function Valuate:AutoDeleteJunk(opts)
             if link then
                 local itemId = GetItemIdFromLink(link)
                 local name, _, quality = GetItemInfo(link)
-                local _, stackCount = GetContainerItemInfo(bag, slot)
+                -- `locked` means the slot is mid-operation: being moved, split, or
+                -- awaiting the server's answer. AutoSellJunk has always skipped those,
+                -- at both scan and act time; this path - the IRREVERSIBLE one - checked
+                -- neither. A locked slot can still report the same link, so the
+                -- re-verify further down does not cover it.
+                local _, stackCount, slotLocked = GetContainerItemInfo(bag, slot)
                 stackCount = stackCount or 1
 
                 -- Unit value from the configured price source (vendor by default).
@@ -5333,7 +5338,15 @@ function Valuate:AutoDeleteJunk(opts)
                 local value = unitValue * stackCount
 
                 nScanned = nScanned + 1
-                if isJunk then
+                if isJunk and slotLocked then
+                    -- Silently skipped: a locked slot is transient, and the next run
+                    -- picks it up if it is still junk. Counted as protected so the
+                    -- preview never claims an item is deletable that this pass refused.
+                    nProtected = nProtected + 1
+                    if preview or options.debug then
+                        print("|cFF88CC88[Valuate]|r keeping " .. link .. " (slot is mid-move)")
+                    end
+                elseif isJunk then
                     nJunk = nJunk + 1
                     if not (quality and quality <= maxQuality) then
                         nQuality = nQuality + 1
@@ -5430,8 +5443,12 @@ function Valuate:AutoDeleteJunk(opts)
             -- shift between the scan and here (another addon, a stack change), and we
             -- must never delete a slot whose contents changed out from under us.
             local nowLink = GetContainerItemLink(c.bag, c.slot)
-            if nowLink ~= c.link then
-                -- Contents changed; skip this slot silently rather than risk it.
+            local _, _, nowLocked = GetContainerItemInfo(c.bag, c.slot)
+            if nowLink ~= c.link or nowLocked then
+                -- Contents changed, or the slot is mid-operation; skip it silently
+                -- rather than risk it. SellNextBatch has always checked both - this
+                -- path only compared the link, and a slot can be locked while still
+                -- reporting the same one.
             else
             PickupContainerItem(c.bag, c.slot)
             if CursorHasItem and CursorHasItem() then
