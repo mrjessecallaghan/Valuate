@@ -31,64 +31,48 @@ local ShowIconPicker = ns.ShowIconPicker
 
 local ScaleListFrame = nil
 
--- KNOWN LEAK, not yet fixed: this rebuilds its buttons instead of pooling them.
---
--- SetParent(nil) does not free a frame in WoW - nothing does. So every call orphans
--- about five frames per scale, permanently. ui/BestEquipment.lua hit exactly this and
--- was rewritten around a pool ("BuildBestEquipColumn builds a column's structure once;
--- UpdateBestEquipmentDisplay only sets content and rebinds closures"); this panel and
--- ui/ScaleEditor.lua's UpdateStatWeightsList never got the same treatment.
---
--- The pathological caller is gone: the colour picker used to call this on every colour
--- change while you dragged the wheel, which cost thousands of frames in seconds. What
--- remains is one call per user action - creating, deleting, renaming or toggling a
--- scale - so the leak is now slow rather than alarming.
---
--- Fixing it properly means splitting button construction from population so the row can
--- be reused, and rebinding the closures to read the scale name from the button rather
--- than capturing it. That is a real refactor of live UI code, so it is written down
--- here rather than attempted blind.
-local function UpdateScaleList()
-    if not ScaleListFrame then return end
+-- Forward declaration. The delete handler inside a row calls UpdateScaleList, and rows
+-- are built ABOVE it - a `local function UpdateScaleList` further down would compile
+-- that call to a nil global, which is silent: the scale would vanish from the saved
+-- variables and stay on screen until you reopened the window. That exact shape (a local
+-- declared below its reader) has cost this project three separate bugs.
+local UpdateScaleList
 
-    -- Clear existing buttons
-    for _, btn in pairs(ns.ScaleListButtons) do
-        btn:Hide()
-        btn:SetParent(nil)
-    end
-    ns.ScaleListButtons = {}
-    
-    -- Get all scales
-    local scales = {}
-    local scalesData = Valuate:GetScales()
-    if scalesData then
-        for name, scale in pairs(scalesData) do
-            tinsert(scales, { name = name, scale = scale })
-        end
-    end
-    
-    -- Sort by display name
-    table.sort(scales, function(a, b)
-        local da, db = (a.scale.DisplayName or a.name), (b.scale.DisplayName or b.name)
-        if da ~= db then return da < db end
-        return a.name < b.name  -- unique key breaks duplicate display names
-    end)
-    
-    -- Create button for each scale
-    local lastButton = nil
-    for i, scaleData in ipairs(scales) do
+-- The row pool.
+--
+-- WoW never frees a frame. SetParent(nil) does not free one; nothing does. This panel
+-- used to build about five frames per scale on every call and orphan the previous set,
+-- so creating, deleting, renaming or toggling a scale leaked permanently - slowly, but
+-- with no upper bound across a session.
+--
+-- Rows are therefore built ONCE and repopulated, the same shape ui/BestEquipment.lua
+-- uses. The rule that makes it safe: no handler may capture a scale. Every one reads
+-- `self.scaleName` (or the row's) at the moment it runs, because a captured name on a
+-- reused row is a click that acts on whatever scale used to be in that position - and
+-- one of these buttons deletes a scale. tools/scalelisttest.js exists for that risk
+-- specifically; it repopulates a pool with a different, shorter list and fires the
+-- handlers to prove they follow.
+local rowPool = {}
+
+local function RowScale(row)
+    return row.scaleName and Valuate:GetScales()[row.scaleName] or nil
+end
+
+-- Builds one row's structure. Called once per index, ever.
+local function BuildScaleRow(index)
         local btn = CreateFrame("Button", nil, ScaleListFrame)
         btn:SetHeight(ENTRY_HEIGHT)
         btn:SetWidth(168)  -- Fits within scroll content area
-        
-        -- Center the scale buttons horizontally
-        if i == 1 then
+
+        -- Anchored once, to the row above it in the POOL. Pool order never changes, so
+        -- these points never need clearing - and a hidden row still anchors correctly
+        -- because the rows after it are hidden too.
+        if index == 1 then
             btn:SetPoint("TOP", ScaleListFrame, "TOP", 0, 0)
         else
-            btn:SetPoint("TOP", lastButton, "BOTTOM", 0, -2)
+            btn:SetPoint("TOP", rowPool[index - 1], "BOTTOM", 0, -2)
         end
-        lastButton = btn
-        
+
         btn:SetBackdrop(BACKDROP_BUTTON)
         btn:SetBackdropColor(unpack(COLORS.buttonBg))
         btn:SetBackdropBorderColor(unpack(COLORS.border))
@@ -102,33 +86,30 @@ local function UpdateScaleList()
         visCheckbox:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
         visCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
         
-        local isVisible = scaleData.scale.Visible ~= false
-        visCheckbox:SetChecked(isVisible)
-        
         -- Color preview button (clickable to change color)
         local colorBtn = CreateFrame("Button", nil, btn)
         colorBtn:SetSize(14, 14)
         colorBtn:SetPoint("LEFT", visCheckbox, "RIGHT", 4, 0)
-        
+
         local colorPreview = colorBtn:CreateTexture(nil, "OVERLAY")
         colorPreview:SetAllPoints(colorBtn)
-        local color = scaleData.scale.Color or "FFFFFF"
-        local r, g, b = HexToRGB(color)
         colorPreview:SetTexture(1, 1, 1, 1)
-        colorPreview:SetVertexColor(r, g, b, 1)
-        
+
         -- Color picker on click
         colorBtn:SetScript("OnClick", function(self)
-            local scalesData = Valuate:GetScales()
-            local scale = scalesData[scaleData.name]
+            local scale = RowScale(btn)
             if not scale then return end
             
             local currentColor = scale.Color or "FFFFFF"
             local cr, cg, cb = HexToRGB(currentColor)
-            
-            -- Store reference for callback
-            local scaleName = scaleData.name
-            
+
+            -- Captured at CLICK time, deliberately. The picker is modal, but the list
+            -- can still be repopulated underneath it, and a callback that re-read the
+            -- row would then recolour whichever scale had moved into this position.
+            -- The swatch writes below are guarded on the row still showing this scale
+            -- for the same reason.
+            local scaleName = btn.scaleName
+
             ColorPickerFrame.previousValues = { cr, cg, cb }
             
             ColorPickerFrame.func = function()
@@ -147,7 +128,9 @@ local function UpdateScaleList()
                 -- UpdateScaleList discards its buttons with SetParent(nil) - which does
                 -- NOT free a frame in WoW. A few seconds of dragging with five scales
                 -- therefore orphaned a couple of thousand frames, permanently.
-                colorPreview:SetVertexColor(newR, newG, newB, 1)
+                if btn.scaleName == scaleName then
+                    colorPreview:SetVertexColor(newR, newG, newB, 1)
+                end
 
                 -- Reset tooltips to show new color immediately
                 if Valuate.ResetTooltips then
@@ -160,10 +143,11 @@ local function UpdateScaleList()
                 local scales = Valuate:GetScales()
                 if prev and scales[scaleName] then
                     scales[scaleName].Color = RGBToHex(prev[1], prev[2], prev[3])
-                    -- Restore the swatch directly, for the same reason as above. This
-                    -- one fires once rather than per frame, but a rebuild here would
-                    -- still orphan a row's worth of frames for no benefit.
-                    colorPreview:SetVertexColor(prev[1], prev[2], prev[3], 1)
+                    -- Restore the swatch directly, for the same reason as above - and
+                    -- only if this row still shows that scale.
+                    if btn.scaleName == scaleName then
+                        colorPreview:SetVertexColor(prev[1], prev[2], prev[3], 1)
+                    end
                 end
 
                 -- Reset tooltips to restore original color
@@ -196,29 +180,31 @@ local function UpdateScaleList()
         
         local iconTexture = iconBtn:CreateTexture(nil, "OVERLAY")
         iconTexture:SetAllPoints(iconBtn)
-        local currentIcon = scaleData.scale.Icon
-        if currentIcon and currentIcon ~= "" then
-            iconTexture:SetTexture(currentIcon)
-            iconTexture:SetVertexColor(1, 1, 1, 1)
-        else
-            -- Default placeholder icon (dimmed when no icon set)
-            iconTexture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-            iconTexture:SetVertexColor(0.5, 0.5, 0.5, 0.5)
+
+        -- The single place that decides how an icon slot looks: the scale's icon, or a
+        -- dimmed placeholder when it has none. Three copies of this used to exist.
+        local function ApplyIcon(icon)
+            if icon and icon ~= "" then
+                iconTexture:SetTexture(icon)
+                iconTexture:SetVertexColor(1, 1, 1, 1)
+            else
+                iconTexture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                iconTexture:SetVertexColor(0.5, 0.5, 0.5, 0.5)
+            end
         end
-        
+
         -- Icon picker on click
         iconBtn:SetScript("OnClick", function(self)
-            local scaleName = scaleData.name
+            local scaleName = btn.scaleName
             ShowIconPicker(function(selectedIcon)
                 if Valuate:GetScales()[scaleName] then
                     Valuate:GetScales()[scaleName].Icon = selectedIcon
                 end
-                if selectedIcon and selectedIcon ~= "" then
-                    iconTexture:SetTexture(selectedIcon)
-                    iconTexture:SetVertexColor(1, 1, 1, 1)
-                else
-                    iconTexture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-                    iconTexture:SetVertexColor(0.5, 0.5, 0.5, 0.5)
+                -- Same guard as the colour picker: the picker is not modal to this
+                -- list, so only touch the row if it still shows the scale you picked
+                -- for.
+                if btn.scaleName == scaleName then
+                    ApplyIcon(selectedIcon)
                 end
             end)
         end)
@@ -263,8 +249,13 @@ local function UpdateScaleList()
             GameTooltip:Hide()
         end)
         deleteBtn:SetScript("OnClick", function(self)
-            local scaleName = scaleData.name
-            
+            -- Read at CLICK time from the row, never captured at build time. This row
+            -- has shown other scales and will show others again; a captured name here
+            -- would delete whichever scale used to sit in this position. There is no
+            -- undo for that.
+            local scaleName = btn.scaleName
+            if not scaleName then return end
+
             -- If Shift key is held down, delete immediately without confirmation
             if IsShiftKeyDown() then
                 Valuate:GetScales()[scaleName] = nil
@@ -285,7 +276,8 @@ local function UpdateScaleList()
                 -- Show confirmation dialog (our own frame - see ShowConfirmDialog:
                 -- StaticPopup frames are recycled and would taint secure dialogs)
                 Valuate:ShowConfirmDialog({
-                    text = "Are you sure you want to delete the scale \"" .. (scaleData.scale.DisplayName or scaleName) .. "\"?",
+                    text = "Are you sure you want to delete the scale \"" ..
+                        ((RowScale(btn) and RowScale(btn).DisplayName) or scaleName) .. "\"?",
                     acceptText = "Delete",
                     cancelText = "Cancel",
                     onAccept = function()
@@ -329,14 +321,6 @@ local function UpdateScaleList()
         nameLabel:SetPoint("LEFT", iconBtn, "RIGHT", 4, 0)
         nameLabel:SetPoint("RIGHT", primaryMark, "LEFT", -2, 0)
         nameLabel:SetJustifyH("LEFT")
-        nameLabel:SetText(scaleData.scale.DisplayName or scaleData.name)
-
-        do
-            local _, primaryName = Valuate:GetPrimaryScale()
-            if primaryName == scaleData.name then
-                primaryMark:Show()
-            end
-        end
 
         -- NOTE: the row's OnEnter/OnLeave are set further down (the hover highlight).
         -- Setting them here as well would silently replace that handler, so the
@@ -344,15 +328,15 @@ local function UpdateScaleList()
         
         -- Helper to update visual state based on visibility
         local function UpdateVisualState(visible)
-            -- Get current scale from cache (may have been updated by color picker or icon picker)
-            local currentScale = Valuate:GetScales()[scaleData.name]
+            -- Read live: the colour and icon pickers write straight to the scale.
+            local currentScale = RowScale(btn)
             local currentColor = (currentScale and currentScale.Color) or "FFFFFF"
             local cr, cg, cb = HexToRGB(currentColor)
-            
+
             -- Get current icon from scale data
             local currentScaleIcon = currentScale and currentScale.Icon
             local hasIcon = currentScaleIcon and currentScaleIcon ~= ""
-            
+
             if visible then
                 nameLabel:SetTextColor(cr, cg, cb, 1)
                 colorPreview:SetVertexColor(cr, cg, cb, 1)
@@ -371,13 +355,10 @@ local function UpdateScaleList()
             end
         end
         
-        -- Set initial visual state
-        UpdateVisualState(isVisible)
-        
         -- Visibility checkbox click handler
         visCheckbox:SetScript("OnClick", function(self)
             local checked = (self:GetChecked() == 1) or (self:GetChecked() == true)
-            local scale = Valuate:GetScales()[scaleData.name]
+            local scale = RowScale(btn)
             if scale then
                 scale.Visible = checked
                 
@@ -401,17 +382,21 @@ local function UpdateScaleList()
             GameTooltip:Hide()
         end)
         
-        -- Store references for visual updates
+        -- Store references for visual updates. deleteBtn and primaryMark are exposed for
+        -- the same reason as the rest: tools/scalelisttest.js drives this row the way a
+        -- user does, and a control it cannot reach is a control nothing checks.
         btn.nameLabel = nameLabel
         btn.colorPreview = colorPreview
         btn.visCheckbox = visCheckbox
+        btn.deleteBtn = deleteBtn
+        btn.primaryMark = primaryMark
         btn.updateVisualState = UpdateVisualState
-        btn.scaleColor = { r = r, g = g, b = b }
-        
+        btn.scaleColor = { r = 1, g = 1, b = 1 }
+
         -- Highlight on mouseover (only if visible), plus the row tooltip
         btn:SetScript("OnEnter", function(self)
-            if ns.CurrentSelectedScale ~= scaleData.name then
-                local scale = Valuate:GetScales()[scaleData.name]
+            if ns.CurrentSelectedScale ~= self.scaleName then
+                local scale = RowScale(self)
                 local vis = scale and scale.Visible ~= false
                 if vis then
                     -- Faded rather than snapped, matching the styled buttons
@@ -423,8 +408,9 @@ local function UpdateScaleList()
 
             if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                 local _, primaryName = Valuate:GetPrimaryScale()
-                GameTooltip:AddLine(scaleData.scale.DisplayName or scaleData.name, 1, 1, 1)
-                if primaryName == scaleData.name then
+                local scale = RowScale(self)
+                GameTooltip:AddLine((scale and scale.DisplayName) or self.scaleName or "", 1, 1, 1)
+                if primaryName == self.scaleName then
                     GameTooltip:AddLine("|cFFFFD100Current spec|r", 1, 1, 1)
                     GameTooltip:AddLine("Drives your character-sheet score, the upgrade prompt's baseline, and which items get a green upgrade arrow.", 0.8, 0.8, 0.8, true)
                 else
@@ -436,8 +422,8 @@ local function UpdateScaleList()
         end)
         btn:SetScript("OnLeave", function(self)
             GameTooltip:Hide()
-            if ns.CurrentSelectedScale ~= scaleData.name then
-                local scale = Valuate:GetScales()[scaleData.name]
+            if ns.CurrentSelectedScale ~= self.scaleName then
+                local scale = RowScale(self)
                 local vis = scale and scale.Visible ~= false
                 if vis then
                     TweenBackdrop(self, COLORS.buttonBg, COLORS.border, MOTION.fast)
@@ -464,19 +450,105 @@ local function UpdateScaleList()
             end
             
             -- Select this one
-            ns.CurrentSelectedScale = scaleData.name
+            if not self.scaleName then return end
+            ns.CurrentSelectedScale = self.scaleName
             -- Slightly quicker than the hover fade: a click should feel like it
             -- landed, not like it's still deciding.
             TweenBackdrop(self, COLORS.selected, COLORS.selectedBorder, MOTION.instant)
-            
+
             -- Update editor with current scale data from ValuateScales
-            ValuateUI_UpdateScaleEditor(scaleData.name, Valuate:GetScales()[scaleData.name])
+            ValuateUI_UpdateScaleEditor(self.scaleName, RowScale(self))
         end)
-        
-        ns.ScaleListButtons[scaleData.name] = btn
-        tinsert(ns.ScaleListButtons, btn)
+
+        -- Points this row at a scale. THE only place row identity changes.
+        function btn.populate(name, scale)
+            local wasEmpty = (btn.scaleName == nil)
+            btn.scaleName = name
+
+            local isVisible = scale.Visible ~= false
+            visCheckbox:SetChecked(isVisible)
+            ApplyIcon(scale.Icon)
+            nameLabel:SetText(scale.DisplayName or name)
+
+            local r, g, b = HexToRGB(scale.Color or "FFFFFF")
+            btn.scaleColor.r, btn.scaleColor.g, btn.scaleColor.b = r, g, b
+            UpdateVisualState(isVisible)
+
+            local _, primaryName = Valuate:GetPrimaryScale()
+            if primaryName == name then primaryMark:Show() else primaryMark:Hide() end
+
+            -- Reset the hover/selected tint. A pooled row can be handed back mid-hover
+            -- - delete a scale while the cursor is over the row below it and OnLeave
+            -- never fires - which would otherwise leave the highlight stuck on.
+            if ns.CurrentSelectedScale == name then
+                btn:SetBackdropColor(unpack(COLORS.selected))
+                btn:SetBackdropBorderColor(unpack(COLORS.selectedBorder))
+            else
+                btn:SetBackdropBorderColor(unpack(COLORS.border))
+            end
+
+            btn:Show()
+
+            -- Only a row that was not on screen a moment ago fades in. Rows that merely
+            -- changed which scale they show do not: deleting the second of five scales
+            -- shifts three rows up, and flashing all of them would say "three things
+            -- happened" when one did. Same rule the upgrade arrows follow.
+            if wasEmpty and ns.Anim then
+                ns.Anim.revealIn(btn)
+            end
+        end
+
+        -- Hands the row back to the pool. Clearing scaleName is what makes every
+        -- handler above a no-op on a parked row, rather than one still wired to a scale
+        -- that may since have been deleted.
+        function btn.release()
+            btn.scaleName = nil
+            btn:Hide()
+        end
+
+        rowPool[index] = btn
+        return btn
+end
+
+UpdateScaleList = function()
+    if not ScaleListFrame then return end
+
+    -- Get all scales
+    local scales = {}
+    local scalesData = Valuate:GetScales()
+    if scalesData then
+        for name, scale in pairs(scalesData) do
+            tinsert(scales, { name = name, scale = scale })
+        end
     end
-    
+
+    -- Sort by display name
+    table.sort(scales, function(a, b)
+        local da, db = (a.scale.DisplayName or a.name), (b.scale.DisplayName or b.name)
+        if da ~= db then return da < db end
+        return a.name < b.name  -- unique key breaks duplicate display names
+    end)
+
+    -- Rebuilt from scratch every time, never patched. A stale name left in here points
+    -- ui/ScaleEditor.lua at a row now showing a different scale, and it selects rows by
+    -- calling their OnClick directly.
+    ns.ScaleListButtons = {}
+
+    for i, scaleData in ipairs(scales) do
+        local row = rowPool[i] or BuildScaleRow(i)
+        row.populate(scaleData.name, scaleData.scale)
+        ns.ScaleListButtons[scaleData.name] = row
+        tinsert(ns.ScaleListButtons, row)
+    end
+
+    -- Park the surplus. These frames stay for the rest of the session either way; the
+    -- point of the pool is that their number is bounded by the most scales you have
+    -- ever had at once, instead of growing with every edit.
+    for i = #scales + 1, #rowPool do
+        rowPool[i].release()
+    end
+
+
     -- Empty state. A default scale is created at load, so this only appears if you
     -- delete your last one mid-session - which previously left a blank panel with
     -- no indication of what to do next.

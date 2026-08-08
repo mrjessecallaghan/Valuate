@@ -38,7 +38,7 @@ function CreateFrame(frameType, name, parent, template)
     local f = {
         __type = frameType, __name = name, __template = template, __scripts = {},
         __alpha = 1, __scale = 1, __height = 100, __width = 100,
-        __shown = true, __points = {},
+        __shown = true, __points = {}, __parent = parent,
         __fill = {0, 0, 0, 1}, __border = {0, 0, 0, 1},
     }
     function f:SetScript(which, fn) self.__scripts[which] = fn end
@@ -73,7 +73,68 @@ function CreateFrame(frameType, name, parent, template)
     end
     function f:CreateTexture() return CreateFrame("Texture") end
     function f:SetTexture(t) self.__texture = t; return true end
+    function f:GetTexture() return self.__texture end
     function f:SetVertexColor(...) self.__vertex = {...} end
+
+    -- Everything below is here because a real panel needed it. Added ONE AT A TIME as
+    -- gates reached for them, never speculatively and never as a catch-all __index
+    -- returning no-ops: a mock that answers every call agrees with every mistake, which
+    -- is the opposite of what these gates are for. An unmocked method is a loud nil-call
+    -- naming the exact line, which is the right failure.
+    function f:SetSize(w, h) self.__width, self.__height = w, h end
+    function f:GetParent() return self.__parent end
+    function f:SetParent(p) self.__parent = p end
+    function f:SetChecked(v) self.__checked = v and true or false end
+    function f:GetChecked() return self.__checked end
+    function f:SetNormalTexture(t) self.__normalTexture = t end
+    function f:SetPushedTexture(t) self.__pushedTexture = t end
+    function f:SetHighlightTexture(t) self.__highlightTexture = t end
+    function f:SetCheckedTexture(t) self.__checkedTexture = t end
+    function f:SetAllPoints(o) self.__allPoints = o or true end
+    function f:SetJustifyH(j) self.__justifyH = j end
+    function f:SetJustifyV(j) self.__justifyV = j end
+    function f:EnableMouse(e) self.__mouse = e end
+    function f:EnableMouseWheel(e) self.__mouseWheel = e end
+    function f:EnableKeyboard(e) self.__keyboard = e end
+    function f:RegisterForClicks(...) self.__forClicks = {...} end
+    function f:RegisterForDrag(...) self.__forDrag = {...} end
+    function f:SetMovable(m) self.__movable = m end
+    function f:SetResizable(r) self.__resizable = r end
+    function f:SetClampedToScreen(c) self.__clamped = c end
+    function f:SetToplevel(t) self.__toplevel = t end
+    function f:SetFrameStrata(s) self.__strata = s end
+    function f:SetFrameLevel(l) self.__frameLevel = l end
+    function f:GetFrameLevel() return self.__frameLevel or 1 end
+    function f:SetHitRectInsets(...) self.__hitRect = {...} end
+    function f:SetScrollChild(c) self.__scrollChild = c end
+    function f:GetScrollChild() return self.__scrollChild end
+    function f:SetVerticalScroll(v) self.__vScroll = v end
+    function f:GetVerticalScroll() return self.__vScroll or 0 end
+    function f:SetMinMaxValues(lo, hi) self.__min, self.__max = lo, hi end
+    function f:GetMinMaxValues() return self.__min or 0, self.__max or 0 end
+    function f:SetValue(v) self.__value = v end
+    function f:GetValue() return self.__value or 0 end
+    function f:SetValueStep(s) self.__valueStep = s end
+    function f:SetOrientation(o) self.__orientation = o end
+    function f:SetThumbTexture(t) self.__thumb = t end
+    function f:GetThumbTexture() return self.__thumb end
+    function f:SetFontObject(o) self.__fontObject = o end
+    function f:SetWordWrap(w) self.__wordWrap = w end
+    function f:SetNonSpaceWrap(w) self.__nonSpaceWrap = w end
+    function f:SetAutoFocus(a) self.__autoFocus = a end
+    function f:SetMaxLetters(n) self.__maxLetters = n end
+    function f:ClearFocus() self.__focused = false end
+    function f:SetFocus() self.__focused = true end
+    function f:SetID(i) self.__id = i end
+    function f:GetID() return self.__id end
+    function f:GetName() return self.__name end
+    function f:GetObjectType() return self.__type end
+    function f:SetDrawLayer(l) self.__drawLayer = l end
+    function f:SetBlendMode(m) self.__blendMode = m end
+    function f:SetTexCoord(...) self.__texCoord = {...} end
+    function f:SetGradientAlpha(...) self.__gradient = {...} end
+    function f:StartMoving() self.__moving = true end
+    function f:StopMovingOrSizing() self.__moving = false end
     table.insert(__frames, f)
     return f
 end

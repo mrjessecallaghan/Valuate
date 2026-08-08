@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.42.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.43.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -86,11 +86,11 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. 6 subsystems — the animation engine, input
+Developed without the game running. 7 subsystems — the animation engine, input
 validation and colour handling, scale-tag parsing, the spec templates, the verify
-walkthrough, and **the deletion protections** — are executed headlessly against a mocked WoW
-API and are genuinely behaviour-tested. **Everything else is statically verified only**: it
-loads, it resolves, its wiring is consistent.
+walkthrough, **the deletion protections** and **the pooled scale list** — are executed
+headlessly against a mocked WoW API and are genuinely behaviour-tested. **Everything else
+is statically verified only**: it loads, it resolves, its wiring is consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -117,11 +117,11 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-6 of them **execute real Lua** under fengari against a mocked WoW API — the animation
+7 of them **execute real Lua** under fengari against a mocked WoW API — the animation
 engine, input validation and colour handling, scale-tag parsing, the spec templates, the
-verify walkthrough, and the deletion protections. Those are where every substantive bug has
-been found, because the static gates can only see structure. The rest check wiring: that a
-file loads, a symbol resolves, a list stays in step.
+verify walkthrough, the deletion protections, and the pooled scale list. Those are where
+every substantive bug has been found, because the static gates can only see structure. The
+rest check wiring: that a file loads, a symbol resolves, a list stays in step.
 
 Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
 in-game, and its list is short on purpose — only behaviours that fail *silently*.

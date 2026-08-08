@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.43.0a] - 2026-08-09 — The scale list stops leaking
+
+### Fixed
+- **The scale list no longer leaks frames.** It rebuilt its rows on every change and orphaned
+  the old ones; WoW never frees a frame, so creating, deleting, renaming or recolouring a scale
+  cost you about **ten frames per scale, permanently**, for the rest of the session. Rows are
+  now built once and repopulated — the same pooling the Best Equipment panel and the stat grid
+  already use.
+- The colour and icon pickers now check the row still shows the scale you opened them for
+  before writing to it. Both are non-modal to the list.
+- A row handed back to the pool mid-hover no longer keeps its highlight. Delete a scale while
+  the cursor is over the row below it and `OnLeave` never fires.
+
+### Added
+- **A new scale fades in**; rows that merely shifted position do not. Deleting the second of
+  five scales moves three rows up, and flashing all of them would say "three things happened"
+  when one did — the same rule the upgrade arrows follow.
+- `/valuate verify rows` — the half a gate cannot see.
+
+### Development
+- **This was deliberately not attempted for eleven releases.** The panel's own comment said so:
+  the failure mode is a reused row whose handlers still refer to the scale that used to occupy
+  it, and one of those handlers deletes a scale with no undo. The blocker was never difficulty,
+  it was the absence of a way to prove it — so the note said to write it down rather than
+  attempt it blind.
+- **`tools/scalelisttest.js`** removes that blocker: 30 runtime checks that repopulate the pool
+  with a different, shorter list and then fire the handlers. A row that captured its scale at
+  build time passes a test that only populates once; it fails here. Mutation-tested — making a
+  row keep its first scale forever fails the delete, the confirmation text, the visibility
+  toggle and the editor lookup.
+- Two rules keep it safe, both checked: **no handler captures a scale**, and **`release()`
+  clears the row's identity**, since a parked row keeps its handlers forever.
+- The shared WoW mock gained the frame methods a real panel needs. Deliberately explicit, not a
+  catch-all `__index` returning no-ops — a mock that answers every call agrees with every
+  mistake.
+
 ## [0.42.0a] - 2026-08-09 — The deletion promise is executed, not just read
 
 ### Development

@@ -34,10 +34,11 @@ that loses an entry does not complain, it just stops running.
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
 - `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
-  It, `widgettest.js`, `importtest.js`, `datatest.js`, `verifytest.js` and `deletetest.js`
-  run Valuate code
-  rather than reading it, which matters because every static gate passes on a clamp whose
-  comparison is the wrong way round. Start with `animtest.js` when extending runtime
+  It, `widgettest.js`, `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js` and
+  `scalelisttest.js` run Valuate code rather than reading it, which matters because every
+  static gate passes on a clamp whose comparison is the wrong way round. `scalelisttest.js`
+  goes furthest: it builds a real panel and drives its buttons. Start with `animtest.js` when
+  extending runtime
   coverage: the engine's whole external surface is `CreateFrame` plus one option read, so
   its mock is small enough to trust. Mutation-tested — every check in it has been shown to
   fail when the behaviour it names is broken.
@@ -49,6 +50,10 @@ that loses an entry does not complain, it just stops running.
 - **Prove one branch at a time.** `deletetest.js` switches every protection off and enables
   exactly one per case, because a test where several branches could account for the same
   answer passes with five of six broken — and reads as thorough coverage while doing it.
+- **Test a pool by REPOPULATING it.** `scalelisttest.js` always hands the pool a different and
+  shorter list before it checks anything, because a row that captured its scale at build time
+  passes every test that only populates once. That is the difference between covering the code
+  and covering the failure.
 - `globals.js` does **scope analysis** and reports identifiers read as globals that
   aren't a known API. This is the guard against the worst bug class here: a reference
   that resolves to a nil global instead of the local you meant — Lua raises no error, the
@@ -254,6 +259,7 @@ callback either reschedule or be genuinely final.
 | `tools/datatest.js` | Cross-checks the spec templates against the stat definitions |
 | `tools/verifytest.js` | Runs the `/valuate verify` walkthrough's pending/staleness logic |
 | `tools/deletetest.js` | Runs each of the six deletion protections and proves it fires |
+| `tools/scalelisttest.js` | Runs the pooled scale list; proves rows act on the scale shown |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

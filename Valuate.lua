@@ -7146,6 +7146,13 @@ local VERIFY_CHECKS = {
         end,
     },
     {
+        id = "rows", since = "0.43.0a",
+        title = "Scale rows still act on the scale they are showing",
+        steps = "Make four scales. Delete the SECOND one, so the rows below it shift up. Now hover, tick, recolour, rename and finally delete the scale that moved into that second row.",
+        expect = "Every one of those acts on the scale whose name you can read on that row. The confirmation names it too. Nothing is left highlighted after the list changes under your cursor.",
+        broke = "New in this version. The rows are now reused rather than rebuilt, which fixed a permanent leak of about ten frames per scale per edit - but a reused row that remembered its old scale would delete the wrong one, and there is no undo. tools/scalelisttest.js proves the handlers follow; this is the half it cannot see.",
+    },
+    {
         id = "flash", since = "0.25.0a",
         title = "Best Equipment marks the slots a scan changed",
         steps = "Open the Best Equipment tab and leave it open. Put a clear upgrade for one slot in your bags, then run /valuate scan.",

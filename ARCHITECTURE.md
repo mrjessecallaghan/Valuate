@@ -190,12 +190,27 @@ A refresh function that rebuilds its rows therefore leaks, permanently, every ti
 | `ui/BestEquipment.lua` | pooled — structure built once, content and closures rebound |
 | `ui/ScaleEditor.lua` (stat grid) | pooled — grid built once, `row.populate(scale)` per scale |
 | `ui/ScaleEditor.lua` (library list) | pooled by index |
-| `ui/ScaleList.lua` | **rebuilds** — see the comment there for why it was left |
+| `ui/ScaleList.lua` | pooled — `BuildScaleRow(i)` once, `row.populate(name, scale)` per update |
 
 The stat grid is poolable because its layout comes from static category tables and a row
 captures nothing about its scale: every handler reads `ns.EditingScaleName` when it fires.
 That is the pattern — **read the current state at call time, don't capture it** — and it is
 also what makes the editor survive an import replacing the scale table underneath it.
+
+The scale list was left rebuilding for several releases *on purpose*, because it is the one
+panel where getting this wrong is destructive: a row carries a delete button, so a captured
+name means deleting the scale that used to sit in that position. It was pooled once
+`tools/scalelisttest.js` could repopulate the pool with a different, shorter list and prove
+the handlers follow. Two rules make it safe, and both are checked there:
+
+- **No handler captures a scale.** Each reads `self.scaleName` / the row's, at call time.
+  The colour and icon pickers are the exception and capture deliberately at *click* time,
+  then check the row still shows that scale before writing to it.
+- **`release()` clears `scaleName`.** A parked row keeps its handlers forever — nothing can
+  detach them — so the identity is what gets cleared, which turns every one into a no-op.
+
+Cost of having left it: about **ten frames per scale per update**, permanently, for anyone
+who edited their scales during a session.
 
 ---
 
@@ -264,7 +279,7 @@ wiring is consistent. They cannot see behaviour.
 renamed here breaks them at loot time or on a bag repaint — not at load, where you would notice.
 
 **Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`,
-`verifytest.js`, `deletetest.js`. These 6 *execute real Lua* under fengari against a mocked WoW API
+`verifytest.js`, `deletetest.js`, `scalelisttest.js`. These 7 *execute real Lua* under fengari against a mocked WoW API
 (`luaharness.js` — deliberately one mock, since two would drift into testing different
 imaginary clients). Every substantive bug found in this codebase has come from these, because
 the static gates can only read.
