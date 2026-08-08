@@ -135,7 +135,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-staticpopup` | `StaticPopup_Show/Hide`, `StaticPopupDialogs[` | taint (§3) |
 | `no-blizzard-ui-writes` | writes to Blizzard frame fields, `*_OnClick(` calls | taint (§3) |
 | `no-protected-calls` | `ConfirmBindOnUse` | blocks item use |
-| `no-retail-only-texture-api` | `:SetColorTexture(` outside `ui/Shared.lua` | Legion API; 30300 has `SetTexture(r,g,b,a)` |
+| `no-retail-only-api` | 15 methods/namespaces added after Interface 30300 | the call raises, so the rest of the function never runs |
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
@@ -149,6 +149,15 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 > to it like two controls pinned to one frame. Give each helper a distinct parameter
 > name (`afterFrame`, `existingHeader`) rather than suppressing the rule — it is
 > still catching the real case everywhere else.
+
+**A lint rule is code nobody lints.** `no-retail-only-api` therefore runs a set of sample
+lines through its own patterns before it reads a single file, and exits non-zero if any is
+classified wrongly. Both failure directions are silent otherwise: a pattern that matches
+nothing passes every file forever, and one that matches too much fails correct code —
+`destructive-paths-reverify` did exactly that, and was caught only because a mutation run
+happened to re-check the baseline. The **negative** samples carry most of the weight;
+`SetTexture(1, 1, 1, 1)` is the correct 3.3.5a call and must never be flagged. Do the same
+for any rule whose pattern is not obviously exact.
 | `sort-needs-tiebreaker` | a `table.sort` comparator with no fallback key | §7 |
 | `pairs-list-needs-sort` | a list built in a `pairs()` loop and returned unsorted | §7 |
 | `no-bank-in-destructive-path` | bank-cache reads inside delete/sell/free-slot code | §8 |

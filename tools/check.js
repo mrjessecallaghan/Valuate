@@ -43,6 +43,69 @@ const SKIP_DIR = /(^|[\\/])(libs|node_modules|\.git|_Valuate_Original_Archive.*|
  * Lint rules. Each encodes a real defect - see CLAUDE.md for the full story.
  * `test(line, file)` returns true when the line VIOLATES the rule.
  */
+/*
+ * Methods and namespaces added after Interface 30300, with the version each arrived.
+ *
+ * Matched as METHOD CALLS (`:Name(`) or namespace reads, so a local variable that happens
+ * to share a name is not flagged. Every one of these is absent from the addon today; the
+ * list exists so that stays true.
+ */
+const RETAIL_ONLY = [
+  /:\s*SetColorTexture\s*\(/, //          7.0  - use SetTexture(r, g, b, a), via ns.SetSolidColor
+  /:\s*SetShown\s*\(/, //                 5.0  - use Show() / Hide()
+  /:\s*SetAtlas\s*\(/, //                 6.0  - no atlases on 3.3.5a; use a texture path
+  /:\s*SetMaskTexture\s*\(/, //           6.0
+  /:\s*SetResizeBounds\s*\(/, //          9.0  - use SetMinResize / SetMaxResize
+  /:\s*SetIgnoreParentAlpha\s*\(/, //     7.0
+  /:\s*SetIgnoreParentScale\s*\(/, //     7.0
+  /:\s*SetPropagateKeyboardInput\s*\(/, // 4.0
+  /\bC_Container\s*\./, //                10.0 - GetContainerItemInfo etc. are global here
+  /\bC_Item\s*\./, //                     8.0
+  /\bC_EquipmentSet\s*\./, //             8.0  - GetEquipmentSetInfo is global here
+  /\bCreateFromMixins\s*\(/, //           6.0
+  /\bsecurecallfunction\s*\(/, //         8.0
+  /\bGetSpecialization\s*\(/, //          5.0  - and meaningless on a classless server
+  /\bUnitEffectiveLevel\s*\(/, //         7.0
+];
+
+/*
+ * The rule checks itself before it checks anything else.
+ *
+ * A lint rule is code nobody lints. This one is a list of regexes matched against source
+ * text, where the plausible failures are silent in both directions: a pattern that matches
+ * nothing passes every file forever, and one that matches too much fails correct code -
+ * `destructive-paths-reverify` did exactly that earlier and was caught only because a
+ * mutation run happened to re-check the baseline.
+ *
+ * The negatives matter more than the positives here. `SetTexture(1, 1, 1, 1)` is the
+ * CORRECT 3.3.5a form and must never be flagged, and `C_Timer` is feature-detected in
+ * Valuate.lua on purpose, so it is deliberately absent from the list above - a fact worth
+ * pinning, because "add C_Timer, it's a C_ namespace" is an obvious-looking change that
+ * would break a working detection.
+ */
+const RETAIL_ONLY_SAMPLES = [
+  ["accent:SetColorTexture(1, 1, 1, 1)", true],
+  ["f:SetShown(true)", true],
+  ["local info = C_Container.GetContainerItemInfo(1, 1)", true],
+  ["tex:SetAtlas('foo')", true],
+  ["local spec = GetSpecialization()", true],
+  // Correct 3.3.5a calls, and near-misses that must stay clean.
+  ["colorPreview:SetTexture(1, 1, 1, 1)", false],
+  ["local shown = frame:IsShown()", false],
+  ["ns.SetSolidColor(tex, 1, 1, 1, 1)", false],
+  ["local after = C_Timer and C_Timer.After", false],
+  ["local id = GetSpecializationInfoName", false],
+];
+for (const [line, shouldMatch] of RETAIL_ONLY_SAMPLES) {
+  if (RETAIL_ONLY.some((re) => re.test(line)) !== shouldMatch) {
+    console.error(
+      `ERROR  no-retail-only-api self-check failed: "${line}" should ` +
+        `${shouldMatch ? "" : "NOT "}match. The rule is broken, so its silence means nothing.`
+    );
+    process.exit(2);
+  }
+}
+
 const RULES = [
   {
     name: "no-staticpopup",
@@ -62,22 +125,35 @@ const RULES = [
     test: (l) => /\bConfirmBindOnUse\s*\(/.test(l),
   },
   {
-    // SetColorTexture is Legion (7.0). This addon is Interface 30300, where the solid
-    // colour setter is SetTexture(r, g, b, a). Twenty-two call sites had drifted onto the
-    // modern name - accent bars, separators, row highlights, header backgrounds, the
-    // change-flash - while exactly one place used the 3.3.5 form, which is what a habit
-    // looks like rather than a decision. On a client without the method each one errors at
-    // build time, and in Lua that means the rest of the function never runs.
-    //
-    // ns.SetSolidColor asks the texture which it has, so it is right either way.
-    name: "no-retail-only-texture-api",
-    why: "SetColorTexture arrived in Legion; Interface 30300 has SetTexture(r,g,b,a). Use ns.SetSolidColor(tex, r, g, b, a), which detects it and is correct on both.",
-    // ui/Shared.lua is where the detection lives, so it is the one file allowed to name
-    // the method. Compared by resolved PATH rather than basename - the same trap that let
-    // Valuate-PassLoot's own Valuate.lua get flagged by another rule.
-    test: (l, file) =>
-      /:\s*SetColorTexture\s*\(/.test(l) &&
-      path.resolve(file) !== path.resolve(ADDON_ROOT, "ui", "Shared.lua"),
+    /*
+     * APIs that do not exist on Interface 30300.
+     *
+     * Written after SetColorTexture turned up in 22 places. That one arrived in Legion
+     * (7.0); this addon targets WotLK, where the solid-colour setter is
+     * SetTexture(r, g, b, a). Exactly one call site used the 3.3.5 form, which is what a
+     * habit looks like rather than a decision - and on a client without the method each
+     * call raises, which in Lua means the rest of the enclosing function never runs. The
+     * symptom is a half-built panel, not a missing line.
+     *
+     * Sweeping for the rest of the class found nothing else: SetShown appears only in a
+     * comment saying not to use it, and C_Timer already has explicit flavour detection in
+     * Valuate.lua. So this rule is not cleaning up a mess - it is making sure a mess that
+     * happened once cannot happen quietly again, which is cheap while every name is
+     * absent.
+     *
+     * The list is a floor, not a survey of the whole API. Add to it whenever one is
+     * noticed; a name here costs a regex and buys a whole class of silent breakage.
+     */
+    name: "no-retail-only-api",
+    why:
+      "This API does not exist on Interface 30300 (see the version in the rule). On a client without it the call raises and the rest of the function never runs. Feature-detect it, or use the 3.3.5a equivalent.",
+    test: (l, file) => {
+      // ui/Shared.lua holds the feature detection, so it is the one file allowed to name
+      // these. Compared by resolved PATH rather than basename - the same trap that let
+      // Valuate-PassLoot's own Valuate.lua get flagged by another rule.
+      if (path.resolve(file) === path.resolve(ADDON_ROOT, "ui", "Shared.lua")) return false;
+      return RETAIL_ONLY.some((re) => re.test(l));
+    },
   },
   {
     // The nastiest bug class in the split: `local EditingScaleName = ns.EditingScaleName`

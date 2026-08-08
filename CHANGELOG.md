@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.46.1a] - 2026-08-09 — The whole API-version class is guarded, and the rule checks itself
+
+### Development
+- **Swept the codebase for other post-30300 APIs and found none.** `SetShown` appears only in
+  a comment saying not to use it, and `C_Timer` already has explicit flavour detection in
+  `Valuate.lua`. `SetColorTexture` really was the outlier — worth saying, because "I found one,
+  there must be more" is a guess and this is the check that settles it.
+- **`no-retail-only-texture-api` is now `no-retail-only-api`**, covering 15 methods and
+  namespaces with the version each arrived: `SetShown` (5.0), `SetAtlas`/`SetMaskTexture`
+  (6.0), `SetIgnoreParentAlpha`/`SetIgnoreParentScale`/`UnitEffectiveLevel` (7.0),
+  `C_Container` (10.0), `C_Item`/`C_EquipmentSet`/`securecallfunction` (8.0),
+  `SetResizeBounds` (9.0), and others. Every one is absent today; the list exists so that
+  stays true.
+- `C_Timer` is **deliberately not** on the list — it is feature-detected on purpose, and
+  "add it, it's a `C_` namespace" is an obvious-looking change that would break a working
+  detection. The self-check below pins that.
+
+### The rule checks itself
+- **A lint rule is code nobody lints.** This one now runs 10 sample lines through its own
+  patterns before reading a single file, and exits non-zero if any is classified wrongly.
+- Both failure directions are otherwise silent: a pattern that matches nothing passes every
+  file forever, and one that matches too much fails correct code — which
+  `destructive-paths-reverify` did earlier in this fork, caught only because a mutation run
+  happened to re-check the baseline.
+- The **negative** samples carry most of the weight. `colorPreview:SetTexture(1, 1, 1, 1)` is
+  the correct 3.3.5a call and must never be flagged.
+- Mutation-tested in both directions: a typo'd pattern fails on the positive sample, and a
+  pattern widened to `Set\\w*Texture` fails naming the exact correct call it would have
+  broken.
+
 ## [0.46.0a] - 2026-08-09 — Every flat colour goes through one call that works on this client
 
 ### Fixed
