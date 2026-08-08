@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.35.0a] - 2026-07-31 — The in-game docs catch up, and get gated
+
+### Fixed
+- **The in-game Changelog tab was seventeen releases behind.** It ended at v0.17.2a while the
+  addon was at v0.34.2a — which is worse than shipping no changelog: a user opening that tab
+  concludes nothing has happened since. It now carries a summary of everything since, and
+  **`tocsync.js` checks it**: the version marked `(Current)` there must match the `.toc`.
+  Every other version-bearing surface was already checked; the only one a *user* sees was not.
+- **The Instructions tab never mentioned two features that exist to be discovered** — the
+  Settings search box, and the tooltip cleanup verdict. A feature nobody knows about is close to
+  a feature that does not exist. Both are now described where someone would look.
+
+### Notes
+- The new check is deliberately "the newest entry names the current version", not "every release
+  has an entry". The panel is a curated summary; the release-by-release detail belongs in
+  `CHANGELOG.md`. That costs one line per release and makes another seventeen-release gap
+  impossible.
+- `globals.js` caught a nil global in my own edit to that panel (`sectionSpacing` is not in scope
+  in the changelog builder — it is `versionSpacing`). That would have errored when the tab was
+  opened, and nothing else would have noticed.
+
 ## [0.34.2a] - 2026-07-31 — The integrations are checked too
 
 ### Added

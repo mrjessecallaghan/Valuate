@@ -185,7 +185,7 @@ local function CreateInstructionsPanel(parent)
     local header7 = CreateSectionHeader("Settings Options", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
     
-    local text7 = CreateBodyText("• Decimal Places: Control how many decimal places are shown in scores (0-4).\n• Right-Align Scores: When enabled, scores align to the right in tooltips for easier comparison.\n• Show Scale Value: Toggle whether the item's calculated score appears on tooltips.\n• Normalize Display: When enabled, all scores are normalized (highest stat weight = 1.0) for easier comparison across scales.\n• Comparison Mode: Choose how upgrade/downgrade differences are displayed (Number, Percentage, Both, or Off).", currentY)
+    local text7 = CreateBodyText("There are a lot of these, so the box at the top of the Settings tab filters them: type part of a name and everything else dims. Nothing moves while you filter.\n\n• Decimal Places: Control how many decimal places are shown in scores (0-4).\n• Right-Align Scores: When enabled, scores align to the right in tooltips for easier comparison.\n• Show Scale Value: Toggle whether the item's calculated score appears on tooltips.\n• Normalize Display: When enabled, all scores are normalized (highest stat weight = 1.0) for easier comparison across scales.\n• Comparison Mode: Choose how upgrade/downgrade differences are displayed (Number, Percentage, Both, or Off).", currentY)
     local text7Height = text7:GetStringHeight()
     currentY = currentY - text7Height - sectionSpacing
     
@@ -209,7 +209,7 @@ local function CreateInstructionsPanel(parent)
     local headerAuto = CreateSectionHeader("Automation", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
-    local textAuto = CreateBodyText("All of this is opt-in, under Settings. Every automated feature has a matching command that explains why it did nothing, which is usually faster than guessing:\n\n• Auto Roll - Needs upgrades, unlearned recipes for professions you have (even above your current skill), and crafting materials your professions use. /valuate rollcheck <item> explains any single decision.\n• Auto Delete / Auto Sell - clears junk to keep bag slots free. Deletion is irreversible, so ALWAYS run /valuate deletepreview first.\n• Auto Accept / Turn In Quests, and picking the best quest reward.\n• /valuate report shows when each automation last ran and what it concluded - including 'ran and correctly did nothing', which is a different answer from 'never ran'.", currentY)
+    local textAuto = CreateBodyText("All of this is opt-in, under Settings. Every automated feature has a matching command that explains why it did nothing, which is usually faster than guessing:\n\n• Auto Roll - Needs upgrades, unlearned recipes for professions you have (even above your current skill), and crafting materials your professions use. /valuate rollcheck <item> explains any single decision.\n• Auto Delete / Auto Sell - clears junk to keep bag slots free. Deletion is irreversible, so ALWAYS run /valuate deletepreview first. While either is switched on, item tooltips tell you the verdict directly: junk items say whether anything is protecting them (best-in-slot, a quest item, an equipment set, a future upgrade) or that nothing is. Hover before you trust it.\n• Auto Accept / Turn In Quests, and picking the best quest reward.\n• /valuate report shows when each automation last ran and what it concluded - including 'ran and correctly did nothing', which is a different answer from 'never ran'.", currentY)
     local textAutoHeight = textAuto:GetStringHeight()
     currentY = currentY - textAutoHeight - sectionSpacing
 
@@ -423,8 +423,47 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.17.2a (Current) - junk isn't new
-    local v0172Header = CreateVersionHeader("Version 0.17.2a (Current) - junk stops pretending to be new", currentY)
+    -- Version 0.35.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    --
+    -- This panel had drifted seventeen releases behind the .toc, which is worse than
+    -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
+    -- checked by tools/tocsync.js - the newest version named here must match the .toc,
+    -- so it cannot silently fall behind again.
+    --
+    -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
+    -- CHANGELOG.md; what belongs here is what a user would notice.
+    local vCurrentHeader = CreateVersionHeader("Version 0.35.0a (Current) - what is new since 0.17.2a", currentY)
+    currentY = currentY - lineHeight - paragraphSpacing
+
+    local vCurrentText = CreateChangeText(
+        "• Settings has a SEARCH BOX. Type part of an option's name and everything\n" ..
+        "   else dims. Nothing moves while you filter.\n" ..
+        "• Item tooltips now tell you what cleanup would do. While auto-sell or\n" ..
+        "   auto-delete is on, junk items say whether anything protects them\n" ..
+        "   (best-in-slot, quest item, equipment set, future upgrade) or that\n" ..
+        "   nothing does. Hover before you trust it.\n" ..
+        "• Best Equipment marks the slots a scan CHANGED, so you can see what it did.\n" ..
+        "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
+        "   never re-animating as you move things around your bags.\n" ..
+        "• The window resizes smoothly instead of snapping between tabs.\n" ..
+        "• /valuate verify - a short list of behaviours worth checking by hand,\n" ..
+        "   several of which set themselves up for you.\n" ..
+        "• FIXED: an upgrade found during combat is now actually offered when you\n" ..
+        "   leave combat. It never was - the flag was read from the wrong place.\n" ..
+        "• FIXED: weapon-set toggles could silently do nothing after importing or\n" ..
+        "   loading a scale over the one you were editing.\n" ..
+        "• FIXED: /valuate export could hand you the wrong scale when two names\n" ..
+        "   differed only by case. It now says which ones matched.\n" ..
+        "• FIXED: a scale colour with a bad character took down the whole panel.\n" ..
+        "• FIXED: buttons showed no pressed state on a fast click.\n" ..
+        "• FIXED: adjusting a scale's colour leaked thousands of UI frames, and\n" ..
+        "   clicking between scales leaked ~250 more each time.\n" ..
+        "• FIXED: auto-delete no longer touches a bag slot that is mid-move.",
+        currentY)
+    currentY = currentY - vCurrentText:GetStringHeight() - versionSpacing
+
+    -- Version 0.17.2a - junk isn't new
+    local v0172Header = CreateVersionHeader("Version 0.17.2a - junk stops pretending to be new", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local v0172Text = CreateChangeText(

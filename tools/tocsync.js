@@ -165,6 +165,46 @@ try {
   // No Valuate.lua or no CHANGELOG: covered by other checks.
 }
 
+/*
+ * The IN-GAME changelog (ui/InfoPanels.lua).
+ *
+ * It had drifted seventeen releases behind the .toc before anyone looked, which is
+ * worse than shipping no changelog at all: a user opening that tab sees a history
+ * ending at 0.17.2a and concludes nothing has happened since. Every other
+ * version-bearing surface here is already checked - the .toc, the README - and this
+ * one, the only one a USER sees, was not.
+ *
+ * The rule is just "the newest version named there is the current one". The panel is
+ * a curated summary rather than one entry per patch, so this costs a single line per
+ * release and makes a seventeen-release gap impossible.
+ */
+try {
+  const tocVersion = (toc.match(/^##\s*Version:\s*(\S+)/m) || [])[1];
+  const panel = fs.readFileSync(path.join(ADDON_ROOT, "ui", "InfoPanels.lua"), "utf8");
+
+  if (tocVersion && /Version\s+\d+\.\d+/.test(panel)) {
+    // "(Current)" marks the entry the panel presents as newest.
+    const current = panel.match(/Version\s+(\d+\.\d+\.\d+[a-z]?)\s*\(Current\)/);
+    if (!current) {
+      console.error(
+        "  CHANGELOG  ui/InfoPanels.lua has no \"Version X (Current)\" entry - " +
+          "the in-game changelog cannot say what it is current AT"
+      );
+      ok = false;
+    } else if (current[1] !== tocVersion) {
+      console.error(
+        "  CHANGELOG  in-game changelog says v" + current[1] +
+          " is current, but the .toc says " + tocVersion
+      );
+      ok = false;
+    } else {
+      console.log("OK  in-game changelog is current at v" + tocVersion + ".");
+    }
+  }
+} catch (e) {
+  // No InfoPanels.lua: covered by the module checks above.
+}
+
 if (!ok) {
   console.error("\n.toc / ui/ / CLAUDE.md are OUT OF SYNC.");
   process.exit(1);
