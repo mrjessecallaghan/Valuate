@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.37.2a] - 2026-08-09 — An alt is told its scales already exist
+
+### Changed
+- **A new character is now told its scales are one command away.** `ValuateScaleLibrary` and
+  `ValuateSettingsSnapshot` are **account-wide**, while scales and options are per-character —
+  the library exists precisely so an alt does not start from nothing. But nothing said so at the
+  one moment it matters, so anyone who had set this up on their main arrived on an alt, saw a
+  Starter scale, and had no idea their real work was already saved.
+- The first-run message now lists what is in the library and points at `/valuate library`, plus
+  `/valuate settings load` when a snapshot exists. With an empty library you get the template
+  advice exactly as before.
+- The list is **capped at five names** with "and N more". This prints at login; someone with
+  fifteen saved scales wants a hint, not a wall of text.
+
+### Notes
+- Same shape as the previous release, one level out: a correct feature existed and the moment it
+  was built for never reached for it. Finding these has meant looking at *user moments* rather
+  than at code — first install, then first alt.
+- The capping logic including both boundaries (exactly five, and six) is proven through the
+  fengari harness rather than eyeballed.
+
 ## [0.37.1a] - 2026-07-31 — A first install that explains itself
 
 ### Changed

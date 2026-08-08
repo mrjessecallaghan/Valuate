@@ -997,8 +997,34 @@ function Valuate:CreateDefaultScale()
         print("|cFF00FF00Valuate|r: created a |cFFFFFFFFStarter|r scale to get you going.")
         print("  |cFFFFFF00It weights every stat the same|r, so its scores only really mean")
         print("  \"has more stats\". Good enough while levelling, not much use beyond it.")
-        print("  |cFF00FF00Type /valuate|r and click |cFFFFFFFFFrom Template|r (top-left) - there are 45 built-in")
-        print("  specs with proper weights. Pick whichever matches how you actually play.")
+
+        -- An ALT is the case this branch exists for.
+        --
+        -- Scales and options are per-character; the scale library and the settings
+        -- snapshot are account-wide, and they exist precisely so a new character does
+        -- not start from nothing. But nothing ever said so at the one moment it
+        -- matters, so someone who set all this up on their main would arrive here, see
+        -- a Starter scale, and have no idea their real work was one command away.
+        local saved = Valuate.ListScaleLibrary and Valuate:ListScaleLibrary() or {}
+        local hasSnapshot = Valuate.HasSettingsSnapshot and Valuate:HasSettingsSnapshot()
+
+        if #saved > 0 then
+            print(string.format("  |cFF00FF00You already have %d scale(s) saved|r from another character:",
+                #saved))
+            -- Capped: this prints at login, and someone with fifteen scales in the
+            -- library should get a hint, not a wall of text they scroll past.
+            local shown = {}
+            for i = 1, math.min(#saved, 5) do shown[i] = saved[i] end
+            print("  " .. table.concat(shown, ", ")
+                .. (#saved > 5 and (", and " .. (#saved - 5) .. " more") or ""))
+            print("  |cFF00FF00/valuate library|r loads them onto this one.")
+            if hasSnapshot then
+                print("  |cFF00FF00/valuate settings load|r brings your options across too.")
+            end
+        else
+            print("  |cFF00FF00Type /valuate|r and click |cFFFFFFFFFrom Template|r (top-left) - there are 45 built-in")
+            print("  specs with proper weights. Pick whichever matches how you actually play.")
+        end
     end)
 end
 
@@ -6919,6 +6945,13 @@ local VERIFY_CHECKS = {
         steps = "Hardest one to test - it needs a character that has never run Valuate. On an alt, or after clearing ValuateScales from SavedVariables, log in and watch chat about two seconds after the load line.",
         expect = "A Starter scale appears, and a message says its weights are crude and points at the From Template button. The scale list should show From Template as the WIDE button, with Blank beside it.",
         broke = "New in this version. The old default was called Default, said nothing about being a placeholder, and the 45 real templates were hidden behind a 20%-wide + button.",
+    },
+    {
+        id = "altstart", since = "0.37.2a",
+        title = "A new alt is told its scales are already saved",
+        steps = "Save a scale to the library (/valuate library) on this character, then log in on an alt that has never run Valuate.",
+        expect = "The first-run message lists the saved scales and points at /valuate library, INSTEAD of the template advice. With an empty library you get the template advice as before.",
+        broke = "New in this version. The library and settings snapshot are account-wide precisely so an alt does not start from nothing, and the one moment that matters never mentioned them.",
     },
     {
         id = "scoreroll", since = "0.36.1a",
