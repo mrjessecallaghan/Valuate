@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.11.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.21.2a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -31,8 +31,15 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
   **Two-Hander**, **1H + Shield**, **1H + Off-Hand** and **Dual Wield** *independently*,
   each with its own score. Enable the ones you use per scale and pick which is active;
   gear belonging to any enabled set is never treated as vendor fodder.
+- **Upgrade arrows** — a green arrow on any item icon that beats what you're wearing, in your
+  bags, at vendors and on the loot window. Follows your *current spec*, so an arrow always
+  means the same thing. Never on the character or wardrobe panels.
+- **Bank-aware best-in-slot** — gear in your bank counts, snapshotted when you visit one.
+  Banked items are marked, because Equip All can't reach them.
 - **Character-sheet score** with a per-slot breakdown tooltip.
 - **Import/export** scales as text tags (carries weapon-set config).
+- **Shared across your characters** — scales and settings are per character, so a **scale
+  library** and a **settings snapshot** let you set up once and load anywhere.
 - **Ascension-aware** — PvE/PvP Power, scaled stats, and tooltip wording differences.
 
 ## Automation (all opt-in, all off by default)
@@ -40,10 +47,11 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 | Feature | What it does | Commands |
 |---|---|---|
 | **Quest rewards** | Pre-selects the reward that's the biggest *upgrade*, not just the highest score. Optional full auto turn-in and auto-accept. | `/valuate quest`, `turnin`, `accept` |
-| **Loot rolls** | Need on an upgrade for any of your scales, Greed otherwise. Never Needs a non-upgrade. | `/valuate roll` |
+| **Loot rolls** | Need on an upgrade for any of your scales, Greed otherwise. Also **unlearned recipes** for professions you have — including ones above your current skill, since you'll train into them — and **crafting materials** your professions use. | `/valuate roll`, `why <item>` |
 | **Upgrade prompt** | When an equippable upgrade lands in your bags, offers one-click Equip Best Set. | `/valuate notify`, `notifycheck` |
 | **Junk auto-delete** | Keeps N bag slots free by removing the least valuable junk. **Irreversible.** | `/valuate autodelete`, `deletepreview`, `deletenow`, `keepfree <n>` |
 | **Merchant** | Sells junk and repairs on arrival. Safer than deleting — gold, plus Buyback. | `/valuate sell`, `sellnow`, `repair` |
+| **Surplus gear as junk** *(AdiBags)* | Routes gear that is neither best-in-slot nor a future upgrade into the Junk section. **Off by default** — junk feeds auto-delete. Re-evaluated live, so an item that later becomes your best un-marks itself. | `/valuate junkmarks` |
 
 **Safety.** Deleting and selling never touch best-in-slot items, weapon-set members, future
 upgrades, quest items, or anything in a WoW equipment set — and both re-verify a slot still
@@ -57,11 +65,22 @@ Every automated path has a diagnostic that explains why it did *nothing* — tha
 ## Useful commands
 
 ```
-/valuate            open the UI
-/valuate scan       rescan bags and equipped gear
-/valuate selftest   self-check: options, APIs, data structures, AdiBags integration
-/valuate version    version info
+/valuate                  open the UI
+/valuate scan             rescan bags and equipped gear
+/valuate report           what's armed, when each automation last ran, and what it concluded
+/valuate why <item>       explain this item: roll decision, upgrade arrow, junk status
+/valuate library          scales shared across all your characters
+/valuate settings save    copy this character's settings to your others (then `load`)
+/valuate selftest         self-check: options, APIs, data structures, integrations
+/valuate profile          time the scan, scoring, and the per-bag-icon work
+/valuate version          version info
 ```
+
+`Escape` closes any Valuate window.
+
+**When something seems not to happen**, `/valuate report` is the fastest answer — it shows
+what's switched on and when each automation last ran, *including* "ran and correctly did
+nothing", which is a different answer from "never ran".
 
 ## Status
 
@@ -73,16 +92,22 @@ be deliberate about the destructive features (deletion is permanent — WoW has 
 
 ```bash
 cd tools && npm install     # once: installs luaparse
-node check.js               # syntax + 6 lint rules
-node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
+node check.js               # syntax + 8 lint rules
 node globals.js             # scope analysis + namespace contract
+node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
+node options.js             # every option is reachable from the UI or a command
+node api.js                 # every method the selftest names actually exists
 ```
 
-Those gates exist because each encodes a bug that actually shipped here — addon taint,
-duplicated junk logic, overlapping settings controls, a module silently missing from the
-`.toc`, a moved local becoming a nil global. See **`CLAUDE.md`** for the constraints when
-editing (taint rules, external contracts, conventions) and **`ARCHITECTURE.md`** for the
-data model and load order.
+Every gate encodes a bug that actually shipped here — addon taint, duplicated junk logic,
+overlapping settings controls, a module silently missing from the `.toc`, a moved local
+becoming a nil global, an unstable sort producing different "best" items between scans,
+bank data reaching a delete path, an option with no way to switch it on.
+
+They check *structure*, never behaviour: there is no Lua runtime here, so a green run means
+"this can load and its wiring is consistent", not "this works". See **`CLAUDE.md`** for the
+constraints when editing (taint rules, external contracts, conventions) and
+**`ARCHITECTURE.md`** for the data model and load order.
 
 ## Credits
 
