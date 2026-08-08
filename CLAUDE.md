@@ -111,6 +111,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-protected-calls` | `ConfirmBindOnUse` | blocks item use |
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
+| `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
 | `settings-anchor-chain` | two controls anchored to the same frame | §6 |
 
 > **Known false positive:** the rule matches the anchor's *identifier text*, so two
@@ -334,3 +335,28 @@ throttleFrame:SetScript("OnUpdate", function(self, elapsed)
 ```
 
 If you cannot write a reason that names the frame's sole owner, it is the bug.
+
+### §11 — `Valuate-TSM` must never append to `rt.headCols`
+
+TSM does index arithmetic off **`#rt.headCols`** in three places — the price-per-unit
+right-click toggle and the on-show price relabel in `AuctionResultsTable.lua`, and the
+"% Market Value" relabel in `Shopping/modules/Util.lua`.
+
+Append one column and all three silently retarget onto **our** columns. TSM keeps working;
+it just operates on the wrong data, in someone else's addon, with no error anywhere.
+
+So the integration is built around keeping `#rt.headCols` at 8:
+
+| Ours | Never |
+|---|---|
+| headers in `rt.valuateHeadCols` | `rt.headCols` |
+| cells in `row.valuateCols` | the row tables (TSM's `RowSort` would index nil through them) |
+
+Both numbers are derived on demand instead — every row already carries `link`, `itemString`
+and `auctionRecord`.
+
+Reads are fine and everywhere (`#rt.headCols`, `rt.headCols[i]:SetWidth(…)`). Only
+**assignment** is banned, which is what `no-tsm-headcols-write` checks.
+
+This constraint was written down in `Valuate-TSM/Core.lua` and enforced by nothing for as
+long as it existed — the same shape as most of the bugs found in this project.

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.35.1a] - 2026-07-31 — Enforcing the constraint TSM integration rests on
+
+### Added
+- **Lint rule `no-tsm-headcols-write`** (11th rule). `Valuate-TSM` is built around one
+  constraint: `#rt.headCols` must stay 8. TSM does index arithmetic off that length in three
+  places — the price-per-unit right-click toggle and the on-show price relabel in
+  `AuctionResultsTable.lua`, and the "% Market Value" relabel in Shopping's `Util.lua`.
+  Appending even one column silently retargets all three onto **Valuate's** columns: TSM keeps
+  working, on the wrong data, in someone else's addon, with no error anywhere.
+- The constraint was written down in `Valuate-TSM/Core.lua` and **enforced by nothing** — the
+  same shape as most of the bugs found this session. Documented as CLAUDE.md §11.
+
+### Notes
+- Reads are fine and everywhere (`#rt.headCols`, `rt.headCols[i]:SetWidth(…)`); only assignment
+  is banned. Verified both ways: appending and assigning each fail the gate, while the existing
+  legitimate reads do not trip it.
+- **No bug found.** `Valuate-TSM` respects its own constraint correctly — headers live in
+  `rt.valuateHeadCols`, cells in `row.valuateCols`, and both values are derived on demand. This
+  release is the guard, not a fix.
+
 ## [0.35.0a] - 2026-07-31 — The in-game docs catch up, and get gated
 
 ### Fixed

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 10 lint rules
+ * @gate Lua syntax + 11 lint rules
  *
  * Valuate syntax + lint gate.
  *
@@ -94,6 +94,28 @@ const RULES = [
     name: "raw-onupdate-needs-reason",
     why: "A frame has ONE OnUpdate slot, so two features that both use it silently overwrite each other, and cancelling via it is a no-op for anything on the shared animation driver. Use Anim.owned/Anim.cancelProp for animation and ValuateAfter for delays - or annotate this line with -- valuate-lint-ignore: raw-onupdate-needs-reason  <why it must be raw>.",
     test: (l) => /:SetScript\s*\(\s*["']OnUpdate["']/.test(l),
+  },
+  {
+    // Valuate-TSM is hook-only, and the constraint its whole design rests on is that
+    // `#rt.headCols` stays 8. TSM does index arithmetic off that length in three
+    // places (the price-per-unit right-click toggle and the on-show price relabel in
+    // AuctionResultsTable.lua, and the "% Market Value" relabel in Shopping's
+    // Util.lua). Appending even one column silently retargets all three onto OUR
+    // columns - TSM keeps working, just on the wrong data.
+    //
+    // That is why the integration keeps its headers in rt.valuateHeadCols and its
+    // cells in row.valuateCols. The rule was written down in Core.lua and enforced by
+    // nothing, which is the exact shape of most of the bugs found in this project.
+    //
+    // Reads are fine and common (`#rt.headCols`, `rt.headCols[i]:SetWidth(...)`);
+    // only ASSIGNMENT is banned.
+    name: "no-tsm-headcols-write",
+    why: "TSM does index arithmetic off #rt.headCols in three places - appending to it silently retargets them onto Valuate's columns. Put headers in rt.valuateHeadCols and cells in row.valuateCols instead. See the design note in Valuate-TSM/Core.lua.",
+    test: (l) =>
+      /\btinsert\s*\(\s*[\w.]*\brt\.headCols\b/.test(l) ||
+      /\btable\.insert\s*\(\s*[\w.]*\brt\.headCols\b/.test(l) ||
+      /\brt\.headCols\s*\[[^\]]*\]\s*=[^=]/.test(l) ||
+      /\brt\.headCols\s*=[^=]/.test(l),
   },
   {
     name: "no-duplicate-junk-logic",
