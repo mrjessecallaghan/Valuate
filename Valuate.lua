@@ -2518,7 +2518,24 @@ function Valuate:HookTooltips()
         -- junk is robust" is not really a request for more guards - it is a request to
         -- be able to SEE what it would do, on the item, before switching it on.
         if itemLink and (options.autoDeleteJunk or options.autoSellJunk) then
+            -- Only trust LastBagSlot if it genuinely holds the item being shown.
+            --
+            -- It is set by SetBagItem and cleared by SetInventoryItem - but NOT by
+            -- SetMerchantItem, SetLootItem, SetHyperlink or the quest setters, which
+            -- all just refresh the item. So hovering a bag item and then a merchant
+            -- item left it pointing at the bag slot, and the quest-item and
+            -- equipment-set protections were evaluated against YOUR BAG rather than
+            -- the item on screen. A vendor grey could have been reported as "kept:
+            -- quest item" because slot 5 of your backpack holds one.
+            --
+            -- Same re-verification the delete and sell paths do before acting: confirm
+            -- the slot still holds what you think it does. Failing that, hand over nil
+            -- and let the verdict say it is working from the link alone - which it
+            -- already knows how to do.
             local bagInfo = LastBagSlot
+            if bagInfo and GetContainerItemLink(bagInfo.bag, bagInfo.slot) ~= itemLink then
+                bagInfo = nil
+            end
             local isJunk, keptReason, partial = Valuate:GetJunkVerdict(
                 itemLink, bagInfo and bagInfo.bag, bagInfo and bagInfo.slot)
             if isJunk and not ValuateJunkLineAdded then
@@ -7067,7 +7084,7 @@ local VERIFY_CHECKS = {
         id = "junkline", since = "0.34.0a",
         title = "The tooltip says whether an item would be cleaned up",
         steps = "Turn on auto-sell or auto-delete, then hover a grey item, a green item that is best-in-slot, and a quest item that AdiBags calls junk.",
-        expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all.",
+        expect = "Only junk items get the line. Anything protected reads \"Junk, but kept: <reason>\". With the features OFF, no line appears at all. Hover a grey in your BAG then a grey at a MERCHANT - the merchant one must not inherit the bag item verdict.",
         broke = "New in this version - never run. Watch for the line appearing MORE THAN ONCE on one tooltip: it is added from the per-frame refresh, so a broken guard means sixty copies a second.",
     },
     {

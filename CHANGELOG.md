@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.38.9a] - 2026-08-09 — The cleanup verdict stops reading the wrong bag slot
+
+### Fixed
+- **A merchant or loot item could be reported as "Junk, but kept: quest item" because of something
+  in your backpack.** The tooltip's cleanup verdict passed `LastBagSlot` to the protection check.
+  That value is set by `SetBagItem` and cleared by `SetInventoryItem` — but **not** by
+  `SetMerchantItem`, `SetLootItem`, `SetHyperlink` or the quest setters, which only refresh the
+  item. So hovering a bag item and then a vendor item left it pointing at the bag slot, and the
+  quest-item and equipment-set protections were evaluated against **your bag** rather than the item
+  on screen.
+- It now re-verifies that the remembered slot actually holds the item being shown, and hands over
+  nothing if it doesn't — falling back to the honest "working from the link alone" path the verdict
+  already had.
+
+### Notes
+- This is the same re-verification the delete and sell paths perform before acting: **confirm the
+  slot still holds what you think it does.** The pattern existed; this code didn't reach for it.
+- Worse than the `partial` case it now falls back to. Unknown provenance produces a hedged answer;
+  *wrong* provenance produces a confident one — on the exact feature whose job is telling you what
+  cleanup would do.
+- Sixth self-audit pass, sixth defect.
+
 ## [0.38.8a] - 2026-08-09 — The progress count stops reading its own output
 
 ### Fixed
