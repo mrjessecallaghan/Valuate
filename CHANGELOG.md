@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.28.1a] - 2026-07-31 — Guarding the templates
+
+### Added
+- **`tools/datatest.js`** — cross-checks `ui/Data.lua`'s ~45 class/spec templates against
+  `StatDefinitions.lua`. Between them those files hold roughly a thousand hand-typed stat keys,
+  and a typo in any one is completely silent: the template produces a weight under a key nothing
+  ever matches, so that stat simply doesn't count. The template looks fine, the scale looks
+  fine, and the scores are quietly wrong. 3,640 checks.
+- Nothing else could see this. `luaparse` is happy — it's a valid table. `globals.js` is happy —
+  they're table *keys*, not identifiers. Only comparing the two files catches it.
+- Also checked: every stat has a display name (the editor falls back to the raw key, which reads
+  as a bug rather than a missing label), no template scores everything zero, spec colours are
+  real hex, and the icon picker's "no icon" entry is present exactly once and first.
+
+### Notes
+- **The gate found no bugs — the data was already correct.** Its first three "findings" were all
+  wrong assumptions of mine: that weights can't reference equipment rows (they can and should —
+  `IsLibram = 0.3` is how a paladin values a libram, and parsing genuinely produces that key),
+  that the empty icon entry was malformed (it's the deliberate "clear selection" option), and
+  that duplicate icons were sloppy (the same icon sits under two headings on purpose, so it's
+  findable either way). Each was corrected in the test, not the data.
+- Duplicate icons are deliberately **not** checked. A gate that fails on a considered choice is
+  worse than no gate — a lesson this project already learned from `settings-anchor-chain`.
+- Six mutations — a one-letter stat typo, a ban typo, a weight given as a string, a malformed
+  colour, a missing display name, and a misplaced no-icon entry — all fail the gate.
+
 ## [0.28.0a] - 2026-07-31 — Exports you can actually import
 
 ### Fixed

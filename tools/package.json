@@ -4,8 +4,8 @@
   "private": true,
   "description": "Dev tooling for the Valuate addon: static gates plus a fengari runtime harness.",
   "scripts": {
-    "check": "node check.js && node globals.js && node tocsync.js && node options.js && node api.js && node animtest.js && node widgettest.js && node importtest.js",
-    "test": "node animtest.js && node widgettest.js && node importtest.js"
+    "check": "node check.js && node globals.js && node tocsync.js && node options.js && node api.js && node animtest.js && node widgettest.js && node importtest.js && node datatest.js",
+    "test": "node animtest.js && node widgettest.js && node importtest.js && node datatest.js"
   },
   "dependencies": {
     "fengari": "^0.1.5",
