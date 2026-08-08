@@ -164,6 +164,48 @@ function Anim.popIn(frame, fromScale, duration)
     if frame.SetScale then Anim.scaleTo(frame, 1, duration, "outBack") end
 end
 
+-- Per-item delay for a cascade of `count` items.
+--
+-- Derived rather than picked. Five cascades in this addon had each grown their own
+-- gap (0.07, 0.06, 0.05, 0.03, 0.025) and those numbers turn out to sit on one
+-- curve: every one of them was really encoding "keep the whole cascade to about a
+-- third of a second for THIS many items". That is a formula, so it is written as
+-- one - and a new cascade now gets the right gap without anyone eyeballing it.
+--
+-- Clamped at both ends: too wide and a three-item reveal drags, too tight and a
+-- twenty-item one may as well have been simultaneous.
+function Anim.staggerFor(count)
+    local M = ns.MOTION
+    if not count or count < 2 then return 0 end
+    local gap = M.cascade / (count - 1)
+    if gap > M.stagger then return M.stagger end
+    if gap < M.staggerMin then return M.staggerMin end
+    return gap
+end
+
+-- One item of a cascade: fade a frame up from nothing after `delay`.
+--
+-- Always lands exactly on alpha 1 via onDone, so a panel can never rest at 0.98 and
+-- look subtly broken. Worth being precise about what that guard is for: the driver
+-- clamps its progress to 1 and every easing in the library above returns exactly 1
+-- at t=1, so with those it is redundant - tools/animtest.js confirms removing it
+-- changes nothing today. It earns its place against a CUSTOM ease function passed by
+-- a caller, which is under no such obligation; the harness covers that case.
+--
+-- Three of the four cascades this replaced had the guard and the fourth didn't, which
+-- is the kind of gap that only closes by there being one implementation.
+function Anim.revealIn(frame, delay, duration, ease)
+    if not frame or not frame.SetAlpha then return end
+    frame:SetAlpha(0)
+    return Anim.tween({
+        duration = duration or (ns.MOTION and ns.MOTION.base) or 0.24,
+        delay = delay or 0,
+        ease = ease or "outCubic",
+        onUpdate = function(e) frame:SetAlpha(e) end,
+        onDone = function() frame:SetAlpha(1) end,
+    })
+end
+
 -- Convenience: count a number from -> to, calling setter each tick. For score/stat
 -- roll-ups. owner lets a re-trigger cancel the previous run cleanly.
 function Anim.number(ownerFrame, propKey, from, to, duration, setter, ease)

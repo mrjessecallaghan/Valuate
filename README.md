@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.22.5a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.23.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -92,12 +92,13 @@ be deliberate about the destructive features (deletion is permanent — WoW has 
 ## Development
 
 ```bash
-cd tools && npm install     # once: installs luaparse
+cd tools && npm install     # once: installs luaparse + fengari
 node check.js               # syntax + 8 lint rules
 node globals.js             # scope analysis + namespace contract
 node tocsync.js             # .toc / ui/ / CLAUDE.md in sync
 node options.js             # every option is reachable from the UI or a command
 node api.js                 # every method the selftest names actually exists
+node animtest.js            # runs the animation engine against a mocked WoW API
 ```
 
 Every gate encodes a bug that actually shipped here — addon taint, duplicated junk logic,

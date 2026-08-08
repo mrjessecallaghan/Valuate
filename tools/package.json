@@ -2,11 +2,13 @@
   "name": "valuate-tools",
   "version": "1.0.0",
   "private": true,
-  "description": "Dev tooling for the Valuate addon (syntax checking).",
+  "description": "Dev tooling for the Valuate addon: static gates plus a fengari runtime harness.",
   "scripts": {
-    "check": "node check.js"
+    "check": "node check.js && node globals.js && node tocsync.js && node options.js && node api.js && node animtest.js",
+    "test": "node animtest.js"
   },
   "dependencies": {
+    "fengari": "^0.1.5",
     "luaparse": "^0.3.1"
   }
 }

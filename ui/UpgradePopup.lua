@@ -14,6 +14,7 @@
 local _, ns = ...
 
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW = ns.BACKDROP_WINDOW
 local FONT_H2, FONT_BODY, FONT_SMALL = ns.FONT_H2, ns.FONT_BODY, ns.FONT_SMALL
 local CreateStyledButton = ns.CreateStyledButton
@@ -268,7 +269,7 @@ function Valuate:ShowUpgradePopup(opts)
     -- Shared entrance, so this arrives exactly like the pickers and dialogs rather
     -- than carrying its own timings. Anim.popIn handles reduceMotion itself.
     f:Show()
-    Anim.popIn(f, 0.9, 0.32)
+    Anim.popIn(f, 0.9, MOTION.slow)
     return f
 end
 

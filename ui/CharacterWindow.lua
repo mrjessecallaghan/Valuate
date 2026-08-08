@@ -12,6 +12,7 @@ local _, ns = ...
 local PADDING, ELEMENT_SPACING, INNER_SPACING = ns.PADDING, ns.ELEMENT_SPACING, ns.INNER_SPACING
 local BUTTON_HEIGHT, ENTRY_HEIGHT = ns.BUTTON_HEIGHT, ns.ENTRY_HEIGHT
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
@@ -308,7 +309,7 @@ local function UpdateCharacterWindowDisplay()
         local previous = CharacterWindowLastScore or displayValue
         CharacterWindowLastScore = displayValue
         if ns.Anim then
-            ns.Anim.number(CharacterWindowScoreText, "valuateScore", previous, displayValue, 0.45,
+            ns.Anim.number(CharacterWindowScoreText, "valuateScore", previous, displayValue, MOTION.count,
                 function(v)
                     CharacterWindowScoreText:SetText("|cFF" .. color .. string.format(formatStr, v) .. "|r")
                 end)

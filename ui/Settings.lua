@@ -18,6 +18,7 @@ local WINDOW_WIDTH = ns.WINDOW_WIDTH
 -- which errors on nil. It was missed when this panel was extracted.
 local HEADER_HEIGHT = ns.HEADER_HEIGHT
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
@@ -2029,18 +2030,9 @@ local function CreateSettingsPanel(parent)
     -- ten sections are flat children of three column frames, so fading the columns
     -- gets the cascade without needing every control grouped into its own frame.
     ns.RevealSettingsColumns = function()
+        local gap = Anim.staggerFor(3)
         for i = 1, 3 do
-            local f = columnFrames[i]
-            if f then
-                f:SetAlpha(0)
-                Anim.tween({
-                    duration = 0.30, delay = (i - 1) * 0.07, ease = "outCubic",
-                    onUpdate = function(e) f:SetAlpha(e) end,
-                    -- Land exactly on 1: an eased tween can stop a hair short, and a
-                    -- permanently 0.98-alpha panel is a subtle way to look broken.
-                    onDone = function() f:SetAlpha(1) end,
-                })
-            end
+            Anim.revealIn(columnFrames[i], (i - 1) * gap)
         end
     end
 

@@ -17,6 +17,7 @@ local PADDING, ELEMENT_SPACING, INNER_SPACING = ns.PADDING, ns.ELEMENT_SPACING, 
 local BUTTON_HEIGHT, SCROLLBAR_WIDTH = ns.BUTTON_HEIGHT, ns.SCROLLBAR_WIDTH
 local MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT = ns.MIN_WINDOW_HEIGHT, ns.MAX_WINDOW_HEIGHT
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
@@ -1093,15 +1094,12 @@ local function CreateBestEquipmentPanel(parent)
     Valuate.RevealBestEquipmentColumns = function()
         local decimals = Valuate:GetOptions().decimalPlaces or 1
         local fmt = "%." .. decimals .. "f"
+        local colGap = Anim.staggerFor(#columnBundles)
         for i, col in ipairs(columnBundles) do
             if col.frame and col.frame:IsShown() then
-                local f = col.frame
-                local colDelay = (i - 1) * 0.06
-                f:SetAlpha(0)
-                Anim.tween({
-                    duration = 0.34, delay = colDelay, ease = "outCubic",
-                    onUpdate = function(e) f:SetAlpha(e) end,
-                })
+                local colDelay = (i - 1) * colGap
+                Anim.revealIn(col.frame, colDelay, MOTION.slow)
+                local rowGap = Anim.staggerFor(#col.rows)
 
                 -- Score count-up: each row's number rolls from 0 to its value, staggered
                 -- down the column so the numbers cascade. Only rows with a real score
@@ -1115,8 +1113,8 @@ local function CreateBestEquipmentPanel(parent)
                         end
                         render(0)
                         Anim.tween({
-                            duration = 0.55, ease = "outCubic",
-                            delay = colDelay + (rowIndex - 1) * 0.025,
+                            duration = MOTION.count, ease = "outCubic",
+                            delay = colDelay + (rowIndex - 1) * rowGap,
                             onUpdate = function(e) render(target * e) end,
                             onDone = function() render(target) end,
                         })

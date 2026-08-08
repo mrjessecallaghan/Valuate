@@ -54,7 +54,16 @@ ns.MOTION = {
     fast    = 0.16,  -- hover and other small state changes
     base    = 0.24,  -- dialogs and panels arriving; the default
     slow    = 0.34,  -- reveals where the motion itself carries the meaning
-    stagger = 0.05,  -- gap between items in a cascade
+    count   = 0.55,  -- number roll-ups; long enough that the climb is readable
+
+    -- Cascades (staggered reveals) are described by their TOTAL window, not by a
+    -- per-item gap. A gap that looks lively across three settings columns turns a
+    -- twenty-row list into a crawl, which is why every cascade here had drifted to
+    -- its own hand-tuned number. Anim.staggerFor() divides `cascade` by the item
+    -- count and clamps to [staggerMin, stagger].
+    cascade    = 0.30,
+    stagger    = 0.05,  -- widest per-item gap: below this, few items look simultaneous
+    staggerMin = 0.02,  -- tightest: below this, many items look simultaneous anyway
 }
 
 -- Stat editor sizing (5-column layout)

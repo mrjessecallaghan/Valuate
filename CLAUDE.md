@@ -11,10 +11,10 @@ classless server. Branch: `claude-fork`.
 ## 1. Verification: what to run, and what it proves
 
 ```bash
-cd tools && node check.js && node tocsync.js && node globals.js
+cd tools && node check.js && node tocsync.js && node globals.js && node animtest.js
 ```
 
-Run all three **before every commit**.
+Run all four **before every commit**.
 
 - `check.js` parses every Lua file with `luaparse` (Lua 5.1) and enforces the lint rules
   in §4. A Lua *syntax* error means the addon silently fails to load — this is the guard
@@ -22,6 +22,12 @@ Run all three **before every commit**.
 - `tocsync.js` checks the `.toc`'s `ui\*.lua` list against what's on disk. A module that
   exists but isn't listed **never loads**, and a stripped backslash (`uiDialog.lua`)
   looks fine to a parser — both are invisible to `check.js` and were real bugs here.
+- `animtest.js` **executes** `ui/Animations.lua` under fengari against a mocked WoW API.
+  It is the only gate that runs Valuate code rather than reading it, which matters because
+  the other four all pass on a clamp whose comparison is the wrong way round. Start here
+  when extending runtime coverage: the engine's whole external surface is `CreateFrame`
+  plus one option read, so its mock is small enough to trust. Mutation-tested — every
+  check in it has been shown to fail when the behaviour it names is broken.
 - `globals.js` does **scope analysis** and reports identifiers read as globals that
   aren't a known API. This is the guard against the worst bug class here: a reference
   that resolves to a nil global instead of the local you meant — Lua raises no error, the
@@ -215,6 +221,7 @@ callback either reschedule or be genuinely final.
 | `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
 | `tools/options.js` | Every option is reachable from the UI or a command |
 | `tools/api.js` | Every method the selftest names actually exists |
+| `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
 
 ### `ui/` modules (load order matters — see the `.toc`)
 

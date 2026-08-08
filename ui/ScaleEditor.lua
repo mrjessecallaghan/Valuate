@@ -21,6 +21,7 @@ local NUM_COLUMNS, COLUMN_WIDTH, ROW_HEIGHT, ROW_SPACING, HEADER_HEIGHT, HEADER_
     ns.NUM_COLUMNS, ns.COLUMN_WIDTH, ns.ROW_HEIGHT, ns.ROW_SPACING, ns.HEADER_HEIGHT, ns.HEADER_SPACING
 local MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT = ns.MIN_WINDOW_HEIGHT, ns.MAX_WINDOW_HEIGHT
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
@@ -119,7 +120,7 @@ local function CreateStatRow(parent, statName, scale, yOffset)
         -- recently, clicking away from a field silently discarded the edit, and the
         -- box looked identical either way. Now "saved" has a tell.
         Anim.tween({
-            duration = 0.45, ease = "outQuad",
+            duration = MOTION.slow, ease = "outQuad",
             onUpdate = function(e)
                 -- Full accent at the start, easing back to the row's resting border,
                 -- which differs depending on whether the row now carries a weight.
@@ -608,15 +609,9 @@ function ValuateUI_UpdateScaleEditor(scaleName, scale)
     -- grid they sit in.
     local containers = ns.ScaleEditorFrame and ns.ScaleEditorFrame.animContainers
     if containers then
+        local gap = Anim.staggerFor(#containers)
         for i, frame in ipairs(containers) do
-            if frame and frame.SetAlpha then
-                frame:SetAlpha(0)
-                Anim.tween({
-                    duration = 0.26, delay = (i - 1) * 0.05, ease = "outCubic",
-                    onUpdate = function(e) frame:SetAlpha(e) end,
-                    onDone = function() frame:SetAlpha(1) end,
-                })
-            end
+            Anim.revealIn(frame, (i - 1) * gap)
         end
     end
 end
@@ -881,6 +876,7 @@ local function RefreshScaleLibraryList()
     if #names == 0 then frame.emptyLabel:Show() else frame.emptyLabel:Hide() end
 
     local y = 0
+    local rowGap = Anim.staggerFor(#names)
     for i, entryName in ipairs(names) do
         local row = libraryRows[i]
         if not row then
@@ -933,14 +929,9 @@ local function RefreshScaleLibraryList()
         end)
 
         row:Show()
-        -- Cascade the rows in, matching the reveals elsewhere. Staggered by index so
-        -- a library with a dozen entries still finishes quickly.
-        row:SetAlpha(0)
-        Anim.tween({
-            duration = 0.18, delay = (i - 1) * 0.03, ease = "outCubic",
-            onUpdate = function(e) row:SetAlpha(e) end,
-            onDone = function() row:SetAlpha(1) end,
-        })
+        -- Cascade the rows in, matching the reveals elsewhere. The gap shrinks as the
+        -- library grows, so a dozen entries still finish in about the same time as three.
+        Anim.revealIn(row, (i - 1) * rowGap, MOTION.fast)
         y = y + ENTRY_HEIGHT + 2
     end
 

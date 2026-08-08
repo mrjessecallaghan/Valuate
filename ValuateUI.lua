@@ -25,6 +25,7 @@ local SCALE_LIST_WIDTH, EDITOR_CONTENT_WIDTH, WINDOW_WIDTH =
 local MIN_WINDOW_HEIGHT, MAX_WINDOW_HEIGHT = ns.MIN_WINDOW_HEIGHT, ns.MAX_WINDOW_HEIGHT
 
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
 local BORDER_TOOLTIP, BORDER_EDGE_SIZE = ns.BORDER_TOOLTIP, ns.BORDER_EDGE_SIZE
 local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_INPUT, BACKDROP_BUTTON =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_INPUT, ns.BACKDROP_BUTTON
@@ -244,7 +245,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 panel:SetAlpha(1)
             else
                 panel:SetAlpha(0)
-                Anim.fade(panel, 1, 0.18, "outQuad")
+                Anim.fade(panel, 1, MOTION.fast, "outQuad")
             end
         end
         
@@ -292,7 +293,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     local accent = btn.accent
                     accent:SetAlpha(0)
                     accent:Show()
-                    ValuateTween(btn, 0.22, function(t)
+                    ValuateTween(btn, MOTION.base, function(t)
                         accent:SetAlpha(EaseOutQuad(t))
                     end)
                 end
@@ -568,12 +569,14 @@ function Valuate:ShowUI()
         ns.ValuateUIFrame:Show()
 
         -- Open animation: a quick fade-in plus a spring scale-pop. Under Reduce
-        -- Motion the Anim.* calls apply the final state instantly (no flash of 0).
+        -- Motion popIn applies the final state instantly (no flash of 0).
+        --
+        -- This is popIn's exact shape and used to be spelled out by hand with its own
+        -- pair of durations - so the main window arrived very slightly differently
+        -- from every dialog it opens. Same helper now, one step slower than the
+        -- default because it is the largest thing that appears.
         ns.ValuateUIFrame.closing = false
-        ns.ValuateUIFrame:SetAlpha(0)
-        ns.ValuateUIFrame:SetScale(0.94)
-        Anim.fade(ns.ValuateUIFrame, 1, 0.22, "outQuad")
-        Anim.scaleTo(ns.ValuateUIFrame, 1, 0.30, "outBack")
+        Anim.popIn(ns.ValuateUIFrame, 0.94, MOTION.slow)
 
         -- Update dynamic lists now that the window is visible
         UpdateScaleList()
@@ -603,8 +606,8 @@ function Valuate:HideUI()
 
     -- Close animation: fade + shrink, then actually hide.
     ns.ValuateUIFrame.closing = true
-    Anim.fade(ns.ValuateUIFrame, 0, 0.16, "outQuad")
-    Anim.scaleTo(ns.ValuateUIFrame, 0.94, 0.16, "outQuad", finish)
+    Anim.fade(ns.ValuateUIFrame, 0, MOTION.fast, "outQuad")
+    Anim.scaleTo(ns.ValuateUIFrame, 0.94, MOTION.fast, "outQuad", finish)
 end
 
 function Valuate:ToggleUI()

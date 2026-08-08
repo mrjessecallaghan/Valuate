@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.23.0a] - 2026-07-31 — A gate that actually runs the code
+
+### Added
+- **`tools/animtest.js`** — the first gate that *executes* Valuate rather than reading it.
+  It loads `ui/Animations.lua` under fengari against a mocked WoW API and asserts 99 things
+  about the running engine. The other five gates all pass on a clamp whose comparison is the
+  wrong way round; this one does not.
+- Every check in it is **mutation-tested**: the engine was deliberately broken eight ways and
+  each break confirmed to fail a named check. Three mutations survived the first draft, and
+  the harness was strengthened until none did.
+
+### Changed
+- **Cascades now derive their per-item gap** from `Anim.staggerFor(count)`. Five staggered
+  reveals had each grown their own hand-tuned number (0.07 / 0.06 / 0.05 / 0.03 / 0.025) —
+  all sitting on one curve, because each was really encoding "keep the whole cascade to about
+  a third of a second for THIS many items". Written as a formula, a new cascade gets the right
+  gap without anyone eyeballing it.
+- `Anim.revealIn` replaces four near-identical copies of the same fade-in block. One of the
+  four was missing the completion guard the other three had.
+- The main window now opens through `Anim.popIn`, like every dialog it opens, instead of
+  hand-spelling that animation with its own pair of durations.
+- Remaining ad-hoc durations adopted the motion tokens. `MOTION.count` added for number
+  roll-ups, which are a readout rather than a state change and want their own timing.
+
+### Fixed
+- Corrected a comment that justified the engine's "land exactly on the target" guards with a
+  failure mode this driver cannot produce — it clamps progress to 1, and every built-in easing
+  returns exactly 1 there. The guards are still worth keeping, but as insurance against a
+  *custom* easing that never reaches 1, which the harness now covers. The old reasoning would
+  have survived any amount of review; running the code is what disproved it.
+
 ## [0.22.5a] - 2026-07-31 — Motion becomes a vocabulary
 
 ### Changed

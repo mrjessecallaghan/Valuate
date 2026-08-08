@@ -97,7 +97,7 @@ function Valuate:ShowConfirmDialog(opts)
     -- Shared entrance, but a shallower overshoot than the pickers: this dialog
     -- often asks about something destructive, and a bouncy arrival is the wrong
     -- tone for "delete these 12 items?".
-    Anim.popIn(f, 0.97, 0.20)
+    Anim.popIn(f, 0.97)
     return f
 end
 
