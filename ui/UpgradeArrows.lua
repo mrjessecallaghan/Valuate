@@ -17,6 +17,8 @@
 local _, ns = ...
 
 local COLORS = ns.COLORS
+local MOTION = ns.MOTION
+local Anim = ns.Anim
 
 -- button -> our texture. Keyed by the frame itself so nothing is stored on it.
 local arrows = {}
@@ -116,11 +118,57 @@ local function GetArrow(button)
     return rec
 end
 
-local function ShowArrow(button)
+-- Sets both textures to a fraction of full size. The glow is sized FROM the arrow
+-- rather than held fixed: a full-size halo around a quarter-size arrow reads as a
+-- rendering fault, not as an entrance.
+local function SizeArrow(rec, scale)
+    local s = ARROW_SIZE * scale
+    rec.arrow:SetWidth(s)
+    rec.arrow:SetHeight(s)
+    rec.glow:SetWidth(s * 2.1)
+    rec.glow:SetHeight(s * 2.1)
+end
+
+-- An arrow that has just appeared pops out to full size rather than simply being
+-- there. The point of the arrow is to be noticed, and something arriving catches the
+-- eye in a way that something already present does not.
+--
+-- Animates SIZE, deliberately. The pulse driver writes alpha to every shown arrow on
+-- every frame, so an alpha-based entrance would be overwritten a frame later - the
+-- same collision that cost two releases elsewhere. Size is uncontested, so the two
+-- run together: it pops out while the glow is already breathing.
+local function AnimateArrowIn(rec)
+    -- Under Reduce Motion an arrow still has to be full size and visible; there is
+    -- just nothing for it to do on the way there.
+    if ns.ReduceMotion and ns.ReduceMotion() then
+        SizeArrow(rec, 1)
+        return
+    end
+    -- Owned by the rec (a plain table of our own) rather than by the button, so
+    -- nothing is written onto a Blizzard frame - rule 1 at the top of this file.
+    Anim.owned(rec, "arrivein", {
+        duration = MOTION.base,
+        -- outBack overshoots slightly before settling, which is what makes it read as
+        -- landing rather than growing.
+        ease = "outBack",
+        onUpdate = function(e) SizeArrow(rec, 0.4 + 0.6 * e) end,
+        onDone = function() SizeArrow(rec, 1) end,
+    })
+end
+
+-- shownFor holds the item link this arrow is currently for, so the entrance plays
+-- when an arrow ARRIVES and not on every bag repaint. SetArrow runs per button per
+-- repaint, so animating on every call would mean arrows jittering constantly while
+-- you moved things around. It also correctly re-plays when a slot's upgrade is
+-- replaced by a DIFFERENT upgrade, which a plain shown/hidden flag would miss.
+local function ShowArrow(button, itemLink)
     local rec = GetArrow(button)
+    local isNew = rec.shownFor ~= itemLink
+    rec.shownFor = itemLink
     rec.arrow:Show()
     rec.glow:Show()
     shownArrows[rec] = true
+    if isNew then AnimateArrowIn(rec) end
 end
 
 local function HideArrow(button)
@@ -129,6 +177,13 @@ local function HideArrow(button)
     rec.arrow:Hide()
     rec.glow:Hide()
     shownArrows[rec] = nil
+    -- Cleared so the arrow plays its entrance again next time it is genuinely new,
+    -- and so a stale link can never suppress it.
+    rec.shownFor = nil
+    -- A hidden texture keeps whatever size the entrance left it at. Stop the tween
+    -- and restore full size, or an arrow interrupted mid-entrance comes back small.
+    Anim.cancelProp(rec, "arrivein")
+    SizeArrow(rec, 1)
 end
 
 -- The single entry point: show or hide the arrow for one button.
@@ -142,7 +197,7 @@ local function SetArrow(button, itemLink)
     end
 
     if Valuate:IsItemLinkUpgrade(itemLink) then
-        ShowArrow(button)
+        ShowArrow(button, itemLink)
     else
         HideArrow(button)
     end

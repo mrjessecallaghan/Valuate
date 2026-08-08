@@ -333,6 +333,20 @@ Anim.owned(ownedFrame, "scale", { duration = 0.3, onUpdate = function() coB = co
 advance(0.5, 25)
 ok(coA > 0 and coB > 0, "two different owned properties on one frame cancelled each other")
 
+-- ------------------------------------------- owned tweens on a plain table
+-- ui/UpgradeArrows.lua depends on this: its rule is that nothing is ever written onto
+-- a Blizzard frame, so it owns its tweens on its OWN record table instead of on the
+-- item button. That only works because startProp does pure table access - it stores a
+-- handle under a key and never calls a frame method. Pinned here because it is an
+-- assumption about the engine made by a file the engine knows nothing about.
+local plain = {}
+local plainTicks = 0
+Anim.owned(plain, "size", { duration = 0.3, onUpdate = function() plainTicks = plainTicks + 1 end })
+advance(0.4, 20)
+ok(plainTicks > 0, "an owned tween on a plain table never ran - the engine assumes a frame")
+Anim.cancelProp(plain, "size")
+ok(true, "cancelProp errored on a plain table")
+
 -- ------------------------------------------------------------- Anim.cancelProp
 -- "Stop animating this and give me the property back." The pressed-button case: a
 -- hover fade must actually stop, or it overwrites the pressed colour a frame later.

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.27.0a] - 2026-07-31 — Arrows arrive
+
+### Changed
+- **Upgrade arrows now pop out to full size when they appear** instead of simply being there.
+  The arrow's whole job is to be noticed, and something arriving catches the eye in a way
+  something already present does not. Both in your bags (AdiBags) and at merchants and loot
+  windows.
+- **Only when the arrow is genuinely new.** The arrow update runs for every button on every
+  bag repaint, so the risk here is the exact opposite of the feature — a naive version makes
+  every arrow jitter constantly while you move items around. Each arrow remembers which item
+  it is for, so the entrance also correctly re-plays when a slot's upgrade is replaced by a
+  *different* upgrade, which a plain shown/hidden flag would miss.
+- **The entrance animates size, not alpha** — deliberately. The pulse driver writes alpha to
+  every visible arrow on every frame, so an alpha-based entrance would be overwritten a frame
+  later. That is the same collision that took two releases to find elsewhere; here the two
+  animations share a driver and never touch the same property.
+- Interrupting an arrow mid-entrance (closing the bag, equipping the item) restores it to full
+  size, so it can never come back at 40%.
+
+### Added
+- `/valuate verify arrow` for the above — the first entry added under the rule introduced last
+  release, that behaviour a gate cannot see gets a check.
+- The harness now pins an assumption `ui/UpgradeArrows.lua` makes about the engine: that owned
+  tweens work on a **plain table**, not just a frame. That is what lets the arrows own their
+  tweens on their own record instead of writing a field onto a Blizzard item button.
+
 ## [0.26.0a] - 2026-07-31 — `/valuate verify`
 
 ### Added

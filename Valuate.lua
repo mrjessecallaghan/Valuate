@@ -6639,6 +6639,13 @@ local VERIFY_CHECKS = {
         broke = "New in this version - never run.",
     },
     {
+        id = "arrow", since = "0.27.0a",
+        title = "Upgrade arrows pop in when they arrive - and only then",
+        steps = "Open your bags with at least one upgrade already showing an arrow, then loot or buy another upgrade. Also close and reopen the bag, and drag items around.",
+        expect = "A newly-arrived arrow pops out to full size. Arrows already on screen must NOT re-animate while you move things around.",
+        broke = "New in this version - never run. The risk here is the opposite of the feature: the arrow update runs for every button on every bag repaint, so getting this wrong means every arrow jitters constantly.",
+    },
+    {
         id = "resize", since = "0.24.0a",
         title = "The window resizes smoothly instead of snapping",
         steps = "Open the UI and switch between the Scales, Best Equipment and Settings tabs.",
