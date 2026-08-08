@@ -7164,6 +7164,13 @@ local VERIFY_CHECKS = {
         end,
     },
     {
+        id = "solidcolour", since = "0.46.0a",
+        title = "Accent bars and separators actually draw",
+        steps = "Open the UI and look at the thin coloured line across the top of each panel, the separators in the Scale Editor, and the coloured bar above each Best Equipment column. Then trigger an upgrade popup.",
+        expect = "All of them are visible and tinted. If any are missing or the panel below one is half-built, this client does not have the modern texture call and the fallback is not working.",
+        broke = "Twenty-two places filled a texture with SetColorTexture, which arrived in Legion - this addon targets Interface 30300, where the call is SetTexture(r, g, b, a). Whether it mattered depends on how much Ascension's client backported, which is not something I can check from here. It now asks the texture which method it has. This check is worth one look because it is the difference between 'we were fine' and 'a third of the UI was erroring at build time'.",
+    },
+    {
         id = "rows", since = "0.43.0a",
         title = "Scale rows still act on the scale they are showing",
         steps = "Make four scales. Delete the SECOND one, so the rows below it shift up. Now hover, tick, recolour, rename and finally delete the scale that moved into that second row.",

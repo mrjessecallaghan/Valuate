@@ -333,7 +333,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
         accent:SetPoint("TOPLEFT", btn, "TOPLEFT", 2, -1)
         accent:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -2, -1)
         accent:SetHeight(2)
-        accent:SetColorTexture(unpack(COLORS.textAccent))
+        ns.SetSolidColor(accent, unpack(COLORS.textAccent))
         accent:Hide()
         btn.accent = accent
         

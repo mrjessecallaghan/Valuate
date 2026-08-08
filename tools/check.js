@@ -62,6 +62,24 @@ const RULES = [
     test: (l) => /\bConfirmBindOnUse\s*\(/.test(l),
   },
   {
+    // SetColorTexture is Legion (7.0). This addon is Interface 30300, where the solid
+    // colour setter is SetTexture(r, g, b, a). Twenty-two call sites had drifted onto the
+    // modern name - accent bars, separators, row highlights, header backgrounds, the
+    // change-flash - while exactly one place used the 3.3.5 form, which is what a habit
+    // looks like rather than a decision. On a client without the method each one errors at
+    // build time, and in Lua that means the rest of the function never runs.
+    //
+    // ns.SetSolidColor asks the texture which it has, so it is right either way.
+    name: "no-retail-only-texture-api",
+    why: "SetColorTexture arrived in Legion; Interface 30300 has SetTexture(r,g,b,a). Use ns.SetSolidColor(tex, r, g, b, a), which detects it and is correct on both.",
+    // ui/Shared.lua is where the detection lives, so it is the one file allowed to name
+    // the method. Compared by resolved PATH rather than basename - the same trap that let
+    // Valuate-PassLoot's own Valuate.lua get flagged by another rule.
+    test: (l, file) =>
+      /:\s*SetColorTexture\s*\(/.test(l) &&
+      path.resolve(file) !== path.resolve(ADDON_ROOT, "ui", "Shared.lua"),
+  },
+  {
     // The nastiest bug class in the split: `local EditingScaleName = ns.EditingScaleName`
     // looks identical to the (correct) pattern used for constants, but for MUTABLE
     // state it silently breaks - the local copy gets assigned, other files keep reading

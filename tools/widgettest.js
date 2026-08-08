@@ -159,6 +159,46 @@ eq(count, 1, "frame name appears in UISpecialFrames exactly once")
 ok(reg(nil) == false, "nil must not be registered")
 ok(reg(CreateFrame("Frame")) == false, "a frame OBJECT is not a frame NAME and must be refused")
 
+-- ---- ns.SetSolidColor: the same call on two client generations ----------------
+--
+-- Every accent bar, separator, row highlight and header background in the addon fills a
+-- texture through this. SetColorTexture is Legion; Interface 30300 has SetTexture(r,g,b,a).
+-- Ascension ships a customised 3.3.5a client and may have either, so the helper asks the
+-- texture rather than assuming - and both answers are exercised here, because a fallback
+-- nothing runs is a fallback nobody knows is broken.
+local SSC = ns.SetSolidColor
+ok(type(SSC) == "function", "ns.SetSolidColor is published")
+
+-- A modern client: the method exists and must be preferred.
+local modern = { calls = {} }
+function modern:SetColorTexture(r, g, b, a) self.calls[#self.calls + 1] = { "color", r, g, b, a } end
+function modern:SetTexture(r, g, b, a) self.calls[#self.calls + 1] = { "texture", r, g, b, a } end
+SSC(modern, 0.1, 0.2, 0.3, 0.4)
+eq(#modern.calls, 1, "one call on a modern client")
+eq(modern.calls[1][1], "color", "a modern client uses SetColorTexture")
+near(modern.calls[1][2], 0.1, "red is passed through")
+near(modern.calls[1][5], 0.4, "alpha is passed through")
+
+-- A 3.3.5a client: no such method, so it must fall back rather than error.
+local wotlk = { calls = {} }
+function wotlk:SetTexture(r, g, b, a) self.calls[#self.calls + 1] = { "texture", r, g, b, a } end
+SSC(wotlk, 0.5, 0.6, 0.7, 0.8)
+eq(#wotlk.calls, 1, "one call on a 3.3.5a client")
+eq(wotlk.calls[1][1], "texture", "a 3.3.5a client falls back to SetTexture")
+near(wotlk.calls[1][2], 0.5, "red survives the fallback")
+near(wotlk.calls[1][5], 0.8, "alpha survives the fallback")
+
+-- Alpha is optional at several call sites (unpack of a 3-entry colour).
+local three = { calls = {} }
+function three:SetTexture(r, g, b, a) self.calls[#self.calls + 1] = { r, g, b, a } end
+SSC(three, 1, 1, 1)
+eq(three.calls[1][4], nil, "a missing alpha stays missing rather than becoming 0")
+
+-- A nil texture must be a no-op, not an error: several call sites guard their texture
+-- with an existence check first, and one of them will eventually forget.
+local okCall = pcall(SSC, nil, 1, 1, 1, 1)
+ok(okCall, "a nil texture is ignored rather than raising")
+
 return failures, checks
 `;
 

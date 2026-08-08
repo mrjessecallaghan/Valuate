@@ -52,7 +52,7 @@ local function EnsureDialog()
     accent:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
     accent:SetPoint("TOPRIGHT", f, "TOPRIGHT", -4, -4)
     accent:SetHeight(2)
-    accent:SetColorTexture(unpack(COLORS.textAccent))
+    ns.SetSolidColor(accent, unpack(COLORS.textAccent))
 
     local text = f:CreateFontString(nil, "OVERLAY", FONT_BODY)
     text:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -20)

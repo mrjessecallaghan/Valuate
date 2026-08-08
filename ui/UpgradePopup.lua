@@ -185,7 +185,7 @@ function Valuate:ShowUpgradePopup(opts)
 
     local hex = (scale and scale.Color) or "FFD100"
     local r, g, b = ns.HexToRGB(hex)
-    f.accent:SetColorTexture(r, g, b, 1)
+    ns.SetSolidColor(f.accent, r, g, b, 1)
     f.glow:SetVertexColor(r, g, b, 1)
 
     local top = opts.top

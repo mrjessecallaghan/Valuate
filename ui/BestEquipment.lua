@@ -274,7 +274,7 @@ local function CreateBestEquipmentPanel(parent)
     -- Scrollbar background
     local horizScrollbarBg = horizScrollbar:CreateTexture(nil, "BACKGROUND")
     horizScrollbarBg:SetAllPoints(horizScrollbar)
-    horizScrollbarBg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+    ns.SetSolidColor(horizScrollbarBg, 0.1, 0.1, 0.1, 0.5)
     
     -- Scrollbar arrows (optional, can be hidden)
     local leftArrow = CreateFrame("Button", nil, horizScrollbar)
@@ -358,19 +358,19 @@ local function CreateBestEquipmentPanel(parent)
         -- edge is left for the scale-colored accent bar in the header below.
         local cardBg = scaleFrame:CreateTexture(nil, "BACKGROUND")
         cardBg:SetAllPoints(scaleFrame)
-        cardBg:SetColorTexture(0.10, 0.11, 0.14, 0.55)
+        ns.SetSolidColor(cardBg, 0.10, 0.11, 0.14, 0.55)
         local leftEdge = scaleFrame:CreateTexture(nil, "BORDER")
-        leftEdge:SetColorTexture(unpack(COLORS.border))
+        ns.SetSolidColor(leftEdge, unpack(COLORS.border))
         leftEdge:SetPoint("TOPLEFT", scaleFrame, "TOPLEFT", 0, 0)
         leftEdge:SetPoint("BOTTOMLEFT", scaleFrame, "BOTTOMLEFT", 0, 0)
         leftEdge:SetWidth(1)
         local rightEdge = scaleFrame:CreateTexture(nil, "BORDER")
-        rightEdge:SetColorTexture(unpack(COLORS.border))
+        ns.SetSolidColor(rightEdge, unpack(COLORS.border))
         rightEdge:SetPoint("TOPRIGHT", scaleFrame, "TOPRIGHT", 0, 0)
         rightEdge:SetPoint("BOTTOMRIGHT", scaleFrame, "BOTTOMRIGHT", 0, 0)
         rightEdge:SetWidth(1)
         local bottomEdge = scaleFrame:CreateTexture(nil, "BORDER")
-        bottomEdge:SetColorTexture(unpack(COLORS.border))
+        ns.SetSolidColor(bottomEdge, unpack(COLORS.border))
         bottomEdge:SetPoint("BOTTOMLEFT", scaleFrame, "BOTTOMLEFT", 0, 0)
         bottomEdge:SetPoint("BOTTOMRIGHT", scaleFrame, "BOTTOMRIGHT", 0, 0)
         bottomEdge:SetHeight(1)
@@ -382,7 +382,7 @@ local function CreateBestEquipmentPanel(parent)
 
         local headerBg = headerContainer:CreateTexture(nil, "BACKGROUND")
         headerBg:SetAllPoints(headerContainer)
-        headerBg:SetColorTexture(0.05, 0.05, 0.05, 0.5)
+        ns.SetSolidColor(headerBg, 0.05, 0.05, 0.05, 0.5)
         col.headerBg = headerBg
 
         -- Scale-colored accent bar across the top of the card header.
@@ -397,7 +397,7 @@ local function CreateBestEquipmentPanel(parent)
         headerDivider:SetPoint("BOTTOMLEFT", headerContainer, "BOTTOMLEFT", 0, 0)
         headerDivider:SetPoint("BOTTOMRIGHT", headerContainer, "BOTTOMRIGHT", 0, 0)
         headerDivider:SetHeight(1)
-        headerDivider:SetColorTexture(unpack(COLORS.border))
+        ns.SetSolidColor(headerDivider, unpack(COLORS.border))
 
         local iconSize = 32
         local scaleIcon = headerContainer:CreateTexture(nil, "ARTWORK")
@@ -444,7 +444,7 @@ local function CreateBestEquipmentPanel(parent)
         activeButton:RegisterForClicks("LeftButtonUp")
         local abHL = activeButton:CreateTexture(nil, "HIGHLIGHT")
         abHL:SetAllPoints(activeButton)
-        abHL:SetColorTexture(1, 0.82, 0.1, 0.10)
+        ns.SetSolidColor(abHL, 1, 0.82, 0.1, 0.10)
         col.activeButton = activeButton
 
         -- Three stacked action buttons fill the 60px header: Equip All / Save Set / Clear.
@@ -459,7 +459,7 @@ local function CreateBestEquipmentPanel(parent)
         -- so these keep hover feedback even though their OnEnter shows a tooltip.
         local clearHL = clearButton:CreateTexture(nil, "HIGHLIGHT")
         clearHL:SetAllPoints(clearButton)
-        clearHL:SetColorTexture(1, 1, 1, 0.10)
+        ns.SetSolidColor(clearHL, 1, 1, 1, 0.10)
 
         local clearLabel = clearButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         clearLabel:SetPoint("CENTER", clearButton, "CENTER", 0, 0)
@@ -486,7 +486,7 @@ local function CreateBestEquipmentPanel(parent)
         equipAllButton:SetBackdropBorderColor(unpack(COLORS.border))
         local equipAllHL = equipAllButton:CreateTexture(nil, "HIGHLIGHT")
         equipAllHL:SetAllPoints(equipAllButton)
-        equipAllHL:SetColorTexture(1, 1, 1, 0.10)
+        ns.SetSolidColor(equipAllHL, 1, 1, 1, 0.10)
 
         local equipAllLabel = equipAllButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         equipAllLabel:SetPoint("CENTER", equipAllButton, "CENTER", 0, 0)
@@ -506,7 +506,7 @@ local function CreateBestEquipmentPanel(parent)
         saveSetButton:SetBackdropBorderColor(unpack(COLORS.border))
         local saveSetHL = saveSetButton:CreateTexture(nil, "HIGHLIGHT")
         saveSetHL:SetAllPoints(saveSetButton)
-        saveSetHL:SetColorTexture(1, 1, 1, 0.10)
+        ns.SetSolidColor(saveSetHL, 1, 1, 1, 0.10)
 
         local saveSetLabel = saveSetButton:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         saveSetLabel:SetPoint("CENTER", saveSetButton, "CENTER", 0, 0)
@@ -644,11 +644,11 @@ local function CreateBestEquipmentPanel(parent)
             btn:RegisterForClicks("LeftButtonUp")
             local hl = btn:CreateTexture(nil, "HIGHLIGHT")
             hl:SetAllPoints(btn)
-            hl:SetColorTexture(1, 1, 1, 0.08)
+            ns.SetSolidColor(hl, 1, 1, 1, 0.08)
             -- Flash overlay: pulses to confirm "this set is now active" after Equip All.
             local flash = btn:CreateTexture(nil, "OVERLAY")
             flash:SetAllPoints(btn)
-            flash:SetColorTexture(unpack(COLORS.textAccent))
+            ns.SetSolidColor(flash, unpack(COLORS.textAccent))
             flash:SetAlpha(0)
             flash:Hide()
             wr.flash = flash
@@ -804,8 +804,8 @@ local function CreateBestEquipmentPanel(parent)
                 col.scaleIcon:SetTexture(iconPath)
                 local cr, cg, cb = HexToRGB(color)
                 col.iconBorder:SetVertexColor(cr, cg, cb, 1)
-                if col.accentBar then col.accentBar:SetColorTexture(cr, cg, cb, 0.95) end
-                if col.headerBg then col.headerBg:SetColorTexture(cr, cg, cb, 0.12) end
+                if col.accentBar then ns.SetSolidColor(col.accentBar, cr, cg, cb, 0.95) end
+                if col.headerBg then ns.SetSolidColor(col.headerBg, cr, cg, cb, 0.12) end
                 col.headerName:SetText("|cFF" .. color .. displayName .. "|r")
 
                 -- Active-spec state. Compare against the RESOLVED primary scale so the

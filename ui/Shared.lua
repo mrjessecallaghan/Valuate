@@ -162,3 +162,34 @@ ns.FONT_H2 = "GameFontHighlightSmall"       -- ~10pt, white
 ns.FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
 ns.FONT_BODY = "GameFontHighlight"          -- ~12pt, white
 ns.FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
+
+-- ========================================
+-- Client compatibility
+-- ========================================
+
+-- Fills a texture with a flat colour, on whichever client this is.
+--
+-- `Texture:SetColorTexture` arrived in Legion (7.0). This addon targets Interface 30300,
+-- where the call does not exist and the equivalent is `SetTexture(r, g, b, a)` - passing
+-- numbers instead of a path. Twenty-two call sites across six files used the modern name;
+-- one place in ui/ScaleList.lua used the 3.3.5 form, which is the tell that this was a
+-- habit rather than a decision.
+--
+-- Whether it matters depends on the client: Ascension ships a customised 3.3.5a and may
+-- well have backported it. Rather than guess, ASK the texture. If the method is there it
+-- is used; if not, the WotLK form is. Correct on both, and it costs one lookup on a call
+-- that only runs while building UI.
+--
+-- Every accent bar, separator, row highlight, header background and change-flash in the
+-- addon goes through this, so on a client without the modern call the alternative is an
+-- error for each one at build time - which in Lua means the rest of that function never
+-- runs.
+function ns.SetSolidColor(tex, r, g, b, a)
+    if not tex then return end
+    if tex.SetColorTexture then
+        tex:SetColorTexture(r, g, b, a)
+    else
+        -- 3.3.5a: SetTexture doubles as the solid-colour setter.
+        tex:SetTexture(r, g, b, a)
+    end
+end

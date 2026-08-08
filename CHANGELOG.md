@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.46.0a] - 2026-08-09 — Every flat colour goes through one call that works on this client
+
+### Fixed
+- **22 places filled a texture with `SetColorTexture`, which arrived in Legion (7.0).** This
+  addon targets **Interface 30300**, where the solid-colour setter is `SetTexture(r, g, b, a)`
+  — numbers instead of a path. Exactly one place, in `ui/ScaleList.lua`, used the 3.3.5 form,
+  which is what a habit looks like rather than a decision.
+- Affected every accent bar, separator, row highlight, header background, scrollbar track and
+  the Best Equipment change-flash — across `BestEquipment`, `Dialog`, `ScaleEditor`,
+  `Settings`, `UpgradePopup` and `ValuateUI`. On a client without the method each one raises,
+  and in Lua that means **the rest of that function never runs**, so the damage is not a
+  missing line but a half-built panel.
+- All of them now go through **`ns.SetSolidColor`**, which asks the texture which method it
+  has. Correct on either client, one lookup, only while building UI.
+
+### Honest uncertainty
+- **I cannot tell from here whether this was actually broken.** Ascension ships a customised
+  3.3.5a client and may well have backported the call. If it did, this release changes
+  nothing you can see; if it did not, a good part of the UI was erroring at build time. That
+  is precisely why it is worth not guessing — and why `/valuate verify solidcolour` exists.
+
+### Development
+- **A fifteenth lint rule, `no-retail-only-texture-api`**, so the modern name cannot come
+  back. `ui/Shared.lua` is exempt, by resolved path rather than basename — the same trap that
+  once made another rule flag `Valuate-PassLoot`'s own `Valuate.lua`.
+- `widgettest.js` gained 11 checks driving the helper against **both** client shapes: a
+  texture that has `SetColorTexture` must use it, one that does not must fall back, a missing
+  alpha must stay missing, and a nil texture must be ignored rather than raise. A fallback
+  nothing runs is a fallback nobody knows is broken.
+- Mutation-tested: removing the detection makes the gate fail with
+  `attempt to call a nil value (method 'SetColorTexture')` — the exact error a 3.3.5a client
+  would have produced.
+
 ## [0.45.1a] - 2026-08-09 — Reduce Motion stops leaking work
 
 ### Fixed

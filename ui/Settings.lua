@@ -185,7 +185,7 @@ local function CreateSettingsPanel(parent)
         rule:SetPoint("TOPLEFT", existingHeader, "BOTTOMLEFT", 0, -2)
         rule:SetWidth(28)
         rule:SetHeight(2)
-        rule:SetColorTexture(unpack(COLORS.textAccent))
+        ns.SetSolidColor(rule, unpack(COLORS.textAccent))
         return rule
     end
 
@@ -212,7 +212,7 @@ local function CreateSettingsPanel(parent)
         rule:SetPoint("TOPLEFT", headerFrame, "BOTTOMLEFT", 0, -2)
         rule:SetWidth(28)
         rule:SetHeight(2)
-        rule:SetColorTexture(unpack(COLORS.textAccent))
+        ns.SetSolidColor(rule, unpack(COLORS.textAccent))
 
         columnHeights[colIndex] = columnHeights[colIndex]
             + (afterFrame and (ELEMENT_SPACING * 2 + (extraGap or 0)) or 0)

@@ -135,6 +135,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-staticpopup` | `StaticPopup_Show/Hide`, `StaticPopupDialogs[` | taint (§3) |
 | `no-blizzard-ui-writes` | writes to Blizzard frame fields, `*_OnClick(` calls | taint (§3) |
 | `no-protected-calls` | `ConfirmBindOnUse` | blocks item use |
+| `no-retail-only-texture-api` | `:SetColorTexture(` outside `ui/Shared.lua` | Legion API; 30300 has `SetTexture(r,g,b,a)` |
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |
