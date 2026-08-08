@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.46.1a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.47.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -77,6 +77,7 @@ Every automated path has a diagnostic that explains why it did *nothing* — tha
 /valuate settings save    copy this character's settings to your others (then `load`)
 /valuate selftest         self-check: options, APIs, data structures, integrations
 /valuate profile          time the scan, scoring, and the per-bag-icon work
+/valuate weights          which of your stat weights are actually doing anything
 /valuate version          version info
 ```
 
@@ -88,12 +89,12 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. 10 subsystems are executed headlessly against a mocked
+Developed without the game running. 11 subsystems are executed headlessly against a mocked
 WoW API and are genuinely behaviour-tested — the animation engine, input validation and
 colour handling, scale-tag parsing, the spec templates, the verify walkthrough, **the
 deletion protections**, the pooled scale list, the slot comparison states, the tooltip
-comparison text, and the upgrade-arrow driver. **Everything else is statically verified
-only**: it loads, it resolves, its wiring is consistent.
+comparison text, the upgrade-arrow driver, and the stat-share ranking. **Everything else is
+statically verified only**: it loads, it resolves, its wiring is consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -120,7 +121,7 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-10 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+11 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.

@@ -2937,6 +2937,63 @@ function Valuate:CalculateItemScore(stats, scale)
     return total
 end
 
+-- Ranks a scale's stats by how much they actually contribute to a set of stat totals.
+--
+-- The question this answers is the one a stat-weight tool is FOR and could not previously
+-- be asked: of the weights I have set, which are doing any work? A scale with fifteen
+-- weights on it looks carefully tuned, and if twelve of them are on stats your gear does
+-- not carry, tuning them is theatre. The only way to find out was to change a number and
+-- watch whether anything moved.
+--
+-- Pure on purpose - totals in, ranking out, no tooltips and no client. That makes it the
+-- part worth executing in a gate, and the caller does the gathering.
+--
+-- Returns: ranked (list, contributing stats), idle (list, weighted but absent), total.
+--   ranked entry: { stat, value, weight, contribution, share }
+--
+-- `share` is against the sum of ABSOLUTE contributions. A negative weight is still a stat
+-- doing work, and dividing by the signed total would let one penalty push everything
+-- else's share past 100% - the same sign trap that had the tooltip printing "+-50%".
+local function RankStatShares(statTotals, scale)
+    if not statTotals or not scale or not scale.Values then return nil end
+
+    local ranked, idle, total, magnitude = {}, {}, 0, 0
+    for statName, weight in pairs(scale.Values) do
+        if weight and weight ~= 0 then
+            local value = statTotals[statName]
+            if value and value ~= 0 then
+                local contribution = value * weight
+                total = total + contribution
+                magnitude = magnitude + math.abs(contribution)
+                tinsert(ranked, {
+                    stat = statName, value = value,
+                    weight = weight, contribution = contribution,
+                })
+            else
+                -- Weighted, but you are carrying none of it. Worth naming: it is the
+                -- difference between a weight that is wrong and a weight that is unused.
+                tinsert(idle, statName)
+            end
+        end
+    end
+
+    for _, entry in ipairs(ranked) do
+        entry.share = magnitude > 0 and (math.abs(entry.contribution) / magnitude * 100) or 0
+    end
+
+    -- Biggest contributor first, by MAGNITUDE so a large penalty ranks as the big deal it
+    -- is. Stat name breaks ties, because pairs() order is undefined and a list that
+    -- reshuffles between identical runs reads as a bug in the numbers.
+    table.sort(ranked, function(a, b)
+        local ca, cb = math.abs(a.contribution), math.abs(b.contribution)
+        if ca ~= cb then return ca > cb end
+        return a.stat < b.stat
+    end)
+    table.sort(idle)
+
+    return ranked, idle, total
+end
+
 -- Calculate detailed breakdown of stat contributions for an item
 -- stats: Table of stat values {Strength = 10, Stamina = 20, ...}
 -- scale: Table of stat weights {Strength = 1.5, Stamina = 1.0, ...}
@@ -4998,6 +5055,87 @@ function Valuate:GetStatsForTooltipSetter(setterName, ...)
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     if not stats or not next(stats) then return nil end
     return stats
+end
+
+-- Sums the stats across everything you are wearing.
+--
+-- Slot 4 (Shirt) and 19 (Tabard) are skipped: they carry no stats, and a slot that can
+-- never contribute is noise in a diagnostic about what contributes.
+function Valuate:GetEquippedStatTotals()
+    local totals, slotsRead = {}, 0
+    for slotId = 1, 18 do
+        if slotId ~= 4 then
+            local link = GetInventoryItemLink and GetInventoryItemLink("player", slotId)
+            if link then
+                local stats = Valuate:GetStatsForTooltipSetter("SetInventoryItem", "player", slotId)
+                if stats then
+                    slotsRead = slotsRead + 1
+                    for statName, value in pairs(stats) do
+                        totals[statName] = (totals[statName] or 0) + value
+                    end
+                end
+            end
+        end
+    end
+    return totals, slotsRead
+end
+
+-- /valuate weights - which of this scale's weights are actually doing anything.
+function Valuate:PrintStatShares(scaleName)
+    local scale
+    if scaleName and scaleName ~= "" then
+        scale = Valuate:GetScales()[scaleName]
+        if not scale then
+            print("|cFFFF0000[Valuate]|r No scale called '" .. scaleName .. "'.")
+            return true
+        end
+    else
+        scale, scaleName = Valuate:GetPrimaryScale()
+    end
+    if not scale then
+        print("|cFFFF0000[Valuate]|r No active scale - activate one first.")
+        return true
+    end
+
+    local totals, slotsRead = Valuate:GetEquippedStatTotals()
+    if slotsRead == 0 then
+        print("|cFFFF8800[Valuate]|r Could not read any equipped item. If you are wearing gear, the client may not have cached it yet - try again in a moment.")
+        return true
+    end
+
+    local ranked, idle, total = RankStatShares(totals, scale)
+    if not ranked then
+        print("|cFFFF0000[Valuate]|r That scale has no stat weights set.")
+        return true
+    end
+
+    local label = scale.DisplayName or scaleName
+    local decimals = Valuate:GetOptions().decimalPlaces or 1
+    local fmt = "%." .. decimals .. "f"
+
+    print(string.format("|cFF00FF00[Valuate]|r What is driving your |cFFFFD100%s|r score, across %d equipped item(s):",
+        label, slotsRead))
+
+    if #ranked == 0 then
+        print("|cFFFF8800Nothing.|r Not one of this scale's weighted stats appears on your gear.")
+    end
+    for i, e in ipairs(ranked) do
+        local name = (ValuateStatNames and ValuateStatNames[e.stat]) or e.stat
+        -- A bar makes the shape readable at a glance; the numbers are for acting on.
+        local bars = math.floor(e.share / 5 + 0.5)
+        print(string.format("  %2d. |cFFFFFFFF%-22s|r |cFF00FF00%s|r %5.1f%%   %s x %s = " .. fmt,
+            i, name, string.rep("|", bars), e.share,
+            string.format(fmt, e.value), string.format(fmt, e.weight), e.contribution))
+    end
+
+    print(string.format("|cFFAAAAAATotal: " .. fmt .. "|r", total))
+
+    if #idle > 0 then
+        print("|cFFFF8800Weighted, but you are carrying none of it:|r " ..
+            table.concat(idle, ", "))
+        print("|cFFAAAAAAThose weights change nothing until you equip the stat. Not wrong - just not doing anything yet.|r")
+    end
+    return true
 end
 
 local function ScoreQuestChoice(index, scale)
@@ -7506,6 +7644,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate equip - Equip the best set for the active scale")
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
+        print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate check - Is Valuate actually working? Start here")
         print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
@@ -7874,6 +8013,8 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif command == "profile" then
         Valuate:RunProfile()
+    elseif command == "weights" or strsub(command, 1, 8) == "weights " then
+        Valuate:PrintStatShares(strtrim(strsub(msg, 8)))
     elseif command == "equip" then
         -- Equips the best set for the active scale. Referenced by the chat-style
         -- upgrade notification, which has no button to click.

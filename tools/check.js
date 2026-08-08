@@ -106,6 +106,21 @@ for (const [line, shouldMatch] of RETAIL_ONLY_SAMPLES) {
   }
 }
 
+/*
+ * Lua allows at most 200 local variables in one function scope, and a file's top level IS
+ * a function scope.
+ *
+ * luaparse does not enforce it, so a file that crosses the line passes every gate here and
+ * then fails to COMPILE in the client - which for an addon means it silently does not load
+ * at all. Valuate.lua is 7,900 lines and sits at just over half the budget, so this is not
+ * urgent; it is cheap, and the failure it prevents is the worst kind (everything is green,
+ * nothing works).
+ *
+ * Warned at 180 rather than 200 so there is room to land whatever change is in flight.
+ */
+const LOCAL_LIMIT = 200;
+const LOCAL_WARN_AT = 180;
+
 const RULES = [
   {
     name: "no-staticpopup",
@@ -321,6 +336,24 @@ for (const file of files) {
     console.error(`FAIL   ${rel}${loc}  ${e.message}`);
     parseFailures++;
     continue; // don't lint a file that doesn't parse
+  }
+
+  // --- top-level local budget (see LOCAL_LIMIT) ---
+  {
+    let topLevelLocals = 0;
+    for (const node of ast.body) {
+      if (node.type === "LocalStatement") topLevelLocals += node.variables.length;
+      else if (node.type === "FunctionDeclaration" && node.isLocal) topLevelLocals += 1;
+    }
+    if (topLevelLocals >= LOCAL_WARN_AT) {
+      console.error(
+        `LINT   ${rel}  [top-level-local-budget] ${topLevelLocals} top-level locals; Lua allows ` +
+          `${LOCAL_LIMIT} per scope. Past that this file will not COMPILE, which means the addon ` +
+          `silently does not load - and luaparse will not tell you. Group related values into one ` +
+          `table, or move a section into its own file.`
+      );
+      lintFailures++;
+    }
   }
 
   /*

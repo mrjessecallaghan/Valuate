@@ -33,10 +33,10 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Ten gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Eleven gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
-  `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`. This matters because every static
-  gate passes on a clamp whose comparison is the wrong way round, a correct-looking branch
+  `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`. This matters because
+  every static gate passes on a clamp whose comparison is the wrong way round, a correct-looking branch
   in the wrong order, a division by a signed value that should have been a magnitude, or a
   cleanup step present in one branch of a copied loop and missing from the other.
   `scalelisttest.js` goes furthest — it builds a real panel and drives its buttons.
@@ -284,6 +284,7 @@ callback either reschedule or be genuinely final.
 | `tools/bestequiptest.js` | Runs the slot comparison states (empty / unusable / delta) |
 | `tools/tooltiptest.js` | Runs the tooltip comparison text; sign, colour and magnitude agree |
 | `tools/arrowtest.js` | Ticks the upgrade-arrow driver; proves it prunes in both motion modes |
+| `tools/sharetest.js` | Runs the stat-share ranking; shares, sign handling, stable order |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.47.0a] - 2026-08-09 — Which of your stat weights actually matter
+
+### Added
+- **`/valuate weights [scale]`** — ranks the scale's stats by how much they contribute to the
+  gear you are wearing right now, with a bar, a percentage share, and the `value × weight`
+  behind it. Defaults to your current spec; name a scale to check another.
+- **It names the weights doing nothing.** A scale with fifteen weights looks carefully tuned,
+  and if twelve are on stats your gear does not carry, tuning them is theatre. Until now the
+  only way to find out was to change a number and watch whether anything moved. Those are
+  listed separately, as *not wrong, just not doing anything yet* — a weight for a stat you
+  will pick up later is a plan, not a mistake.
+- Shares are computed against the sum of **absolute** contributions, so a negative weight is
+  reported as the work it is doing without pushing everything else past 100%. Ranking is by
+  magnitude too: a large penalty is a big deal and sorts like one.
+
+### Development
+- **A sixteenth gate, `tools/sharetest.js`** — 35 checks on the ranking. Every way it can be
+  wrong produces a plausible-looking table, which is exactly why it is executed rather than
+  read. Mutation-tested four ways: dividing by the signed total (produces a **300%** share),
+  sorting by signed contribution (buries the penalty last), dropping the name tiebreaker
+  (order reshuffles between identical runs), and discarding the idle list.
+- **New check: `top-level-local-budget`.** Lua allows 200 locals per function scope and a
+  file's top level *is* a scope. `luaparse` does not enforce it, so a file that crosses the
+  line passes every gate here and then fails to compile in the client — which for an addon
+  means it silently does not load. `Valuate.lua` sits at 104; the check warns at 180.
+
 ## [0.46.1a] - 2026-08-09 — The whole API-version class is guarded, and the rule checks itself
 
 ### Development
