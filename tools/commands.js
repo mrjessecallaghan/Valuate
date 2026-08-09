@@ -144,6 +144,35 @@ if (phantom.length) {
   process.exit(1);
 }
 
+/*
+ * Every command the README names has to be a command that exists.
+ *
+ * Same failure as the scale list's empty state, which told new users to click "New Blank
+ * Scale" and "+" for several releases after both were renamed. Documentation naming a thing
+ * that is not there is worse than no documentation: it sends someone confident in the wrong
+ * direction, and they blame themselves rather than the file.
+ *
+ * The README is edited far less often than the dispatcher, so this drifts structurally.
+ */
+const readme = fs.readFileSync(path.join(ADDON_ROOT, "README.md"), "utf8");
+// Exactly ONE space, not \s+. The command block aligns its descriptions in a column, so
+// "/valuate                  open the UI" would otherwise read as a command called "open" -
+// this gate reporting a bug in its own first run, which is how a checker teaches people to
+// ignore it.
+const readmeCommands = new Set(
+  [...readme.matchAll(/\/valuate ([a-z]+)/g)].map((m) => m[1])
+);
+const phantomInReadme = [...readmeCommands].filter((c) => !commands.has(c)).sort();
+if (phantomInReadme.length) {
+  console.error("README.md names commands that do not exist:");
+  for (const c of phantomInReadme) console.error(`  /valuate ${c}`);
+  console.error(
+    "\nRename or remove them. A command that was renamed still reads as real to anyone " +
+      "following the README, and they will assume they typed it wrong."
+  );
+  process.exit(1);
+}
+
 console.log(
   `OK  all ${commands.size} slash commands are documented in /valuate help ` +
     `(${Object.keys(HIDDEN).length} deliberately hidden); ` +

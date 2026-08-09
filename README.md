@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.70.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.71.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -21,6 +21,16 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 
 ## Core features
 
+- **Guided scale wizard** — the fastest way in, and the one to start with. `/valuate wizard`
+  (or **Make me a scale** at the top of the scale list) reads the gear you're already
+  wearing, works out which of 28 hand-tuned builds you most resemble, and creates an
+  optimized scale from it — named after its own top five stats, like
+  `Auto - Str/Crit/Hit/AP/Haste`. Three screens, one click each. It shows you exactly what
+  it would make *before* making anything, tells you how confident it is (and says so plainly
+  when your gear is mixed), never overwrites a scale you already have, and finishes with the
+  new scale selected and your gear rescanned. Generated scales share one **teal** colour, so
+  you can always tell them from the ones you built yourself. Because Ascension is classless,
+  it never asks "what class are you" — it works that out from what you wear.
 - **Custom stat-weight scales** — unlimited, per character, with per-stat "ban" flags for
   stats you never want.
 - **Tooltip scores** — live item score, comparison against what you're wearing, and a
@@ -70,6 +80,7 @@ Every automated path has a diagnostic that explains why it did *nothing* — tha
 
 ```
 /valuate                  open the UI
+/valuate wizard           build an optimized scale from the gear you're wearing
 /valuate scan             rescan bags and equipped gear
 /valuate check            is it actually working? start here
 /valuate report           what's armed, when each automation last ran, and what it concluded

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.71.0a] - 2026-08-09 — the wizard exists in the documentation now, too
+
+Eleven releases of wizard, and it appeared in exactly one place outside its own source: the
+module table in `CLAUDE.md`. Not the README's feature list, not the command reference, not
+`ARCHITECTURE.md`. A feature nobody can read about is most of the way to a feature nobody
+finds.
+
+### Added
+- **README** — the wizard now leads the feature list, where a new reader actually looks, and
+  `/valuate wizard` is in the command block.
+- **ARCHITECTURE.md** — a section on the three-layer split (matching → plan → commit → screens)
+  with the table of which layer writes, and the consequences worth knowing before changing any
+  of it: why matching ignores item-level stats, why similarity is cosine, why ties break on
+  the class/spec key, why weights are floored, why the plan is copied on commit, and why a
+  duplicate is reused rather than overwritten.
+
+### Gates
+- `tools/commands.js` now checks that **every command the README names actually exists**. Same
+  failure as the scale list's empty state, which pointed at two renamed buttons for several
+  releases: documentation naming a thing that is not there is worse than no documentation,
+  because it sends someone confident in the wrong direction and they blame themselves rather
+  than the file.
+- The first run of that check reported a bug **in itself** — `\s+` in the pattern spanned the
+  command block's column alignment, so `/valuate` → `open the UI` read as a command called
+  `open`. Fixed to a single space before shipping. A checker that fires on correct content is
+  the exact failure that made `CheckColumnAnchors` useless in the client, and it would have
+  been careless to add another one in the same session that fixed it.
+
 ## [0.70.0a] - 2026-08-09 — "Fine-tune it" now lands on the scale it just made
 
 ### Fixed

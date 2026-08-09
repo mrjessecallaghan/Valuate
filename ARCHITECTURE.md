@@ -114,6 +114,49 @@ all-enabled (backwards compatibility).
 
 ---
 
+## The scale wizard
+
+Ascension is classless, so "what class are you" is the wrong question and a 28-entry spec
+list is the wrong menu. The 28 `CLASS_SPEC_TEMPLATES` are still hand-tuned weight sets
+though, and the gear you already wear says which one you resemble — so the wizard **proposes**
+and you confirm, rather than interrogating you.
+
+Split in three deliberate layers, and the split is the design:
+
+| Layer | Where | Writes? |
+|---|---|---|
+| Matching and naming | `Valuate.lua` — `MatchTemplateToStats`, `NormalizeWeights`, `BuildAutoScaleName`, `FindMatchingAutoScale` | no |
+| `PlanAutoScale` | `Valuate.lua` | **no** |
+| `CommitAutoScale` | `Valuate.lua` | **yes — the only half that does** |
+| Three screens | `ui/Wizard.lua` | no |
+
+**Planning must change nothing.** A wizard that creates as it goes leaves half-made scales
+behind when you close it halfway, and this one is aimed squarely at people who *will* close it
+halfway. That property is gated, not merely intended: after planning, the scales table, the
+options table and the rescan counter must all be untouched.
+
+Consequences worth knowing before changing any of it:
+
+- **Matching ignores Stamina, Armor, Health and item level.** They scale with item level
+  rather than with what you are building; left in, they dominate the comparison and every
+  build converges on one template *while appearing to work*.
+- **Similarity is cosine, not magnitude.** A level 20 and a level 80 in the same kind of gear
+  match the same template.
+- **Ties break on the class/spec key.** Without it the winner falls out of the order templates
+  happen to sit in, so reordering `ui/Data.lua` would silently change what the wizard
+  proposes to everyone.
+- **Weights are normalised to a 1.0 leader and floored at 0.05.** Templates carry 0.005
+  tiebreakers that are invisible when scoring but reach the stat editor; forty near-zero rows
+  is what makes a generated scale feel like a mess rather than a build.
+- **Generated scales all share one colour** (`AUTO_SCALE_COLOR`), checked against every class
+  and spec colour so they stay distinguishable from hand-made ones.
+- **The committed scale's weights are copied, not referenced** — the wizard shows the plan
+  again on its last screen.
+- **A duplicate is reused, never overwritten.** Only the weights are known to match; the name
+  and colour may be yours.
+
+---
+
 ## Scoring pipeline
 
 ```
