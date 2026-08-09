@@ -33,11 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Twenty gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Twenty-one gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
   `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
-  `iconpickertest.js`, `surplustest.js`, `rolltest.js`.
+  `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -75,6 +75,10 @@ end?
   shorter list before it checks anything, because a row that captured its scale at build time
   passes every test that only populates once. That is the difference between covering the code
   and covering the failure.
+- **When the action cannot be undone, uncertainty declines to act.** Three decisions now
+  share that rule and it is the one to copy: surplus-gear marking says no unless every guard
+  clears, quest reward selection picks NOTHING when nothing scored and there is a real choice
+  to make, and deletion protects on any doubt. State it as an assertion, not a comment.
 - **State an automated action as PROMISES, not as a branch.** Auto-roll decides in a group,
   on your behalf, where other people see the result. Pulled out as `DecideRollType`, its two
   real constraints become assertions over all eight inputs: never Need what we do not want,
@@ -358,6 +362,7 @@ callback either reschedule or be genuinely final.
 | `tools/iconpickertest.js` | The virtual icon grid hands back the icon you clicked |
 | `tools/surplustest.js` | Surplus-gear marking (feeds auto-delete) says no unless certain |
 | `tools/rolltest.js` | Auto-roll never Needs what it does not want, never Passes for free |
+| `tools/questtest.js` | Quest reward choice prefers upgrades and declines to guess |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

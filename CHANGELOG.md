@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.53.2a] - 2026-08-09 — The quest reward choice, which cannot be taken back
+
+### Development
+- **`ChooseQuestReward` pulled out of `AutoSelectBestQuestReward` and gated.** A quest reward
+  is **irreversible** — the moment one is taken the others are gone — and with auto turn-in
+  on, this runs without asking. That puts it with the deletion protections, not with the
+  display code, and it was the last automated decision still embedded in a loop that also
+  talks to the client and paints a highlight.
+- The safety rule is the same shape as the surplus-gear one: **nothing scored and more than
+  one choice means pick nothing.** All rewards being bags or consumables is not a reason to
+  guess; the quest window is still open and the player can decide. One choice is not a
+  choice, so pre-selecting it costs nothing.
+- Also pinned: **an upgrade beats a bigger raw score.** A strong weapon you'll never beat
+  your current best with should lose to a modest trinket that fills an empty slot — that's
+  the whole reason this isn't "highest number wins". And a delta of exactly zero is *not* an
+  upgrade.
+- **Ties go to the lowest index**, asserted over repeated runs. An irreversible choice must
+  not depend on the order a table happened to be built in.
+- 17 checks. Mutation-tested four ways: guessing when nothing scored, ignoring upgrades in
+  favour of raw score, ties resolving to the last index, and treating a zero delta as an
+  upgrade.
+
+### Notes
+- **No behaviour changed.** As with the auto-roll last release, the decision was already
+  right — it just had nothing keeping it that way, and couldn't be stated without reading
+  twenty lines of loop.
+- That's now **every automated action in the addon** — delete, sell, surplus-marking, roll,
+  quest reward — with its policy named and its safety rule asserted.
+
 ## [0.53.1a] - 2026-08-09 — The auto-roll decision, stated as two promises
 
 ### Development

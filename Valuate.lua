@@ -5450,6 +5450,53 @@ end
 -- clicks "Complete Quest" themselves. If autoQuestTurnIn is also enabled it goes
 -- one step further and actually completes the quest (GetQuestReward).
 -- Called on QUEST_COMPLETE when options.autoQuestReward is enabled.
+-- Which quest reward to take, given what each one scored.
+--
+-- Separated from AutoSelectBestQuestReward because a quest reward is IRREVERSIBLE - the
+-- other choices are gone the moment one is taken, and with auto turn-in on this runs
+-- without asking. That makes the policy worth stating on its own rather than reading out of
+-- a loop that also talks to GetQuestItemLink and paints a highlight texture.
+--
+-- `scored` holds only the choices that produced a score: { index, score, delta }, where
+-- delta is the score over what you already have in that slot. `numChoices` is how many the
+-- quest offers in total, scored or not.
+--
+-- The policy, in order:
+--   1. Any real upgrade -> the BIGGEST one. A strong weapon you will never beat your current
+--      best with should lose to a modest trinket that actually fills an empty slot.
+--   2. Otherwise -> the highest raw score. Nothing is an upgrade, so take the most valuable.
+--   3. Nothing scored at all -> guess only when there is nothing to guess between. One
+--      choice is safe to pre-select; two or more and we leave it to you. This is the rule
+--      that matters, and it is the same shape as the surplus-gear one: when the action
+--      cannot be undone, uncertainty declines to act.
+--
+-- Ties go to the LOWEST index, deliberately: an irreversible choice must not depend on the
+-- order a table happened to be built in.
+local function ChooseQuestReward(scored, numChoices)
+    local bestIndex, bestScore
+    local upgIndex, upgDelta
+
+    for _, c in ipairs(scored or {}) do
+        if not bestScore or c.score > bestScore then
+            bestScore, bestIndex = c.score, c.index
+        end
+        if not upgDelta or c.delta > upgDelta then
+            upgDelta, upgIndex = c.delta, c.index
+        end
+    end
+
+    if upgIndex and upgDelta and upgDelta > 0 then
+        return upgIndex
+    end
+    if bestIndex then
+        return bestIndex
+    end
+    if numChoices == 1 then
+        return 1
+    end
+    return nil
+end
+
 function Valuate:AutoSelectBestQuestReward()
     local options = Valuate:GetOptions()
     if not options.autoQuestReward then
@@ -5484,38 +5531,28 @@ function Valuate:AutoSelectBestQuestReward()
     -- We prefer the reward that most improves your gear, not just the one with the
     -- highest number in a vacuum: a strong weapon you'll never beat your current best
     -- with should lose to a modest trinket that actually upgrades an empty slot.
-    local bestIndex, bestScore, bestLink
-    local upgIndex, upgDelta, upgScore, upgLink
+    local scored, links = {}, {}
     for index = 1, numChoices do
         local score = ScoreQuestChoice(index, scale)
         if score then
             local link = GetQuestItemLink("choice", index)
-            if not bestScore or score > bestScore then
-                bestScore, bestIndex, bestLink = score, index, link
-            end
-            local delta = score - Valuate:GetUpgradeBaseline(link, scale, scaleName)
-            if not upgDelta or delta > upgDelta then
-                upgDelta, upgIndex, upgScore, upgLink = delta, index, score, link
-            end
+            links[index] = link
+            scored[#scored + 1] = {
+                index = index,
+                score = score,
+                delta = score - Valuate:GetUpgradeBaseline(link, scale, scaleName),
+            }
         end
     end
 
-    -- If at least one reward beats what you already have, take the biggest upgrade.
-    -- Otherwise keep the highest-scoring reward (nothing is an upgrade, so grab the
-    -- most valuable item overall).
-    if upgIndex and upgDelta and upgDelta > 0 then
-        bestIndex, bestScore, bestLink = upgIndex, upgScore, upgLink
-    end
+    -- The policy lives in ChooseQuestReward, which returns nil when it should not guess.
+    local bestIndex = ChooseQuestReward(scored, numChoices)
+    if not bestIndex then return end
 
-    -- If nothing scored (e.g. all rewards are bags/consumables), don't guess -
-    -- leave the decision to the player. A lone choice is safe to pre-select.
-    if not bestIndex then
-        if numChoices == 1 then
-            bestIndex = 1
-            bestLink = GetQuestItemLink("choice", 1)
-        else
-            return
-        end
+    local bestLink = links[bestIndex] or GetQuestItemLink("choice", bestIndex)
+    local bestScore
+    for _, c in ipairs(scored) do
+        if c.index == bestIndex then bestScore = c.score end
     end
 
     -- Mark the best reward WITHOUT touching Blizzard's UI. Writing QuestInfoFrame's
