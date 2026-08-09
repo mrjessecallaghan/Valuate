@@ -8450,7 +8450,9 @@ SlashCmdList["VALUATE"] = function(msg)
 
         local activeScales = Valuate:GetActiveScales()
         if #activeScales == 0 then
-            problems[#problems + 1] = "no active scale - nothing can be scored until you tick one"
+            problems[#problems + 1] =
+                "no active scale - nothing can be scored until you tick one, or run " ..
+                "/valuate wizard to build one from the gear you are wearing"
         end
 
         -- An ACTIVE scale with no weights scores everything 0, and looks completely
@@ -8476,8 +8478,12 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             if #empty > 0 then
                 -- activeScales is sorted, so this inherits a stable order.
+                -- Points at the wizard rather than at the stat editor. "Open it and set
+                -- some" assumes you know what your weights should be, which is the exact
+                -- thing someone in this state does not know - it is why the scale is empty.
                 problems[#problems + 1] = "active but has no stat weights, so it scores everything 0: "
-                    .. table.concat(empty, ", ") .. " - open it and set some, or untick it"
+                    .. table.concat(empty, ", ")
+                    .. " - run /valuate wizard to build one from your gear, or untick it"
             end
         end
 

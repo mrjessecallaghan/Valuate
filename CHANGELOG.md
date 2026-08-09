@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.73.0a] - 2026-08-09 — the health check sends you to the wizard now, not to the stat editor
+
+### Changed
+- **`/valuate check` pointed people at manual work they cannot do.** Finding an active scale
+  with no weights, it said *"open it and set some"* — which assumes you know what your weights
+  should be, and not knowing is precisely why the scale is empty. Both that remedy and the
+  "no active scale" one now offer `/valuate wizard`.
+
+### Gates
+- Every `/valuate <command>` the addon **prints to you** must be a real command. These are
+  remedies handed to someone already stuck: they type exactly what they were told, get
+  "unknown command", and conclude something worse is wrong.
+
+### How badly I got that gate wrong first
+Recorded because the failures are more instructive than the result, and both directions
+happened in one sitting:
+
+1. **Scanning the whole source** reported four problems, all wrong, in three different ways —
+   a comment mentioning a removed command, the in-game changelog *correctly* recording
+   *"Removed /valuate cache and /valuate clearcache commands"* (text it would be a lie to
+   change), and the help line `/valuate or /val`, where "or" is English.
+2. **Narrowing to `print(...)` calls** made it pass cleanly — and it was then protecting
+   nothing at all. The health-check remedies are accumulated into a `problems` table and
+   printed later, so the one surface the gate existed for was outside its scope. Only
+   mutation testing found that; a green tick would otherwise have looked like success.
+3. A greedy `[a-z]+` backtracked to report a command called **`o`** after the lookahead
+   rejected `or`.
+
+Now: comments stripped, historical changelog text exempt, `\b` before the lookahead, and
+three mutations confirming it catches a renamed remedy, a removed one, and a stale tooltip
+hint.
+
 ## [0.72.0a] - 2026-08-09 — `/valuate selftest` could not see the wizard at all
 
 ### Fixed

@@ -173,6 +173,77 @@ if (phantomInReadme.length) {
   process.exit(1);
 }
 
+/*
+ * Every command the ADDON ITSELF suggests has to exist too.
+ *
+ * The health check, the error messages and the tooltips all say things like "run
+ * /valuate scan" or "try /valuate deletepreview". Those are remedies handed to someone who
+ * is already stuck, which makes them the worst possible place for a stale command name: the
+ * user types exactly what they were told, gets "unknown command", and concludes the addon is
+ * broken in some deeper way than it is.
+ *
+ * Same rule as the README check above, applied to the strings that reach the chat window.
+ */
+const luaFiles = [];
+(function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (/^(libs|tools|\.git)$/i.test(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full);
+    else if (entry.name.endsWith(".lua")) luaFiles.push(full);
+  }
+})(ADDON_ROOT);
+
+/*
+ * Only what a print() actually puts in the chat window.
+ *
+ * Scanning every occurrence in the source was the first attempt and it reported four
+ * "problems", all wrong, in three different ways:
+ *   - a COMMENT mentioning /valuate minimap
+ *   - the in-game changelog panel correctly recording "Removed /valuate cache and
+ *     /valuate clearcache commands" - historical text that it would be a lie to change
+ *   - the help line "/valuate or /val - Open the configuration UI", where "or" is English
+ *
+ * A gate that fires on correct content trains people to ignore it, so the scope is now the
+ * one surface the rule is actually about: strings printed to the user.
+ */
+const suggested = new Map();
+for (const file of luaFiles) {
+  let src = fs.readFileSync(file, "utf8");
+
+  // Comments are for us, not the user. A comment mentioning a removed command is history,
+  // and MinimapButton.lua has exactly that.
+  src = src.replace(/--\[\[[\s\S]*?\]\]/g, " ").replace(/--[^\n]*/g, " ");
+
+  // The in-game changelog legitimately records commands that were REMOVED - "Removed
+  // /valuate cache and /valuate clearcache commands" is true and must stay true. Changing
+  // it to satisfy a checker would falsify the changelog.
+  src = src.replace(/CreateChangeText\(([\s\S]*?)\n\s*\)/g, " ");
+
+  // \b before the lookahead matters: without it the greedy [a-z]+ matches "or", the
+  // lookahead rejects it, and the engine backtracks to "o" - which then passes and gets
+  // reported as a command called "o". The "or /val" idiom is the BARE command written out.
+  for (const m of src.matchAll(/\/valuate ([a-z]+)\b(?! \/val)/g)) {
+    if (!commands.has(m[1])) {
+      const rel = path.relative(ADDON_ROOT, file).replace(/\\/g, "/");
+      if (!suggested.has(m[1])) suggested.set(m[1], new Set());
+      suggested.get(m[1]).add(rel);
+    }
+  }
+}
+
+if (suggested.size) {
+  console.error("The addon tells users to run commands that do not exist:");
+  for (const [cmd, files] of [...suggested].sort()) {
+    console.error(`  /valuate ${cmd}   <- ${[...files].join(", ")}`);
+  }
+  console.error(
+    "\nThese are printed to someone who is already stuck. They will type exactly what they " +
+      "were told, get 'unknown command', and conclude something worse is wrong."
+  );
+  process.exit(1);
+}
+
 console.log(
   `OK  all ${commands.size} slash commands are documented in /valuate help ` +
     `(${Object.keys(HIDDEN).length} deliberately hidden); ` +
