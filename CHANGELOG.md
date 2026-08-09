@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.68.0a] - 2026-08-09 — running it twice no longer gives you two scales you cannot tell apart
+
+Same gear, same answer — so a second run built a scale identical to the one you already had
+and handed it a `(2)` suffix to distinguish two indistinguishable things. That is scale
+*accumulation*, not scale management.
+
+### Added
+- **The wizard now recognises a scale it already made.** The preview says *"You already have
+  this exact scale. I will just switch to it."*, the button changes from **Create it** to
+  **Use it**, and committing selects the existing scale instead of creating a twin. The final
+  screen says what actually happened rather than claiming to have made something.
+- `Valuate:FindMatchingAutoScale(weights, scales)` — matches on weights, both directions, so
+  a scale with three extra stats is not called identical to one with three fewer.
+
+### Kept deliberately
+- **It does not overwrite the scale it finds.** Only the weights are known to match; you may
+  have renamed or recoloured it, and those are yours.
+- **A different build still creates.** Owning one generated scale must not block the wizard
+  from ever building another.
+- **The uniqueness suffix stays**, for the one case it is still needed: the name records only
+  the top five stats, so a hand-edited scale can share a name while its weights differ. Reuse
+  would be wrong there, and without the suffix the next run would silently overwrite your
+  edits.
+
+### Gates
+- 67 checks, mutation-tested ten ways.
+- That last case is worth recording. Adding duplicate detection **made an existing mutation
+  stop failing** — the uniqueness suffix no longer mattered for identical gear, because the
+  duplicate path now handles it. A mutation that stops being caught is a behaviour that
+  stopped being tested, so the surviving case (same name, different weights, hand-edited)
+  now has its own test.
+
 ## [0.67.0a] - 2026-08-09 — the wizard stops sounding sure when it isn't
 
 Two honesty bugs on the confirm screen. It is the screen where the wizard asks you to trust

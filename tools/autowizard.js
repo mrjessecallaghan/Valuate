@@ -44,6 +44,8 @@ const pieces = [
   /^function Valuate:BuildAutoScaleName\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildUniqueAutoScaleName\([\s\S]*?\r?\nend/m,
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^local function WeightsMatch\([\s\S]*?\r?\nend/m,
+  /^function Valuate:FindMatchingAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
@@ -161,11 +163,58 @@ plan.weights.Strength = 999
 ok(scale.Values.Strength ~= 999, "editing the plan afterwards does not alter the saved scale")
 
 -- ---- running it twice cannot destroy the first result -------------------------------
+-- Same gear, same answer. Building a second identical scale and suffixing it "(2)" leaves
+-- two rows nobody can tell apart, so the wizard recognises the one it already made.
 local plan2 = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee })
-ok(plan2.name ~= plan.name, "a second run is named differently: " .. plan2.name)
-Valuate:CommitAutoScale(plan2)
-ok(SCALES[plan.name] ~= nil, "the first scale still exists after the second run")
-ok(SCALES[plan2.name] ~= nil, "and so does the second")
+eq(plan2.duplicateOf, plan.name, "a second run recognises the scale it already made")
+eq(plan2.name, plan.name, "and describes that one rather than inventing a (2)")
+
+local reused, why2 = Valuate:CommitAutoScale(plan2)
+eq(why2, "reused", "committing it reuses rather than creates")
+eq(reused, SCALES[plan.name], "returning the scale that already existed")
+eq(OPTIONS.characterWindowScale, plan.name, "and still leaves you on it")
+
+local afterSecond = 0
+for _ in pairs(SCALES) do afterSecond = afterSecond + 1 end
+eq(afterSecond, 1, "so no near-identical twin is added")
+
+-- Different gear must NOT be mistaken for it, or the wizard would refuse to build anything
+-- new once you owned one scale.
+local casterGear = {
+    Intellect = 900, Stamina = 1100, Armor = 4000, SpellPower = 1200,
+    CritRating = 300, HitRating = 200, HasteRating = 250,
+}
+local plan3 = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = casterGear })
+eq(plan3.duplicateOf, nil, "different gear is not mistaken for the scale you already have")
+ok(plan3.name ~= plan.name, "and gets its own name: " .. plan3.name)
+Valuate:CommitAutoScale(plan3)
+
+local afterThird = 0
+for _ in pairs(SCALES) do afterThird = afterThird + 1 end
+eq(afterThird, 2, "a genuinely different build still adds a scale")
+ok(SCALES[plan.name] ~= nil, "and the first one is untouched")
+
+-- A subset is not a match: matching one way round would call a scale with three extra
+-- stats identical to one with three fewer.
+local subset = { Strength = 1.0 }
+eq(Valuate:FindMatchingAutoScale(subset, SCALES), nil,
+    "a scale whose weights are a subset of another is not called identical")
+
+-- ---- a NAME collision that is not a duplicate -----------------------------------------
+-- The name records only the top five stats, so two different builds can share one. Edit a
+-- generated scale by hand and you have exactly that: same name, different weights. It is
+-- not the same scale, so reuse would be wrong - and without the uniqueness suffix the next
+-- run would silently overwrite your edits.
+SCALES[plan3.name].Values = { Intellect = 1.0, SpellPower = 0.4 }
+local plan4 = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = casterGear })
+eq(plan4.duplicateOf, nil, "a hand-edited scale with the same name is not treated as a duplicate")
+ok(plan4.name ~= plan3.name,
+    "so the plan takes a different name rather than overwriting it: " .. plan4.name)
+
+Valuate:CommitAutoScale(plan4)
+eq(SCALES[plan3.name].Values.Intellect, 1.0, "and the hand-edited scale keeps its weights")
+eq(SCALES[plan3.name].Values.SpellPower, 0.4, "all of them")
+ok(SCALES[plan4.name] ~= nil, "while the new one is created alongside it")
 
 -- ---- a plan with nothing in it is refused rather than committed ---------------------
 eq(Valuate:CommitAutoScale(nil), nil, "committing nothing is refused")

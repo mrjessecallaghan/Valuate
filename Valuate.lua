@@ -1095,6 +1095,41 @@ local MATCH_UNSURE = 0.55
 -- about something that scored far lower is a false statement on a confirm screen.
 local MATCH_CLOSE_MARGIN = 0.03
 
+-- Same gear, same answer - so a second run would build a scale identical to one you already
+-- have, and hand it a "(2)" suffix to tell two indistinguishable things apart. Finding it
+-- first turns that into "you already have this", which is the honest result and one less
+-- row in the list.
+local function WeightsMatch(a, b)
+    for stat, weight in pairs(a) do
+        if b[stat] ~= weight then return false end
+    end
+    -- Both directions: a subset is not a match, and checking one way would call a scale
+    -- with three extra stats identical to one with three fewer.
+    for stat in pairs(b) do
+        if a[stat] == nil then return false end
+    end
+    return true
+end
+
+function Valuate:FindMatchingAutoScale(weights, scales)
+    if type(weights) ~= "table" then return nil end
+    scales = scales or Valuate:GetScales()
+
+    -- Sorted, because pairs() has no order and two equally-identical scales would otherwise
+    -- make the wizard offer a different one each time you ran it.
+    local names = {}
+    for name in pairs(scales) do table.insert(names, name) end
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+        local scale = scales[name]
+        if scale and type(scale.Values) == "table" and WeightsMatch(weights, scale.Values) then
+            return name
+        end
+    end
+    return nil
+end
+
 function Valuate:PlanAutoScale(opts)
     opts = opts or {}
     local totals = opts.totals
@@ -1115,8 +1150,12 @@ function Valuate:PlanAutoScale(opts)
 
     -- Every field the wizard needs to DESCRIBE the plan, so the confirm screen never has to
     -- recompute anything and cannot disagree with what gets committed.
+    -- If an identical scale already exists, the plan describes THAT one rather than a twin.
+    local duplicateOf = Valuate:FindMatchingAutoScale(weights, opts.existing)
+
     return {
-        name = Valuate:BuildUniqueAutoScaleName(weights, opts.existing),
+        duplicateOf = duplicateOf,
+        name = duplicateOf or Valuate:BuildUniqueAutoScaleName(weights, opts.existing),
         weights = weights,
         color = AUTO_SCALE_COLOR,
         icon = spec.icon,
@@ -1140,6 +1179,19 @@ function Valuate:CommitAutoScale(plan, scales)
         return nil, "There is nothing to create."
     end
     scales = scales or Valuate:GetScales()
+
+    -- Already have this exact scale. Select it rather than creating an indistinguishable
+    -- twin - and do NOT overwrite it, because the user may have renamed or recoloured it
+    -- and only the weights are known to match.
+    local existing = plan.duplicateOf and scales[plan.duplicateOf]
+    if existing then
+        if Valuate.GetOptions then
+            Valuate:GetOptions().characterWindowScale = plan.duplicateOf
+        end
+        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+        return existing, "reused"
+    end
 
     local scale = {
         DisplayName = plan.name,

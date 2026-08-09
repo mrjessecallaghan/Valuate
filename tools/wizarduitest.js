@@ -46,6 +46,8 @@ const pieces = [
   /^function Valuate:BuildAutoScaleName\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildUniqueAutoScaleName\([\s\S]*?\r?\nend/m,
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^local function WeightsMatch\([\s\S]*?\r?\nend/m,
+  /^function Valuate:FindMatchingAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
@@ -198,11 +200,26 @@ local after = 0
 for _ in pairs(SCALES) do after = after + 1 end
 eq(after, before, "reopening and planning again still creates nothing until you confirm")
 
--- A second real run must not destroy the first scale.
+-- A second real run on the SAME gear reuses what it already made, and the button says so
+-- rather than offering to create a twin.
+eq(create.label.__text, "Use it", "the button offers to use the existing scale, not create one")
 create.__scripts.OnClick(create)
 local total = 0
 for _ in pairs(SCALES) do total = total + 1 end
-eq(total, 2, "a second run adds a scale rather than overwriting the first")
+eq(total, 1, "a second run on identical gear adds no near-identical twin")
+
+-- Different gear must still be able to create, or owning one scale would block the wizard.
+EQUIPPED = {
+    Intellect = 900, Stamina = 1100, Armor = 4000, SpellPower = 1200,
+    CritRating = 300, HitRating = 200, HasteRating = 250,
+}
+Valuate:ShowScaleWizard()
+primary.__scripts.OnClick(primary)
+eq(create.label.__text, "Create it", "a different build offers to create again")
+create.__scripts.OnClick(create)
+local grown = 0
+for _ in pairs(SCALES) do grown = grown + 1 end
+eq(grown, 2, "and a genuinely different build does add one")
 
 -- ---- no gear, no dead end --------------------------------------------------------------
 EQUIPPED = {}

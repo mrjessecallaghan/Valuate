@@ -296,7 +296,17 @@ function ns.WizardPlan(role)
     screen.basedOn:SetText(string.format("Closest to %s. %d%% match%s.",
         tostring(plan.basedOn), math.floor((plan.confidence or 0) * 100 + 0.5),
         plan.alternative and (", and " .. tostring(plan.alternative) .. " was almost as close") or ""))
-    screen.caution:SetText(plan.caution or "")
+    -- Already have it: say so plainly and change what the button offers to do. Creating a
+    -- second identical scale and suffixing it "(2)" leaves you with two rows you cannot
+    -- tell apart, which is a worse outcome than the one you came for.
+    if plan.duplicateOf then
+        screen.caution:SetText("You already have this exact scale. I will just switch to it.")
+        screen.create.label:SetText("Use it")
+    else
+        screen.caution:SetText(plan.caution or "")
+        screen.create.label:SetText("Create it")
+    end
+
     screen.weights:SetText(DescribeWeights(plan.weights))
     ShowScreen("preview")
 end
@@ -313,10 +323,18 @@ function ns.WizardCommit()
 
     local screen = screens.done
     screen.name:SetText(currentPlan.name)
-    screen.blurb:SetText(
-        "It is now your primary scale, and your gear has been rescanned - item tooltips " ..
-        "and Best Equipment already use it.\n\nYou can run this again any time; it never " ..
-        "overwrites a scale you already have.")
+    if why == "reused" then
+        -- Says what actually happened. Reporting "created" here would be a small lie that
+        -- sends you looking for a new row that does not exist.
+        screen.blurb:SetText(
+            "You already had this one, so nothing new was made - it is just your primary " ..
+            "scale now, and your gear has been rescanned.")
+    else
+        screen.blurb:SetText(
+            "It is now your primary scale, and your gear has been rescanned - item tooltips " ..
+            "and Best Equipment already use it.\n\nYou can run this again any time; it never " ..
+            "overwrites a scale you already have.")
+    end
     ShowScreen("done")
 
     if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
