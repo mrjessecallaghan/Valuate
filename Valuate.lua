@@ -8019,6 +8019,28 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate import - Import a scale from a scale tag")
         print("  /valuate export [scalename] - Export a scale as a scale tag")
         print("  /valuate ui - Open the configuration UI")
+        -- Automation and cleanup.
+        --
+        -- These were missing from this list entirely, which mattered more than the others:
+        -- every command that DELETES or SELLS lives here, and so does deletepreview, the one
+        -- the addon tells you to run before switching deletion on. Someone reading
+        -- /valuate help could not find out that any of it existed.
+        print(" ")
+        print("|cFFAAAAAAAutomation (all off by default):|r")
+        print("  /valuate roll - Toggle auto Need/Greed on group loot rolls")
+        print("  /valuate accept - Toggle auto-accepting quests")
+        print("  /valuate notify - Toggle the prompt when an upgrade lands in your bags")
+        print("  /valuate notifycheck - Explain why the upgrade prompt did or did not appear")
+        print(" ")
+        print("|cFFAAAAAABags and merchants:|r")
+        print("  |cFFFF8800/valuate deletepreview - What auto-delete WOULD remove. Run this first.|r")
+        print("  /valuate autodelete - Toggle junk auto-delete (|cFFFF5555irreversible|r)")
+        print("  /valuate deletenow - Delete junk now, honouring Keep Free Slots")
+        print("  /valuate keepfree <n> - Bag slots auto-delete tries to keep free")
+        print("  /valuate valuesource <src> - What \"least valuable\" means: vendor price, or a TSM source")
+        print("  /valuate sell - Toggle selling junk at merchants (safer: gold, plus Buyback)")
+        print("  /valuate sellnow - Sell junk now")
+        print("  /valuate repair - Toggle auto-repair on visiting a merchant")
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "report" then

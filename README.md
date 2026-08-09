@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.59.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.60.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -131,7 +131,8 @@ Then, in-game, for anything the gates structurally cannot see:
 Every gate encodes a bug that actually shipped here — addon taint, duplicated junk logic,
 overlapping settings controls, a module silently missing from the `.toc`, a moved local
 becoming a nil global, an unstable sort producing different "best" items between scans,
-bank data reaching a delete path, an option with no way to switch it on.
+bank data reaching a delete path, an option with no way to switch it on, a destructive
+command missing from the in-game help.
 
 25 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can

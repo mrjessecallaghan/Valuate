@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.60.0a] - 2026-08-09 — `/valuate help` was hiding every command that deletes things
+
+### Fixed
+- **The in-game help listed 19 of 30 commands**, and the missing eleven were not an even
+  spread. They were the automation toggles and **every command that deletes or sells** —
+  `autodelete`, `deletenow`, `sell`, `sellnow`, `repair`, `roll`, `accept`, `notify` — plus
+  **`deletepreview`**, which is the command the addon itself tells you to run before enabling
+  deletion.
+- Someone reading `/valuate help` in the game could not discover that any of it existed. The
+  README documented them, which is not where you look when you're standing at a vendor.
+- They're now listed in two labelled groups — *Automation (all off by default)* and *Bags and
+  merchants* — with `deletepreview` highlighted, because it's the one that answers "what
+  would this actually do to my bags" before anything is switched on.
+- `valuesource` was undocumented too, and I didn't know it existed until the gate said so.
+
+### Added
+- **A thirty-first gate, `tools/commands.js`.** `options.js` has long checked that every
+  *option* is reachable; commands had no equivalent, and the same rot set in. This is the
+  eighth hand-maintained list here to drift, and the argument is unchanged: the list is
+  edited far less often than the thing it describes, so the drift is structural rather than
+  careless.
+- Commands are **discovered from the dispatcher**, not listed — a hardcoded list would be the
+  exact problem the gate exists to catch. Three deliberately-hidden commands each carry a
+  reason, and a stale exemption is itself a failure.
+
+### One thing worth admitting
+- My first version of the gate reported `deletepreview` as undocumented **because I'd
+  coloured it orange** — the pattern didn't allow a colour code before `/valuate`. A gate that
+  punishes the emphasis you put on the safety command gets the emphasis removed rather than
+  the gate fixed. Fixed the pattern.
+
 ## [0.59.0a] - 2026-08-09 — Everything that breathes now breathes at one rate
 
 ### Fixed
