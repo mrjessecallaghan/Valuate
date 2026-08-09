@@ -4260,6 +4260,115 @@ end
 -- an unmet proficiency, for instance - and "your level is high enough" is not the same
 -- claim as "you can wear this". So: note the candidates, rescan, then report the
 -- difference.
+-- Groups everything sitting in the future list by the level it unlocks at.
+--
+-- The data has been there since future upgrades existed; nothing ever let you LOOK at it.
+-- The level-up announcement tells you what just became wearable, which is the right thing
+-- at that moment and no help at all when you are deciding whether a piece is worth carrying
+-- for another eight levels.
+--
+-- Pure: the scan results, the active scale list and a level go in; two sorted lists come
+-- out. No client calls, so it is the part worth executing in a gate.
+--
+-- The second list is the interesting one. An item can sit in the future list for reasons a
+-- level does not fix - an unmet weapon proficiency, most often - and lumping those in with
+-- "you'll get this at 42" would be a promise the addon cannot keep. AnnounceUnlockedUpgrades
+-- already draws that distinction by rescanning rather than trusting reqLevel; this draws it
+-- by reporting them separately.
+--
+-- Returns: byLevel  = { { level = n, items = { { link, scales = {…} }, … } }, … } sorted
+--          blocked  = { { link, scales = {…} }, … } - level is met, something else is not
+local function GroupFutureUpgrades(bestEquipment, activeScales, playerLevel)
+    if not bestEquipment or not activeScales then return {}, {} end
+    playerLevel = playerLevel or 0
+
+    -- link -> { level = n, scales = { name -> true } }. Keyed by link so an item that is a
+    -- future upgrade for three scales is one line naming three, not three lines.
+    local seen = {}
+    for _, scaleName in ipairs(activeScales) do
+        local future = bestEquipment[scaleName] and bestEquipment[scaleName].future
+        if type(future) == "table" then
+            for _, f in pairs(future) do
+                if f and f.itemLink then
+                    local entry = seen[f.itemLink]
+                    if not entry then
+                        entry = { level = f.reqLevel or 0, scales = {} }
+                        seen[f.itemLink] = entry
+                    end
+                    -- Lowest requirement wins if two scales disagree: it is the same item,
+                    -- and the earlier level is the true answer to "when can I wear this".
+                    if (f.reqLevel or 0) < entry.level then entry.level = f.reqLevel or 0 end
+                    entry.scales[scaleName] = true
+                end
+            end
+        end
+    end
+
+    local levels, blocked = {}, {}
+    for link, entry in pairs(seen) do
+        local names = {}
+        for name in pairs(entry.scales) do names[#names + 1] = name end
+        table.sort(names)
+        local row = { link = link, scales = names }
+
+        if entry.level > playerLevel then
+            levels[entry.level] = levels[entry.level] or {}
+            tinsert(levels[entry.level], row)
+        else
+            tinsert(blocked, row)
+        end
+    end
+
+    -- Sorted throughout: pairs() order is undefined, and a list that reshuffles between two
+    -- identical runs reads as the data changing when it has not.
+    local byLevel = {}
+    for level, items in pairs(levels) do
+        -- valuate-lint-ignore: sort-needs-tiebreaker  `seen` is KEYED by link, so no two rows here can share one - the comparator is already total
+        table.sort(items, function(a, b) return a.link < b.link end)
+        tinsert(byLevel, { level = level, items = items })
+    end
+    -- valuate-lint-ignore: sort-needs-tiebreaker  `levels` is keyed by level, so each appears exactly once
+    table.sort(byLevel, function(a, b) return a.level < b.level end)
+    -- valuate-lint-ignore: sort-needs-tiebreaker  same unique-link argument as above
+    table.sort(blocked, function(a, b) return a.link < b.link end)
+
+    return byLevel, blocked
+end
+
+-- /valuate future - what is waiting, and at what level.
+function Valuate:PrintFutureUpgrades()
+    local playerLevel = (UnitLevel and UnitLevel("player")) or 0
+    local byLevel, blocked =
+        GroupFutureUpgrades(Valuate:GetBestEquipment(), Valuate:GetActiveScales(), playerLevel)
+
+    if #byLevel == 0 and #blocked == 0 then
+        print("|cFF00FF00[Valuate]|r Nothing is waiting on a level. Anything in your bags that beats what you are wearing is already wearable - run /valuate scan if that seems wrong.")
+        return true
+    end
+
+    if #byLevel > 0 then
+        print(string.format("|cFF00FF00[Valuate]|r Waiting on your level (you are %d):", playerLevel))
+        for _, group in ipairs(byLevel) do
+            local gap = group.level - playerLevel
+            print(string.format("  |cFFFFD100Level %d|r |cFFAAAAAA(%d away)|r", group.level, gap))
+            for _, row in ipairs(group.items) do
+                print(string.format("      %s |cFF888888for %s|r",
+                    row.link, table.concat(row.scales, ", ")))
+            end
+        end
+    end
+
+    if #blocked > 0 then
+        print("|cFFFF8800[Valuate]|r High enough level, but still not wearable:")
+        for _, row in ipairs(blocked) do
+            print(string.format("      %s |cFF888888for %s|r",
+                row.link, table.concat(row.scales, ", ")))
+        end
+        print("|cFFAAAAAASomething other than your level is in the way - most often a weapon or armour proficiency you have not trained.|r")
+    end
+    return true
+end
+
 function Valuate:AnnounceUnlockedUpgrades(newLevel)
     if not newLevel then return end
     -- Convenience, not safety: this fires on every level, which for someone actually
@@ -7764,6 +7873,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
         print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
+        print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate check - Is Valuate actually working? Start here")
         print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
@@ -8132,6 +8242,8 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif command == "profile" then
         Valuate:RunProfile()
+    elseif command == "future" then
+        Valuate:PrintFutureUpgrades()
     elseif command == "weights" or strsub(command, 1, 8) == "weights " then
         Valuate:PrintStatShares(strtrim(strsub(msg, 8)))
     elseif command == "equip" then

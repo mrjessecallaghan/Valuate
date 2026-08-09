@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.54.0a] - 2026-08-09 — See what's waiting, and at what level
+
+### Added
+- **`/valuate future`** — everything in your bags and bank that will become an upgrade,
+  grouped by the level that unlocks it, with how far away each one is. The data has existed
+  since future upgrades did; nothing ever let you *look* at it. The level-up announcement
+  tells you what just became wearable, which is right at that moment and no help when you're
+  deciding whether a piece is worth carrying for another eight levels.
+- An item that's a future upgrade for three scales is **one line naming three**, not three
+  lines. Where two scales disagree about the requirement, the **lowest** wins — it's the same
+  item, and the earlier level is the true answer to "when can I wear this".
+- **Items whose level you already meet are listed separately**, under *"high enough level,
+  but still not wearable"*. An item can sit in the future list for reasons a level doesn't
+  fix — an unmet weapon proficiency, most often — and reporting those as "you'll get this at
+  20" would be a promise the addon can't keep. `AnnounceUnlockedUpgrades` already draws that
+  distinction by rescanning rather than trusting `reqLevel`; this draws it by saying so.
+
+### Development
+- **A twenty-seventh gate, `tools/futuretest.js`** — 26 checks on `GroupFutureUpgrades`,
+  which is pure: scan results, active scales and a level in; two sorted lists out.
+- Mutation-tested four ways: no split between waiting-on-level and blocked, the *highest*
+  requirement winning a disagreement, de-duplicating by slot instead of item link, and an
+  item exactly at your level counting as future.
+- Three `sort-needs-tiebreaker` suppressions, each with the reason on the line: both tables
+  are keyed by the value being sorted on, so no two entries can tie and the comparators are
+  already total. That's what the escape hatch is for.
+- One test guard added after a mutation run: with the split broken, `blocked[1].link` died
+  with an index error instead of naming the problem. **A gate that crashes is worth less than
+  one that says what went wrong** — third time this session that's needed fixing.
+
 ## [0.53.2a] - 2026-08-09 — The quest reward choice, which cannot be taken back
 
 ### Development

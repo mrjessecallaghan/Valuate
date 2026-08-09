@@ -33,11 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Twenty-one gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Twenty-two gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
   `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
-  `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`.
+  `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`, `futuretest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -363,6 +363,7 @@ callback either reschedule or be genuinely final.
 | `tools/surplustest.js` | Surplus-gear marking (feeds auto-delete) says no unless certain |
 | `tools/rolltest.js` | Auto-roll never Needs what it does not want, never Passes for free |
 | `tools/questtest.js` | Quest reward choice prefers upgrades and declines to guess |
+| `tools/futuretest.js` | Future upgrades group by the level that actually unlocks them |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
