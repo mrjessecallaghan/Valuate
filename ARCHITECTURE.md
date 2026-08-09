@@ -125,10 +125,17 @@ Split in three deliberate layers, and the split is the design:
 
 | Layer | Where | Writes? |
 |---|---|---|
-| Matching and naming | `Valuate.lua` — `MatchTemplateToStats`, `NormalizeWeights`, `BuildAutoScaleName`, `FindMatchingAutoScale` | no |
-| `PlanAutoScale` | `Valuate.lua` | **no** |
-| `CommitAutoScale` | `Valuate.lua` | **yes — the only half that does** |
-| Three screens | `ui/Wizard.lua` | no |
+| Matching | `Valuate:MatchTemplateToStats()` | no |
+| Shaping | `Valuate:NormalizeWeights()` | no |
+| Naming | `Valuate:BuildAutoScaleName()`, `Valuate:BuildUniqueAutoScaleName()` | no |
+| Duplicate check | `Valuate:FindMatchingAutoScale()` | no |
+| Planning | `Valuate:PlanAutoScale()` | **no** |
+| Committing | `Valuate:CommitAutoScale()` | **yes — the only half that does** |
+| Three screens | `ui/Wizard.lua`, entered by `Valuate:ShowScaleWizard()` | no |
+
+Each is named in full above rather than as a bare backticked word, because `tools/api.js`
+requires every method the docs write as `Valuate:Name()` to be in the `/valuate selftest`
+method list — documenting one is the moment you tell people they can rely on it.
 
 **Planning must change nothing.** A wizard that creates as it goes leaves half-made scales
 behind when you close it halfway, and this one is aimed squarely at people who *will* close it

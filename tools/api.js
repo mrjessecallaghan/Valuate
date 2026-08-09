@@ -135,7 +135,49 @@ if (crossMissing.length) {
   process.exit(1);
 }
 
+/*
+ * A method the DOCS present as public API must be in the selftest list.
+ *
+ * The list is deliberately a subset - 60 of 131 methods - so "every method must be listed"
+ * would be the wrong rule. But documenting one is the moment you claim other people can rely
+ * on it, and that is exactly the claim `/valuate selftest` exists to verify at load.
+ *
+ * The whole scale wizard missed this for eleven releases: seven public methods, none listed,
+ * so selftest reported all-clear while the subsystem a new user meets FIRST could have been
+ * entirely absent. Adding them by hand fixes today; this stops the next subsystem repeating
+ * it, because the docs get written either way.
+ */
+const docs = ["README.md", "ARCHITECTURE.md"]
+  .map((f) => {
+    try {
+      return fs.readFileSync(path.join(ADDON_ROOT, f), "utf8");
+    } catch (e) {
+      return "";
+    }
+  })
+  .join("\n");
+
+const listedSet = new Set(listed);
+const documented = new Set(
+  [...docs.matchAll(/Valuate:(\w+)\s*\(/g)].map((m) => m[1])
+);
+
+const undocumentedInSelftest = [...documented]
+  .filter((m) => defined.has(m) && !listedSet.has(m))
+  .sort();
+
+if (undocumentedInSelftest.length) {
+  console.error("Methods the docs present as public API but /valuate selftest never checks:");
+  for (const m of undocumentedInSelftest) console.error(`  Valuate:${m}`);
+  console.error(
+    "\nAdd them to the methods list in RunSelfTest. Documenting a method is the moment you " +
+      "tell people they can rely on it, and selftest is what proves it is still there."
+  );
+  process.exit(1);
+}
+
 console.log(
   `OK  all ${listed.length} selftest-listed methods exist (${defined.size} defined in total); ` +
-  `${crossChecked} call(s) from ${integrationsSeen} integration addon(s) all resolve.`
+  `${crossChecked} call(s) from ${integrationsSeen} integration addon(s) all resolve; ` +
+  `${documented.size} documented method(s) are all self-tested.`
 );

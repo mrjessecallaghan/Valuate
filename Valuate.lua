@@ -7398,6 +7398,19 @@ function Valuate:RunSelfTest()
         "RunProfile", "RunVerify", "CountEquippableUpgrades", "PrintScaleList", "GetJunkVerdict",
         "AnnounceUnlockedUpgrades",
         "ReportRuntimeError",
+        -- The scale wizard. Absent from this list for its first eleven releases, which meant
+        -- selftest reported all-clear while the whole subsystem could be missing - and it is
+        -- the subsystem a new user meets first.
+        "MatchTemplateToStats", "NormalizeWeights", "BuildAutoScaleName",
+        "BuildUniqueAutoScaleName", "FindMatchingAutoScale",
+        "PlanAutoScale", "CommitAutoScale",
+        -- These two live in ui/Wizard.lua and MinimapButton.lua rather than here, which is
+        -- exactly why they are worth checking: a module that failed to load leaves the rest
+        -- of the addon working and only these missing.
+        "ShowScaleWizard", "ApplyMinimapButtonOptions",
+        -- ARCHITECTURE.md tells integrations to register through this. If it disappeared,
+        -- AdiBags would simply stop refreshing and nothing would say why.
+        "RegisterBestEquipmentListener",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)

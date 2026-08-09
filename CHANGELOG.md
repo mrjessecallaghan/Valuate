@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.72.0a] - 2026-08-09 — `/valuate selftest` could not see the wizard at all
+
+### Fixed
+- **The self-test's method list contained none of the wizard's API.** Eleven releases, ten
+  public methods, and `/valuate selftest` would have reported all-clear while the entire
+  subsystem was missing — including the case that matters most, `ui/Wizard.lua` failing to
+  load, which leaves the rest of the addon working and only the wizard gone. That is the
+  subsystem a new user meets *first*. All ten are now checked, including
+  `Valuate:ShowScaleWizard()` and `Valuate:ApplyMinimapButtonOptions()`, which live in other
+  files precisely so a module that failed to load is caught.
+- **`Valuate:RegisterBestEquipmentListener()` was never self-tested either.** Found by the new
+  gate on its first run, and pre-existing rather than mine: `ARCHITECTURE.md` tells
+  integrations to register through it, so if it vanished AdiBags would simply stop refreshing
+  and nothing would say why.
+
+### Gates
+- `tools/api.js` now requires **every method the docs present as public API** to be in the
+  self-test list. Deliberately not "every method" — the list is 61 of 131, and a subset is
+  correct — but documenting one is the moment you tell people they can rely on it, and
+  self-test is what proves at load that it is still there.
+- The rule keys on the `Valuate:Name()` form, so the wizard's `ARCHITECTURE.md` table was
+  rewritten to name each method in full instead of as a bare backticked word. That was found
+  by mutation: dropping the wizard entries from the self-test list did **not** fail, because
+  the docs had not named them in a form the gate could see. Documented coverage went from 4
+  methods to 13.
+
 ## [0.71.0a] - 2026-08-09 — the wizard exists in the documentation now, too
 
 Eleven releases of wizard, and it appeared in exactly one place outside its own source: the
