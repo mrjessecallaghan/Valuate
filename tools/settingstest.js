@@ -180,6 +180,28 @@ if not built then
 end
 ok(true, "the Settings panel builds")
 
+-- ---- the layout self-check must not cry wolf ----------------------------------
+-- Building the panel runs CheckColumnAnchors over all three columns. In the client it
+-- printed a red "two controls share an anchor and will OVERLAP" warning repeatedly for
+-- column 1, and every one was a false alarm.
+--
+-- CreateSectionHeader draws a decorative accent RULE anchored to (header, BOTTOMLEFT),
+-- and the first control under that header is anchored to the same point - deliberately,
+-- because they sit at different offsets (-2 for a 2px underline, -ELEMENT_SPACING*2 for
+-- the control). The checker keys on (relativeTo, relativePoint) and ignores the offset,
+-- which is the right call for two controls in a vertical stack and the wrong one for a
+-- texture that is meant to share the slot.
+--
+-- A diagnostic that fires on correct layout is worse than no diagnostic: it trains you
+-- to scroll past the exact message it exists to make you notice.
+local layoutWarnings = 0
+for _, line in ipairs(__printed) do
+    if string.find(line, "layout bug", 1, true) then
+        layoutWarnings = layoutWarnings + 1
+    end
+end
+eq(layoutWarnings, 0, "building Settings reports no layout collisions")
+
 -- The keybind button is the only frame in this panel that listens for key presses.
 -- Found by that rather than by position, so inserting a control above it does not
 -- silently redirect the gate at something else.

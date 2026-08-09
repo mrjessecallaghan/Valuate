@@ -37,31 +37,51 @@ local HexToRGB = ns.HexToRGB
 
 -- Structural safeguard against overlapping controls. The whole panel lays out by
 -- anchoring each control's TOPLEFT to the previous control's BOTTOMLEFT; the failure
--- mode (which shipped once) is anchoring TWO controls to the SAME sibling, so they
--- render on top of each other. This scans a column's child frames and font-string
--- regions and warns loudly if any two share an anchor - so the mistake surfaces the
--- instant you open Settings instead of silently overlapping. Read-only.
+-- mode (which shipped once) is anchoring TWO controls to the SAME sibling at the SAME
+-- offset, so they render on top of each other. This scans a column's child frames and
+-- regions and warns loudly when that happens - so the mistake surfaces the instant you
+-- open Settings instead of silently overlapping. Read-only.
+--
+-- The offset is part of the slot, and leaving it out of the key made this cry wolf: it
+-- printed 53 times in the client on a layout with nothing wrong with it. Sharing an
+-- anchor is normal and deliberate here. Every section header has a 2px accent rule at
+-- -2 AND the first control a full gap below, both anchored to the header; several
+-- checkboxes have a description line at -2 with the next control below it. Those are
+-- stacked, not overlapping. A red error that fires on correct layout is worse than no
+-- error at all - it teaches you to scroll past the one message that matters.
 local function CheckColumnAnchors(colFrame, colName)
     if not colFrame or not colFrame.GetChildren then return 0 end
     local elements = {}
     for _, k in ipairs({ colFrame:GetChildren() }) do elements[#elements + 1] = k end
     for _, r in ipairs({ colFrame:GetRegions() }) do elements[#elements + 1] = r end
 
+    -- Names the offender where it can. The old message said only "two controls", which
+    -- left you to find them by eye in a column of forty.
+    local function Describe(el)
+        local text = el.GetText and el:GetText()
+        if type(text) == "string" and text ~= "" then
+            return '"' .. text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. '"'
+        end
+        return "an unlabelled " .. tostring(el.__type or "control")
+    end
+
     local seen, collisions = {}, 0
     for _, el in ipairs(elements) do
         if el.GetNumPoints and el:GetNumPoints() > 0 then
-            local point, relTo, relPoint = el:GetPoint(1)
-            -- Only the vertical-stack anchor matters; a shared (relativeTo, relativePoint)
-            -- means two controls occupy the same slot.
+            local point, relTo, relPoint, xOfs, yOfs = el:GetPoint(1)
+            -- Only the vertical-stack anchor matters. Two elements occupy the same slot
+            -- when they share the anchor AND the offset from it.
             if relTo and relTo ~= colFrame and point == "TOPLEFT" then
-                local key = tostring(relTo) .. "|" .. tostring(relPoint)
+                local key = table.concat({ tostring(relTo), tostring(relPoint),
+                    tostring(xOfs or 0), tostring(yOfs or 0) }, "|")
                 if seen[key] then
                     collisions = collisions + 1
-                    print("|cFFFF0000[Valuate]|r Settings layout bug: two controls in " ..
-                        tostring(colName) .. " share an anchor and will OVERLAP. Anchor each " ..
-                        "control below the previous one, not to a shared sibling.")
+                    print("|cFFFF0000[Valuate]|r Settings layout bug: " .. Describe(seen[key]) ..
+                        " and " .. Describe(el) .. " in " .. tostring(colName) ..
+                        " sit at the same spot and will OVERLAP. Anchor each control below " ..
+                        "the previous one, not to a shared sibling at the same offset.")
                 else
-                    seen[key] = true
+                    seen[key] = el
                 end
             end
         end

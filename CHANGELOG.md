@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.60.3a] - 2026-08-09 — the layout checker was crying wolf, and the mock was agreeing with it
+
+Reported from the client: opening Settings printed a red **"two controls share an anchor and
+will OVERLAP"** several times over. That message is the addon's own safeguard, and it was
+wrong every single time — 13 warnings on a layout with nothing wrong with it.
+
+### Fixed
+- **`CheckColumnAnchors` ignored the offset, so it called every section header a bug.** It
+  keyed a control's slot on `(relativeTo, relativePoint)` alone. But sharing an anchor is
+  normal and deliberate here: each header draws a 2px accent rule at `-2` *and* puts the
+  first control a full gap below, both anchored to the header. Those are stacked, not
+  overlapping. The key now includes the offset, which is what "the same slot" actually
+  means — all 13 false alarms go, and a genuine overlap still fails.
+- **The warning didn't say which controls.** In a column of forty it left you to find them
+  by eye. It now names both, stripped of colour codes: *"Decimal Places:" and "Show Scale
+  Value:" in column 1 sit at the same spot*.
+
+A red error that fires on correct layout is worse than no error: it trains you to scroll
+past the one message that matters.
+
+### Gates
+- **The mock had no frame hierarchy at all** — no `GetChildren`, no `GetRegions`, no
+  `GetPoint`, and `CreateTexture` returned a loose frame belonging to nobody. So
+  `CheckColumnAnchors` hit its `if not colFrame.GetChildren then return 0` guard and
+  reported a clean bill of health while the client printed 13 warnings. `tools/luaharness.js`
+  now models it: frames register with their parent, font strings and textures register as
+  *regions*, and `GetPoint`/`GetNumPoints` read back what `SetPoint` recorded.
+- Regions are **not** children — the client's `GetChildren` returns frames and `GetRegions`
+  returns regions, with nothing in both. Getting that wrong first made every region collide
+  with *itself*, which read as 40 more layout bugs that did not exist.
+- `tools/settingstest.js` now asserts the panel builds with zero collisions, mutation-tested
+  two ways: two checkboxes anchored to the same sibling at the same offset (1 collision), and
+  the accent rule moved into the first control's slot (6).
+
 ## [0.60.2a] - 2026-08-09 — a setting the snapshot saved, counted, and then threw away
 
 Checking another documented promise, this time "a settings snapshot lets you set up once and

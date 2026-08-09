@@ -42,7 +42,17 @@ function CreateFrame(frameType, name, parent, template)
         __alpha = 1, __scale = 1, __height = 100, __width = 100,
         __shown = true, __points = {}, __parent = parent,
         __fill = {0, 0, 0, 1}, __border = {0, 0, 0, 1},
+        __children = {}, __regions = {},
     }
+    -- A frame registers itself with its parent so GetChildren() can find it. Regions are
+    -- NOT children in the client - GetChildren returns frames, GetRegions returns font
+    -- strings and textures, and nothing appears in both. Registering them in both here
+    -- made every region collide with itself in any check that walks the pair, which read
+    -- as 40 layout bugs that did not exist.
+    local isRegion = (frameType == "FontString" or frameType == "Texture")
+    if not isRegion and parent and type(parent) == "table" and parent.__children then
+        table.insert(parent.__children, f)
+    end
     function f:SetScript(which, fn) self.__scripts[which] = fn end
     function f:GetScript(which) return self.__scripts[which] end
     -- HookScript ADDS to a handler rather than replacing it, which is the whole reason
@@ -98,11 +108,33 @@ function CreateFrame(frameType, name, parent, template)
     function f:SetTextColor(...) self.__textColor = {...} end
     function f:SetCursorPosition(p) self.__cursor = p end
     function f:GetCursorPosition() return self.__cursor or 0 end
-    function f:CreateFontString()
-        local fs = CreateFrame("FontString")
+    -- Font strings and textures are REGIONS of the frame that made them, not children.
+    -- The client draws that distinction and so does GetChildren/GetRegions, which is the
+    -- pair any layout check has to walk. Returning a loose frame here (what this used to
+    -- do) made CheckColumnAnchors see an empty column and report a clean bill of health
+    -- while the client printed six overlap warnings.
+    function f:CreateFontString(name, layer, template)
+        local fs = CreateFrame("FontString", name, self, template)
+        fs.__layer = layer
+        table.insert(self.__regions, fs)
         return fs
     end
-    function f:CreateTexture() return CreateFrame("Texture") end
+    function f:CreateTexture(name, layer, template)
+        local t = CreateFrame("Texture", name, self, template)
+        t.__layer = layer
+        table.insert(self.__regions, t)
+        return t
+    end
+    function f:GetRegions() return unpack(self.__regions) end
+    function f:GetChildren() return unpack(self.__children) end
+    function f:GetDrawLayer() return self.__layer end
+    function f:SetDrawLayer(layer) self.__layer = layer end
+    function f:GetNumPoints() return #self.__points end
+    function f:GetPoint(i)
+        local p = self.__points[i or 1]
+        if not p then return nil end
+        return unpack(p)
+    end
     function f:SetTexture(t) self.__texture = t; return true end
     function f:GetTexture() return self.__texture end
     function f:SetVertexColor(...) self.__vertex = {...} end
