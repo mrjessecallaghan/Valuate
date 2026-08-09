@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.63.0a] - 2026-08-09 — the wizard runs end to end, and its own colour
+
+Third piece. The whole path now exists headlessly: read your gear → match a template →
+normalise → name it → create it → leave you on a scale that is actually in use. Only the
+screens are left.
+
+### Added
+- **`Valuate:PlanAutoScale(opts)`** — works everything out and **changes nothing**. Returns
+  the name, the weights, the colour, the icon, what it was based on, how confident the match
+  was, and the runner-up.
+- **`Valuate:CommitAutoScale(plan, scales)`** — the only half that writes.
+- **The wizard's own colour: `#3FE0C8`.** Every generated scale takes it rather than the
+  matched spec's colour, so you can tell at a glance which scales you made by hand and which
+  the wizard made. The icon still comes from the matched spec — the icon says *what it is*,
+  the colour says *where it came from*.
+
+### Why plan and commit are separate
+A wizard that creates as it goes leaves half-made scales behind when you close it halfway,
+and this one is aimed squarely at people who **will** close it halfway. Planning touching
+nothing is a property worth a gate rather than a comment, so it has one: after planning, the
+scales table, the options table and the rescan counter must all be untouched.
+
+Two smaller decisions in the same spirit:
+- The committed scale's weights are **copied, not referenced**. The wizard shows the plan
+  again on its last screen, and a shared table would mean a later edit to either silently
+  changed the other.
+- It ends by making the new scale **primary** and rescanning. Dropping you back at a list
+  with a new row to go and select yourself is the point where a wizard stops being one.
+
+### Gates
+- `tools/autowizard.js`, 47 runtime checks against the real templates, mutation-tested seven
+  ways — including planning that writes, committing that references instead of copying, and
+  a second run that overwrites the first.
+- The wizard colour is checked against every class and spec colour in `CLASS_SPEC_TEMPLATES`.
+  The template list grows, and a collision would quietly defeat the entire point of having
+  one colour — so it is checked rather than eyeballed.
+
 ## [0.62.0a] - 2026-08-09 — the wizard works out what you are, instead of asking
 
 Second piece of the guided scale wizard, still headless so it can be tested before anything

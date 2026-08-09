@@ -1,0 +1,183 @@
+#!/usr/bin/env node
+/*
+ * @gate The wizard plans without writing, and commits a usable scale
+ *
+ * End to end: read the gear, match a template, normalise it, name it, create it, and leave
+ * you on a scale that is actually in use. This gate runs that whole path against the REAL
+ * CLASS_SPEC_TEMPLATES.
+ *
+ * The split is the thing being protected. PlanAutoScale must change nothing at all - the
+ * wizard shows the plan and you can close the window - and CommitAutoScale must be the only
+ * half that writes. A wizard that creates as it goes leaves half-made scales behind when
+ * you back out, and this one is aimed squarely at people who WILL back out.
+ *
+ * Usage:  node tools/autowizard.js
+ */
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { load, ADDON_ROOT } = require("./luaharness.js");
+
+const core = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
+const data = fs.readFileSync(path.join(ADDON_ROOT, "ui", "Data.lua"), "utf8");
+const abbrev = fs
+  .readFileSync(path.join(ADDON_ROOT, "StatDefinitions.lua"), "utf8")
+  .match(/ValuateStatAbbreviations = \{[\s\S]*?\n\}/)[0];
+
+const templates = data.match(/local CLASS_SPEC_TEMPLATES = \{[\s\S]*?\n\}\r?\n/);
+if (!templates) {
+  console.error("  SLICE  could not find CLASS_SPEC_TEMPLATES in ui/Data.lua");
+  process.exit(1);
+}
+
+// Constants before the functions that close over them: a local spliced in below its reader
+// compiles to a nil global, silently.
+const pieces = [
+  /^local MATCH_IGNORED_STATS = \{[\s\S]*?\n\}/m,
+  /^local function StatVectorSimilarity\([\s\S]*?\r?\nend/m,
+  /^function Valuate:MatchTemplateToStats\([\s\S]*?\r?\nend/m,
+  /^local NORMALIZE_FLOOR = [\d.]+/m,
+  /^function Valuate:NormalizeWeights\([\s\S]*?\r?\nend/m,
+  /^local AUTO_NAME_PREFIX = "[^"]*"/m,
+  /^local AUTO_NAME_COUNT = \d+/m,
+  /^function Valuate:BuildAutoScaleName\([\s\S]*?\r?\nend/m,
+  /^function Valuate:BuildUniqueAutoScaleName\([\s\S]*?\r?\nend/m,
+  /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
+  /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
+];
+const sliced = [];
+for (const re of pieces) {
+  const m = core.match(re);
+  if (!m) {
+    console.error("  SLICE  could not find " + re + " in Valuate.lua - this gate tests nothing");
+    process.exit(1);
+  }
+  sliced.push(m[0]);
+}
+
+/* The wizard's colour has to stay distinguishable from the scales you make by hand, which
+ * take a class or spec colour. Checked here rather than by eye, because the template list
+ * grows and a collision would silently defeat the whole point of having one colour. */
+const wizardColor = core.match(/^local AUTO_SCALE_COLOR = "([0-9A-Fa-f]{6})"/m)[1].toUpperCase();
+const templateColors = new Set(
+  [...templates[0].matchAll(/color = "([0-9A-Fa-f]{6})"/g)].map((m) => m[1].toUpperCase())
+);
+if (templateColors.has(wizardColor)) {
+  console.error(
+    `The wizard colour #${wizardColor} is also a class or spec colour. Generated scales are ` +
+      "supposed to be identifiable at a glance; pick one nothing else uses."
+  );
+  process.exit(1);
+}
+
+const run = load([]);
+
+run(
+  `
+local failures, checks = {}, 0
+local function ok(cond, what) checks = checks + 1 if not cond then table.insert(failures, what) end end
+local function eq(got, want, what)
+    checks = checks + 1
+    if got ~= want then
+        table.insert(failures, what .. " (got " .. tostring(got) .. ", wanted " .. tostring(want) .. ")")
+    end
+end
+
+Valuate = {}
+local OPTIONS = {}
+function Valuate:GetOptions() return OPTIONS end
+local SCALES = {}
+function Valuate:GetScales() return SCALES end
+local rescans = 0
+function Valuate:ScanBestEquipment() rescans = rescans + 1 end
+
+` + abbrev + `
+` + templates[0] + `
+` + sliced.join("\n") + `
+
+local TEMPLATES = CLASS_SPEC_TEMPLATES
+local plateMelee = {
+    Strength = 900, Stamina = 1200, Armor = 18000, AttackPower = 400,
+    CritRating = 300, HitRating = 250, ExpertiseRating = 120,
+}
+
+-- ---- planning changes NOTHING ---------------------------------------------------
+local plan, why = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee })
+ok(plan ~= nil, "a plan is produced for real gear: " .. tostring(why))
+eq(next(SCALES), nil, "planning creates no scale")
+eq(next(OPTIONS), nil, "planning changes no option")
+eq(rescans, 0, "planning triggers no rescan")
+
+-- ---- the plan says everything the confirm screen needs --------------------------
+ok(string.sub(plan.name, 1, 7) == "Auto - ", "the plan is named for the build: " .. plan.name)
+ok(plan.color == "` + wizardColor + `" or plan.color == "` + wizardColor.toLowerCase() + `",
+    "the plan carries the wizard colour")
+ok(type(plan.icon) == "string" and plan.icon ~= "", "and an icon from the matched spec")
+ok(type(plan.basedOn) == "string" and plan.basedOn ~= "", "and says what it was based on: " .. tostring(plan.basedOn))
+ok(type(plan.confidence) == "number" and plan.confidence > 0, "and how confident the match was")
+ok(plan.alternative ~= nil, "and names the runner-up, so a close call reads as one")
+ok(next(plan.weights) ~= nil, "and carries the weights it intends to use")
+
+-- ---- refusals explain themselves, rather than producing a junk scale --------------
+local none, reason = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = {} })
+eq(none, nil, "no gear produces no plan")
+ok(type(reason) == "string" and reason ~= "", "and says why in words a person can act on: " .. tostring(reason))
+
+local noTemplates, reason2 = Valuate:PlanAutoScale({ templates = nil, totals = plateMelee })
+eq(noTemplates, nil, "no templates produces no plan")
+ok(type(reason2) == "string" and reason2 ~= "", "with its own reason: " .. tostring(reason2))
+eq(Valuate:PlanAutoScale(), nil, "no arguments at all is handled rather than crashing")
+
+-- ---- committing is the half that writes -------------------------------------------
+local scale = Valuate:CommitAutoScale(plan)
+ok(scale ~= nil, "the plan commits")
+ok(SCALES[plan.name] ~= nil, "the scale exists under its own name")
+eq(SCALES[plan.name], scale, "and is the object that was returned")
+eq(scale.DisplayName, plan.name, "the display name matches")
+eq(scale.Color, plan.color, "the wizard colour is carried onto the scale")
+eq(scale.Icon, plan.icon, "so is the icon")
+ok(type(scale.Unusable) == "table", "and it has the unusable table every scale needs")
+
+local weightCount = 0
+for stat, w in pairs(scale.Values) do
+    weightCount = weightCount + 1
+    eq(w, plan.weights[stat], "weight for " .. stat .. " is carried across intact")
+end
+ok(weightCount >= 4, "the committed scale has real weights (" .. weightCount .. ")")
+
+-- ---- it ends on a scale that is actually IN USE -----------------------------------
+eq(OPTIONS.characterWindowScale, plan.name,
+    "the new scale is made primary, rather than leaving you to go and select it")
+eq(rescans, 1, "and gear is rescanned, so the scale means something immediately")
+
+-- ---- the plan is a snapshot, not a live reference ----------------------------------
+-- The wizard shows the plan again on its last screen; if Values were the same table, a
+-- later edit to either would silently change the other.
+plan.weights.Strength = 999
+ok(scale.Values.Strength ~= 999, "editing the plan afterwards does not alter the saved scale")
+
+-- ---- running it twice cannot destroy the first result -------------------------------
+local plan2 = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee })
+ok(plan2.name ~= plan.name, "a second run is named differently: " .. plan2.name)
+Valuate:CommitAutoScale(plan2)
+ok(SCALES[plan.name] ~= nil, "the first scale still exists after the second run")
+ok(SCALES[plan2.name] ~= nil, "and so does the second")
+
+-- ---- a plan with nothing in it is refused rather than committed ---------------------
+eq(Valuate:CommitAutoScale(nil), nil, "committing nothing is refused")
+eq(Valuate:CommitAutoScale({}), nil, "so is a plan with no name")
+eq(Valuate:CommitAutoScale({ name = "" }), nil, "and one with an empty name")
+
+-- ---- role still steers the answer ---------------------------------------------------
+local tankPlan = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee, role = "TANK" })
+ok(tankPlan ~= nil, "asking for a tank plan works")
+eq(tankPlan.role, "TANK", "and it really is a tank build")
+ok(tankPlan.name ~= plan.name, "which names itself differently: " .. tankPlan.name)
+
+return failures, checks
+`,
+  "autowizard",
+  "the scale wizard"
+);

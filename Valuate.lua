@@ -1068,6 +1068,84 @@ function Valuate:BuildUniqueAutoScaleName(weights, existing)
     return base .. " (" .. n .. ")"
 end
 
+-- ============================================================================
+-- The guided wizard: plan, then commit
+-- ============================================================================
+-- Split deliberately in two. PlanAutoScale works everything out and changes NOTHING, so
+-- the wizard can show you exactly what it is about to make and you can back out; commit is
+-- the only half that writes. A wizard that creates as it goes leaves debris behind when you
+-- close it halfway, and this one is aimed at people who will close it halfway.
+--
+-- Every generated scale shares ONE colour rather than taking the matched spec's, so you can
+-- tell at a glance which scales you built by hand and which the wizard made. The icon still
+-- comes from the matched spec: the icon says what it is, the colour says where it came from.
+local AUTO_SCALE_COLOR = "3FE0C8"
+
+function Valuate:PlanAutoScale(opts)
+    opts = opts or {}
+    local totals = opts.totals
+    if type(totals) ~= "table" or next(totals) == nil then
+        return nil, "I could not read any equipped gear - put something on first."
+    end
+
+    local spec, score, runnerUp, class =
+        Valuate:MatchTemplateToStats(opts.templates, totals, opts.role)
+    if not spec then
+        return nil, "Nothing in the templates resembles what you are wearing."
+    end
+
+    local weights = Valuate:NormalizeWeights(spec.weights)
+    if next(weights) == nil then
+        return nil, "The closest template has no weights worth keeping."
+    end
+
+    -- Every field the wizard needs to DESCRIBE the plan, so the confirm screen never has to
+    -- recompute anything and cannot disagree with what gets committed.
+    return {
+        name = Valuate:BuildUniqueAutoScaleName(weights, opts.existing),
+        weights = weights,
+        color = AUTO_SCALE_COLOR,
+        icon = spec.icon,
+        basedOn = tostring(class and class.class or "?") .. " " .. tostring(spec.name or "?"),
+        role = spec.role,
+        confidence = score,
+        -- Shown so a close call reads as a close call. Certainty you have not earned is
+        -- worse than a question.
+        alternative = runnerUp and runnerUp.name or nil,
+    }
+end
+
+function Valuate:CommitAutoScale(plan, scales)
+    if type(plan) ~= "table" or type(plan.name) ~= "string" or plan.name == "" then
+        return nil, "There is nothing to create."
+    end
+    scales = scales or Valuate:GetScales()
+
+    local scale = {
+        DisplayName = plan.name,
+        Color = plan.color or AUTO_SCALE_COLOR,
+        Icon = plan.icon,
+        Values = {},
+        Unusable = {},
+        Visible = true,
+    }
+    -- COPIED, not referenced. The plan can be shown again or thrown away without the saved
+    -- scale changing underneath it - and the wizard does show it again on the last screen.
+    for stat, weight in pairs(plan.weights or {}) do
+        scale.Values[stat] = weight
+    end
+    scales[plan.name] = scale
+
+    -- Ends on a scale that is actually in use. Dropping you back at a list with a new row to
+    -- go and select yourself is the point where a wizard stops being one.
+    if Valuate.GetOptions then
+        Valuate:GetOptions().characterWindowScale = plan.name
+    end
+    if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+    if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    return scale
+end
+
 -- Get character-specific best equipment table
 function Valuate:GetBestEquipment()
     if not ValuateBestEquipment then
