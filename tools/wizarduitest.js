@@ -221,6 +221,64 @@ local grown = 0
 for _ in pairs(SCALES) do grown = grown + 1 end
 eq(grown, 2, "and a genuinely different build does add one")
 
+-- ---- the preview's weight rows are pooled, so leftovers are the risk -------------------
+-- Rows are built once and repopulated. The classic pool bug is a row still showing the
+-- PREVIOUS run's stat after a shorter list is displayed, which here would mean the preview
+-- claims weights the scale does not have.
+local previewScreen = nil
+for _, f in ipairs(__frames) do
+    if f.rows and f.rows[1] then previewScreen = f end
+end
+ok(previewScreen ~= nil, "the preview screen keeps a pool of weight rows")
+eq(#previewScreen.rows, 6, "six of them: five stats plus an 'and N more' line")
+
+-- A full build fills every row.
+EQUIPPED = {
+    Strength = 900, Stamina = 1200, Armor = 18000, AttackPower = 400,
+    CritRating = 300, HitRating = 250, ExpertiseRating = 120,
+}
+Valuate:ShowScaleWizard()
+primary.__scripts.OnClick(primary)
+local filled = 0
+for _, row in ipairs(previewScreen.rows) do
+    if row:IsShown() and row.__text ~= "" then filled = filled + 1 end
+end
+ok(filled >= 5, "a full build fills the rows (" .. filled .. ")")
+
+-- Now a build with only two weights. Anything still showing is a leftover.
+ns.CLASS_SPEC_TEMPLATES = {
+    { class = "Tiny", specs = {
+        { name = "Two", role = "DAMAGER", icon = "x",
+          weights = { Strength = 1.0, CritRating = 0.5 } },
+    } },
+}
+primary.__scripts.OnClick(primary)
+
+local stillShowing, texts = 0, {}
+for i, row in ipairs(previewScreen.rows) do
+    if row:IsShown() and row.__text ~= "" then
+        stillShowing = stillShowing + 1
+        table.insert(texts, i .. "=" .. tostring(row.__text))
+    end
+end
+eq(stillShowing, 2, "a two-stat build shows exactly two rows: " .. table.concat(texts, " "))
+
+for i = 3, 6 do
+    eq(previewScreen.rows[i].__text, "",
+        "row " .. i .. " is cleared rather than left showing the previous build")
+    eq(previewScreen.rows[i]:IsShown(), false, "and hidden")
+end
+
+-- ---- the step dots --------------------------------------------------------------------
+ok(frame.stepDots ~= nil and #frame.stepDots == 3,
+    "the window has three step dots that outlive whichever screen is showing")
+
+ns.CLASS_SPEC_TEMPLATES = CLASS_SPEC_TEMPLATES
+EQUIPPED = {
+    Strength = 900, Stamina = 1200, Armor = 18000, AttackPower = 400,
+    CritRating = 300, HitRating = 250, ExpertiseRating = 120,
+}
+
 -- ---- no gear, no dead end --------------------------------------------------------------
 EQUIPPED = {}
 local naked, nakedErr = pcall(function() primary.__scripts.OnClick(primary) end)

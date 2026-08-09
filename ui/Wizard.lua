@@ -23,6 +23,14 @@ local WIZARD_HEX = "3FE0C8"
 
 local WIDTH, HEIGHT = 380, 300
 
+-- Five named stats plus the "and N more" line. Fixed, because the rows are pooled.
+local PREVIEW_ROWS = 6
+
+-- Which dot is lit. Named rather than positional so adding a screen cannot silently
+-- renumber the others.
+local STEP_INDEX = { choose = 1, preview = 2, done = 3 }
+local STEP_COUNT = 3
+
 local WizardFrame = nil     -- the window
 local screens = {}          -- name -> content frame
 local currentScreen = nil
@@ -62,6 +70,20 @@ local function ShowScreen(name)
         end
     end
     currentScreen = name
+
+    -- Three dots, the current one lit. A wizard with no sense of position is just a
+    -- sequence of dialogs; this is the cheapest thing that says "two more clicks", which
+    -- is exactly what someone hesitating over an unfamiliar window wants to know.
+    if WizardFrame and WizardFrame.stepDots then
+        local current = STEP_INDEX[name] or 0
+        for index, dot in ipairs(WizardFrame.stepDots) do
+            if index == current then
+                ns.SetSolidColor(dot, WizardRGB())
+            else
+                ns.SetSolidColor(dot, unpack(COLORS.textDim))
+            end
+        end
+    end
 end
 
 -- ========================================
@@ -158,10 +180,23 @@ local function BuildStepPreview(parent)
     f.caution:SetPoint("TOPLEFT", f.basedOn, "BOTTOMLEFT", 0, -INNER_SPACING)
     f.caution:SetWidth(WIDTH - PADDING * 2)
 
-    f.weights = CreateLabel(f, FONT_SMALL, COLORS.textBody, "")
-    f.weights:SetPoint("TOPLEFT", f.caution, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
-    f.weights:SetWidth(WIDTH - PADDING * 2)
-    f.weights:SetJustifyV("TOP")
+    -- One row per stat rather than a single block of text, so they can cascade in - the
+    -- weights are the substance of the screen and a cascade is how this addon says
+    -- "here is a list, read it in order" everywhere else.
+    --
+    -- Built ONCE and repopulated. WoW never frees a frame, so rebuilding these per preview
+    -- would leak for the session, and this screen is shown every time the wizard runs.
+    f.rows = {}
+    for i = 1, PREVIEW_ROWS do
+        local row = CreateLabel(f, FONT_SMALL, COLORS.textBody, "")
+        if i == 1 then
+            row:SetPoint("TOPLEFT", f.caution, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+        else
+            row:SetPoint("TOPLEFT", f.rows[i - 1], "BOTTOMLEFT", 0, -2)
+        end
+        row:SetWidth(WIDTH - PADDING * 2)
+        f.rows[i] = row
+    end
 
     local create = ns.CreateStyledButton(f, "Create it", 150, BUTTON_HEIGHT + 4)
     create:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
@@ -189,7 +224,7 @@ local function DescribeWeights(weights)
         return a.stat < b.stat
     end)
 
-    local lines, shown = {}, math.min(5, #ranked)
+    local lines, shown = {}, math.min(PREVIEW_ROWS - 1, #ranked)
     for i = 1, shown do
         local abbrev = (ValuateStatAbbreviations or {})[ranked[i].stat] or ranked[i].stat
         table.insert(lines, string.format("%s  %.2f", abbrev, ranked[i].weight))
@@ -197,7 +232,9 @@ local function DescribeWeights(weights)
     if #ranked > shown then
         table.insert(lines, string.format("and %d more", #ranked - shown))
     end
-    return table.concat(lines, "\n")
+    -- A LIST, not a joined block: the caller gives each line its own row so they can
+    -- cascade. Returning text with newlines is what made that impossible before.
+    return lines
 end
 
 -- ========================================
@@ -258,6 +295,18 @@ local function CreateWizardFrame()
     body:SetPoint("TOPLEFT", f, "TOPLEFT", PADDING, -PADDING)
     body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PADDING, PADDING)
 
+    -- The step dots live on the WINDOW, not on a screen: they are the one thing that has to
+    -- outlive whichever screen is showing.
+    f.stepDots = {}
+    for i = 1, STEP_COUNT do
+        local dot = f:CreateTexture(nil, "OVERLAY")
+        dot:SetWidth(6)
+        dot:SetHeight(6)
+        dot:SetPoint("BOTTOM", f, "BOTTOM", (i - (STEP_COUNT + 1) / 2) * 12, 6)
+        ns.SetSolidColor(dot, unpack(COLORS.textDim))
+        f.stepDots[i] = dot
+    end
+
     screens.choose = BuildStepChoose(body)
     screens.preview = BuildStepPreview(body)
     screens.done = BuildStepDone(body)
@@ -307,7 +356,21 @@ function ns.WizardPlan(role)
         screen.create.label:SetText("Create it")
     end
 
-    screen.weights:SetText(DescribeWeights(plan.weights))
+    -- Rows cascade in rather than appearing as a block. Unused rows are emptied AND hidden,
+    -- because a pooled row still showing last run's stat is the classic pool bug.
+    local lines = DescribeWeights(plan.weights)
+    local gap = Anim.staggerFor(#lines)
+    for i, row in ipairs(screen.rows) do
+        if lines[i] then
+            row:SetText(lines[i])
+            row:Show()
+            Anim.revealIn(row, gap * (i - 1))
+        else
+            row:SetText("")
+            row:Hide()
+        end
+    end
+
     ShowScreen("preview")
 end
 

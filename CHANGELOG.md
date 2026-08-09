@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.69.0a] - 2026-08-09 — the wizard moves like the rest of the addon
+
+The screens worked but were plain next to everything around them, and the preview's weights
+were a single block of text.
+
+### Changed
+- **The weight rows cascade in**, one per stat, instead of arriving as one block. A cascade
+  is how this addon says *"here is a list, read it in order"* everywhere else, and the
+  weights are the substance of that screen.
+- **Three step dots**, the current one lit in the wizard's teal. A wizard with no sense of
+  position is just a sequence of dialogs; this is the cheapest thing that says *"two more
+  clicks"*, which is what someone hesitating over an unfamiliar window wants to know.
+
+### The risk that came with it
+Per-stat rows mean a **pool** — WoW never frees a frame, and this screen is shown every time
+the wizard runs, so rebuilding the rows would leak for the session. Pools have one classic
+failure: a row still showing the *previous* run's stat when a shorter list is displayed.
+Here that would mean the preview claiming weights the scale does not have, on the screen
+whose entire job is telling you the truth about what it will make.
+
+So the gate drives a full build and then a two-weight one, and requires rows 3–6 to be both
+cleared **and** hidden. Mutation-testing it produced exactly the bug being guarded against:
+rows reading `Exp 0.90`, `Crit 0.80`, `2HDps 0.75` left over from the previous build, under a
+scale with two weights.
+
+### Gates
+- `tools/wizarduitest.js`, 45 checks, three new mutations: leftover rows, rows emptied but not
+  hidden, and step dots never created.
+
 ## [0.68.0a] - 2026-08-09 — running it twice no longer gives you two scales you cannot tell apart
 
 Same gear, same answer — so a second run built a scale identical to the one you already had
