@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.52.0a] - 2026-08-09 — Search the icon picker
+
+### Added
+- **A search box in the icon picker.** There are **577 icons** in an eight-wide scrolling
+  grid; finding one meant scrolling past all of them. Type `sword`, `frost`, `potion` — the
+  grid filters as you go. Same problem the Scale Editor's stat grid had at a tenth of the
+  size.
+- The **"no icon"** entry is kept out of the filter rather than dropped, so clearing a
+  scale's icon is still possible while a search is active.
+- A search matching nothing **says so** instead of leaving an empty grid that reads like the
+  picker failed to load.
+- **Reopening starts unfiltered** — the opposite choice to the stat search, which persists.
+  That one lives in a panel you keep open while comparing scales; this is a modal picker you
+  open to answer one question, and reopening it with someone else's search still active
+  would look like a picker that had lost most of its icons.
+
+### Implementation
+- The grid draws from a `shownIcons` list rather than `SCALE_ICON_LIST` directly, so
+  filtering is a matter of replacing it and recomputing. **Row count, content height and
+  scrollbar range move together** in one function: left at the unfiltered length, a
+  four-icon result can be scrolled past the end of itself into blank space, and the grid
+  looks empty while the search says it matched.
+
+### Development
+- **A twenty-third gate, `tools/iconpickertest.js`** — 20 checks. The grid is *virtual*: a
+  small button pool is repositioned and re-textured as you scroll. Adding a search means
+  that pool now draws from a list that **changes** — the stale-identity hazard this project
+  has hit three times, and here it means clicking a sword and getting whatever used to be in
+  that position.
+- So the assertions are all *"what a button carries matches what it shows"*, checked after
+  scrolling **and** after filtering, rather than "the filter returned N results".
+- Mutation-tested three ways: a button carrying the unfiltered icon, the scroll range left
+  unshrunk, and a reopen keeping the previous search.
+- **My first mutation run missed one of those.** The scroll-range mutation passed because the
+  test never scrolled *after* filtering. Second time this session a mutation run has found a
+  gap in my test rather than in the code, which is the argument for running them at all.
+
 ## [0.51.1a] - 2026-08-09 — A latent trap in the character-sheet score, removed
 
 ### Fixed

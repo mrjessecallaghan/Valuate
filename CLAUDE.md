@@ -33,10 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Seventeen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Eighteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
-  `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`.
+  `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
+  `iconpickertest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -337,6 +338,7 @@ callback either reschedule or be genuinely final.
 | `tools/minimaptest.js` | The minimap drag cannot outlive the drag; the pulse stays off OnUpdate |
 | `tools/statsearchtest.js` | The stat search dims non-matching rows and touches nothing else |
 | `tools/charwindowtest.js` | The character-sheet score still updates after it blanks |
+| `tools/iconpickertest.js` | The virtual icon grid hands back the icon you clicked |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)

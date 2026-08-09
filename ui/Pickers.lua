@@ -118,9 +118,33 @@ local function CreateIconPickerFrame()
         frame:Hide()
     end)
     
+    -- Search box.
+    --
+    -- There are 577 icons in an eight-wide scrolling grid. Finding one meant scrolling
+    -- past all of them, which is the same problem the Scale Editor's stat grid had at a
+    -- tenth of the size.
+    --
+    -- Named for the same reason the stat search is: identifying it as "the EditBox that
+    -- reacts to typing" would be ambiguous the moment this frame gains another.
+    local searchBox = CreateFrame("EditBox", "ValuateIconSearchBox", frame)
+    searchBox:SetHeight(20)
+    searchBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -34)
+    searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -30, -34)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetFontObject(_G[FONT_BODY])
+    searchBox:SetBackdrop(BACKDROP_INPUT)
+    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
+    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
+    searchBox:SetTextInsets(6, 6, 0, 0)
+
+    local searchHint = frame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchHint:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
+    searchHint:SetText("Search icons - sword, potion, frost...")
+    searchHint:SetTextColor(unpack(COLORS.textDim))
+
     -- Create scrollable content area
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
-    scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -40)
+    scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -60)
     scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -30, 16)
     scrollFrame:EnableMouseWheel(true)
     
@@ -143,7 +167,13 @@ local function CreateIconPickerFrame()
     local ICON_SPACING = 4
     local ROW_HEIGHT = ICON_SIZE + ICON_SPACING
     
-    local totalIcons = #SCALE_ICON_LIST
+    -- The grid draws from `shownIcons`, not from SCALE_ICON_LIST directly.
+    --
+    -- Everything downstream - the row count, the content height, the scrollbar range and
+    -- which icon a button carries - is a function of this list, so filtering is a matter of
+    -- replacing it and recomputing. Pointed at the full list until someone types.
+    local shownIcons = SCALE_ICON_LIST
+    local totalIcons = #shownIcons
     local totalRows = math.ceil(totalIcons / ICONS_PER_ROW)
     local contentHeight = totalRows * ROW_HEIGHT + ICON_SPACING
     scrollChild:SetHeight(contentHeight)
@@ -213,7 +243,7 @@ local function CreateIconPickerFrame()
                 if iconIndex <= totalIcons then
                     local iconBtn = buttonPool[buttonIndex]
                     if iconBtn then
-                        local iconPath = SCALE_ICON_LIST[iconIndex]
+                        local iconPath = shownIcons[iconIndex]
                         iconBtn.iconPath = iconPath
                         
                         -- Update texture
@@ -242,6 +272,77 @@ local function CreateIconPickerFrame()
         end
     end
     
+    -- Says so when a search matches nothing, instead of leaving an empty grid that reads
+    -- like the picker failed to load.
+    local emptyLabel = scrollFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    emptyLabel:SetPoint("TOP", scrollFrame, "TOP", 0, -30)
+    emptyLabel:SetTextColor(unpack(COLORS.textDim))
+    emptyLabel:Hide()
+
+    -- Recomputes everything derived from `shownIcons` and redraws.
+    --
+    -- One function for it, because the row count, the content height and the scrollbar
+    -- range have to move together: leaving the scrollbar's range at the unfiltered length
+    -- lets you scroll a four-icon result past the end of itself into blank space.
+    local function RelayoutIcons()
+        totalIcons = #shownIcons
+        totalRows = math.ceil(totalIcons / ICONS_PER_ROW)
+        contentHeight = totalRows * ROW_HEIGHT + ICON_SPACING
+        scrollChild:SetHeight(math.max(contentHeight, 1))
+
+        local maxScroll = math.max(0, contentHeight - scrollFrame:GetHeight())
+        scrollbar:SetMinMaxValues(0, maxScroll)
+        if scrollbar:GetValue() > maxScroll then scrollbar:SetValue(maxScroll) end
+        if maxScroll == 0 then scrollbar:Hide() else scrollbar:Show() end
+
+        if totalIcons == 0 then emptyLabel:Show() else emptyLabel:Hide() end
+        UpdateVisibleIcons()
+    end
+
+    local function RunIconSearch(self)
+        local text = strtrim(self:GetText() or "")
+        if text == "" then searchHint:Show() else searchHint:Hide() end
+
+        if text == "" then
+            shownIcons = SCALE_ICON_LIST
+        else
+            local needle = strlower(text)
+            local matched = {}
+            for _, path in ipairs(SCALE_ICON_LIST) do
+                -- The blank entry is the "no icon" choice. It matches nothing by name, but
+                -- it must not be lost either - clearing a scale's icon while a search is
+                -- active would otherwise be impossible.
+                if path ~= "" and string.find(strlower(path), needle, 1, true) then
+                    matched[#matched + 1] = path
+                end
+            end
+            shownIcons = matched
+        end
+
+        emptyLabel:SetText("No icon matches |cFFFFFFFF" .. text .. "|r")
+        -- Back to the top: the result is a different list, so a preserved scroll position
+        -- would be a position in a list that no longer exists.
+        scrollbar:SetValue(0)
+        scrollFrame:SetVerticalScroll(0)
+        RelayoutIcons()
+    end
+
+    searchBox:SetScript("OnTextChanged", RunIconSearch)
+    searchBox:SetScript("OnEscapePressed", function(self)
+        if (self:GetText() or "") ~= "" then
+            -- First Escape clears the search; a second closes the picker, which is what
+            -- the frame's Escape registration does once the box is empty.
+            self:SetText("")
+            RunIconSearch(self)
+        end
+        self:ClearFocus()
+    end)
+    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    searchBox:SetScript("OnEditFocusGained", function() searchHint:Hide() end)
+    searchBox:SetScript("OnEditFocusLost", function(self)
+        if (self:GetText() or "") == "" then searchHint:Show() end
+    end)
+
     -- Update scrollbar with new callback
     scrollbar:SetScript("OnValueChanged", function(self, value)
         scrollFrame:SetVerticalScroll(value)
@@ -263,15 +364,18 @@ local function CreateIconPickerFrame()
     
     -- Update scrollbar range and show icons
     scrollFrame:SetScript("OnShow", function()
-        local maxScroll = math.max(0, contentHeight - scrollFrame:GetHeight())
-        scrollbar:SetMinMaxValues(0, maxScroll)
+        -- A fresh open starts unfiltered.
+        --
+        -- Opposite choice to the Scale Editor's stat search, which persists: that one lives
+        -- in a panel you keep open while comparing scales, and this is a modal picker you
+        -- open to answer one question. Reopening it with someone else's search still active
+        -- would look like a picker that had lost most of its icons.
+        searchBox:SetText("")
+        searchHint:Show()
+        shownIcons = SCALE_ICON_LIST
         scrollbar:SetValue(0)
-        if maxScroll == 0 then
-            scrollbar:Hide()
-        else
-            scrollbar:Show()
-        end
-        UpdateVisibleIcons()
+        scrollFrame:SetVerticalScroll(0)
+        RelayoutIcons()
     end)
     
     frame.UpdateVisibleIcons = UpdateVisibleIcons
