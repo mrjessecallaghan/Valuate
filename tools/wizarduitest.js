@@ -46,6 +46,8 @@ const pieces = [
   /^function Valuate:BuildAutoScaleName\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildUniqueAutoScaleName\([\s\S]*?\r?\nend/m,
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^local MATCH_UNSURE = [\d.]+/m,
+  /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
   /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
 ];

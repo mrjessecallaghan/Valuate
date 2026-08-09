@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.67.0a] - 2026-08-09 — the wizard stops sounding sure when it isn't
+
+Two honesty bugs on the confirm screen. It is the screen where the wizard asks you to trust
+it, so overclaiming there costs more than anywhere else in the addon.
+
+### Fixed
+- **"X was close" was said about the runner-up whether or not it was close.** The preview
+  named the second-best template unconditionally, including when it had scored far lower.
+  `MatchTemplateToStats` now returns the runner-up's **score** as well, and the runner-up is
+  only mentioned when it landed within `0.03` of the winner. A hedge you have not earned is
+  as misleading as certainty you have not earned.
+
+### Added
+- **A weak match now says so.** Below `0.55` confidence the preview adds: *"Your gear is
+  mixed, so this is a rough guess. Picking a role below usually does better."* Mixed gear,
+  levelling greens and half-finished sets all land there — and those are exactly the people
+  who cannot tell a good answer from a bad one, so the wizard has to be the one to admit it.
+  It still lets you create the scale; a dead end helps nobody.
+- The caution line is **empty when the match was good**. One that is always on screen is one
+  nobody reads.
+
+### Gates
+- Both rules are tested with constructed cases — identical twins for "genuinely close", a
+  lopsided pair for "not close at all" — and mutation-tested three ways: naming the runner-up
+  unconditionally, never raising the caution, and always raising it.
+- The confident-match assertion is written as the **rule** (`caution is absent exactly when
+  confidence is high`) rather than a hardcoded expectation, so it stays meaningful if the
+  templates or the threshold move.
+- Worth recording: adding two constants to `Valuate.lua` broke two gates immediately, because
+  the slice lists that splice this code into the harness did not know about them and they
+  compiled to nil globals. That is the upvalue-ordering trap again, and this time the gates
+  caught it in seconds rather than the client catching it in a red error.
+
 ## [0.66.0a] - 2026-08-09 — the "no scales yet" screen was pointing at buttons that no longer existed
 
 ### Fixed

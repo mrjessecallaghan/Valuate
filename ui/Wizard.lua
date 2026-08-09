@@ -152,8 +152,14 @@ local function BuildStepPreview(parent)
     f.basedOn = CreateLabel(f, FONT_SMALL, COLORS.textDim, "")
     f.basedOn:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -INNER_SPACING)
 
+    -- Sits between the match line and the weights, and is EMPTY when the match was good -
+    -- an always-present caution is one nobody reads.
+    f.caution = CreateLabel(f, FONT_SMALL, COLORS.textAccent, "")
+    f.caution:SetPoint("TOPLEFT", f.basedOn, "BOTTOMLEFT", 0, -INNER_SPACING)
+    f.caution:SetWidth(WIDTH - PADDING * 2)
+
     f.weights = CreateLabel(f, FONT_SMALL, COLORS.textBody, "")
-    f.weights:SetPoint("TOPLEFT", f.basedOn, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    f.weights:SetPoint("TOPLEFT", f.caution, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     f.weights:SetWidth(WIDTH - PADDING * 2)
     f.weights:SetJustifyV("TOP")
 
@@ -289,7 +295,8 @@ function ns.WizardPlan(role)
     screen.name:SetText(plan.name)
     screen.basedOn:SetText(string.format("Closest to %s. %d%% match%s.",
         tostring(plan.basedOn), math.floor((plan.confidence or 0) * 100 + 0.5),
-        plan.alternative and (", " .. tostring(plan.alternative) .. " was close") or ""))
+        plan.alternative and (", and " .. tostring(plan.alternative) .. " was almost as close") or ""))
+    screen.caution:SetText(plan.caution or "")
     screen.weights:SetText(DescribeWeights(plan.weights))
     ShowScreen("preview")
 end

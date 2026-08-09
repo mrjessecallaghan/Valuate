@@ -1023,7 +1023,11 @@ function Valuate:MatchTemplateToStats(templates, totals, role)
     end)
 
     if not ranked[1] or ranked[1].score <= 0 then return nil, 0 end
-    return ranked[1].spec, ranked[1].score, ranked[2] and ranked[2].spec or nil, ranked[1].class
+    -- The runner-up's SCORE comes back too. Without it the caller can only say "X was the
+    -- next best", which it then has to phrase as "X was close" - and that is a claim, not a
+    -- description. It was being made whether or not the runner-up was anywhere near.
+    return ranked[1].spec, ranked[1].score, ranked[2] and ranked[2].spec or nil,
+        ranked[1].class, ranked[2] and ranked[2].score or 0
 end
 
 -- Rescales so the leading stat is exactly 1.0 and drops the noise. Templates carry weights
@@ -1081,6 +1085,16 @@ end
 -- comes from the matched spec: the icon says what it is, the colour says where it came from.
 local AUTO_SCALE_COLOR = "3FE0C8"
 
+-- Below this the wizard says so rather than presenting a guess with a straight face. Mixed
+-- gear, levelling greens and a half-finished set all land here, and they are exactly the
+-- people who cannot tell a good answer from a bad one - which is why the wizard, not the
+-- user, has to be the one to admit it.
+local MATCH_UNSURE = 0.55
+
+-- A runner-up only gets mentioned if it was genuinely nearly as good. "X was close" said
+-- about something that scored far lower is a false statement on a confirm screen.
+local MATCH_CLOSE_MARGIN = 0.03
+
 function Valuate:PlanAutoScale(opts)
     opts = opts or {}
     local totals = opts.totals
@@ -1088,7 +1102,7 @@ function Valuate:PlanAutoScale(opts)
         return nil, "I could not read any equipped gear - put something on first."
     end
 
-    local spec, score, runnerUp, class =
+    local spec, score, runnerUp, class, runnerUpScore =
         Valuate:MatchTemplateToStats(opts.templates, totals, opts.role)
     if not spec then
         return nil, "Nothing in the templates resembles what you are wearing."
@@ -1109,9 +1123,15 @@ function Valuate:PlanAutoScale(opts)
         basedOn = tostring(class and class.class or "?") .. " " .. tostring(spec.name or "?"),
         role = spec.role,
         confidence = score,
-        -- Shown so a close call reads as a close call. Certainty you have not earned is
-        -- worse than a question.
-        alternative = runnerUp and runnerUp.name or nil,
+        -- Only when it really was close. Certainty you have not earned is worse than a
+        -- question, but so is a hedge you have not earned.
+        alternative = (runnerUp and (score - (runnerUpScore or 0)) <= MATCH_CLOSE_MARGIN)
+            and runnerUp.name or nil,
+        -- Set when the wizard should not sound sure. The screen still lets you create it -
+        -- a dead end helps nobody - but it says what would give a better answer.
+        caution = (score < MATCH_UNSURE)
+            and "Your gear is mixed, so this is a rough guess. Picking a role below usually does better."
+            or nil,
     }
 end
 

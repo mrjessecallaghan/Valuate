@@ -44,6 +44,8 @@ const pieces = [
   /^function Valuate:BuildAutoScaleName\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildUniqueAutoScaleName\([\s\S]*?\r?\nend/m,
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^local MATCH_UNSURE = [\d.]+/m,
+  /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
   /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
 ];
@@ -117,7 +119,7 @@ ok(plan.color == "` + wizardColor + `" or plan.color == "` + wizardColor.toLower
 ok(type(plan.icon) == "string" and plan.icon ~= "", "and an icon from the matched spec")
 ok(type(plan.basedOn) == "string" and plan.basedOn ~= "", "and says what it was based on: " .. tostring(plan.basedOn))
 ok(type(plan.confidence) == "number" and plan.confidence > 0, "and how confident the match was")
-ok(plan.alternative ~= nil, "and names the runner-up, so a close call reads as one")
+ok(plan.alternative ~= nil, "and names the runner-up, which for this gear really was close")
 ok(next(plan.weights) ~= nil, "and carries the weights it intends to use")
 
 -- ---- refusals explain themselves, rather than producing a junk scale --------------
@@ -169,6 +171,52 @@ ok(SCALES[plan2.name] ~= nil, "and so does the second")
 eq(Valuate:CommitAutoScale(nil), nil, "committing nothing is refused")
 eq(Valuate:CommitAutoScale({}), nil, "so is a plan with no name")
 eq(Valuate:CommitAutoScale({ name = "" }), nil, "and one with an empty name")
+
+-- ---- the runner-up is named only when it REALLY was close ---------------------------
+-- "X was close" about something that scored far lower is a false statement, and a confirm
+-- screen is the worst place to make one.
+local twins = {
+    { class = "A", specs = {
+        { name = "One", role = "DAMAGER", weights = { Strength = 1.0, CritRating = 0.5 } } } },
+    { class = "B", specs = {
+        { name = "Two", role = "DAMAGER", weights = { Strength = 1.0, CritRating = 0.5 } } } },
+}
+local closePlan = Valuate:PlanAutoScale({ templates = twins, totals = plateMelee })
+ok(closePlan ~= nil and closePlan.alternative ~= nil,
+    "a runner-up that scored identically is named")
+
+local farApart = {
+    { class = "A", specs = {
+        { name = "Fits", role = "DAMAGER",
+          weights = { Strength = 1.0, AttackPower = 0.8, CritRating = 0.6 } } } },
+    { class = "B", specs = {
+        { name = "Wrong", role = "DAMAGER", weights = { Spirit = 1.0, Mp5 = 0.9 } } } },
+}
+local farPlan = Valuate:PlanAutoScale({ templates = farApart, totals = plateMelee })
+ok(farPlan ~= nil, "a lopsided template list still plans")
+eq(farPlan.alternative, nil, "a runner-up that scored far lower is NOT called close")
+
+-- ---- a weak match admits it ----------------------------------------------------------
+-- Mixed gear, levelling greens and half-finished sets all land here, and those are exactly
+-- the people who cannot tell a good answer from a bad one.
+local weak = {
+    { class = "A", specs = {
+        { name = "Barely", role = "DAMAGER",
+          weights = { Spirit = 1.0, Mp5 = 1.0, HolySpellPower = 1.0, Strength = 0.2 } } } },
+}
+local weakPlan = Valuate:PlanAutoScale({
+    templates = weak,
+    totals = { Strength = 100, CritRating = 500, HitRating = 400 },
+})
+ok(weakPlan ~= nil, "a weak match still produces a plan rather than a dead end")
+ok(weakPlan.caution ~= nil, "and admits it is a rough guess")
+ok(weakPlan.caution and string.find(weakPlan.caution, "role", 1, true) ~= nil,
+    "pointing at the thing that would do better")
+
+-- Stated as the rule rather than a hardcoded expectation, so this stays true if the
+-- templates or the threshold move: the caution appears exactly when confidence is low.
+ok((plan.confidence >= 0.55) == (plan.caution == nil),
+    "a confident match carries no caution, and only a confident one")
 
 -- ---- role still steers the answer ---------------------------------------------------
 local tankPlan = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee, role = "TANK" })
