@@ -915,6 +915,66 @@ function Valuate:GetScales()
     return ValuateScales
 end
 
+-- ============================================================================
+-- Generated scale naming
+-- ============================================================================
+-- A scale the wizard builds names ITSELF, from what it actually weights:
+-- "Auto - Str/Crit/Hit/AP/Haste". The five stats it leads with are the five it will
+-- really chase, so the name summarises the scale instead of being a label you have to
+-- remember the meaning of. Five is what fits a scale-list row without truncating.
+--
+-- Ties break on the stat NAME. pairs() order is undefined, and without a total order the
+-- same weights could produce two different names on two characters - the exact bug class
+-- this project keeps turning up.
+local AUTO_NAME_PREFIX = "Auto - "
+local AUTO_NAME_COUNT = 5
+
+function Valuate:BuildAutoScaleName(weights)
+    local ranked = {}
+    for stat, weight in pairs(weights or {}) do
+        -- Only stats the scale CHASES describe it. A scale that weights Spirit at zero,
+        -- or negatively, is not a Spirit scale.
+        if type(weight) == "number" and weight > 0 then
+            table.insert(ranked, { stat = stat, weight = weight })
+        end
+    end
+
+    table.sort(ranked, function(a, b)
+        if a.weight ~= b.weight then return a.weight > b.weight end
+        return a.stat < b.stat
+    end)
+
+    local parts = {}
+    for i = 1, math.min(AUTO_NAME_COUNT, #ranked) do
+        local stat = ranked[i].stat
+        -- Falls back to the full stat name rather than dropping it: a long name beats a
+        -- name that quietly describes four stats while the scale weights five.
+        local abbreviations = ValuateStatAbbreviations or {}
+        table.insert(parts, abbreviations[stat] or stat)
+    end
+
+    if #parts == 0 then
+        -- Nothing weighted. Still a valid, unique-able name, and it says what is wrong.
+        return AUTO_NAME_PREFIX .. "Empty"
+    end
+    return AUTO_NAME_PREFIX .. table.concat(parts, "/")
+end
+
+-- Running the wizard twice with the same answers would produce the same name, and scales
+-- are keyed by name - so the second run would overwrite the first. Suffix instead of
+-- refusing: the wizard must never dead-end on something the user did not ask about.
+function Valuate:BuildUniqueAutoScaleName(weights, existing)
+    local base = Valuate:BuildAutoScaleName(weights)
+    existing = existing or Valuate:GetScales()
+    if not existing[base] then return base end
+
+    local n = 2
+    while existing[base .. " (" .. n .. ")"] do
+        n = n + 1
+    end
+    return base .. " (" .. n .. ")"
+end
+
 -- Get character-specific best equipment table
 function Valuate:GetBestEquipment()
     if not ValuateBestEquipment then

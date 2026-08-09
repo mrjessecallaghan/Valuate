@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.61.0a] - 2026-08-09 — a generated scale names itself
+
+First piece of the guided scale wizard. Deliberately the piece with a fixed specification and
+no UI attached, so it can be tested properly before anything is drawn: a scale the wizard
+builds is named from what it actually weights — **`Auto - Str/Crit/Hit/AP/Haste`**.
+
+### Added
+- **`Valuate:BuildAutoScaleName(weights)`** — the top five stats by weight, abbreviated,
+  highest first. Five is what fits a scale-list row without truncating. Stats the scale does
+  not chase are left out: a zero or negative weight does not describe a scale, so a build that
+  weights only Strength is `Auto - Str`, not padded to five.
+- **`Valuate:BuildUniqueAutoScaleName(weights, existing)`** — scales are keyed by name, so
+  running the wizard twice with the same answers would silently overwrite the first result.
+  It suffixes instead — `Auto - Str/Crit (2)` — and skips names already taken rather than
+  stopping at the first gap. The wizard must never dead-end on something you did not ask about.
+- **`ValuateStatAbbreviations`** — a short form for all 51 stats, using what a player already
+  writes in chat rather than invented shorthand. The point is that you read the name without
+  decoding it.
+
+### Gates
+- `tools/autoname.js`, 17 runtime checks, mutation-tested five ways.
+- **Ties break on the stat name**, and that is load-bearing rather than tidiness. Equal
+  weights are ordinary — a caster template can weight four stats at 1.0 — and `pairs()` order
+  is undefined. Removing the tiebreaker in a mutation genuinely produced a different name from
+  identical input (`Auto - Int/Hit/Haste/Crit` against `Auto - Crit/Haste/Hit/Int`), which is
+  the same class of bug as the active-set tie in `27397e7`.
+- Every stat in `ValuateStatCategories` must have an abbreviation, and every abbreviation must
+  name a real stat. Two lists of 51, edited at different times — the ninth hand-maintained list
+  in this project, gated on the same argument as the other eight. Without it a new stat falls
+  back to its full name and you get `Auto - Strength/CritRating/HitRating`.
+
 ## [0.60.3a] - 2026-08-09 — the layout checker was crying wolf, and the mock was agreeing with it
 
 Reported from the client: opening Settings printed a red **"two controls share an anchor and

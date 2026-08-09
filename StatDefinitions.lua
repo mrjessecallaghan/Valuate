@@ -78,6 +78,49 @@ ValuateStatCategories = {
     },
 }
 
+-- ========================================
+-- Stat Abbreviations
+-- ========================================
+-- Short forms for naming a generated scale: "Auto - Str/Crit/Hit/AP/Haste" says more at a
+-- glance than five full stat names would, and it has to fit a scale-list row.
+--
+-- These are the abbreviations a WoW player already uses in chat, not invented shorthand -
+-- the point is that you read the name without decoding it.
+--
+-- Every stat in ValuateStatCategories must appear here, checked by tools/autoname.js. A
+-- stat added later without an abbreviation would silently fall back to its full name and
+-- make a name nobody wants to look at.
+ValuateStatAbbreviations = {
+    -- Primary
+    Strength = "Str", Agility = "Agi", Stamina = "Sta", Intellect = "Int", Spirit = "Spi",
+    -- Vitality
+    Health = "HP", Hp5 = "HP5",
+    -- Ascension
+    PVEPower = "PvE", PVPPower = "PvP",
+    -- Item
+    ItemLevel = "iLvl",
+    -- Hybrid ratings
+    HitRating = "Hit", CritRating = "Crit", HasteRating = "Haste",
+    -- Physical offense
+    AttackPower = "AP", RangedAP = "RAP", FeralAP = "FAP",
+    ExpertiseRating = "Exp", ArmorPenetration = "ArP",
+    -- Spell offense
+    SpellPower = "SP", Mana = "Mana", Mp5 = "MP5", SpellPenetration = "SPen",
+    FireSpellPower = "FireSP", ShadowSpellPower = "ShadowSP", NatureSpellPower = "NatureSP",
+    ArcaneSpellPower = "ArcaneSP", FrostSpellPower = "FrostSP", HolySpellPower = "HolySP",
+    -- Defense
+    Armor = "Armor", DefenseRating = "Def", DodgeRating = "Dodge", ParryRating = "Parry",
+    BlockRating = "Block", BlockValue = "BV", ResilienceRating = "Resil",
+    -- Resistances
+    AllResist = "AllRes", FireResist = "FireRes", ShadowResist = "ShadowRes",
+    NatureResist = "NatureRes", ArcaneResist = "ArcaneRes", FrostResist = "FrostRes",
+    -- Weapon damage
+    Dps = "DPS", MeleeDps = "mDPS", RangedDps = "rDPS", MainHandDps = "MHDps",
+    OffHandDps = "OHDps", OneHandDps = "1HDps", TwoHandDps = "2HDps",
+    -- Weapon speed
+    Speed = "Speed", MeleeSpeed = "mSpeed", RangedSpeed = "rSpeed",
+}
+
 -- Equipment Types (bottom section)
 ValuateEquipmentCategories = {
     {
