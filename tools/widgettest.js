@@ -199,6 +199,68 @@ eq(three.calls[1][4], nil, "a missing alpha stays missing rather than becoming 0
 local okCall = pcall(SSC, nil, 1, 1, 1, 1)
 ok(okCall, "a nil texture is ignored rather than raising")
 
+-- ---- ns.CreateSearchBox: one Escape behaviour for three boxes -----------------
+--
+-- Settings, the stat grid and the icon picker each grew their own search box and had already
+-- drifted on the one key that matters. Settings cleared the text on the first Escape and
+-- released focus on a second; the stat search did both at once; the icon search cleared if
+-- there was anything and always released.
+--
+-- The two-stage version is the one worth keeping, and not because it was first: while an
+-- EditBox has focus it SWALLOWS Escape, so a box that releases focus in the same press as it
+-- clears leaves you no way to clear a search and then close the window with a second press.
+local CSB = ns.CreateSearchBox
+ok(type(CSB) == "function", "ns.CreateSearchBox is published")
+
+local queries = {}
+local parent = CreateFrame("Frame")
+local box, hint = CSB(parent, {
+    hint = "Search things...",
+    onQuery = function(text) queries[#queries + 1] = text end,
+})
+ok(box ~= nil and hint ~= nil, "it returns the box and its hint")
+eq(hint:GetText(), "Search things...", "the hint says what the caller asked for")
+
+local function type_(text)
+    box:SetText(text)
+    box.__scripts.OnTextChanged(box)
+end
+local function escape() box.__scripts.OnEscapePressed(box) end
+
+-- Typing runs the caller's filter with what was typed.
+type_("swo")
+eq(queries[#queries], "swo", "typing passes the text to onQuery")
+eq(hint:IsShown(), false, "the hint gets out of the way once there is text")
+
+-- FIRST Escape clears, keeps focus, and re-runs the filter through OnTextChanged - so the
+-- caller sees the empty query and undims whatever it dimmed.
+box.__focused = true
+escape()
+eq(box:GetText(), "", "the first Escape clears the text")
+eq(queries[#queries], "", "...and the filter is re-run with an empty query")
+eq(box.__focused, true, "...while keeping focus, so you can type a different search")
+
+-- SECOND Escape, now empty, releases focus so the next one reaches the window.
+escape()
+eq(box.__focused, false, "the second Escape hands focus back")
+
+-- The hint follows focus, not just text: a placeholder under a blinking caret reads as
+-- text you have to delete.
+box.__scripts.OnEditFocusGained(box)
+eq(hint:IsShown(), false, "focusing an empty box hides the hint")
+box.__scripts.OnEditFocusLost(box)
+eq(hint:IsShown(), true, "leaving it empty brings the hint back")
+type_("x")
+box.__scripts.OnEditFocusLost(box)
+eq(hint:IsShown(), false, "...but not when there is text in it")
+
+-- Enter releases focus without clearing: you have found what you wanted and want the grid.
+type_("keepme")
+box.__focused = true
+box.__scripts.OnEnterPressed(box)
+eq(box.__focused, false, "Enter releases focus")
+eq(box:GetText(), "keepme", "...and leaves the search in place")
+
 return failures, checks
 `;
 

@@ -1361,51 +1361,27 @@ local function CreateScaleEditor(parent)
     -- handler too (input validation), so "the EditBox that reacts to typing" does not
     -- identify this one - a name does, and it is the same thing the confirm dialog and the
     -- upgrade popup do.
-    local searchBox = CreateFrame("EditBox", "ValuateStatSearchBox", headerFrame)
-    searchBox:SetHeight(22)
+    local searchBox = ns.CreateSearchBox(headerFrame, {
+        name = "ValuateStatSearchBox",
+        height = 22,
+        hint = "Find a stat...",
+        fontObject = _G[FONT_BODY],
+        onQuery = function(text)
+            local shown, total = ApplyStatFilter(text)
+            if text == "" or total == 0 then
+                searchCount:SetText("")
+            elseif shown == 0 then
+                -- Says nothing matched rather than leaving a uniformly dim grid looking
+                -- like a rendering fault.
+                searchCount:SetText("|cFFFF8800no match|r")
+            else
+                searchCount:SetText("|cFF888888" .. shown .. "/" .. total .. "|r")
+            end
+        end,
+    })
     searchBox:SetWidth(150)
     searchBox:SetPoint("RIGHT", searchCount, "LEFT", -6, 0)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject(_G[FONT_BODY])
-    searchBox:SetBackdrop(BACKDROP_INPUT)
-    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
-    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
-    searchBox:SetTextInsets(6, 6, 0, 0)
 
-    local searchHint = headerFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    searchHint:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
-    searchHint:SetText("Find a stat...")
-    searchHint:SetTextColor(unpack(COLORS.textDim))
-
-    local function RunStatSearch(self)
-        local text = self:GetText() or ""
-        -- Show/Hide rather than SetShown: that is a later-expansion API, and this file
-        -- already carries a note saying so.
-        if text == "" then searchHint:Show() else searchHint:Hide() end
-
-        local shown, total = ApplyStatFilter(text)
-        if text == "" or total == 0 then
-            searchCount:SetText("")
-        elseif shown == 0 then
-            -- Says nothing matched rather than leaving a uniformly dim grid looking
-            -- like a rendering fault.
-            searchCount:SetText("|cFFFF8800no match|r")
-        else
-            searchCount:SetText("|cFF888888" .. shown .. "/" .. total .. "|r")
-        end
-    end
-
-    searchBox:SetScript("OnTextChanged", RunStatSearch)
-    searchBox:SetScript("OnEscapePressed", function(self)
-        self:SetText("")
-        self:ClearFocus()
-        RunStatSearch(self)
-    end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    searchBox:SetScript("OnEditFocusGained", function() searchHint:Hide() end)
-    searchBox:SetScript("OnEditFocusLost", function(self)
-        if (self:GetText() or "") == "" then searchHint:Show() end
-    end)
     searchBox:SetScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_BOTTOM") then
             GameTooltip:AddLine("Find a stat", 1, 1, 1)

@@ -104,21 +104,17 @@ local function CreateSettingsPanel(parent)
     -- This DIMS rather than hides. Every control here anchors to the one above it, so
     -- hiding a control would collapse the chain beneath it - which is the failure the
     -- settings-anchor-chain lint rule exists to catch. Alpha touches no anchors.
-    local searchBox = CreateFrame("EditBox", nil, parent)
-    searchBox:SetHeight(20)
+    -- Forward-declared: the shared box takes its onQuery at construction, and the filter
+    -- it calls is defined further down this function.
+    local ApplySettingsFilterRef
+    local searchBox = ns.CreateSearchBox(parent, {
+        hint = "Search settings...",
+        onQuery = function(text)
+            if ApplySettingsFilterRef then ApplySettingsFilterRef(text) end
+        end,
+    })
     searchBox:SetPoint("TOPLEFT", parent, "TOPLEFT", 2, -2)
     searchBox:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -(SCROLLBAR_WIDTH + 2), -2)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject("GameFontHighlightSmall")
-    searchBox:SetBackdrop(BACKDROP_INPUT)
-    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
-    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
-    searchBox:SetTextInsets(6, 6, 0, 0)
-
-    local searchHint = searchBox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    searchHint:SetPoint("LEFT", searchBox, "LEFT", 7, 0)
-    searchHint:SetText("Search settings...")
-    searchHint:SetTextColor(unpack(COLORS.textDim))
 
     -- Match count, right-aligned inside the box.
     --
@@ -2227,21 +2223,9 @@ local function CreateSettingsPanel(parent)
         end
     end
 
-    searchBox:SetScript("OnTextChanged", function(self)
-        local text = self:GetText() or ""
-        if text == "" then searchHint:Show() else searchHint:Hide() end
-        ApplySettingsFilter(text)
-    end)
-    -- Escape clears the filter first and only gives up focus once it is already clear,
-    -- so a stray press cannot leave the page dimmed with no visible reason.
-    searchBox:SetScript("OnEscapePressed", function(self)
-        if (self:GetText() or "") ~= "" then
-            self:SetText("")
-        else
-            self:ClearFocus()
-        end
-    end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    -- The two-stage Escape and the hint handling now live in ns.CreateSearchBox; this
+    -- panel is where that behaviour was first written, and it is the version that won.
+    ApplySettingsFilterRef = ApplySettingsFilter
 
     -- Structural safeguard: warn immediately if any column has overlapping controls.
     CheckColumnAnchors(col1, "column 1")

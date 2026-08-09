@@ -75,7 +75,25 @@ function CreateFrame(frameType, name, parent, template)
     function f:GetBackdropColor() return unpack(self.__fill) end
     function f:SetBackdropBorderColor(r, g, b, a) self.__border = {r, g, b, a} end
     function f:GetBackdropBorderColor() return unpack(self.__border) end
-    function f:SetText(t) self.__text = t end
+    -- SetText FIRES OnTextChanged on an EditBox, as the client does.
+    --
+    -- Real code leans on this: the icon picker clears its search on reopen with a bare
+    -- SetText("") and relies on the resulting OnTextChanged to restore the full grid, and
+    -- the shared search box's Escape does the same to re-run the filter. A mock that
+    -- swallowed it would make those look broken here and work in the game - or worse, the
+    -- reverse, once someone "fixed" the code to match the mock.
+    --
+    -- Guarded against recursion: a handler that calls SetText would otherwise loop, and an
+    -- infinite loop in a gate is a confusing way to learn that.
+    function f:SetText(t)
+        self.__text = t
+        local handler = self.__scripts and self.__scripts.OnTextChanged
+        if handler and self.__type == "EditBox" and not self.__inTextChanged then
+            self.__inTextChanged = true
+            handler(self, false)   -- userInput = false, same as a programmatic SetText
+            self.__inTextChanged = false
+        end
+    end
     function f:GetText() return self.__text end
     function f:SetTextColor(...) self.__textColor = {...} end
     function f:SetCursorPosition(p) self.__cursor = p end

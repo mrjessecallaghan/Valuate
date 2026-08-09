@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.52.1a] - 2026-08-09 — One search box, three users, one Escape
+
+### Fixed
+- **Escape behaved differently in each of the three search boxes.** Settings cleared the text
+  on the first press and released focus on a second; the Scale Editor's stat search did both
+  at once; the icon search cleared if there was anything and always released. Three
+  behaviours for one key, in one addon — and two of them were written by me, two releases
+  apart.
+- They now share **`ns.CreateSearchBox`**, which keeps the two-stage version. Not because it
+  was first: while an EditBox has focus it **swallows Escape**, so a box that releases focus
+  in the same press as it clears leaves you no way to clear a search and *then* close the
+  window with a second press.
+- The hint now hides on **focus**, not just on text. A placeholder sitting under a blinking
+  caret reads as text you have to delete.
+
+### Implementation
+- What's shared is the chrome, the hint and the keys. What isn't is the filtering — Settings
+  walks a derived index, the stat grid dims rows, the icon picker rebuilds a list — so the
+  caller supplies that through `onQuery`. Those parts *should* differ; the keys shouldn't.
+- Removed a second writer in passing: the icon picker's reopen path was setting the hint
+  itself, which `SetText` already handles through `OnTextChanged`.
+
+### Development
+- 14 more checks in `widgettest.js` (86 total). Mutation-tested three ways — and **two of the
+  mutations are the exact variants that existed before this release**, each now failing.
+- **The mock's `SetText` now fires `OnTextChanged` on an EditBox, as the client does.** Real
+  code leans on this: the icon picker clears its search on reopen with a bare `SetText("")`
+  and relies on the resulting event to restore the full grid. A mock that swallowed it would
+  make working code look broken here — or worse, invite someone to "fix" the code to match
+  the mock.
+
 ## [0.52.0a] - 2026-08-09 — Search the icon picker
 
 ### Added

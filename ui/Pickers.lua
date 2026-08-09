@@ -126,21 +126,19 @@ local function CreateIconPickerFrame()
     --
     -- Named for the same reason the stat search is: identifying it as "the EditBox that
     -- reacts to typing" would be ambiguous the moment this frame gains another.
-    local searchBox = CreateFrame("EditBox", "ValuateIconSearchBox", frame)
-    searchBox:SetHeight(20)
+    -- Forward-declared: the shared box needs its onQuery at construction, and that closure
+    -- reaches for things built further down. A local declared below its reader compiles to
+    -- a nil global, which is the quietest bug this project has.
+    local RunIconSearch
+
+    local searchBox = ns.CreateSearchBox(frame, {
+        name = "ValuateIconSearchBox",
+        hint = "Search icons - sword, potion, frost...",
+        fontObject = _G[FONT_BODY],
+        onQuery = function(text) if RunIconSearch then RunIconSearch(text) end end,
+    })
     searchBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -34)
     searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -30, -34)
-    searchBox:SetAutoFocus(false)
-    searchBox:SetFontObject(_G[FONT_BODY])
-    searchBox:SetBackdrop(BACKDROP_INPUT)
-    searchBox:SetBackdropColor(unpack(COLORS.inputBg))
-    searchBox:SetBackdropBorderColor(unpack(COLORS.border))
-    searchBox:SetTextInsets(6, 6, 0, 0)
-
-    local searchHint = frame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    searchHint:SetPoint("LEFT", searchBox, "LEFT", 6, 0)
-    searchHint:SetText("Search icons - sword, potion, frost...")
-    searchHint:SetTextColor(unpack(COLORS.textDim))
 
     -- Create scrollable content area
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame)
@@ -299,9 +297,8 @@ local function CreateIconPickerFrame()
         UpdateVisibleIcons()
     end
 
-    local function RunIconSearch(self)
-        local text = strtrim(self:GetText() or "")
-        if text == "" then searchHint:Show() else searchHint:Hide() end
+    RunIconSearch = function(raw)
+        local text = strtrim(raw or "")
 
         if text == "" then
             shownIcons = SCALE_ICON_LIST
@@ -326,22 +323,6 @@ local function CreateIconPickerFrame()
         scrollFrame:SetVerticalScroll(0)
         RelayoutIcons()
     end
-
-    searchBox:SetScript("OnTextChanged", RunIconSearch)
-    searchBox:SetScript("OnEscapePressed", function(self)
-        if (self:GetText() or "") ~= "" then
-            -- First Escape clears the search; a second closes the picker, which is what
-            -- the frame's Escape registration does once the box is empty.
-            self:SetText("")
-            RunIconSearch(self)
-        end
-        self:ClearFocus()
-    end)
-    searchBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    searchBox:SetScript("OnEditFocusGained", function() searchHint:Hide() end)
-    searchBox:SetScript("OnEditFocusLost", function(self)
-        if (self:GetText() or "") == "" then searchHint:Show() end
-    end)
 
     -- Update scrollbar with new callback
     scrollbar:SetScript("OnValueChanged", function(self, value)
@@ -370,8 +351,10 @@ local function CreateIconPickerFrame()
         -- in a panel you keep open while comparing scales, and this is a modal picker you
         -- open to answer one question. Reopening it with someone else's search still active
         -- would look like a picker that had lost most of its icons.
+        -- SetText fires OnTextChanged, which restores the hint and re-runs the (now empty)
+        -- search - so the hint is not touched here. It was, and that is exactly the kind of
+        -- second writer the shared box exists to remove.
         searchBox:SetText("")
-        searchHint:Show()
         shownIcons = SCALE_ICON_LIST
         scrollbar:SetValue(0)
         scrollFrame:SetVerticalScroll(0)

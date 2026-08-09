@@ -102,6 +102,11 @@ that loses an entry does not complain, it just stops running.
   hidden, and hidden frames get no input — so the trap springs when you come back. Give
   every arming path an `OnHide`, and assert the general form (*after any way this ends, it
   is not armed*) so a third exit added later has a check waiting.
+- **Three copies of a widget will drift on the detail nobody tests.** The Settings, stat and
+  icon search boxes each grew their own Escape handling — clear-then-unfocus, clear-and-
+  unfocus, and clear-if-any-always-unfocus. `ns.CreateSearchBox` owns the chrome, hint and
+  keys; callers supply only the filtering, which is the part that genuinely differs. Two of
+  the three were written in this session, two releases apart.
 - **Find a control by NAME, not by the handler it happens to carry.** `statsearchtest.js`
   first looked for "the EditBox with an OnTextChanged handler" and got a stat weight box —
   all sixty have one, for input validation. Name the frame (as the confirm dialog and the
@@ -322,7 +327,7 @@ callback either reschedule or be genuinely final.
 | `tools/options.js` | Options are reachable; every automation defaults to off |
 | `tools/api.js` | Selftest-listed methods exist; integration addons call real ones |
 | `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
-| `tools/widgettest.js` | Runs input validation and colour handling for real |
+| `tools/widgettest.js` | Runs input validation, colour handling and the shared search box |
 | `tools/importtest.js` | Runs scale-tag parsing and the export/import round trip |
 | `tools/datatest.js` | Cross-checks the spec templates against the stat definitions |
 | `tools/verifytest.js` | Runs the `/valuate verify` walkthrough's pending/staleness logic |

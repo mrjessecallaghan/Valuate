@@ -224,8 +224,88 @@ local function RegisterEscapeClose(frameName)
 end
 
 -- ========================================
+-- Search box
+-- ========================================
+
+-- One search box, three users: Settings, the Scale Editor's stat grid, and the icon picker.
+--
+-- They were written separately and had already drifted where it shows - Escape. Settings
+-- cleared the text on the first press and released focus on a second; the stat search did
+-- both at once; the icon search cleared if there was anything and always released. Three
+-- behaviours for one key, in one addon.
+--
+-- The two-stage version wins, and not because it was first: while an EditBox has focus it
+-- swallows Escape, so a box that releases focus in the same press as it clears gives you no
+-- way to clear a search and then close the window with a second Escape. Two presses, two
+-- distinct things, neither surprising.
+--
+-- What is NOT shared is the filtering. Settings walks a derived index, the stat grid dims
+-- rows, the icon picker rebuilds a list; the caller does that through onQuery. This owns
+-- the chrome, the hint and the keys - the parts that have no business differing.
+--
+-- opts: hint, fontObject, onQuery(text)  (all optional except onQuery)
+-- Returns: box, hint  - the hint is returned because two callers position other things
+-- against it, and re-finding it from the box would be worse.
+local function CreateSearchBox(parent, opts)
+    opts = opts or {}
+
+    local box = CreateFrame("EditBox", opts.name, parent)
+    box:SetHeight(opts.height or 20)
+    box:SetAutoFocus(false)
+    box:SetFontObject(opts.fontObject or "GameFontHighlightSmall")
+    box:SetBackdrop(ns.BACKDROP_INPUT)
+    box:SetBackdropColor(unpack(ns.COLORS.inputBg))
+    box:SetBackdropBorderColor(unpack(ns.COLORS.border))
+    box:SetTextInsets(6, 6, 0, 0)
+
+    local hint = box:CreateFontString(nil, "OVERLAY", ns.FONT_SMALL)
+    hint:SetPoint("LEFT", box, "LEFT", 7, 0)
+    hint:SetText(opts.hint or "Search...")
+    hint:SetTextColor(unpack(ns.COLORS.textDim))
+
+    local function refreshHint(self)
+        -- Hidden while focused even when empty: the placeholder sitting under a blinking
+        -- caret reads as text you have to delete.
+        if (self:GetText() or "") ~= "" or self.__searchFocused then
+            hint:Hide()
+        else
+            hint:Show()
+        end
+    end
+
+    box:SetScript("OnTextChanged", function(self)
+        refreshHint(self)
+        if opts.onQuery then opts.onQuery(self:GetText() or "") end
+    end)
+
+    box:SetScript("OnEscapePressed", function(self)
+        if (self:GetText() or "") ~= "" then
+            -- Clear, and KEEP focus, so you can type a different search straight away.
+            -- SetText fires OnTextChanged, which re-runs the filter.
+            self:SetText("")
+        else
+            -- Already empty, so hand Escape back: the next press reaches the window.
+            self:ClearFocus()
+        end
+    end)
+
+    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEditFocusGained", function(self)
+        self.__searchFocused = true
+        refreshHint(self)
+    end)
+    box:SetScript("OnEditFocusLost", function(self)
+        self.__searchFocused = false
+        refreshHint(self)
+    end)
+
+    return box, hint
+end
+
+-- ========================================
 -- Publish to the shared namespace
 -- ========================================
+ns.CreateSearchBox = CreateSearchBox
 ns.RegisterEscapeClose = RegisterEscapeClose
 ns.ValidateStatValueInput = ValidateStatValueInput
 ns.ValidateWholeNumberInput = ValidateWholeNumberInput
