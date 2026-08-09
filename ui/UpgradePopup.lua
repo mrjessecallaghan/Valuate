@@ -168,7 +168,10 @@ local function EnsurePopup()
             return
         end
         self.pulse = self.pulse + (e or 0)
-        self.glow:SetAlpha(0.35 + 0.3 * math.sin(self.pulse * (2 * math.pi / 1.6)))
+        -- MOTION.pulse: this was 1.6 while the arrows and the minimap button ran at 1.3,
+        -- with nothing written down to say why. One rhythm for everything that breathes.
+        local period = (ns.MOTION and ns.MOTION.pulse) or 1.3
+        self.glow:SetAlpha(0.35 + 0.3 * math.sin(self.pulse * (2 * math.pi / period)))
     end)
 
     popup = f

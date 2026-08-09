@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.59.0a] - 2026-08-09 — Everything that breathes now breathes at one rate
+
+### Fixed
+- **Four things in this addon pulse, and they ran at 1.3, 1.3, 1.6 and 1.3 seconds** — the
+  upgrade-arrow glow, the minimap attention pulse, the upgrade popup's icon glow, and the
+  AdiBags marker. Three agreed by coincidence; one differed with nothing written down to say
+  why. They now share **`MOTION.pulse`**.
+- Several things pulsing at slightly different rates is the *"motion that varies without
+  meaning"* the MOTION table exists to stop. It reads as an interface assembled rather than
+  designed — the sort of thing you feel without being able to name.
+- `MOTION.pulse` is also published as **`Valuate.PulsePeriod`**, because `Valuate-AdiBags` is
+  a separate addon that can't see `ns` and was carrying a copy of the number. A copy is how
+  the popup ended up at 1.6, and a rhythm that's only *coincidentally* shared isn't shared.
+
+### Added
+- **A seventeenth lint rule, `no-raw-motion-duration`.** `ARCHITECTURE.md` claimed durations
+  come from `ns.MOTION`; nothing checked it, and it wasn't quite true.
+
+### Two things the rule caught that I hadn't
+- **A fourth pulse site.** My manual audit found three because I only looked inside the
+  `Valuate` folder. The rule scans the sibling addons too and found the AdiBags one
+  immediately — the same lesson as `backup.js` finding an addon that had never been backed up.
+- **My own refactor made the code less checkable.** The popup's period was
+  `2 * math.pi / 1.6`, which the rule caught; rewriting it as `local period = …` moved it out
+  of the rule's sight, and a mutation run showed the "fixed" code could take its divergent
+  rhythm straight back. **Naming a magic number doesn't stop it being one.** The rule now
+  covers that shape, and carries self-check samples like `no-retail-only-api` — the negatives
+  especially, since a named constant with a comment is the sanctioned escape hatch and
+  flagging those would push people toward inlining numbers to keep the build quiet.
+
 ## [0.58.1a] - 2026-08-09 — Backing up the three addons that exist on one disk
 
 ### Added

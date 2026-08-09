@@ -308,7 +308,7 @@ function Valuate:PulseMinimapButton()
 
     pulseGlow:Show()
     Anim.owned(minimapButton, "pulse", {
-        duration = 1.3,
+        duration = (ns.MOTION and ns.MOTION.pulse) or 1.3,
         -- Linear, because the envelope below IS the shaping. An easing on top would
         -- distort the two pulses into uneven ones.
         ease = "linear",

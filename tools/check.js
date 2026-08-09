@@ -121,6 +121,50 @@ for (const [line, shouldMatch] of RETAIL_ONLY_SAMPLES) {
 const LOCAL_LIMIT = 200;
 const LOCAL_WARN_AT = 180;
 
+/*
+ * The three shapes a raw animation duration takes here.
+ *
+ * The third exists because of a mistake made writing this very rule: the popup's pulse was
+ * `2 * math.pi / 1.6` (caught by the second pattern), and refactoring it to
+ * `local period = ...` moved it out of the rule's sight. A mutation run found that the
+ * "fixed" code could take its divergent rhythm straight back. Naming a magic number does not
+ * stop it being one.
+ */
+const MOTION_LITERALS = [
+  /\bduration\s*=\s*[0-9]/, //                              duration = 0.3
+  /2\s*\*\s*math\.pi\s*\/\s*[0-9]/, //                      a pulse period wearing a disguise
+  /\blocal\s+\w*(period|duration|speed|cycle)\w*\s*=\s*[0-9]/i, // local period = 1.6
+];
+
+/*
+ * Same self-check as no-retail-only-api: this rule is regexes matched against text, and both
+ * ways it can be wrong are silent. The NEGATIVES matter most - a named constant with a
+ * comment is the sanctioned escape hatch, and flagging those would push people toward
+ * inlining numbers to keep the build quiet.
+ */
+const MOTION_SAMPLES = [
+  ["        duration = 0.3,", true],
+  ["    local phase = math.sin(t * (2 * math.pi / 1.3))", true],
+  ["    local period = 1.6", true],
+  ["    local pulseDuration = 2", true],
+  // Allowed: tokens, named constants, and values read from somewhere.
+  ["        duration = MOTION.slow,", false],
+  ["        duration = CHANGE_FLASH_TIME,", false],
+  ["    local period = (ns.MOTION and ns.MOTION.pulse) or 1.3", false],
+  ["    local phase = math.sin(t * (2 * math.pi / period))", false],
+  ["    local ROW_HEIGHT = 16", false],
+  ["        duration = opts.duration,", false],
+];
+for (const [line, shouldMatch] of MOTION_SAMPLES) {
+  if (MOTION_LITERALS.some((re) => re.test(line)) !== shouldMatch) {
+    console.error(
+      `ERROR  no-raw-motion-duration self-check failed: "${line.trim()}" should ` +
+        `${shouldMatch ? "" : "NOT "}match. The rule is broken, so its silence means nothing.`
+    );
+    process.exit(2);
+  }
+}
+
 const RULES = [
   {
     name: "no-staticpopup",
@@ -154,6 +198,34 @@ const RULES = [
     test: (l, file) =>
       /\bonCancel\b/.test(l) &&
       path.resolve(file) !== path.resolve(ADDON_ROOT, "ui", "Dialog.lua"),
+  },
+  {
+    /*
+     * ARCHITECTURE.md: "Durations come from ns.MOTION - chosen by intent. Motion that varies
+     * without meaning reads as sloppy the way mismatched spacing does."
+     *
+     * That was a claim nobody checked, and it was not quite true. Three things in this addon
+     * pulse - the upgrade-arrow glow, the minimap attention pulse, the upgrade popup's icon
+     * glow - and they ran at 1.3, 1.3 and 1.6 seconds. Two agreed by coincidence; the third
+     * differed with nothing written down to say why. MOTION had no token for a pulse at all,
+     * so each site invented one, which is precisely the drift the `cascade` token was added
+     * to stop a release earlier.
+     *
+     * Two shapes to catch: a literal duration, and a literal pulse PERIOD (the divisor in
+     * `2 * math.pi / n`, which is a duration wearing a disguise).
+     *
+     * ui/Animations.lua is the engine and ui/Shared.lua defines the tokens, so both may
+     * name numbers. A genuinely one-off duration should be a named local with a reason -
+     * ui/BestEquipment.lua's CHANGE_FLASH_TIME is the example.
+     */
+    name: "no-raw-motion-duration",
+    why: "Animation durations belong in ns.MOTION, chosen by intent - see ARCHITECTURE.md. Several things moving at slightly different unexplained rates is what makes an interface feel assembled rather than designed. Use a MOTION token, or a named local with a comment saying why this one is different.",
+    test: (l, file) => {
+      const rel = path.resolve(file);
+      if (rel === path.resolve(ADDON_ROOT, "ui", "Animations.lua")) return false;
+      if (rel === path.resolve(ADDON_ROOT, "ui", "Shared.lua")) return false;
+      return MOTION_LITERALS.some((re) => re.test(l));
+    },
   },
   {
     name: "no-protected-calls",

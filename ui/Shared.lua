@@ -56,6 +56,19 @@ ns.MOTION = {
     slow    = 0.34,  -- reveals where the motion itself carries the meaning
     count   = 0.55,  -- number roll-ups; long enough that the climb is readable
 
+    -- The rhythm of anything that breathes rather than arrives: the upgrade-arrow glow,
+    -- the minimap attention pulse, the upgrade popup's icon glow.
+    --
+    -- Added because there were THREE of these and no token for them - 1.3, 1.3 and 1.6,
+    -- two agreeing by coincidence and one differing for no reason anyone had written down.
+    -- Several things pulsing at slightly different rates is the "motion that varies without
+    -- meaning" this table exists to stop; it reads as an interface assembled rather than
+    -- designed, and it is the sort of thing you feel without being able to name.
+    --
+    -- 1.3s: slow enough to read as breathing rather than blinking, quick enough that a
+    -- glance catches it mid-cycle.
+    pulse   = 1.3,
+
     -- Cascades (staggered reveals) are described by their TOTAL window, not by a
     -- per-item gap. A gap that looks lively across three settings columns turns a
     -- twenty-row list into a crawl, which is why every cascade here had drifted to
@@ -65,6 +78,15 @@ ns.MOTION = {
     stagger    = 0.05,  -- widest per-item gap: below this, few items look simultaneous
     staggerMin = 0.02,  -- tightest: below this, many items look simultaneous anyway
 }
+
+-- Published on the PUBLIC table, for the integration addons.
+--
+-- Valuate-AdiBags draws its own pulsing marker and cannot see `ns` - it is a separate
+-- addon with its own namespace - so before this it carried a copy of the number. A copy
+-- is how the popup ended up at 1.6 while everything else ran at 1.3, and a rhythm that is
+-- only coincidentally shared is not shared at all.
+Valuate = Valuate or {}
+Valuate.PulsePeriod = ns.MOTION.pulse
 
 -- Stat editor sizing (5-column layout)
 ns.NUM_COLUMNS = 5           -- Number of stat columns

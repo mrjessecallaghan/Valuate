@@ -243,6 +243,7 @@ Each rule exists because of a real bug. To bypass one deliberately, append
 | `no-protected-calls` | `ConfirmBindOnUse` | blocks item use |
 | `no-dialog-oncancel-with-escape` | `onCancel` outside `ui/Dialog.lua` | Escape hides without running it |
 | `no-retail-only-api` | 15 methods/namespaces added after Interface 30300 | the call raises, so the rest of the function never runs |
+| `no-raw-motion-duration` | literal durations and pulse periods outside the engine | motion that varies without meaning (§ARCHITECTURE) |
 | `no-relocalised-shared-state` | `local X = ns.X` for MUTABLE shared state | silently desyncs files |
 | `no-duplicate-junk-logic` | `CheckItem(`/`IsJunk(` outside the shared helper | §5 |
 | `no-tsm-headcols-write` | assigning to `rt.headCols` in the TSM integration | §11 |

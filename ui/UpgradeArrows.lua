@@ -72,9 +72,10 @@ pulseDriver:SetScript("OnUpdate", function(self, e)
         arrowAlpha, glowAlpha = 1, 0.55
     else
         self.t = self.t + (e or 0)
-        -- ~1.3s cycle. The arrow itself stays near full opacity so it never reads as
+        -- MOTION.pulse, shared with the minimap button and the upgrade popup so everything
+        -- that breathes does it at one rate. The arrow itself stays near full opacity so it never reads as
         -- "fading out"; most of the movement is in the glow behind it.
-        local phase = math.sin(self.t * (2 * math.pi / 1.3))
+        local phase = math.sin(self.t * (2 * math.pi / (ns.MOTION and ns.MOTION.pulse or 1.3)))
         arrowAlpha = 0.88 + 0.12 * phase
         glowAlpha = 0.45 + 0.35 * phase
     end

@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.58.1a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.59.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.58.1a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.59.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -446,6 +446,10 @@ local function CreateChangelogPanel(parent)
         "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
         "   never re-animating as you move things around your bags.\n" ..
         "• The window resizes smoothly instead of snapping between tabs.\n" ..
+        "• Everything that pulses - upgrade arrows, the minimap button, the upgrade\n" ..
+        "   popup's glow, the AdiBags marker - now breathes at the same rate. They\n" ..
+        "   were on three different rhythms, one of them for no reason anybody had\n" ..
+        "   written down.\n" ..
         "• NEW: hovering Equip All lists the slots it would change, with a count -\n" ..
         "   or says there is nothing to change. It is not behind a confirmation:\n" ..
         "   equipping is reversible, so the useful thing is knowing what will happen,\n" ..
