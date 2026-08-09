@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.65.0a] - 2026-08-09 — you can find the wizard without knowing it exists
+
+A feature reachable only by a slash command is a feature for people who already read the
+changelog. **"Make me a scale"** is now the top row of the Scale List, full width, in the
+wizard's teal.
+
+It goes above *Blank* and *From Template* deliberately, extending the argument already
+written into that panel. Blank was demoted once because a new user cannot usefully fill in an
+empty scale — they do not yet know what their weights should be, which is the entire problem
+the addon solves. *From Template* has the same flaw one step further out: choosing between 45
+presets still assumes you know which one you are. The wizard is the only entry point on that
+panel that answers **that** question for you, so it gets the top row.
+
+### Added
+- The **Make me a scale** button on the Scale List, with a tooltip that says what it will do
+  and promises it shows you first and never overwrites.
+- `/valuate verify wizard` — opens the wizard and tells you how many scales you have, so the
+  "closing at the preview leaves nothing behind" promise can be checked in the client rather
+  than only in a mock.
+
+### Note
+`HookScript`, not `SetScript`, for the new button's hover — the same trap that cost the
+wizard's own buttons their hover animation one release ago. `CreateStyledButton` owns
+`OnEnter`/`OnLeave`, and replacing them kills the fade on that button alone, which is the
+kind of thing nobody notices until the interface just feels slightly wrong.
+
 ## [0.64.0a] - 2026-08-09 — the wizard has screens: `/valuate wizard`
 
 The guided scale builder is now usable. Three screens, one decision each.

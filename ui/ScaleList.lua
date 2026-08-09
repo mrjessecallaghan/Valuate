@@ -687,9 +687,37 @@ local function CreateScaleList(parent)
     local buttonContainer = CreateFrame("Frame", nil, parent)
     buttonContainer:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     buttonContainer:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    -- Two rows. Everything below anchors to this container's BOTTOM, so growing it
+    -- Three rows. Everything below anchors to this container's BOTTOM, so growing it
     -- shifts the list down on its own - no re-anchoring anywhere else.
-    buttonContainer:SetHeight(BUTTON_HEIGHT * 2 + ELEMENT_SPACING)
+    buttonContainer:SetHeight(BUTTON_HEIGHT * 3 + ELEMENT_SPACING * 2)
+
+    -- The wizard goes FIRST and full width, in its own colour.
+    --
+    -- Same argument the comment below makes about Blank vs From Template, taken one step
+    -- further: the person who needs help most cannot choose between 45 presets either,
+    -- because that still assumes they know which one they are. The wizard is the only
+    -- entry point here that answers that question for them, so it gets the top row and a
+    -- slash command is not the only way to find it.
+    local wizardButton = CreateStyledButton(buttonContainer, "Make me a scale", 200, BUTTON_HEIGHT)
+    wizardButton:SetPoint("TOPLEFT", buttonContainer, "TOPLEFT", 0, 0)
+    wizardButton.label:SetTextColor(ns.HexToRGB("3FE0C8"))
+    wizardButton:SetScript("OnClick", function()
+        if Valuate.ShowScaleWizard then Valuate:ShowScaleWizard() end
+    end)
+    -- HookScript: CreateStyledButton owns OnEnter/OnLeave for the hover fade, and
+    -- replacing them kills the animation on this button alone.
+    wizardButton:HookScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Make me a scale", 0.25, 0.88, 0.78)
+            GameTooltip:AddLine("Reads the gear you are wearing, works out which build you " ..
+                "most resemble, and creates an optimized scale from it.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Shows you what it would make first. Never overwrites a " ..
+                "scale you already have.", 0.7, 0.7, 0.7, true)
+            GameTooltip:Show()
+        end
+    end)
+    wizardButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     
     -- Blank scale gets the SMALLER share, and the template button gets the words.
     --
@@ -700,7 +728,7 @@ local function CreateScaleList(parent)
     -- the "+" hid 45 researched class/spec presets behind a symbol nobody hovers.
     local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.4)
     local newButton = CreateStyledButton(buttonContainer, "Blank", newButtonWidth, BUTTON_HEIGHT)
-    newButton:SetPoint("TOPLEFT", buttonContainer, "TOPLEFT", 0, 0)
+    newButton:SetPoint("TOPLEFT", wizardButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     newButton:SetScript("OnClick", function()
         ValuateUI_NewScale()
     end)
@@ -708,7 +736,7 @@ local function CreateScaleList(parent)
     -- Template button: now the wide one, and it says what it does.
     local templateButtonWidth = 200 - newButtonWidth - ELEMENT_SPACING
     local templateButton = CreateStyledButton(buttonContainer, "From Template", templateButtonWidth, BUTTON_HEIGHT)
-    templateButton:SetPoint("TOPRIGHT", buttonContainer, "TOPRIGHT", 0, 0)
+    templateButton:SetPoint("TOPRIGHT", wizardButton, "BOTTOMRIGHT", 0, -ELEMENT_SPACING)
     templateButton:SetScript("OnClick", function()
         ValuateUI_ShowTemplatePicker()
     end)

@@ -7813,6 +7813,25 @@ local VERIFY_CHECKS = {
         end,
     },
     {
+        id = "wizard", since = "0.64.0a",
+        gate = "tools/wizarduitest.js",
+        title = "The scale wizard opens, previews, and creates a working scale",
+        steps = "This command opens the wizard. Click 'Build it for me', read the preview, then 'Create it'.",
+        expect = "Three screens. The preview names a scale starting 'Auto - ' with five stats and says what it matched; creating it leaves that scale selected, in the wizard's teal, with your gear rescanned. Closing the wizard at the preview must leave NO new scale behind.",
+        broke = "Every screen is new. The headless gates cover the decisions and the click-through, but only the client proves the frames actually draw - and five contract bugs turned up writing that gate (a stagger helper called as a function, a tooltip helper given the wrong arguments, ToggleUI closing the main window, a button tint applied to the wrong object, and SetScript silently replacing the hover animation).",
+        arm = function()
+            if not Valuate.ShowScaleWizard then
+                return false, "The wizard did not load - check for Lua errors on login."
+            end
+            Valuate:ShowScaleWizard()
+            local before = 0
+            for _ in pairs(Valuate:GetScales()) do before = before + 1 end
+            return true, string.format(
+                "Wizard open. You have %d scale(s) now - if you close it at the preview, " ..
+                "that number must not change.", before)
+        end,
+    },
+    {
         id = "buttonoptions", since = "0.60.2a",
         gate = "tools/minimaptest.js",
         title = "Changing the minimap button's position takes effect without a reload",
