@@ -261,6 +261,25 @@ function Valuate:HideMinimapButton()
     end
 end
 
+-- Makes the button match whatever the options currently say.
+--
+-- Position and visibility are otherwise read only when the button is CREATED, and
+-- Show/Hide above WRITE the option rather than applying it - they are the user's action.
+-- So anything that changes those options wholesale (loading a settings snapshot,
+-- restoring defaults) moved the setting without moving the button, and the two only
+-- agreed again after a reload.
+function Valuate:ApplyMinimapButtonOptions()
+    -- No button yet means it has not been created; creation reads these same options.
+    if not minimapButton then return end
+    local options = Valuate:GetOptions()
+    UpdateButtonPosition(options.minimapButtonAngle or DEFAULT_POSITION)
+    if options.minimapButtonHidden then
+        minimapButton:Hide()
+    else
+        minimapButton:Show()
+    end
+end
+
 function Valuate:ToggleMinimapButton()
     if not minimapButton then
         CreateMinimapButton()

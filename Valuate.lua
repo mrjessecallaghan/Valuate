@@ -750,6 +750,12 @@ local DEFAULT_OPTIONS = {
     comparisonMode = "number",
     showCharacterWindowDisplay = true,
     minimapButtonHidden = false,
+    -- Where on the minimap ring you dragged the button. Declared here rather than
+    -- created on first drag, because the settings snapshot only applies keys that
+    -- exist in this table - undeclared, it was saved and then silently discarded.
+    -- Unlike uiPosition this is a ring angle, so it means the same thing on every
+    -- character and every resolution, and is worth carrying to an alt.
+    minimapButtonAngle = 200,             -- degrees; matches MinimapButton's fallback
     characterWindowDisplayMode = "total",
     uiPosition = {},                      -- table default: fresh copy per character
     normalizeDisplay = false,
@@ -789,7 +795,6 @@ local DEFAULT_OPTIONS = {
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
     showUpgradeArrows = true,              -- green arrow on merchant/loot/bag icons that upgrade a scale
     includeBankItems = true,              -- count banked gear as best-in-slot candidates (Equip All still skips it)
-    showUpgradeArrows = true,             -- green arrow on merchant/loot/bag icons that upgrade a scale
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -838,6 +843,7 @@ function Valuate:RestoreDefaultOptions()
     -- decisions made under the old settings.
     if Valuate.ResetTooltips then Valuate:ResetTooltips() end
     if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    if Valuate.ApplyMinimapButtonOptions then Valuate:ApplyMinimapButtonOptions() end
     return changed
 end
 
@@ -893,6 +899,7 @@ function Valuate:LoadSettingsSnapshot()
 
     if Valuate.ResetTooltips then Valuate:ResetTooltips() end
     if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    if Valuate.ApplyMinimapButtonOptions then Valuate:ApplyMinimapButtonOptions() end
     return true, applied
 end
 
@@ -7572,6 +7579,29 @@ local VERIFY_CHECKS = {
             end
             Valuate:PulseMinimapButton()
             return true, "Pulse started - drag the button NOW."
+        end,
+    },
+    {
+        id = "buttonoptions", since = "0.60.2a",
+        gate = "tools/minimaptest.js",
+        title = "Changing the minimap button's position takes effect without a reload",
+        steps = "This command moves the button to the opposite side of the minimap. Run it a second time to put it back.",
+        expect = "The button jumps across the minimap the moment you run it - no /reload needed - and the second run returns it to exactly where it was.",
+        broke = "The angle was only ever read when the button was created, and Show/Hide WRITE the option rather than applying it. So loading a settings snapshot or restoring defaults changed the setting while the button stayed put. The angle was not a declared option either, which meant the snapshot saved it, counted it in the total, and then silently dropped it on load - an alt got the default position while every other setting transferred.",
+        arm = function()
+            if not Valuate.ApplyMinimapButtonOptions then
+                return false, "ApplyMinimapButtonOptions is missing - the minimap module did not load."
+            end
+            local options = Valuate:GetOptions()
+            if options.minimapButtonHidden then
+                return false, "The minimap button is hidden. Enable it in Settings first."
+            end
+            local before = options.minimapButtonAngle or 200
+            options.minimapButtonAngle = (before + 180) % 360
+            Valuate:ApplyMinimapButtonOptions()
+            return true, string.format(
+                "Moved the button from %d to %d degrees. Run this again to put it back.",
+                before, options.minimapButtonAngle)
         end,
     },
     {

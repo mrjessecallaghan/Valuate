@@ -138,7 +138,102 @@ if (defaultedOn.length) {
   process.exit(1);
 }
 
+/*
+ * Two ways the options TABLE can diverge from itself, both silent in Lua.
+ *
+ * (A) A key declared twice. Lua keeps the last one, so editing the first is a no-op that
+ *     reads as a fix. showUpgradeArrows was declared twice with the same value, which is
+ *     harmless right up until someone changes one of them.
+ *
+ * (B) A key written into the saved options table but never declared here. That one is not
+ *     cosmetic: SaveSettingsSnapshot copies whatever it finds in the live table, but
+ *     LoadSettingsSnapshot only applies keys present in DEFAULT_OPTIONS. An undeclared
+ *     option is therefore saved, counted in the "saved N settings" total, and then dropped
+ *     on load - the same collected-and-discarded shape as the questAccept heartbeat.
+ *     minimapButtonAngle sat in that hole: you dragged the button, saved a snapshot, and
+ *     the alt used the default while every other setting transferred.
+ */
+const seenKeys = new Set();
+const dupes = [];
+for (const line of block[1].split(/\r?\n/)) {
+  const m = line.match(/^ {4}(\w+)\s*=/);
+  if (!m) continue;
+  if (seenKeys.has(m[1])) dupes.push(m[1]);
+  seenKeys.add(m[1]);
+}
+if (dupes.length) {
+  console.error("Options declared twice in DEFAULT_OPTIONS: " + dupes.join(", "));
+  console.error(
+    "\nLua keeps the LAST declaration, so editing the earlier line silently does nothing. " +
+      "Delete one."
+  );
+  process.exit(1);
+}
+
+/*
+ * Deliberately undeclared, with a reason. characterWindowScale has no honest default: it
+ * names a scale, and "unset" is a real state the readers test for. Declaring it as "" would
+ * not express that, because an empty string is truthy in Lua and every "if scale then" check
+ * would start passing. It is excluded from the snapshot instead.
+ */
+const LAZY_OK = {
+  characterWindowScale: "no honest default - an empty string would read as truthy in Lua",
+};
+
+const allLua = collectLua("", []).concat(["Valuate.lua"]);
+const persisted = new Map();
+for (const rel of allLua) {
+  const src = read(rel);
+  // GetOptions().X = is unambiguous. A bare options.X = only counts in a file that binds
+  // `options` to the real table - otherwise `opts.includeInactive` and friends, which are
+  // caller-supplied argument tables rather than settings, would be reported as options.
+  const patterns = [/GetOptions\(\)\.(\w+)\s*=[^=]/g];
+  if (/\boptions\s*=\s*(?:Valuate|self):GetOptions\(\)/.test(src)) {
+    patterns.push(/\boptions\.(\w+)\s*=[^=]/g);
+  }
+  for (const re of patterns) {
+    for (const m of src.matchAll(re)) {
+      if (!seenKeys.has(m[1]) && !LAZY_OK[m[1]]) {
+        persisted.set(m[1], (persisted.get(m[1]) || new Set()).add(rel));
+      }
+    }
+  }
+}
+
+if (persisted.size) {
+  console.error("Options written to the saved table but never declared in DEFAULT_OPTIONS:");
+  for (const [key, files] of persisted) {
+    console.error(`  ${key}  <- ${[...files].join(", ")}`);
+  }
+  console.error(
+    "\nThese are saved by the settings snapshot and then silently dropped when it is loaded, " +
+      "because LoadSettingsSnapshot only applies keys that exist in DEFAULT_OPTIONS. Declare " +
+      "them with a default, or add them to LAZY_OK with a reason."
+  );
+  process.exit(1);
+}
+
+// A snapshot exclusion naming a key nothing declares OR writes is a claim of protection over
+// something that does not exist - the same small lie as a stale HIDDEN entry in commands.js.
+const excludedBlock = core.match(/local SNAPSHOT_EXCLUDED = \{([\s\S]*?)\n\}/);
+if (excludedBlock) {
+  const written = new Set(
+    allLua.flatMap((rel) => [...read(rel).matchAll(/(?:GetOptions\(\)|options)\.(\w+)\s*=[^=]/g)].map((m) => m[1]))
+  );
+  const stale = [...excludedBlock[1].matchAll(/^ {4}(\w+)\s*=\s*true/gm)]
+    .map((m) => m[1])
+    .filter((k) => !seenKeys.has(k) && !written.has(k));
+  if (stale.length) {
+    console.error(
+      "SNAPSHOT_EXCLUDED names options that no longer exist: " + stale.join(", ") +
+        " - the exclusion protects nothing, and hides that the real key is unprotected."
+    );
+    process.exit(1);
+  }
+}
+
 console.log(
   `OK  all ${keys.length} options are reachable from the UI or a command; ` +
-  `every automation defaults to off.`
+  `every automation defaults to off; none declared twice; ` +
+  `every persisted option is declared (${Object.keys(LAZY_OK).length} deliberately lazy).`
 );

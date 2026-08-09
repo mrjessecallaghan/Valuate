@@ -152,6 +152,43 @@ ok(btn.__anim_pulse ~= nil, "starting a drag does not cancel a running pulse")
 stopDrag()
 ok(btn.__anim_pulse ~= nil, "and ending one does not discard the pulse's cleanup")
 
+-- ---- changed options actually reach the button --------------------------------
+-- Position and visibility are read when the button is CREATED, and ShowMinimapButton /
+-- HideMinimapButton WRITE the option rather than applying it - they are the user's action.
+-- So anything that changes both options wholesale (loading a settings snapshot, restoring
+-- defaults) moved the setting while the button stayed put, and they only agreed again
+-- after a reload.
+--
+-- That the angle is a DECLARED option rather than one created on first drag is checked by
+-- tools/options.js. Asserting it here would prove nothing: the drag handler above writes
+-- the angle into this very table, so it is non-nil by the time this runs either way.
+local function pos()
+    local p = btn.__points[#btn.__points]
+    if not p then return nil, nil end
+    return math.floor(p[4] + 0.5), math.floor(p[5] + 0.5)
+end
+
+OPTIONS.minimapButtonHidden = false
+OPTIONS.minimapButtonAngle = 0
+Valuate:ApplyMinimapButtonOptions()
+local px, py = pos()
+eq(px, 80, "angle 0 puts the button out to the right of the minimap centre")
+eq(py, 0, "...and level with it")
+
+OPTIONS.minimapButtonAngle = 90
+Valuate:ApplyMinimapButtonOptions()
+px, py = pos()
+eq(px, 0, "a changed angle moves the button")
+eq(py, 80, "...to the new point on the ring")
+
+OPTIONS.minimapButtonHidden = true
+Valuate:ApplyMinimapButtonOptions()
+eq(btn:IsShown(), false, "a snapshot that hides the button hides it now, not after a reload")
+
+OPTIONS.minimapButtonHidden = false
+Valuate:ApplyMinimapButtonOptions()
+eq(btn:IsShown(), true, "and one that shows it takes effect just as immediately")
+
 return failures, checks
 `,
   "minimaptest",

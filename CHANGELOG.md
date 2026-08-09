@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.60.2a] - 2026-08-09 — a setting the snapshot saved, counted, and then threw away
+
+Checking another documented promise, this time "a settings snapshot lets you set up once and
+load anywhere". The snapshot itself is well built — it iterates every option and uses an
+*exclusion* list, so options added later are carried automatically rather than needing to be
+remembered. The hole was on the other side.
+
+### Fixed
+- **Your minimap button's position was saved into the settings snapshot, counted in the
+  total it reported, and then silently dropped when you loaded it.** `LoadSettingsSnapshot`
+  only applies keys that exist in `DEFAULT_OPTIONS`, and `minimapButtonAngle` was never
+  declared there — it was created the first time you dragged the button. So you positioned
+  the button, saved a snapshot, loaded it on an alt, and got the default position while
+  every other setting transferred. The count had told you it was included.
+- **Nothing applied the minimap options once they changed.** Position and visibility are
+  read when the button is *created*, and `ShowMinimapButton`/`HideMinimapButton` **write**
+  the option rather than applying it — they're the user's action, not the appliers. So
+  loading a snapshot or restoring defaults moved the setting while the button stayed put,
+  and the two only agreed again after a `/reload`. New `Valuate:ApplyMinimapButtonOptions()`
+  makes the button match the options; both paths now call it.
+- **`showUpgradeArrows` was declared twice in `DEFAULT_OPTIONS`.** Both copies said `true`,
+  so nothing was broken — but Lua keeps the last one, which means editing the first line
+  would have been a no-op that reads as a fix.
+
+### Added
+- `/valuate verify buttonoptions` — moves the button to the opposite side of the minimap and
+  back, so the no-reload behaviour can be confirmed in the client.
+
+### Gates
+- `tools/options.js` gained three checks, each mutation-tested: a key declared twice; a key
+  written into the saved options table but never declared (the bug above, caught exactly);
+  and a `SNAPSHOT_EXCLUDED` entry naming an option that no longer exists — an exclusion that
+  protects nothing while hiding that the real key is unprotected.
+- One deliberate exemption, with a reason: `characterWindowScale` has no honest default,
+  because it names a scale and "unset" is a real state its readers test for. Declaring it as
+  `""` would not express that — an empty string is truthy in Lua, so every `if scale then`
+  check would start passing.
+- `tools/minimaptest.js` drives the new applier: a changed angle moves the button, and a
+  snapshot that hides or shows it takes effect immediately. 21 checks.
+
 ## [0.60.1a] - 2026-08-09 — `/valuate report` was collecting an outcome and discarding it
 
 ### Fixed
