@@ -7539,6 +7539,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "minimap", since = "0.23.1a",
+        gate = "tools/minimaptest.js",
         title = "The minimap pulse survives being interrupted by a drag",
         steps = "This command starts a pulse. Immediately drag the minimap button around and let go.",
         expect = "The button follows the cursor, and when the pulse ends no starburst is left behind and the button is back to its normal size.",
@@ -7586,6 +7587,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "keybind", since = "0.49.0a",
+        gate = "tools/settingstest.js",
         title = "The keybind button lets go of your keyboard",
         steps = "Settings > the Toggle UI keybind button. Left-click it so it says \"Press Key...\", then RIGHT-click to clear instead of pressing a key. Then do it again, and this time close the window while it is still waiting. Reopen Settings.",
         expect = "Both times the button goes back to its normal colour and stops saying \"Press Key...\". After reopening, typing does not bind anything, and chat still receives what you type.",
@@ -7593,6 +7595,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "futureline", since = "0.55.0a",
+        gate = "tools/futurelinetest.js",
         title = "A future upgrade says so on its tooltip",
         steps = "Find gear in your bags that needs a higher level than you have and would beat your best once wearable - /valuate future lists exactly these. Hover one. Then hover something that IS your best-in-slot, and something that is neither.",
         expect = "The future item gets a blue line naming the level and the scales. The best-in-slot item gets the gold star line instead - never both, since an item cannot be equippable and not equippable at once. The third gets neither.",
@@ -7600,6 +7603,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "share", since = "0.48.0a",
+        gate = "tools/sharetest.js",
         title = "A stat's weight box says what that weight is doing",
         steps = "Open the Scale Editor and hover the weight box of a stat you have a lot of, then one you have weighted but carry none of, then one with no weight at all. Now type a bigger number into the first and hover it again.",
         expect = "Three different answers - a percentage, \"you are carrying none of this stat\", and \"no weight set\". After typing, the percentage has MOVED: the ranking is recomputed per hover even though the equipped totals are cached for five seconds.",
@@ -7614,6 +7618,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "rows", since = "0.43.0a",
+        gate = "tools/scalelisttest.js",
         title = "Scale rows still act on the scale they are showing",
         steps = "Make four scales. Delete the SECOND one, so the rows below it shift up. Now hover, tick, recolour, rename and finally delete the scale that moved into that second row.",
         expect = "Every one of those acts on the scale whose name you can read on that row. The confirmation names it too. Nothing is left highlighted after the list changes under your cursor.",
@@ -7677,6 +7682,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "statgrid", since = "0.33.0a",
+        gate = "tools/statsearchtest.js",
         title = "The stat editor shows the right values after switching scales",
         steps = "Open Scales. Click between two scales with clearly different weights several times. Ban a stat on one, switch away, switch back. Then import or load a scale over the one you are editing and toggle a weapon set.",
         expect = "Every value, ban checkbox and weapon-set tick matches the scale you selected - no leftovers from the previous one, and no row stuck greyed out.",
@@ -7684,6 +7690,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "search", since = "0.29.0a",
+        gate = "tools/settingstest.js",
         title = "Settings search dims everything except what you typed",
         steps = "Open Settings and type 'junk' in the search box at the top. Then clear it, and press Escape with text in the box.",
         expect = "Only junk-related rows stay bright; everything else dims but STAYS PUT - nothing may move or reflow. The box shows a match count on the right. Clearing restores every row to full brightness, with none left dim.",
@@ -7705,6 +7712,7 @@ local VERIFY_CHECKS = {
     },
     {
         id = "charsheet", since = "0.23.2a",
+        gate = "tools/charwindowtest.js",
         title = "The character sheet score appears even on a slow load",
         steps = "Fully log out and back in (not /reload), then open your character sheet.",
         expect = "The Valuate score is there.",
@@ -7717,6 +7725,13 @@ local function PrintVerifyCheck(c, index)
     print("   |cFFFFFF00Do:|r " .. c.steps)
     print("   |cFF88FF88Expect:|r " .. c.expect)
     print("   |cFFAAAAAAWhy:|r " .. c.broke)
+    if c.gate then
+        -- Says what is already proven, so this is a smaller ask than the ones with no
+        -- gate behind them. The build runs that file on every commit; what it cannot do
+        -- is look at the screen.
+        print("   |cFF66CCFFAlready proven:|r " .. c.gate ..
+              " runs this logic. |cFFAAAAAAYou are checking it LOOKS right.|r")
+    end
 end
 
 -- Marks a check done (or not), remembering WHICH VERSION it was checked at.
@@ -7775,16 +7790,31 @@ end
 -- v0.33.0a is not evidence about what ships; treating it as finished is how a checklist
 -- ends up reporting "16 of 16" while testing nothing. The list has always drawn the
 -- distinction - this makes the walkthrough act on it.
+-- UNGATED checks come first.
+--
+-- A check whose logic is already executed by a build gate is a smaller thing to confirm:
+-- the behaviour is proven, and what remains is whether it looks right. A check with no gate
+-- behind it is the only evidence that will ever exist for that behaviour.
+--
+-- Twenty-one checks is a long sitting and it may not be finished in one. If it stops
+-- half-way, the half that got done should be the half nothing else covers - so `next` hands
+-- those out first. Within each group the list order is preserved, so it stays predictable.
 local function NextPendingCheck()
     local first, firstIndex, pending = nil, nil, 0
+    local fallback, fallbackIndex = nil, nil
     for i, c in ipairs(VERIFY_CHECKS) do
         local at, stale = VerifiedState(c)
         if (not at) or stale then
             pending = pending + 1
-            if not first then first, firstIndex = c, i end
+            if c.gate then
+                if not fallback then fallback, fallbackIndex = c, i end
+            else
+                if not first then first, firstIndex = c, i end
+            end
         end
     end
-    return first, firstIndex, pending
+    if first then return first, firstIndex, pending end
+    return fallback, fallbackIndex, pending
 end
 
 -- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
@@ -7894,15 +7924,17 @@ function Valuate:RunVerify(which)
 
     -- Counted from the STATE, never from the rendered label. Reformatting the list must
     -- not be able to change the tally.
-    local done, stale = 0, 0
+    local done, stale, gated = 0, 0, 0
     for i, c in ipairs(VERIFY_CHECKS) do
         local at, isStale = VerifiedState(c)
         if at then
             done = done + 1
             if isStale then stale = stale + 1 end
         end
-        print(string.format("%s |cFF00FF00%d. %s|r  -  /valuate verify %s",
-            VerifiedLabel(c), i, c.title, c.id))
+        if c.gate then gated = gated + 1 end
+        print(string.format("%s |cFF00FF00%d. %s|r%s  -  /valuate verify %s",
+            VerifiedLabel(c), i, c.title,
+            c.gate and " |cFF66CCFF(logic gated)|r" or "", c.id))
     end
 
     print(" ")
@@ -7910,6 +7942,11 @@ function Valuate:RunVerify(which)
         "tick one with /valuate verify done <name>, or start over with /valuate verify reset.|r",
         done, #VERIFY_CHECKS,
         stale > 0 and (", " .. stale .. " now STALE - those come round again") or ""))
+    -- The honest shape of the remaining work: how much of this is confirming something
+    -- already proven, and how much is the only evidence that will ever exist.
+    print(string.format("|cFFAAAAAA%d have their logic run by a build gate, so those are " ..
+        "'does it look right'. The other %d are the real unknowns - /valuate verify next " ..
+        "hands you those first.|r", gated, #VERIFY_CHECKS - gated))
     print("|cFFAAAAAA/valuate check covers the other half: is the addon loaded and configured.|r")
     return true
 end

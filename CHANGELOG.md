@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.55.1a] - 2026-08-09 — Making the in-game pass smaller instead of longer
+
+### Changed
+- **`/valuate verify` now says which checks a build gate already proves the logic for**, and
+  **`verify next` hands out the ungated ones first.** Eight of the twenty-one are backed by a
+  gate that executes their logic on every commit; for those, the in-game step is "does it
+  look right", a much smaller ask. The other thirteen are the only evidence those behaviours
+  will ever have.
+- Twenty-one checks is a long sitting and it may stop half way. If it does, the half that got
+  done should be the half nothing else covers — so the walkthrough front-loads those. Order
+  within each group is preserved, so it stays predictable.
+- The summary now states the split honestly rather than one total.
+
+### Fixed
+- **`README.md` said the verify list was "short on purpose".** It was, once. It is 21 checks
+  now, five of them added this session, and calling that short is the same kind of drifted
+  claim the gates exist to catch — with the added problem that a list described as short and
+  observed to be long is one you stop believing.
+- The Status section had grown into a 23-item run-on sentence. Regrouped into what the gates
+  actually cover: **things that can destroy or spend something**, **panels driven the way a
+  user drives them**, and **pure logic whose wrong answer still looks plausible**.
+
+### Development
+- A `gate = "tools/…"` field on a check is a claim that it is safe to treat as smaller — so
+  `tocsync.js` now fails if the named file does not exist. A wrong claim there is worse than
+  none, because it makes a check look skippable.
+- 8 more checks in `verifytest.js` (24 total) on the new ordering, including that a **stale
+  gated** check does not jump the queue. Mutation-tested: reverting to plain list order fails
+  the two checks that name it.
+
 ## [0.55.0a] - 2026-08-09 — The tooltip finally says why it's been keeping that item
 
 ### Added

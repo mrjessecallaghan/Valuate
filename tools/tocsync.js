@@ -168,6 +168,20 @@ try {
       }
       seen.add(id);
 
+      // A check that names a gate is telling the reader "the logic is already proven, you
+      // are only looking at the screen" - which makes it a SMALLER ask, and a wrong one is
+      // therefore worse than no claim at all. The file has to exist.
+      const gateClaim = block[1].match(
+        new RegExp('id = "' + id + '"[\\s\\S]{0,400}?gate = "([^"]+)"')
+      );
+      if (gateClaim && !fs.existsSync(path.join(ADDON_ROOT, gateClaim[1]))) {
+        console.error(
+          "  VERIFY  check '" + id + "' says its logic is proven by " + gateClaim[1] +
+            ", which does not exist - that claim makes the check look safe to skip"
+        );
+        ok = false;
+      }
+
       if (!released.has(since)) {
         console.error(
           "  VERIFY  check '" + id + "' says since v" + since +

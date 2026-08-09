@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.55.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.55.1a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -90,12 +90,21 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. 23 subsystems are executed headlessly against a mocked
-WoW API and are genuinely behaviour-tested — the animation engine, input validation and
-colour handling, scale-tag parsing, the spec templates, the verify walkthrough, **the
-deletion protections**, the pooled scale list, the slot comparison states, the tooltip
-comparison text, the upgrade-arrow driver, the stat-share ranking, the Settings keybind capture, tab switching, the confirm dialog, the minimap button, the stat search, the character-sheet score, the icon picker, surplus-gear marking, the auto-roll decision, the quest reward choice, future-upgrade grouping, and the future tooltip line.
-**Everything else is statically verified only**: it loads, it resolves, its wiring is consistent.
+Developed without the game running. **23 subsystems execute real Lua** headlessly against a
+mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
+
+- **Things that can destroy or spend something** — the deletion protections, surplus-gear
+  marking, the auto-roll decision, the quest reward choice.
+- **Panels driven the way a user drives them** — the scale list, Settings, the main
+  window's tabs, the confirm dialog, the minimap button, the icon picker, both search
+  boxes, the character-sheet score.
+- **Pure logic whose wrong answer still looks plausible** — the animation engine, input and
+  colour handling, scale-tag parsing, the spec templates, tooltip comparison text, the slot
+  comparison states, stat shares, future-upgrade grouping and its tooltip line, the verify
+  walkthrough, the upgrade-arrow driver.
+
+**Everything else is statically verified only**: it loads, it resolves, its wiring is
+consistent.
 
 So assume anything you haven't personally exercised is unverified, and be deliberate about
 the destructive features (deletion is permanent — WoW has no undo). `/valuate verify` lists
@@ -128,7 +137,11 @@ only see structure — they cannot see a correct-looking branch in the wrong ord
 check wiring: that a file loads, a symbol resolves, a list stays in step.
 
 Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
-in-game, and its list is short on purpose — only behaviours that fail *silently*.
+in-game. It holds **21 checks** — it was short once and has grown with the addon, so it now
+says which of them a build gate already proves the *logic* for. Those are "does it look
+right", a smaller ask; the rest are the only evidence those behaviours will ever have, and
+**`/valuate verify next` hands you those first** so a half-finished sitting covers the half
+nothing else does.
 **`/valuate verify next`** walks you through it one at a time, arming each check that can
 arm itself. Ticks record the version they were made at, so a check comes round again by
 itself once the behaviour underneath it changes.

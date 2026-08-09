@@ -112,6 +112,48 @@ c, i, n = NextPendingCheck()
 ok(c and c.id == "b", "an untick brings the check back")
 ok(n == 1, "an untick restores the count")
 
+-- ---- UNGATED checks are handed out first -------------------------------------
+--
+-- A check whose logic a build gate already executes is a smaller thing to confirm: the
+-- behaviour is proven and what remains is whether it looks right. A check with no gate is
+-- the only evidence that behaviour will ever have. Twenty-one of these is a long sitting and
+-- it may stop half way, so the half that gets done should be the half nothing else covers.
+VERIFY_CHECKS = {
+    { id = "gated1",   since = "0.20.0a", gate = "tools/x.js" },
+    { id = "ungated1", since = "0.20.0a" },
+    { id = "gated2",   since = "0.20.0a", gate = "tools/y.js" },
+    { id = "ungated2", since = "0.20.0a" },
+}
+OPTS.verifiedChecks = {}
+
+c, i, n = NextPendingCheck()
+ok(c and c.id == "ungated1", "the first ungated check wins over an earlier gated one")
+ok(n == 4, "the pending count still covers everything, gated or not")
+
+OPTS.verifiedChecks.ungated1 = "0.41.0a"
+c = NextPendingCheck()
+ok(c and c.id == "ungated2", "then the next ungated one, in list order")
+
+OPTS.verifiedChecks.ungated2 = "0.41.0a"
+c, i, n = NextPendingCheck()
+ok(c and c.id == "gated1", "only once the unknowns are done does it fall back to the gated ones")
+ok(n == 2, "...with the count still honest about how many are left")
+
+OPTS.verifiedChecks.gated1 = "0.41.0a"
+c = NextPendingCheck()
+ok(c and c.id == "gated2", "and those keep their list order too")
+
+OPTS.verifiedChecks.gated2 = "0.41.0a"
+c, i, n = NextPendingCheck()
+ok(c == nil and n == 0, "everything ticked means nothing pending")
+
+-- A STALE gated check still yields to a fresh ungated one: staleness makes it pending, not
+-- urgent, and the ungated check still carries more of the evidence.
+OPTS.verifiedChecks = { gated1 = "0.10.0a" }
+VERIFY_CHECKS[1].since = "0.30.0a"
+c = NextPendingCheck()
+ok(c and c.id == "ungated1", "a stale gated check does not jump the queue")
+
 return failures, checks
 `,
   "verifytest",
