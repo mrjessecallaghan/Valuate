@@ -35,6 +35,9 @@ local WizardFrame = nil     -- the window
 local screens = {}          -- name -> content frame
 local currentScreen = nil
 local currentPlan = nil     -- the plan being previewed; nil until step 2
+-- Survives the plan being cleared on commit, because the done screen still needs to know
+-- WHICH scale to open when you ask to fine-tune it.
+local lastCreatedName = nil
 
 -- ========================================
 -- Small builders
@@ -262,10 +265,23 @@ local function BuildStepDone(parent)
     local tweak = ns.CreateStyledButton(f, "Fine-tune it", 120, BUTTON_HEIGHT)
     tweak:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
     tweak:SetScript("OnClick", function()
+        local name = lastCreatedName
         if WizardFrame then WizardFrame:Hide() end
         -- ShowUI, not ToggleUI: toggling would CLOSE the main window for anyone who had it
         -- open behind the wizard, which is the opposite of "fine-tune it".
         if Valuate.ShowUI then Valuate:ShowUI() end
+
+        -- ...and SELECT the scale it just made. Opening the window and leaving you to find
+        -- the new row is the same "now go and do it yourself" the wizard exists to remove,
+        -- and it is worse here than anywhere: the row you are looking for is one of several
+        -- that all start "Auto - ".
+        --
+        -- Clicked rather than assigned, because selecting a scale also loads it into the
+        -- editor and repaints the list; ScaleList owns that sequence and duplicating it
+        -- here would be a second copy of one rule, which this project keeps paying for.
+        local button = ns.ScaleListButtons and ns.ScaleListButtons[name]
+        local onClick = button and button.GetScript and button:GetScript("OnClick")
+        if onClick then onClick(button) end
     end)
 
     return f
@@ -401,6 +417,7 @@ function ns.WizardCommit()
     ShowScreen("done")
 
     if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
+    lastCreatedName = currentPlan.name
     currentPlan = nil
 end
 

@@ -182,8 +182,18 @@ for _, f in ipairs(__frames) do
     if f.label and f.label.__text == "Fine-tune it" then tweak = f end
 end
 ok(tweak ~= nil, "the done screen offers a way into the editor")
+
+-- Fine-tuning has to land on the scale it just made. Opening the window and leaving you to
+-- find the new row is the same "now go and do it yourself" the wizard exists to remove -
+-- and the row is one of several all starting "Auto - ".
+local selected = nil
+ns.ScaleListButtons = {}
+ns.ScaleListButtons[madeName] = CreateFrame("Button")
+ns.ScaleListButtons[madeName]:SetScript("OnClick", function() selected = madeName end)
+
 tweak.__scripts.OnClick(tweak)
 eq(showUICalls, 1, "which SHOWS the main window")
+eq(selected, madeName, "and selects the scale it just made, rather than leaving you to find it")
 eq(frame:IsShown(), false, "and closes the wizard behind it")
 
 -- Toggling would have CLOSED the main window for anyone who already had it open, which is

@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.70.0a] - 2026-08-09 — "Fine-tune it" now lands on the scale it just made
+
+### Fixed
+- **The last step dropped you at the main window and left you to find the new scale
+  yourself.** That is the same *"now go and do it yourself"* the wizard exists to remove, and
+  it lands worse here than anywhere else: the row you are hunting for is one of several that
+  all begin `Auto - `. It now opens the window **and selects that scale**, so you arrive in
+  the editor on the thing you asked to fine-tune.
+
+The selection goes through the scale list's own click handler rather than assigning state
+directly. Selecting a scale also loads it into the editor and repaints the list; `ScaleList`
+owns that sequence, and duplicating it here would be a second copy of one rule — which is the
+mistake this project has paid for repeatedly.
+
+### Gates
+- 46 checks. Mutation-tested two ways: not selecting, and never remembering which scale was
+  created. The name is held separately from the plan, because the plan is cleared on commit
+  and the done screen still needs to know which scale to open.
+
 ## [0.69.0a] - 2026-08-09 — the wizard moves like the rest of the addon
 
 The screens worked but were plain next to everything around them, and the preview's weights
