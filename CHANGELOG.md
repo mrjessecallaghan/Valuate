@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.57.1a] - 2026-08-09 — The last uncovered integration, and an honest null result
+
+### Development
+- **A thirtieth gate, `tools/tsmratiotest.js`**, covering `UpgradePercent` and `ComputeRatio`
+  in `Valuate-TSM` — the maths behind the *upgrade* and *upgrade per gold* columns in TSM's
+  shopping results. That's the last integration with no runtime coverage.
+- **No bug found.** This code was written carefully and handles every trap I went looking
+  for: a zero baseline returns `math.huge` (an empty slot is an *infinite* improvement, and
+  must never be filtered out for being a small one), a zero or negative buyout is refused
+  rather than divided by, and `math.huge` can't reach the ratio because `PrimaryValue`
+  returns the delta, not the percentage. Worth saying plainly in a session where most of
+  these audits found something.
+- The gate exists because these are **divisions in display code** — the shape that produced
+  three real bugs here already — and because a wrong answer sorts a shopping list, which
+  means it decides what you buy.
+
+### A mutation result worth recording
+- Two of the four mutations **weren't caught**, and the interesting part is why. Removing
+  *either* zero-price guard changes nothing observable, because the other one still catches
+  the case. They're **equivalent mutations, not test gaps** — I confirmed it by removing
+  **both**, which fails three checks.
+- So the guards are individually redundant and jointly load-bearing. That's defensible
+  belt-and-braces, not dead code, and it's now the sort of claim that has evidence behind it
+  rather than a shrug.
+
 ## [0.57.0a] - 2026-08-09 — The PassLoot Upgrade rule stops firing on data it doesn't have
 
 ### Fixed

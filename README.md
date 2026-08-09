@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.57.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.57.1a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -91,11 +91,11 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. **24 subsystems execute real Lua** headlessly against a
+Developed without the game running. **25 subsystems execute real Lua** headlessly against a
 mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
 
 - **Things that can destroy or spend something** — the deletion protections, surplus-gear
-  marking, the auto-roll decision, the quest reward choice, the PassLoot Upgrade rule.
+  marking, the auto-roll decision, the quest reward choice, the PassLoot Upgrade rule, the TSM upgrade columns.
 - **Panels driven the way a user drives them** — the scale list, Settings, the main
   window's tabs, the confirm dialog, the minimap button, the icon picker, both search
   boxes, the character-sheet score.
@@ -132,7 +132,7 @@ overlapping settings controls, a module silently missing from the `.toc`, a move
 becoming a nil global, an unstable sort producing different "best" items between scans,
 bank data reaching a delete path, an option with no way to switch it on.
 
-24 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+25 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.

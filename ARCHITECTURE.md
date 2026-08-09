@@ -279,7 +279,7 @@ wiring is consistent. They cannot see behaviour.
 renamed here breaks them at loot time or on a bag repaint — not at load, where you would notice.
 
 **Runtime gates** — `animtest.js`, `widgettest.js`, `importtest.js`, `datatest.js`,
-`verifytest.js`, `deletetest.js`, `scalelisttest.js`, `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`, `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`, `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`, `futuretest.js`, `futurelinetest.js`, `passloottest.js`. These 24 *execute real Lua* under fengari against a mocked WoW API
+`verifytest.js`, `deletetest.js`, `scalelisttest.js`, `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`, `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`, `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`, `futuretest.js`, `futurelinetest.js`, `passloottest.js`, `tsmratiotest.js`. These 25 *execute real Lua* under fengari against a mocked WoW API
 (`luaharness.js` — deliberately one mock, since two would drift into testing different
 imaginary clients). Every substantive bug found in this codebase has come from these, because
 the static gates can only read.

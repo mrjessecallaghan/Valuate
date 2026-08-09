@@ -33,12 +33,12 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Twenty-four gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Twenty-five gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
   `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
   `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`, `futuretest.js`,
-  `futurelinetest.js`, `passloottest.js`.
+  `futurelinetest.js`, `passloottest.js`, `tsmratiotest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -69,6 +69,11 @@ that loses an entry does not complain, it just stops running.
 end?
 `. Skip rather than fail when the sibling addon is
   absent: a gate that fails for missing optional code teaches people to ignore it.
+- **An uncaught mutation is not automatically a test gap.** Two guards that each cover the
+  same case make either one individually removable with no observable change - an EQUIVALENT
+  mutation. Confirm by removing both: if that fails, the pair is jointly load-bearing and the
+  test is fine. `tsmratiotest.js` has a worked example. Do not weaken a test to chase one of
+  these, and do not delete the redundant guard on the strength of it either.
 - **Prove one branch at a time.** `deletetest.js` switches every protection off and enables
   exactly one per case, because a test where several branches could account for the same
   answer passes with five of six broken — and reads as thorough coverage while doing it.
@@ -379,6 +384,7 @@ callback either reschedule or be genuinely final.
 | `tools/futuretest.js` | Future upgrades group by the level that actually unlocks them |
 | `tools/futurelinetest.js` | The future-upgrade tooltip line never invents a level |
 | `tools/passloottest.js` | The PassLoot Upgrade rule does not fire on absent scan data |
+| `tools/tsmratiotest.js` | The TSM upgrade columns divide safely (empty slots, zero prices) |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
