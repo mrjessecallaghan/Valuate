@@ -7594,6 +7594,14 @@ local VERIFY_CHECKS = {
         broke = "Right-click cleared the binding but never ended the capture, and nothing ended it when the window closed. The button kept EnableKeyboard(true) - and 3.3.5 has no SetPropagateKeyboardInput, so a frame holding the keyboard CONSUMES what you type. Reopening Settings re-armed it, and the next key you pressed was silently bound.",
     },
     {
+        id = "futuremark", since = "0.56.0a",
+        gate = "tools/arrowtest.js",
+        title = "Future upgrades get a still blue marker, upgrades a pulsing green one",
+        steps = "Open your bags with something you can equip that beats your current best, and something /valuate future lists. Look at both icons for a few seconds.",
+        expect = "The wearable one has a green arrow that PULSES. The future one has a blue arrow that does not move at all. Two different colours, and only one of them is asking for attention.",
+        broke = "New in this version. Watch for the blue one pulsing too - movement is the loudest thing a bag icon does and it belongs to the marker you can act on. If both move, you stop reading either.",
+    },
+    {
         id = "futureline", since = "0.55.0a",
         gate = "tools/futurelinetest.js",
         title = "A future upgrade says so on its tooltip",

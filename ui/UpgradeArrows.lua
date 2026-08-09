@@ -84,8 +84,19 @@ pulseDriver:SetScript("OnUpdate", function(self, e)
         -- our update ever running, and animating textures nobody can see would
         -- carry on forever. They re-register the next time they're drawn.
         if rec.arrow:IsVisible() then
-            rec.arrow:SetAlpha(arrowAlpha)
-            rec.glow:SetAlpha(glowAlpha)
+            if rec.mode == "future" then
+                -- Still, and quieter. This one says "keep me", not "equip me", and it has
+                -- to be legible without competing with the arrows you can act on.
+                --
+                -- Written INSIDE the one loop rather than as an early branch of its own:
+                -- the Reduce Motion path was once a second loop that returned early and
+                -- forgot to prune, which leaked for a whole session. One loop, one prune.
+                rec.arrow:SetAlpha(0.75)
+                rec.glow:SetAlpha(0.28)
+            else
+                rec.arrow:SetAlpha(arrowAlpha)
+                rec.glow:SetAlpha(glowAlpha)
+            end
         else
             shownArrows[rec] = nil
         end
@@ -167,10 +178,38 @@ end
 -- repaint, so animating on every call would mean arrows jittering constantly while
 -- you moved things around. It also correctly re-plays when a slot's upgrade is
 -- replaced by a DIFFERENT upgrade, which a plain shown/hidden flag would miss.
-local function ShowArrow(button, itemLink)
+-- Two things a marker can mean, and they must not look alike.
+--
+--   "upgrade"  green, and it PULSES. Equip this now.
+--   "future"   blue, and it is STILL. Worth keeping; you cannot use it yet.
+--
+-- Movement is the loudest thing a bag icon can do, so it belongs to the one you can act on.
+-- A future marker that pulsed alongside would be asking for attention it cannot reward -
+-- you would look, find the item unequippable, and learn to ignore both.
+--
+-- Same textures for both, recoloured. An item is either equippable-and-better or
+-- not-yet-equippable, never both, so one marker per button is not a simplification - it is
+-- the shape of the data.
+local MARKER_MODES = {
+    upgrade = { arrow = { 0.25, 1.0, 0.25 }, glow = { 0.2, 1.0, 0.2 } },
+    future  = { arrow = { 0.35, 0.72, 1.0 }, glow = { 0.25, 0.55, 1.0 } },
+}
+
+local function ApplyMarkerMode(rec, mode)
+    local c = MARKER_MODES[mode] or MARKER_MODES.upgrade
+    rec.mode = mode
+    rec.arrow:SetVertexColor(c.arrow[1], c.arrow[2], c.arrow[3], 1)
+    rec.glow:SetVertexColor(c.glow[1], c.glow[2], c.glow[3], 1)
+end
+
+local function ShowArrow(button, itemLink, mode)
+    mode = mode or "upgrade"
     local rec = GetArrow(button)
-    local isNew = rec.shownFor ~= itemLink
+    -- New if the ITEM changed or the MEANING did: a piece that becomes wearable goes from
+    -- blue to green in place, and that is exactly the moment worth showing an entrance for.
+    local isNew = rec.shownFor ~= itemLink or rec.mode ~= mode
     rec.shownFor = itemLink
+    ApplyMarkerMode(rec, mode)
     rec.arrow:Show()
     rec.glow:Show()
     shownArrows[rec] = true
@@ -203,7 +242,12 @@ local function SetArrow(button, itemLink)
     end
 
     if Valuate:IsItemLinkUpgrade(itemLink) then
-        ShowArrow(button, itemLink)
+        ShowArrow(button, itemLink, "upgrade")
+    elseif Valuate.GetFutureUpgradeScales and Valuate:GetFutureUpgradeScales(itemLink) then
+        -- Checked SECOND, and only when the item is not already an upgrade. The two are
+        -- mutually exclusive by definition, but ordering it this way means a bug in the
+        -- future lookup can never take a green arrow away from something you can equip.
+        ShowArrow(button, itemLink, "future")
     else
         HideArrow(button)
     end

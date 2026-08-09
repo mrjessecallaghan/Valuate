@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.55.1a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.56.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -34,7 +34,8 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
   each with its own score. Enable the ones you use per scale and pick which is active;
   gear belonging to any enabled set is never treated as vendor fodder.
 - **Upgrade arrows** — a green arrow on any item icon that beats what you're wearing, in your
-  bags, at vendors and on the loot window. Follows your *current spec*, so an arrow always
+  bags, at vendors and on the loot window, plus a **still blue** one on gear you cannot use
+  yet but will. Only the actionable marker moves. Follows your *current spec*, so an arrow always
   means the same thing. Never on the character or wardrobe panels.
 - **Bank-aware best-in-slot** — gear in your bank counts, snapshotted when you visit one.
   Banked items are marked, because Equip All can't reach them.

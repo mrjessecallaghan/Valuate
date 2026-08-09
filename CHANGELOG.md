@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.56.0a] - 2026-08-09 — A still blue marker for gear you can't use yet
+
+### Added
+- **Future upgrades now get a marker on the bag icon**, alongside the green upgrade arrow.
+  Last release's tooltip line only helps if you hover; in a full bag you still couldn't see
+  which items were worth keeping without checking each one.
+- **Green pulses, blue doesn't.** Movement is the loudest thing a bag icon can do, and it
+  belongs to the marker you can act on. A future marker pulsing alongside would be asking for
+  attention it can't reward — you'd look, find the item unequippable, and learn to ignore
+  both.
+- Same textures, recoloured, one marker per button. An item is either equippable-and-better
+  or not-yet-equippable, never both — so that isn't a simplification, it's the shape of the
+  data.
+- **Levelling into an item turns its marker green in place**, and that gets the usual pop-in:
+  it's the moment the item changed meaning.
+
+### Implementation
+- The upgrade check runs **first**, so a bug in the future lookup can never take a green
+  arrow away from something you can actually equip.
+- The still-marker branch lives **inside the one driver loop** rather than as an early return
+  of its own. That's not style: the Reduce Motion path was once a second loop that returned
+  early and forgot to prune, and it leaked for a whole session (v0.45.1a).
+
+### Development
+- 11 more checks in `arrowtest.js` (28 total), including that the pulse and the stillness are
+  measured **over the same frames** — otherwise the test can pass by having looked at the two
+  markers at different moments.
+- Mutation-tested three ways: future markers pulsing, the future check running first and
+  stealing green from a wearable upgrade, and both modes sharing a colour.
+- One test bug of my own, fixed: the pruning check used a global count while two earlier
+  buttons were still on screen, so it was asserting about them. It now asks about the two
+  buttons it actually hid.
+
 ## [0.55.1a] - 2026-08-09 — Making the in-game pass smaller instead of longer
 
 ### Changed

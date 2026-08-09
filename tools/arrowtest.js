@@ -169,6 +169,87 @@ end
 ok(moved, "with motion on, the glow alpha actually changes between frames")
 ok(b.__textures[2]:GetAlpha() > 0.7, "the arrow itself never fades far enough to read as disappearing")
 
+-- ---- future markers: still, blue, never stealing a green arrow ------------------
+--
+-- Two meanings share one texture pair. "upgrade" pulses green because you can act on it;
+-- "future" is blue and STILL because you cannot. Movement is the loudest thing a bag icon
+-- does and it belongs to the one you can act on - a future marker pulsing alongside would be
+-- asking for attention it cannot reward, and you would learn to ignore both.
+__reduceMotion = false
+local UPGRADE = "|Hitem:100|h[Now]|h"
+local FUTURE  = "|Hitem:200|h[Later]|h"
+local FUTURE_SCALES = {}
+UPGRADES[UPGRADE] = true
+Valuate.GetFutureUpgradeScales = function(_, link) return FUTURE_SCALES[link] end
+FUTURE_SCALES[FUTURE] = { "Melee" }
+
+local bu, bf = makeButton(), makeButton()
+ns.SetUpgradeArrow(bu, UPGRADE)
+ns.SetUpgradeArrow(bf, FUTURE)
+
+local function colourOf(btn)
+    local v = btn.__textures[2].__vertex
+    return v and (string.format("%.2f", v[1]) .. "," .. string.format("%.2f", v[2]))
+end
+ok(colourOf(bu) ~= colourOf(bf), "an upgrade and a future item are not the same colour")
+
+-- The green one moves; the blue one does not - measured over the SAME frames, so this
+-- cannot pass by having looked at them at different moments.
+local upFirst, futureFirst = nil, nil
+local upMoved, futureMoved = false, false
+for _ = 1, 12 do
+    tick(0.05)
+    local u, f = bu.__textures[1]:GetAlpha(), bf.__textures[1]:GetAlpha()
+    if upFirst == nil then upFirst, futureFirst = u, f end
+    if math.abs(u - upFirst) > 0.001 then upMoved = true end
+    if math.abs(f - futureFirst) > 0.001 then futureMoved = true end
+end
+ok(upMoved, "the upgrade marker pulses")
+ok(not futureMoved, "the future marker holds still")
+ok(bf.__textures[2]:GetAlpha() > 0.5, "...and stays clearly legible while it does")
+
+-- An item that is BOTH must read as an upgrade: it is equippable and better, so the marker
+-- you can act on wins. Ordering the checks that way means a bug in the future lookup can
+-- never take a green arrow away from something wearable.
+local bb = makeButton()
+UPGRADES[FUTURE] = true
+ns.SetUpgradeArrow(bb, FUTURE)
+eq(colourOf(bb), colourOf(bu), "an item that is both shows the actionable marker")
+UPGRADES[FUTURE] = nil
+
+-- Levelling into an item swaps the marker in place, and that is worth an entrance: it is
+-- the moment the item changed meaning.
+ns.SetUpgradeArrow(bf, FUTURE)
+ok(colourOf(bf) ~= colourOf(bu), "still blue while it is unusable")
+UPGRADES[FUTURE] = true
+ns.SetUpgradeArrow(bf, FUTURE)
+eq(colourOf(bf), colourOf(bu), "levelling into it turns the marker green in place")
+UPGRADES[FUTURE] = nil
+
+-- Both kinds prune. The fix that closed a session-long leak has to hold for the mode added
+-- after it - which is exactly what a second branch forgets.
+--
+-- Asked about THESE buttons rather than through trackedCount(): earlier cases left other
+-- buttons on screen, so the global count is legitimately non-zero and using it here asserted
+-- something about them instead. That is how the first version of this check failed.
+local function writesTo(btn)
+    for _, t in ipairs(btn.__textures) do t:SetAlpha(-1) end
+    tick(0.05)
+    for _, t in ipairs(btn.__textures) do
+        if t:GetAlpha() ~= -1 then return true end
+    end
+    return false
+end
+
+ok(writesTo(bu), "a shown upgrade marker is still being driven")
+ok(writesTo(bf), "a shown future marker is still being driven")
+
+bu.__shown = false
+bf.__shown = false
+tick(0.05)   -- the pass that notices and drops them
+ok(not writesTo(bu), "an upgrade marker is dropped when its bag closes")
+ok(not writesTo(bf), "and so is a future marker - the pruning covers the newer mode too")
+
 return failures, checks
 `,
   "arrowtest",
