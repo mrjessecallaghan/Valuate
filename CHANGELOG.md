@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.58.0a] - 2026-08-09 — Equip All tells you what it's about to change
+
+### Added
+- **The Equip All tooltip now lists the slots it would change**, with a count — up to eight,
+  then "…and N more". If there's nothing to do it says so, rather than leaving you to press
+  it and find out.
+- A button that changes several slots at once shouldn't need to be pressed to discover how
+  many. *"6 slots"* tells you the size of the change; the **names** tell you whether it's the
+  change you meant.
+
+### Deliberately not a confirmation dialog
+- Equipping is **reversible** — the gear you took off is still in your bags — so gating it
+  behind a confirm would be friction on a button you might press every few levels. The useful
+  thing here isn't an extra click, it's knowing what's about to happen while you're already
+  looking at it. Compare deletion, which *is* gated, because it can't be undone.
+
+### Implementation
+- The list is collected in the row loop that already reads every slot's best and what's worn.
+  Recomputing on hover would cost what a scan costs, on a mouse move.
+- **Compared by item ID, not by link.** Two links for the same item differ by enchant and
+  suffix, so a link comparison would report every slot as changing — a lie in the safe
+  direction, which is still a lie, and the kind that reads as the feature not working.
+- The predicate mirrors `EquipBestSet`'s skips exactly: locked slots, bank items it can't
+  reach, anything already worn. I checked the two against each other rather than assuming —
+  same 17 slots, same three rules, same ID comparison. `/valuate verify equipcount` exists
+  because they are two pieces of code stating one rule, and only a person can watch the
+  predicted count meet the real one.
+
 ## [0.57.1a] - 2026-08-09 — The last uncovered integration, and an honest null result
 
 ### Development

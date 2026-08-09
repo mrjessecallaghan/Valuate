@@ -862,7 +862,35 @@ local function CreateBestEquipmentPanel(parent)
                     if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                         GameTooltip:AddLine("Equip All", 1, 1, 1)
                         GameTooltip:AddLine("Equip every best-in-slot item for this scale at once.", 0.8, 0.8, 0.8, true)
-                        GameTooltip:AddLine("Skips locked slots and anything already worn.", 0.7, 0.7, 0.7, true)
+
+                        -- What it will actually do, before you commit to it. A button that
+                        -- changes several slots at once should not need to be pressed to
+                        -- find out how many.
+                        local pending = col.pendingEquip or {}
+                        if #pending == 0 then
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine("|cFF888888Nothing to change - you are already wearing this scale's best.|r",
+                                0.8, 0.8, 0.8, true)
+                        else
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine(string.format("|cFF00FF00Would change %d slot%s:|r",
+                                #pending, #pending == 1 and "" or "s"), 1, 1, 1)
+                            -- Listed, not just counted, up to a point: "6 slots" tells you
+                            -- the size of the change and not whether it is the one you
+                            -- meant. Past eight the list is longer than the tooltip is
+                            -- useful, so it says how many more.
+                            local shown = math.min(#pending, 8)
+                            for i = 1, shown do
+                                GameTooltip:AddLine("   " .. pending[i], 0.7, 0.9, 0.7)
+                            end
+                            if #pending > shown then
+                                GameTooltip:AddLine(string.format("   |cFF888888...and %d more|r",
+                                    #pending - shown), 0.7, 0.7, 0.7)
+                            end
+                        end
+
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddLine("Skips locked slots, bank items and anything already worn.", 0.7, 0.7, 0.7, true)
                         GameTooltip:AddLine("Marks this weapon set as active. Does not touch your saved equipment sets.", 0.7, 0.7, 0.7, true)
                         GameTooltip:Show()
                     end
@@ -889,6 +917,17 @@ local function CreateBestEquipmentPanel(parent)
                 local equippedTotal, bestTotal, upgradeTotal = 0, 0, 0
                 local bankUpgradeTotal = 0
                 local emptyFillable = 0
+
+                -- Which slots Equip All would actually change.
+                --
+                -- Collected HERE rather than recomputed when the button is hovered: this
+                -- loop already reads every slot's best and what is worn, and doing it again
+                -- on hover would cost what a scan costs, on a mouse move.
+                --
+                -- The button is not gated behind a confirmation - equipping is reversible,
+                -- the old gear is still in your bags - so the useful thing is not friction
+                -- but knowing what is about to happen before you commit to it.
+                col.pendingEquip = {}
 
                 for rowIndex, slotInfo in ipairs(EquipmentSlots) do
                     local slotId = slotInfo.slotId
@@ -964,6 +1003,23 @@ local function CreateBestEquipmentPanel(parent)
 
                     -- Lock state + closures (rebound each update for this scaleName/slotId)
                     local isLocked = bestEquipment[scaleName] and bestEquipment[scaleName].locks and bestEquipment[scaleName].locks[slotId]
+
+                    -- Would Equip All touch this slot? Mirrors what EquipBestSet skips:
+                    -- locked slots, bank items it cannot reach, and anything already worn.
+                    --
+                    -- Compared by item ID, not by link. Two links for the same item differ
+                    -- by enchant and suffix, so a link comparison would report every slot as
+                    -- changing and the count would be a lie in the safe direction - which is
+                    -- still a lie, and the sort that reads as the feature not working.
+                    if bestItem and bestItem.itemLink and bestItem.source ~= "bank" and not isLocked then
+                        local wornLink = GetInventoryItemLink and GetInventoryItemLink("player", slotId)
+                        local bestId = string.match(bestItem.itemLink, "|Hitem:(%d+)")
+                        local wornId = wornLink and string.match(wornLink, "|Hitem:(%d+)")
+                        if bestId ~= wornId then
+                            col.pendingEquip[#col.pendingEquip + 1] = slotInfo.name or ("slot " .. slotId)
+                        end
+                    end
+
                     if isLocked then
                         lockIcon:SetTexture("Interface\\Buttons\\LockButton-Locked-Up")
                         lockIcon:SetAlpha(1.0)

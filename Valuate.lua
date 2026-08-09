@@ -7594,6 +7594,13 @@ local VERIFY_CHECKS = {
         broke = "Right-click cleared the binding but never ended the capture, and nothing ended it when the window closed. The button kept EnableKeyboard(true) - and 3.3.5 has no SetPropagateKeyboardInput, so a frame holding the keyboard CONSUMES what you type. Reopening Settings re-armed it, and the next key you pressed was silently bound.",
     },
     {
+        id = "equipcount", since = "0.58.0a",
+        title = "Equip All says how many slots it will change, and is right",
+        steps = "Open Best Equipment with a few upgrades in your bags. Hover Equip All and read the list. Then click it and count what actually changed. Try it again immediately - hover it a second time.",
+        expect = "The listed slots are the ones that change, and the count matches. Straight after equipping, the tooltip says there is nothing left to change.",
+        broke = "New in this version. The tooltip predicts what EquipBestSet will do by mirroring its skip rules - locked slots, bank items, anything already worn, compared by item ID. Those are two separate pieces of code stating one rule, so the thing to catch is a count that does not match what happened.",
+    },
+    {
         id = "futureslot", since = "0.56.1a",
         title = "A slot's tooltip mentions what is waiting behind its best item",
         steps = "Open Best Equipment. Find a slot where you have a usable best item AND /valuate future lists something for that same slot. Hover the row.",
