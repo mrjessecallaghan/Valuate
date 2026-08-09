@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.60.1a] - 2026-08-09 — `/valuate report` was collecting an outcome and discarding it
+
+### Fixed
+- **Auto-accept quests recorded its outcome every time, and nothing ever displayed it.**
+  `questAccept` had a heartbeat from the day the feature shipped and was never added to the
+  report's list. That's the worst version of this problem: not missing data, but data
+  collected and thrown away — nobody notices, because the recording side looks correct.
+
+### Added
+- **Heartbeats for the three automations that had none**: auto-roll, auto-repair, and quest
+  reward selection. The report claims to say *when each automation last ran and what it
+  concluded*; for those three it could not say anything at all.
+- Each records the **outcome**, not just the time — `"Need on [Item]"`, `"could not afford
+  3g 40s"`, `"took [Item]"`. Auto-repair records the case where it *couldn't* pay, because
+  "ran and correctly did nothing" is a different answer from "never ran", and a chat line
+  scrolls away.
+- Quest reward selection records **which** reward it took. That action is irreversible, so
+  "something was taken" is not a useful thing to be told afterwards.
+
+### Development
+- `tools/commands.js` now also checks that **every recorded heartbeat is displayed**, and
+  that the report doesn't list automations which never record one — those would read *"not
+  yet this session"* forever, which is a lie by omission.
+- Mutation-tested both directions; removing the `questAccept` line reproduces the original
+  bug exactly.
+- That's the **ninth** hand-maintained list here to drift, and the second found by checking a
+  README claim rather than reading code. *"Every automated path has a diagnostic that explains
+  why it did nothing"* is now true for all nine.
+
 ## [0.60.0a] - 2026-08-09 — `/valuate help` was hiding every command that deletes things
 
 ### Fixed

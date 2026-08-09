@@ -98,7 +98,54 @@ if (staleHidden.length) {
   process.exit(1);
 }
 
+/*
+ * Every automation heartbeat is shown by /valuate report.
+ *
+ * README: "Every automated path has a diagnostic that explains why it did NOTHING - that's
+ * what the *check/preview commands are for", and `report` is described as saying when each
+ * automation last ran and what it concluded.
+ *
+ * `questAccept` had been recorded since auto-accept existed and was never in the report's
+ * list, so its outcome was captured and thrown away every time. That is the worst version of
+ * this: not missing data, but data collected and discarded, which nobody notices because the
+ * recording side looks correct.
+ *
+ * Same family as the check above - two lists that have to agree, edited at different times.
+ */
+const marked = new Set(
+  [...core.matchAll(/MarkAutomation\("(\w+)"/g)].map((m) => m[1])
+);
+const reportBlock = core.match(/local HEARTBEATS = \{[\s\S]*?\n    \}/);
+if (!reportBlock) {
+  console.error("ERROR  could not find the HEARTBEATS list in the report");
+  process.exit(2);
+}
+const shown = new Set(
+  [...reportBlock[0].matchAll(/key = "(\w+)"/g)].map((m) => m[1])
+);
+
+const unshown = [...marked].filter((k) => !shown.has(k)).sort();
+if (unshown.length) {
+  console.error("Automations that record a heartbeat nothing ever displays:");
+  for (const k of unshown) console.error(`  ${k}`);
+  console.error(
+    "\nAdd them to HEARTBEATS in /valuate report. Recording an outcome and never showing " +
+      "it is worse than not recording it: the code looks like it works."
+  );
+  process.exit(1);
+}
+
+const phantom = [...shown].filter((k) => !marked.has(k)).sort();
+if (phantom.length) {
+  console.error(
+    "The report lists automations that never record a heartbeat: " + phantom.join(", ") +
+      " - they will always read 'not yet this session', which is a lie by omission."
+  );
+  process.exit(1);
+}
+
 console.log(
   `OK  all ${commands.size} slash commands are documented in /valuate help ` +
-    `(${Object.keys(HIDDEN).length} deliberately hidden).`
+    `(${Object.keys(HIDDEN).length} deliberately hidden); ` +
+    `all ${marked.size} automation heartbeats are shown by /valuate report.`
 );

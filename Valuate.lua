@@ -5770,6 +5770,9 @@ function Valuate:AutoSelectBestQuestReward()
                 print("|cFF00FF00Valuate|r turning in quest, reward: " .. rewardText)
             end
         end
+        -- Irreversible: the other rewards are gone the moment this returns. Recorded so
+        -- the report can say WHICH one was taken, not merely that something was.
+        Valuate:MarkAutomation("questReward", "took " .. (bestLink or ("choice " .. bestIndex)))
         GetQuestReward(bestIndex)
         return
     end
@@ -6360,17 +6363,22 @@ function Valuate:AutoRepair(verbose)
     if options.autoRepairGuildFirst and CanGuildBankRepair and CanGuildBankRepair() then
         local ok = pcall(function() RepairAllItems(1) end)
         if ok then
+            Valuate:MarkAutomation("autoRepair", "guild funds, " .. money)
             print("|cFF00FF00[Valuate]|r Repaired using guild funds (" .. money .. ").")
             return true
         end
     end
 
     if GetMoney() < cost then
+        -- Recorded as well as printed. "Could not afford it" is exactly the kind of
+        -- did-nothing the report exists to explain, and a chat line scrolls away.
+        Valuate:MarkAutomation("autoRepair", "could not afford " .. money)
         print("|cFFFF5555[Valuate]|r Not enough money to repair (" .. money .. ").")
         return false
     end
 
     RepairAllItems()
+    Valuate:MarkAutomation("autoRepair", "repaired for " .. money)
     print("|cFF00FF00[Valuate]|r Repaired for " .. money .. ".")
     return true
 end
@@ -6649,6 +6657,7 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
             label, link or name or "item", reason))
     end
 
+    Valuate:MarkAutomation("autoRoll", string.format("%s on %s", label, name or "an item"))
     RollOnLoot(rollID, rollType)
 end
 
@@ -7008,6 +7017,13 @@ function Valuate:PrintReport()
         { key = "junkCleanup",   label = "Junk cleanup" },
         { key = "junkSell",      label = "Junk selling" },
         { key = "upgradeNotify", label = "Upgrade alert" },
+        -- questAccept has been RECORDED since auto-accept existed and never displayed:
+        -- the outcome was captured and thrown away. autoRoll and autoRepair had no
+        -- heartbeat at all, so the report could not say whether they had run.
+        { key = "questAccept",   label = "Quest auto-accept" },
+        { key = "autoRoll",      label = "Loot roll" },
+        { key = "autoRepair",    label = "Auto-repair" },
+        { key = "questReward",   label = "Quest reward taken" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
     }
     print("  |cFFAAAAAALast run this session:|r")

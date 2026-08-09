@@ -381,7 +381,7 @@ callback either reschedule or be genuinely final.
 | `tools/globals.js` | Scope analysis: undefined globals + the `ns.*` contract |
 | `tools/tocsync.js` | `.toc` ↔ `ui/` ↔ this file stay in step |
 | `tools/options.js` | Options are reachable; every automation defaults to off |
-| `tools/commands.js` | Every slash command has a line in `/valuate help` |
+| `tools/commands.js` | Every slash command is in `/valuate help`; every heartbeat is in `/valuate report` |
 | `tools/api.js` | Selftest-listed methods exist; integration addons call real ones |
 | `tools/animtest.js` | Runs the animation engine for real against a mocked WoW API |
 | `tools/widgettest.js` | Runs input validation, colour handling and the shared search box |

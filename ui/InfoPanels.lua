@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.60.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.60.1a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.60.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.60.1a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -446,6 +446,10 @@ local function CreateChangelogPanel(parent)
         "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
         "   never re-animating as you move things around your bags.\n" ..
         "• The window resizes smoothly instead of snapping between tabs.\n" ..
+        "• FIXED: /valuate report now covers every automation. Auto-accept had been\n" ..
+        "   recording its outcome since it shipped and nothing ever showed it, and\n" ..
+        "   auto-roll, auto-repair and quest-reward selection recorded nothing at\n" ..
+        "   all. Each now reports WHAT it concluded, including 'could not afford it'.\n" ..
         "• FIXED: /valuate help was listing 19 of 30 commands, and the missing ones\n" ..
         "   were the automation toggles and EVERY command that deletes or sells -\n" ..
         "   including /valuate deletepreview, the one you are meant to run before\n" ..
