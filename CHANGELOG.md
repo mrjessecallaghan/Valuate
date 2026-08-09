@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.57.0a] - 2026-08-09 — The PassLoot Upgrade rule stops firing on data it doesn't have
+
+### Fixed
+- **`Valuate-PassLoot`'s Upgrade rule matched everything on a character that had never been
+  scanned.** Two of its exits returned *"yes, this is an upgrade"* when Valuate simply had no
+  data — no best-equipment table at all, or none for the scale the rule names.
+- A PassLoot rule matching means PassLoot performs whatever action you configured for it, and
+  the usual configuration is **"if Upgrade then Need"**. So a false match is a Need roll on
+  something that isn't an upgrade — the exact failure the core addon's auto-roll is built to
+  make impossible (v0.53.1a: *"never Need on something we do not want"*). The integration was
+  contradicting the addon it integrates with, in front of other people.
+- Failing open is the wrong direction when the failure is social and the fix is one
+  `/valuate scan`. Both now decline, and say which in the debug log.
+
+### What did NOT change, and why
+- **"Scanned, but nothing tracked for this slot" still matches.** That one isn't missing
+  data — it's knowledge: you own nothing better for that slot, so the item genuinely *is* an
+  upgrade. Conflating "we don't know" with "we know there's nothing" is what made returning
+  yes for all three look reasonable.
+- That distinction is a mutation in the gate, not just a comment: making that case decline
+  fails two checks. Applying *"uncertainty declines to act"* to all three exits would have
+  been the obvious move and the wrong one.
+
+### Development
+- **A twenty-ninth gate, `tools/passloottest.js`** — 16 checks on `module:UpgradeVerdict`,
+  extracted from the middle of `GetMatch` so the four exits could be stated at all.
+- Mutation-tested four ways: each never-scanned case returning yes again, the
+  nothing-tracked case declining, and an equal score counting as an upgrade.
+- Also pinned: an **equal** score is not an upgrade (a sidegrade costs the same socially as a
+  worse item, and you already have one), and the comparison works across zero, since a scale
+  can carry negative weights.
+- Like `surplustest.js`, the source is in a sibling addon with **no git remote** — this gate
+  skips rather than fails when it's absent, and is currently the only thing guarding it.
+
 ## [0.56.1a] - 2026-08-09 — What's waiting behind the item you already have
 
 ### Added

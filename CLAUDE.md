@@ -33,12 +33,12 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Twenty-three gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Twenty-four gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
   `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
   `iconpickertest.js`, `surplustest.js`, `rolltest.js`, `questtest.js`, `futuretest.js`,
-  `futurelinetest.js`.
+  `futurelinetest.js`, `passloottest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -82,6 +82,12 @@ end?
   currently right. Their OUTPUT genuinely differs (a column label, a paragraph, a one-liner),
   so a shared helper would be thinner than the duplication - but if a fourth appears, extract
   the predicate.
+- **"We do not know" and "we know there is nothing" are different answers.** The PassLoot
+  Upgrade rule returned yes for both: never-scanned AND nothing-tracked-for-this-slot. The
+  first is missing data and must decline; the second is knowledge - you own nothing better,
+  so the item genuinely is an upgrade - and must match. Applying the rule below to all three
+  exits would have been the obvious move and the wrong one, which is why the gate mutates
+  that case too.
 - **When the action cannot be undone, uncertainty declines to act.** Three decisions now
   share that rule and it is the one to copy: surplus-gear marking says no unless every guard
   clears, quest reward selection picks NOTHING when nothing scored and there is a real choice
@@ -372,6 +378,7 @@ callback either reschedule or be genuinely final.
 | `tools/questtest.js` | Quest reward choice prefers upgrades and declines to guess |
 | `tools/futuretest.js` | Future upgrades group by the level that actually unlocks them |
 | `tools/futurelinetest.js` | The future-upgrade tooltip line never invents a level |
+| `tools/passloottest.js` | The PassLoot Upgrade rule does not fire on absent scan data |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
