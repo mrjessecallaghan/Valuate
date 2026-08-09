@@ -7594,6 +7594,13 @@ local VERIFY_CHECKS = {
         broke = "Right-click cleared the binding but never ended the capture, and nothing ended it when the window closed. The button kept EnableKeyboard(true) - and 3.3.5 has no SetPropagateKeyboardInput, so a frame holding the keyboard CONSUMES what you type. Reopening Settings re-armed it, and the next key you pressed was silently bound.",
     },
     {
+        id = "futureslot", since = "0.56.1a",
+        title = "A slot's tooltip mentions what is waiting behind its best item",
+        steps = "Open Best Equipment. Find a slot where you have a usable best item AND /valuate future lists something for that same slot. Hover the row.",
+        expect = "After the score and the vs-Equipped line, a blue line naming the waiting item and the level it needs. On a slot with nothing waiting, no such line at all.",
+        broke = "New in this version. The row can only draw one item and it draws the future one only when there is NO equippable best - which while levelling is the rare case, so anything waiting sat invisible behind what you already had. Watch for 'level 0': when nothing is blocking but the level, the line must not name one.",
+    },
+    {
         id = "futuremark", since = "0.56.0a",
         gate = "tools/arrowtest.js",
         title = "Future upgrades get a still blue marker, upgrades a pulsing green one",

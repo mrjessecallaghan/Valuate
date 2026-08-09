@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.56.1a] - 2026-08-09 — What's waiting behind the item you already have
+
+### Added
+- **A Best Equipment row's tooltip now names the future item for that slot**, with the level
+  it needs.
+- The panel already drew future items — but **only when there was no equippable best at
+  all**. While levelling that's the rare case: you have *something* in every slot, so
+  anything waiting sat invisible behind it, in the one panel you'd plan gear from. A row can
+  only draw one item; its tooltip can mention both.
+- It doesn't invent a level either. When something other than a level is in the way, the line
+  says *"waiting for this slot"* and leaves the number out — the same rule the item tooltip's
+  future line follows.
+
+### Notes
+- **I was wrong about this before I looked.** I assumed the panel ignored future items
+  entirely; it handles them carefully — dimmed icon, `Lv 42` in the comparison column, a
+  tooltip covering the unlearned-proficiency case. The gap was narrower and more specific
+  than the one I set out to fix, and only visible after reading the code.
+- **This line is not gated**, and that's worth saying in a release where most things are. It
+  lives inside a closure that needs the whole panel built and an `OnEnter` fired; the risk is
+  a print statement reading data three other places already read correctly.
+  `/valuate verify futureslot` covers it.
+- Recorded in `CLAUDE.md`: **three places now describe a future upgrade**, each independently
+  implementing "never name a level when `reqLevel` is 0", all three currently right. Their
+  output genuinely differs — a column label, a paragraph, a one-liner — so a shared helper
+  would be thinner than the duplication. If a fourth appears, extract the predicate.
+
 ## [0.56.0a] - 2026-08-09 — A still blue marker for gear you can't use yet
 
 ### Added

@@ -1130,6 +1130,38 @@ local function CreateBestEquipmentPanel(parent)
                                     end
                                     GameTooltip:AddLine("vs Equipped: |cFF" .. diffColor .. diffSign .. string.format(formatStr, diff) .. "|r", 0.8, 0.8, 0.8)
                                 end
+
+                                -- The future item for this slot, which is otherwise INVISIBLE.
+                                --
+                                -- The row can only draw one item, and it draws the future one
+                                -- only when there is no equippable best at all. While
+                                -- levelling that is the rare case: you have something in
+                                -- every slot, so anything waiting sits behind it and the
+                                -- panel you would plan gear from does not mention it.
+                                local futureItem = bestEquipment[scaleName]
+                                    and bestEquipment[scaleName].future
+                                    and bestEquipment[scaleName].future[slotId]
+                                if futureItem and futureItem.itemLink then
+                                    GameTooltip:AddLine(" ")
+                                    if futureItem.reqLevel and futureItem.reqLevel > 0 then
+                                        GameTooltip:AddLine(string.format(
+                                            "|cFF66CCFFWaiting at level %d:|r %s",
+                                            futureItem.reqLevel,
+                                            futureItem.itemName or "an item"), 1, 1, 1, true)
+                                    else
+                                        -- No usable level means something else is in the way,
+                                        -- so the line does not invent one - same rule the
+                                        -- item tooltip's future line follows.
+                                        GameTooltip:AddLine(string.format(
+                                            "|cFF66CCFFWaiting for this slot:|r %s",
+                                            futureItem.itemName or "an item"), 1, 1, 1, true)
+                                    end
+                                    if futureItem.score then
+                                        GameTooltip:AddLine(string.format("It would score " .. formatStr ..
+                                            " here.", futureItem.score), 0.7, 0.7, 0.7)
+                                    end
+                                end
+
                                 GameTooltip:AddLine(" ")
                                 GameTooltip:AddLine("|cFF888888Right-click to equip|r", 0.6, 0.6, 0.6)
                                 GameTooltip:Show()

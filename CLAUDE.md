@@ -76,6 +76,12 @@ end?
   shorter list before it checks anything, because a row that captured its scale at build time
   passes every test that only populates once. That is the difference between covering the code
   and covering the failure.
+- **Three places now describe a future upgrade** - the item tooltip line, the Best Equipment
+  row when there is no equippable best, and that row's tooltip when there is. All three
+  independently implement "never name a level when reqLevel is 0", and all three are
+  currently right. Their OUTPUT genuinely differs (a column label, a paragraph, a one-liner),
+  so a shared helper would be thinner than the duplication - but if a fourth appears, extract
+  the predicate.
 - **When the action cannot be undone, uncertainty declines to act.** Three decisions now
   share that rule and it is the one to copy: surplus-gear marking says no unless every guard
   clears, quest reward selection picks NOTHING when nothing scored and there is a real choice
