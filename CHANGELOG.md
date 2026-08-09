@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.53.0a] - 2026-08-09 — The one uncovered decision that could delete gear
+
+### Development
+- **A twenty-fourth gate, `tools/surplustest.js`**, covering `ComputeSurplusGear` in
+  `Valuate-AdiBags` — the last untested decision in the project that can end in gear being
+  **deleted**. "Mark surplus gear as junk" routes anything that is neither best-in-slot nor a
+  future upgrade into AdiBags' Junk section, and that section is what auto-delete and
+  auto-sell consume. A wrong *yes* here isn't a mislabelled bag icon; it's an item destroyed.
+- The asymmetry is the design, so the checks are about the asymmetry: **every uncertainty
+  must answer no.** No trustworthy best-in-slot data yet, item not in the client's cache,
+  Valuate has no opinion about the slot, part of a saved equipment set, above the quality
+  ceiling, excluded from evaluation, unknown quality — nine separate ways of not being sure,
+  each turned on one at a time against a baseline that does answer yes.
+- Also pinned: an **empty** best-for list must *not* protect. Those helpers return a table,
+  `if best then` is true for `{}` in Lua, and a naive check would protect every item ever
+  asked about — the feature would silently do nothing. Opposite mistake to the dangerous one,
+  equally invisible.
+- Mutation-tested four ways: dropping the best-data guard, the truthy-empty-table trap,
+  making the quality ceiling exclusive, and un-protecting equipment-set members.
+
+### Notes
+- **The source lives in a sibling addon, not in this repository.** That's unusual for a gate
+  here and worth knowing before trusting a green run. On a machine with only Valuate checked
+  out this **skips** rather than fails — a gate that failed for being unable to find optional
+  code would train people to ignore it.
+- `Valuate-AdiBags` still has no git remote, so this gate is currently the only thing
+  guarding any of it.
+- The slice had to be made CRLF-tolerant: the integration addons ship with Windows line
+  endings and tab indentation, unlike the core, so the `\nend\n` anchor every other sliced
+  gate uses found nothing.
+
 ## [0.52.1a] - 2026-08-09 — One search box, three users, one Escape
 
 ### Fixed

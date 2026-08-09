@@ -33,11 +33,11 @@ that loses an entry does not complain, it just stops running.
   combat, then leave combat" is not a test anyone runs by hand. **Add an entry there whenever
   you change behaviour a gate cannot see** - `tocsync.js` checks the ids are unique and the
   versions are real, but only a person can notice an entry is missing.
-- **Eighteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
+- **Nineteen gates run Valuate code rather than reading it**: `animtest.js`, `widgettest.js`,
   `importtest.js`, `datatest.js`, `verifytest.js`, `deletetest.js`, `scalelisttest.js`,
   `bestequiptest.js`, `tooltiptest.js`, `arrowtest.js`, `sharetest.js`, `settingstest.js`,
   `tabtest.js`, `dialogtest.js`, `minimaptest.js`, `statsearchtest.js`, `charwindowtest.js`,
-  `iconpickertest.js`.
+  `iconpickertest.js`, `surplustest.js`.
   This matters because
   every static gate passes on a clamp whose comparison is the wrong way round, a
   correct-looking branch in the wrong order, a division by a signed value that should have
@@ -61,6 +61,13 @@ that loses an entry does not complain, it just stops running.
   those. The core file needs most of the WoW API to reach its end; a self-contained function
   needs none of it. A failed match exits non-zero and a truncated one will not compile, so
   this cannot degrade into a gate that silently tests nothing.
+- **Slicing reaches the INTEGRATION addons too.** `surplustest.js` pulls `ComputeSurplusGear`
+  out of `Valuate-AdiBags` — an AceAddon module that needs AdiBags itself to load, but whose
+  decision function needs nothing but a fake `self`. Those files use CRLF and tabs unlike the
+  core, so anchor slices on `?
+end?
+`. Skip rather than fail when the sibling addon is
+  absent: a gate that fails for missing optional code teaches people to ignore it.
 - **Prove one branch at a time.** `deletetest.js` switches every protection off and enables
   exactly one per case, because a test where several branches could account for the same
   answer passes with five of six broken — and reads as thorough coverage while doing it.
@@ -344,6 +351,7 @@ callback either reschedule or be genuinely final.
 | `tools/statsearchtest.js` | The stat search dims non-matching rows and touches nothing else |
 | `tools/charwindowtest.js` | The character-sheet score still updates after it blanks |
 | `tools/iconpickertest.js` | The virtual icon grid hands back the icon you clicked |
+| `tools/surplustest.js` | Surplus-gear marking (feeds auto-delete) says no unless certain |
 | `tools/luaharness.js` | The shared fengari bootstrap + WoW mock (not a gate itself) |
 
 ### `ui/` modules (load order matters — see the `.toc`)
