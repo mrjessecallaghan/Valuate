@@ -252,6 +252,33 @@ local top = ns.ScaleListButtons[1]
 top:GetScript("OnClick")(top)
 eq(__lastEditorName, "Bravo", "clicking row 1 opens the scale that moved there")
 
+-- ---- the empty state must point at buttons that EXIST ---------------------------
+-- This is the one screen whose entire job is telling a stuck user what to click, and it
+-- named "New Blank Scale" and "+" for several releases after both were renamed. Whatever
+-- it highlights has to be a button actually on this panel.
+local emptyText = nil
+for _, f in ipairs(__frames) do
+    if f.__text and string.find(tostring(f.__text), "No scales yet", 1, true) then
+        emptyText = f.__text
+    end
+end
+ok(emptyText ~= nil, "the empty state exists")
+
+local panelLabels = {}
+for _, f in ipairs(__frames) do
+    if f.__scripts and f.__scripts.OnClick and f.label and f.label.__text then
+        panelLabels[f.label.__text] = true
+    end
+end
+
+local named = 0
+for highlighted in string.gmatch(tostring(emptyText), "|c%x%x%x%x%x%x%x%x(.-)|r") do
+    named = named + 1
+    ok(panelLabels[highlighted] == true,
+        "the empty state points at a real button: " .. highlighted)
+end
+ok(named > 0, "the empty state actually names a button to click")
+
 return failures, checks
 `,
   "scalelisttest",

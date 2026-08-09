@@ -581,12 +581,18 @@ UpdateScaleList = function()
     -- Empty state. A default scale is created at load, so this only appears if you
     -- delete your last one mid-session - which previously left a blank panel with
     -- no indication of what to do next.
+    --
+    -- It named "New Blank Scale" and "+" until 0.66.0a. Both buttons had been renamed to
+    -- "Blank" and "From Template" long before, so the one screen whose entire job is
+    -- telling a stuck user what to click was pointing at two things that no longer
+    -- existed. tools/scalelisttest.js now requires every button this text names to be a
+    -- button that is actually on the panel.
     if not ScaleListFrame.emptyLabel then
         local empty = ScaleListFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
         empty:SetPoint("TOP", ScaleListFrame, "TOP", 0, -20)
         empty:SetWidth(160)
         empty:SetJustifyH("CENTER")
-        empty:SetText("No scales yet.\n\nUse |cFFFFFFFFNew Blank Scale|r below, or |cFFFFFFFF+|r to start from a template.")
+        empty:SetText("No scales yet.\n\nClick |cFF3FE0C8Make me a scale|r below and I will build one from the gear you are wearing.")
         empty:SetTextColor(unpack(COLORS.textDim))
         ScaleListFrame.emptyLabel = empty
     end

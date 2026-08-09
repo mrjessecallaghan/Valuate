@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.66.0a] - 2026-08-09 — the "no scales yet" screen was pointing at buttons that no longer existed
+
+### Fixed
+- **The empty state told you to click two things that are not there.** With no scales, the
+  list said *"Use **New Blank Scale** below, or **+** to start from a template"*. Both were
+  renamed releases ago — to *Blank* and *From Template* — and nobody re-read the one screen
+  whose entire job is telling a stuck user what to click. It now points at **Make me a
+  scale** and says what that will do.
+
+This is the same drift as the eleven undocumented commands and the discarded heartbeat, but
+it lands on the worst possible person: someone with nothing on screen, looking for the
+instruction that tells them what to do next, and being sent to a button that does not exist.
+
+### Gates
+- `tools/scalelisttest.js` now requires every button the empty state highlights to be a
+  button actually on the panel. It extracts the colour-highlighted spans from the text and
+  matches them against the real labels, so this cannot rot again — verified by putting the
+  old text back, which fails on both `New Blank Scale` and `+`.
+
 ## [0.65.0a] - 2026-08-09 — you can find the wizard without knowing it exists
 
 A feature reachable only by a slash command is a feature for people who already read the
