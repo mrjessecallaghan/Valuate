@@ -6346,6 +6346,29 @@ function Valuate:IsPassLootRollingToo()
     return (ok and mod) and true or false
 end
 
+-- What to roll, given whether we want the item and what the game is offering.
+--
+-- Three booleans, eight combinations, and two of them are the only things that matter:
+--
+--   * NEVER Need on something we do not want. Needing on gear you cannot use is the thing
+--     people get removed from groups for, and it is done on your behalf without asking.
+--   * NEVER Pass when Greed is available. Passing costs you the item and gains nobody
+--     anything; if we are going to act automatically, the floor is "no worse than Greed".
+--
+-- Pulled out of AutoRollOnLoot as a named function so those two can be stated as
+-- assertions over the whole input space rather than read out of a branch that sits between
+-- a tooltip parse and a live RollOnLoot call. Eight cases is small enough to enumerate, and
+-- tools/rolltest.js enumerates them.
+--
+-- Returns: rollType (0 pass / 1 need / 2 greed), label.
+local function DecideRollType(wants, canNeed, canGreed)
+    if wants and canNeed then return 1, "Need" end
+    -- Need is not always offered for something you cannot use yet - a recipe above your
+    -- skill is exactly that - and Greed still wins it.
+    if canGreed then return 2, "Greed" end
+    return 0, "Pass"
+end
+
 function Valuate:AutoRollOnLoot(rollID, isRetry)
     local options = Valuate:GetOptions()
     if not options.autoRollLoot or not rollID then return end
@@ -6385,17 +6408,8 @@ function Valuate:AutoRollOnLoot(rollID, isRetry)
     end
 
     -- 0 = pass, 1 = need, 2 = greed.
-    local rollType, label
-    if isUpgrade or isRecipe or isMaterial then
-        if canNeed then rollType, label = 1, "Need"
-        -- Need is not always offered for something you can't use yet, which is
-        -- exactly the case for a recipe above your skill. Greed still wins it.
-        elseif canGreed then rollType, label = 2, "Greed"
-        else rollType, label = 0, "Pass" end
-    else
-        if canGreed then rollType, label = 2, "Greed"
-        else rollType, label = 0, "Pass" end
-    end
+    local rollType, label =
+        DecideRollType(isUpgrade or isRecipe or isMaterial, canNeed, canGreed)
 
     if options.chatMessages then
         local reason

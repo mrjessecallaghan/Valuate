@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.53.1a] - 2026-08-09 — The auto-roll decision, stated as two promises
+
+### Development
+- **`DecideRollType` pulled out of `AutoRollOnLoot` as a named function**, and gated. This
+  decision is taken automatically, in a group, on your behalf, and **other people see the
+  result** — but it was a branch sitting between a tooltip parse and a live `RollOnLoot`
+  call, where it couldn't be stated or tested.
+- Two properties carry the weight, and they're now assertions rather than reading:
+  - **Never Need on something we don't want.** Needing on gear you can't use is what people
+    get removed from groups for, and nobody asked you before it happened.
+  - **Never Pass when Greed is available.** Passing costs you the item and gains nobody
+    anything; if the addon acts by itself, the floor is "no worse than Greed".
+- Three booleans is **eight cases, so they're enumerated rather than sampled** — the lesson
+  from the tooltip percentage, where hand-picked cases missed the branch that mattered. Both
+  properties are asserted over every one of the eight, so a fourth flag added later can't
+  slip past them.
+- 38 checks. Mutation-tested three ways: Needing whenever Need is offered (the social
+  disaster), Passing instead of Greeding on something we don't want, and the printed label
+  disagreeing with the roll actually sent — a chat line that lies about what it just did on
+  your behalf.
+- Also pinned: `nil` is not `true`. Those flags come straight from `GetLootRollItemInfo`, and
+  a nil `canNeed` has to read as "not offered" rather than sneaking through a truthiness
+  check.
+
+### Notes
+- **No behaviour changed.** The decision was already correct; it just had nothing keeping it
+  that way, and it was the last automated action in the addon in that position.
+
 ## [0.53.0a] - 2026-08-09 — The one uncovered decision that could delete gear
 
 ### Development
