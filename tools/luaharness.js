@@ -53,6 +53,13 @@ function CreateFrame(frameType, name, parent, template)
     if not isRegion and parent and type(parent) == "table" and parent.__children then
         table.insert(parent.__children, f)
     end
+
+    -- A NAMED frame becomes a global in the client, which is how addons find each other's
+    -- frames and how UISpecialFrames closes one by name. Without this, any code doing
+    -- _G["ValuateSomething"] silently found nil here and the gate agreed with it.
+    if name and type(name) == "string" then
+        _G[name] = f
+    end
     function f:SetScript(which, fn) self.__scripts[which] = fn end
     function f:GetScript(which) return self.__scripts[which] end
     -- HookScript ADDS to a handler rather than replacing it, which is the whole reason

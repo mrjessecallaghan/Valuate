@@ -678,7 +678,21 @@ for (const file of files) {
       }
     }
 
-    // settings-anchor-chain: two controls anchored to the same frame+point overlap.
+    /*
+     * settings-anchor-chain: two controls anchored to the same frame+point overlap.
+     *
+     * Tracked per top-level FUNCTION, not per file. The name is all this rule has to go on,
+     * and `local title` in three different builders is three different frames - flagging
+     * those is the same crying-wolf failure that made CheckColumnAnchors useless in the
+     * client, and the fix there was the same: stop reporting things that are not collisions.
+     *
+     * Conservative in the right direction. Resetting at a function boundary can only ever
+     * MISS a collision spanning two functions, which needs a shared upvalue and is rare;
+     * not resetting invents one every time a builder reuses an obvious local name, which is
+     * constant.
+     */
+    if (/^(local\s+)?function\s/.test(code)) anchorTargets.clear();
+
     const anchor = code.match(
       /:SetPoint\(\s*"TOPLEFT"\s*,\s*(\w+)\s*,\s*"BOTTOMLEFT"/
     );

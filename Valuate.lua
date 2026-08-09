@@ -8279,6 +8279,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate turnin - Toggle auto-completing quests (takes best reward)")
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
+        print("  |cFF3FE0C8/valuate wizard|r - Build an optimized scale from the gear you are wearing")
         print("  /valuate scales - List all stat weight scales")
         print("  /valuate bank - Show the bank snapshot used for best-in-slot")
         print("  /valuate equip - Equip the best set for the active scale")
@@ -8405,6 +8406,14 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif strsub(command, 1, 6) == "verify" then
         Valuate:RunVerify(strtrim(strsub(command, 7)))
+    elseif command == "wizard" then
+        -- The guided scale builder. Lives in ui/Wizard.lua, so it is absent if the UI
+        -- modules failed to load - which is worth saying rather than doing nothing.
+        if Valuate.ShowScaleWizard then
+            Valuate:ShowScaleWizard()
+        else
+            print("|cFFFF0000[Valuate]|r The wizard did not load. Check for Lua errors on login.")
+        end
     elseif command == "selftest" then
         Valuate:RunSelfTest()
     elseif command == "pulse" then

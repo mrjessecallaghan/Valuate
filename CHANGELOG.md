@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.64.0a] - 2026-08-09 — the wizard has screens: `/valuate wizard`
+
+The guided scale builder is now usable. Three screens, one decision each.
+
+1. **Make me a scale** — one big *Build it for me*, with Tank / Healer / Damage underneath as
+   overrides rather than a quiz you must pass first.
+2. **This is what I would make** — the name, what it was closest to, the match percentage,
+   the five stats that named it with their weights, and the runner-up when it was close.
+   Nothing here is recomputed; it all comes off the plan object, so the preview cannot
+   disagree with what gets created.
+3. **Done** — it is already your primary scale and your gear is already rescanned. *Close*,
+   or *Fine-tune it* to open the editor.
+
+### Added
+- `/valuate wizard`, and `ui/Wizard.lua`.
+
+### Gates
+- `tools/wizarduitest.js` builds the real screens and clicks through them — 29 checks.
+- **Writing that gate caught five bugs in this file**, every one of which passes a parse
+  check and a globals check, because each is a real function called with the wrong contract:
+  - `Anim.staggerFor` returns the **gap** between items, not a function of the index. Calling
+    a number would have errored while laying out the very first screen.
+  - `ns.ShowTooltipSafe(frame, anchorType)` *claims* the tooltip; it does not take title and
+    body text. The hints would have silently vanished.
+  - `Valuate:ToggleUI()` takes no arguments and **toggles** — so *Fine-tune it* would have
+    closed the main window for anyone who already had it open.
+  - A styled button keeps its text on `btn.label`; the button itself has no `SetTextColor`,
+    so the primary action's tint never applied.
+  - `CreateStyledButton` installs its own `OnEnter`/`OnLeave` to run the hover fade, and
+    `SetScript` was **replacing** them — silently killing the hover animation on exactly the
+    buttons that screen is made of. `HookScript` now.
+- **The mock did not register named frames as globals**, though the client does — that is how
+  `UISpecialFrames` closes a frame by name. Any code doing `_G["ValuateSomething"]` found nil
+  and the gate agreed with it. Fixed in `tools/luaharness.js`.
+- `settings-anchor-chain` now tracks anchors **per function** rather than per file. Three
+  builders each with a `local title` are three different frames, and flagging them is the
+  same crying-wolf failure that made `CheckColumnAnchors` useless in the client. Verified it
+  still catches a genuine same-function collision.
+
 ## [0.63.0a] - 2026-08-09 — the wizard runs end to end, and its own colour
 
 Third piece. The whole path now exists headlessly: read your gear → match a template →
