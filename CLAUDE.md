@@ -159,6 +159,27 @@ end?
   *below* it. **When you move code between files, this is the check that matters.**
   If it flags a legitimate WoW API, add the name to `KNOWN` in `globals.js`.
 
+### The integration addons have no remote
+
+`Valuate-AdiBags`, `Valuate-PassLoot` and `Valuate-TSM` are real git repositories with real
+history and **no remote** - everything committed to them exists on one disk. Run:
+
+```bash
+node tools/backup.js
+```
+
+It DISCOVERS which sibling `Valuate-*` addons lack a remote and writes a verified git bundle
+for each (`git clone <name>.bundle` restores the full history). Not a gate: gates only read.
+
+The manual version of this drifted - bundles written by hand on 29 July, not again until
+9 August, by which point AdiBags was eight commits ahead of its backup and a PassLoot bug fix
+was unbacked entirely. **And the hand-kept list was wrong**: `Valuate-TSM` had never been
+backed up at all, because I only ever remembered the two I had been told about. Discovery
+found it on the first run.
+
+This is a stopgap. Two private GitHub repos would end the problem; a bundle only helps if the
+disk it is on survives.
+
 In-game, after a `/reload`:
 
 ```

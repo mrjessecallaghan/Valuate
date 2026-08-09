@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.58.1a] - 2026-08-09 — Backing up the three addons that exist on one disk
+
+### Added
+- **`node tools/backup.js`** — discovers which sibling `Valuate-*` addons have **no git
+  remote** and writes a verified git bundle for each. `git clone <name>.bundle` restores the
+  full history. Not a gate: gates only read, and this acts.
+
+### Why now
+- Last release put a **behavioural bug fix** into `Valuate-PassLoot`, which has no remote. It
+  sat in exactly one place. That's a fix one accident from gone, and it's the second time this
+  session I've flagged the risk without reducing it.
+- The existing bundles were written **by hand on 29 July and not again until today**. By then
+  `Valuate-AdiBags` was **eight commits ahead** of its backup and PassLoot one. A thing you
+  have to remember to do is a thing that stops being done — the same argument behind every
+  self-discovering list in this toolchain.
+
+### The part that justifies discovery over a list
+- **`Valuate-TSM` had never been backed up at all.** 2,208 lines, five commits, no remote, no
+  bundle. The hand-kept approach missed it entirely because I only ever thought about the two
+  I'd been told about. The tool found it on its first run.
+- All three bundles now verify as complete, restorable histories — checked rather than
+  assumed, because a bundle that doesn't verify isn't a backup.
+
+### Still outstanding
+- This is a **stopgap**. Two private GitHub repos would end the problem; a bundle only helps
+  if the disk it's on survives. Creating them needs a person — `gh` isn't installed here, and
+  it isn't something a script should do on someone's behalf.
+
 ## [0.58.0a] - 2026-08-09 — Equip All tells you what it's about to change
 
 ### Added
