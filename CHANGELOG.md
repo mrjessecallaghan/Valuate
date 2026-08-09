@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.62.0a] - 2026-08-09 — the wizard works out what you are, instead of asking
+
+Second piece of the guided scale wizard, still headless so it can be tested before anything
+is drawn. Ascension is classless, so "what class are you" is the wrong question and a
+28-entry spec list is the wrong menu. But those 28 templates are hand-tuned weight sets, and
+the gear you already wear says which one you resemble — so the wizard can **propose** an
+answer and let you confirm it, which is the difference between a wizard and a form.
+
+### Added
+- **`Valuate:MatchTemplateToStats(templates, totals, role)`** — compares what you wear
+  against what each spec values, by the angle between them rather than the size. A level 20
+  and a level 80 in the same *kind* of gear match the same template; raw totals would put
+  them nowhere near each other. Returns the runner-up too, so a close call can be shown as a
+  close call instead of presented as certainty.
+- **`Valuate:NormalizeWeights(weights, floor)`** — rescales so the leading stat is exactly
+  `1.0`, rounds to two places, and drops everything under `0.05`.
+
+### Why those two details are not cosmetic
+- **Stamina, Armor and Health are excluded from the comparison.** They scale with item level
+  rather than with what you are building, and left in they dominate everything: every build
+  converges on one template while looking like it is working. The gate buries a caster in
+  999999 Stamina and Armor and requires the match not to move.
+- **Templates carry weights as low as 0.005** as scoring tiebreakers. Invisible when scoring,
+  but they reach the stat editor — and forty near-zero rows is what makes a generated scale
+  feel like a mess rather than a build. Normalising takes one real template from 23 rows to
+  11.
+
+### Gates
+- `tools/automatch.js`, 97 runtime checks against the **real** `CLASS_SPEC_TEMPLATES` rather
+  than a fixture — the templates are the entire reason the result is any good, so a fixture
+  would let the maths pass while the actual data produced nonsense. Mutation-tested six ways.
+- Two mutations initially **survived**, meaning those assertions were decoration: the real
+  templates never produce an exact score tie, and their weights all divide evenly, so neither
+  the tiebreak nor the rounding was being exercised. Both now have a constructed case. The
+  tiebreak matters because without it the winner falls out of the order templates happen to
+  sit in — reordering `ui/Data.lua` would silently change what the wizard proposes to
+  everyone.
+
 ## [0.61.0a] - 2026-08-09 — a generated scale names itself
 
 First piece of the guided scale wizard. Deliberately the piece with a fixed specification and

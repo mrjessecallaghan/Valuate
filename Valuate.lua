@@ -960,6 +960,99 @@ function Valuate:BuildAutoScaleName(weights)
     return AUTO_NAME_PREFIX .. table.concat(parts, "/")
 end
 
+-- ============================================================================
+-- Matching a build to a curated template
+-- ============================================================================
+-- Ascension is classless, so "what class are you" is the wrong question and a spec list is
+-- the wrong menu. But the 28 CLASS_SPEC_TEMPLATES are still hand-tuned weight sets, and
+-- the gear you are ALREADY wearing says which of them you resemble. Comparing the two is
+-- how the wizard proposes an answer instead of interrogating you for one.
+--
+-- Cosine similarity: the angle between what you wear and what a spec values, ignoring how
+-- MUCH of it you have. That matters here - a level 20 and a level 80 wearing the same kind
+-- of gear should match the same template, and raw totals would put them nowhere near each
+-- other.
+local MATCH_IGNORED_STATS = {
+    -- On everything, in proportion to item level rather than to what you are building.
+    -- Leaving them in pulls every comparison toward the same answer.
+    Stamina = true, Armor = true, Health = true, ItemLevel = true,
+}
+
+local function StatVectorSimilarity(weights, totals)
+    local dot, weightLen, totalLen = 0, 0, 0
+    for stat, weight in pairs(weights) do
+        if not MATCH_IGNORED_STATS[stat] and type(weight) == "number" and weight > 0 then
+            local have = totals[stat]
+            if type(have) == "number" and have > 0 then
+                dot = dot + weight * have
+                totalLen = totalLen + have * have
+            end
+            weightLen = weightLen + weight * weight
+        end
+    end
+    -- Only stats you actually have count toward YOUR length, so a spec is not punished for
+    -- valuing something you have none of yet.
+    if dot <= 0 or weightLen <= 0 or totalLen <= 0 then return 0 end
+    return dot / (math.sqrt(weightLen) * math.sqrt(totalLen))
+end
+
+-- Returns the best-matching spec, its similarity, and the runner-up - the wizard shows the
+-- runner-up so a close call is visible rather than presented as certainty.
+function Valuate:MatchTemplateToStats(templates, totals, role)
+    if type(templates) ~= "table" or type(totals) ~= "table" then return nil, 0 end
+
+    local ranked = {}
+    for _, class in ipairs(templates) do
+        for _, spec in ipairs(class.specs or {}) do
+            if (not role) or spec.role == role then
+                table.insert(ranked, {
+                    spec = spec,
+                    class = class,
+                    score = StatVectorSimilarity(spec.weights or {}, totals),
+                    -- Class and spec name together, because two classes both have a
+                    -- "Protection" and ordering has to be total.
+                    key = tostring(class.class) .. "/" .. tostring(spec.name),
+                })
+            end
+        end
+    end
+
+    table.sort(ranked, function(a, b)
+        if a.score ~= b.score then return a.score > b.score end
+        return a.key < b.key
+    end)
+
+    if not ranked[1] or ranked[1].score <= 0 then return nil, 0 end
+    return ranked[1].spec, ranked[1].score, ranked[2] and ranked[2].spec or nil, ranked[1].class
+end
+
+-- Rescales so the leading stat is exactly 1.0 and drops the noise. Templates carry weights
+-- as low as 0.005, which exist as tiebreakers and are meaningless once a scale is scored -
+-- but they DO reach the stat editor, where forty near-zero rows are what makes a generated
+-- scale feel unusable rather than optimized.
+local NORMALIZE_FLOOR = 0.05
+
+function Valuate:NormalizeWeights(weights, floor)
+    floor = floor or NORMALIZE_FLOOR
+    local top = 0
+    for _, weight in pairs(weights or {}) do
+        if type(weight) == "number" and weight > top then top = weight end
+    end
+    if top <= 0 then return {} end
+
+    local out = {}
+    for stat, weight in pairs(weights) do
+        if type(weight) == "number" and weight > 0 then
+            local scaled = weight / top
+            -- Rounded to two places: a weight of 0.8333333 is not more accurate than 0.83,
+            -- and it looks like a bug in the editor.
+            scaled = math.floor(scaled * 100 + 0.5) / 100
+            if scaled >= floor then out[stat] = scaled end
+        end
+    end
+    return out
+end
+
 -- Running the wizard twice with the same answers would produce the same name, and scales
 -- are keyed by name - so the second run would overwrite the first. Suffix instead of
 -- refusing: the wizard must never dead-end on something the user did not ask about.
