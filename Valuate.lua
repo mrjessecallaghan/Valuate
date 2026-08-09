@@ -1771,6 +1771,15 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. bestForLine, nil, nil, nil, true)
                 hasScores = true  -- Mark that we've added lines
             end
+
+            -- An item is either best-in-slot or a future upgrade, never both -
+            -- equippability is item-intrinsic - so these two lines cannot both appear.
+            local futureLine = Valuate:BuildFutureLine(itemLink)
+            if futureLine then
+                if not bestForLine then tooltip:AddLine(" ") end
+                tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. futureLine, nil, nil, nil, true)
+                hasScores = true
+            end
         end
     end
     
@@ -2538,6 +2547,15 @@ function Valuate:HookTooltips()
                 if bestForLine then
                     self:AddLine(" ")
                     self:AddLine(VALUATE_MARKER_FULL .. " " .. bestForLine, nil, nil, nil, true)
+                    self:Show()
+                    ValuateLinesAdded = true
+                end
+
+                -- Same pairing as the other tooltip path; see the note there.
+                local futureLine = Valuate:BuildFutureLine(itemLink)
+                if futureLine then
+                    if not bestForLine then self:AddLine(" ") end
+                    self:AddLine(VALUATE_MARKER_FULL .. " " .. futureLine, nil, nil, nil, true)
                     self:Show()
                     ValuateLinesAdded = true
                 end
@@ -4245,6 +4263,57 @@ function Valuate:GetFutureUpgradeScales(itemLink)
     end
 
     return #results > 0 and results or nil
+end
+
+-- The tooltip line for an item you cannot use yet but will.
+--
+-- The addon has known this since future upgrades existed and has been quietly acting on it:
+-- IsProtectedFromDelete keeps such items, so auto-delete has been sparing them without ever
+-- saying why. The moment that matters is at a vendor with a full bag, hovering the thing and
+-- deciding - and the tooltip said nothing at all.
+--
+-- Reports the LEVEL as well as the scales, because "keep this" and "keep this for eleven
+-- more levels" are different decisions. The level comes from the same future record the
+-- protection reads, so the line cannot claim something the rest of the addon disagrees with.
+--
+-- Returns nil when there is nothing to say, so callers can add it unconditionally.
+function Valuate:BuildFutureLine(itemLink)
+    local scaleNames = Valuate:GetFutureUpgradeScales(itemLink)
+    if not scaleNames or #scaleNames == 0 then return nil end
+
+    local itemId = GetItemIdFromLink(itemLink)
+    local bestEquipment = Valuate:GetBestEquipment()
+    local scales = Valuate:GetScales()
+
+    -- Lowest requirement across the scales that want it: the same item, so the earliest
+    -- level is the true answer to "when can I wear this".
+    local reqLevel
+    local names = {}
+    for _, scaleName in ipairs(scaleNames) do
+        local scale = scales[scaleName]
+        if scale then
+            tinsert(names, "|cFF" .. (scale.Color or "FFFFFF") ..
+                (scale.DisplayName or scaleName) .. "|r")
+        end
+        local future = bestEquipment[scaleName] and bestEquipment[scaleName].future
+        if future and itemId then
+            for _, f in pairs(future) do
+                if f and f.itemLink and GetItemIdFromLink(f.itemLink) == itemId then
+                    local lvl = f.reqLevel or 0
+                    if lvl > 0 and (not reqLevel or lvl < reqLevel) then reqLevel = lvl end
+                end
+            end
+        end
+    end
+    if #names == 0 then return nil end
+
+    -- No level means the item is held back by something a level will not fix - a
+    -- proficiency, most often. Saying "at level 0" would be worse than saying nothing
+    -- specific, so the wording drops the promise instead of inventing one.
+    local prefix = reqLevel
+        and string.format("|cFF66CCFF Upgrade at level %d for:|r", reqLevel)
+        or "|cFF66CCFF Upgrade once you can use it, for:|r"
+    return prefix .. " " .. table.concat(names, ", ")
 end
 
 -- Announces gear that the level you just gained has made wearable.
@@ -7521,6 +7590,13 @@ local VERIFY_CHECKS = {
         steps = "Settings > the Toggle UI keybind button. Left-click it so it says \"Press Key...\", then RIGHT-click to clear instead of pressing a key. Then do it again, and this time close the window while it is still waiting. Reopen Settings.",
         expect = "Both times the button goes back to its normal colour and stops saying \"Press Key...\". After reopening, typing does not bind anything, and chat still receives what you type.",
         broke = "Right-click cleared the binding but never ended the capture, and nothing ended it when the window closed. The button kept EnableKeyboard(true) - and 3.3.5 has no SetPropagateKeyboardInput, so a frame holding the keyboard CONSUMES what you type. Reopening Settings re-armed it, and the next key you pressed was silently bound.",
+    },
+    {
+        id = "futureline", since = "0.55.0a",
+        title = "A future upgrade says so on its tooltip",
+        steps = "Find gear in your bags that needs a higher level than you have and would beat your best once wearable - /valuate future lists exactly these. Hover one. Then hover something that IS your best-in-slot, and something that is neither.",
+        expect = "The future item gets a blue line naming the level and the scales. The best-in-slot item gets the gold star line instead - never both, since an item cannot be equippable and not equippable at once. The third gets neither.",
+        broke = "New in this version. The addon has protected these items from auto-delete since future upgrades existed and never said why, so the thing to watch for is the line NOT appearing on an item /valuate future does list - that would mean the tooltip and the protection disagree about the same item.",
     },
     {
         id = "share", since = "0.48.0a",

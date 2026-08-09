@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.55.0a] - 2026-08-09 — The tooltip finally says why it's been keeping that item
+
+### Added
+- **A future-upgrade line on item tooltips**: *"Upgrade at level 42 for: Melee, Tanking"*.
+- **The addon has been acting on this for a long time without saying so.**
+  `IsProtectedFromDelete` keeps future upgrades, so auto-delete has been sparing these items
+  since the feature existed — and `GetFutureUpgradeScales` was called from *exactly one
+  place*, that protection. The knowledge existed, it changed behaviour, and it never reached
+  you. The moment it matters is at a vendor with a full bag, hovering the thing and deciding.
+- Reports the **level**, not just the scales, because "keep this" and "keep this for eleven
+  more levels" are different decisions. Where two scales disagree, the **lowest** requirement
+  wins — it's one item, and the earliest level is the true answer.
+- **It never invents a level.** When the item is held back by something a level won't fix —
+  an untrained proficiency, most often — the line drops the promise and says *"upgrade once
+  you can use it"* rather than printing *"at level 0"*. A tooltip naming a level you passed
+  twenty levels ago reads as a bug and teaches you to distrust the rest of it.
+- Best-in-slot and future-upgrade lines can never both appear: equippability is
+  item-intrinsic, so an item is one or the other.
+
+### Development
+- **A twenty-eighth gate, `tools/futurelinetest.js`** — 17 checks on what the line *claims*.
+  Mutation-tested three ways: printing "at level 0", taking the highest requirement instead
+  of the lowest, and reading whatever future record came first instead of matching on the
+  item.
+- `/valuate verify futureline` covers the half no gate can see — and specifically the failure
+  worth looking for: the line **not** appearing on an item `/valuate future` does list, which
+  would mean the tooltip and the delete protection disagree about the same item.
+
 ## [0.54.0a] - 2026-08-09 — See what's waiting, and at what level
 
 ### Added
