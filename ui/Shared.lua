@@ -116,7 +116,10 @@ ns.COLORS = {
     panelBg = { 0.035, 0.040, 0.052, 0.96 },
     inputBg = { 0.090, 0.100, 0.120, 1 },
     buttonBg = { 0.145, 0.155, 0.185, 1 },
-    buttonHover = { 0.240, 0.270, 0.340, 1 },
+    -- Softened from 0.240/0.270/0.340, which was a 2.8x luminance jump off buttonBg -
+    -- loud for a dark theme, and it made dim text on a hovered row measure 3.26:1. Still a
+    -- clear ~1.7x lift, so the affordance survives; it just stops shouting.
+    buttonHover = { 0.195, 0.215, 0.270, 1 },
     buttonPressed = { 0.100, 0.110, 0.140, 1 },
 
     -- Borders (cool, subtle, crisp)
@@ -125,11 +128,23 @@ ns.COLORS = {
     borderDark = { 0.14, 0.16, 0.20, 1 },
 
     -- Text (crisp, cool-neutral hierarchy)
-    textTitle = { 0.96, 0.97, 1.00, 1 },
-    textHeader = { 0.70, 0.77, 0.90, 1 },
-    textBody = { 0.85, 0.87, 0.92, 1 },
-    textDim = { 0.46, 0.50, 0.60, 1 },
-    textAccent = { 0.38, 0.72, 1.00, 1 },   -- vivid azure accent
+    --
+    -- Ordered by measured contrast against windowBg, not by eye: title > header > body >
+    -- dim, each step clearly separated. tools/contrast.js enforces both the ordering and
+    -- the floors, because "looks about right" is how this drifted in the first place.
+    --
+    -- It was genuinely inverted before v0.74.0a. textHeader sat at 10.9 against a textBody
+    -- of 14.2, so every section heading was QUIETER than the paragraph beneath it - the
+    -- reason the panels read as slightly flat and hard to scan without anyone being able to
+    -- say why.
+    textTitle = { 0.97, 0.98, 1.00, 1 },
+    textHeader = { 0.89, 0.92, 0.98, 1 },
+    textBody = { 0.78, 0.81, 0.88, 1 },
+    -- Raised from 0.46/0.50/0.60. It was 3.73 against buttonBg - below the 4.5 needed for
+    -- body-sized text - and this is the token hints and secondary labels use, which is
+    -- exactly the text someone is squinting at when they are already unsure.
+    textDim = { 0.60, 0.64, 0.72, 1 },
+    textAccent = { 0.45, 0.76, 1.00, 1 },   -- vivid azure accent
 
     -- States
     selected = { 0.16, 0.32, 0.52, 1 },
@@ -178,12 +193,47 @@ ns.BACKDROP_BUTTON = {
 -- ========================================
 -- Fonts
 -- ========================================
-ns.FONT_TITLE = "GameFontHighlightLarge"    -- ~16pt, white
-ns.FONT_H1 = "GameFontHighlight"            -- ~12pt, white
-ns.FONT_H2 = "GameFontHighlightSmall"       -- ~10pt, white
-ns.FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
-ns.FONT_BODY = "GameFontHighlight"          -- ~12pt, white
-ns.FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
+-- Six names, three sizes. That was the type scale until v0.74.0a: FONT_H1 and FONT_BODY were
+-- the same font, and FONT_H2, FONT_H3 and FONT_SMALL were all a second one. So a section
+-- heading was exactly the same size as the paragraph under it, and a sub-heading was the size
+-- of small print - which, together with a heading colour that measured DIMMER than body text,
+-- is the whole reason these panels read as flat and hard to scan.
+--
+-- Real sizes now, from one modular scale. The tokens stay STRINGS naming a font object, so
+-- all 264 call sites are untouched: CreateFontString takes the name either way.
+local FONT_PATH = (type(STANDARD_TEXT_FONT) == "string" and STANDARD_TEXT_FONT)
+    or "Fonts\\FRIZQT__.TTF"
+
+-- Returns the new font's NAME, or the stock template if the client will not take it.
+--
+-- The fallback is the important part. A font path this client rejects would otherwise mean
+-- text that is not merely ugly but INVISIBLE, across every panel at once - a far worse
+-- failure than the flat scale being fixed. Copying the stock object first means only the
+-- SIZE changes: colour, shadow and justification are inherited, so nothing else shifts.
+local function DefineFont(name, size, fallbackTemplate)
+    if type(CreateFont) ~= "function" then return fallbackTemplate end
+
+    local font = _G[name] or CreateFont(name)
+    if not font or not font.SetFont then return fallbackTemplate end
+
+    local base = _G[fallbackTemplate]
+    if base and font.CopyFontObject then pcall(font.CopyFontObject, font, base) end
+
+    local applied = pcall(font.SetFont, font, FONT_PATH, size)
+    -- SetFont returns false on a bad path in some clients rather than erroring, and a font
+    -- object with no font set draws nothing at all.
+    if not applied or (font.GetFont and not font:GetFont()) then
+        return fallbackTemplate
+    end
+    return name
+end
+
+ns.FONT_TITLE = DefineFont("ValuateFontTitle", 16, "GameFontHighlightLarge")
+ns.FONT_H1    = DefineFont("ValuateFontH1",    14, "GameFontHighlight")
+ns.FONT_H2    = DefineFont("ValuateFontH2",    13, "GameFontHighlight")
+ns.FONT_H3    = DefineFont("ValuateFontH3",    12, "GameFontHighlightSmall")
+ns.FONT_BODY  = DefineFont("ValuateFontBody",  12, "GameFontHighlight")
+ns.FONT_SMALL = DefineFont("ValuateFontSmall", 10, "GameFontHighlightSmall")
 
 -- ========================================
 -- Client compatibility

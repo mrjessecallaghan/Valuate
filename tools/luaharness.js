@@ -36,6 +36,16 @@ __frames = {}
 UIParent = { __name = "UIParent" }
 UISpecialFrames = {}
 
+-- The client's default UI font, and the font-object factory the type scale is built on.
+-- Modelled rather than left nil so the gates exercise the REAL path in ui/Shared.lua; with
+-- CreateFont missing, DefineFont would silently take its fallback branch every time and the
+-- scale would never be tested.
+STANDARD_TEXT_FONT = "Fonts\\\\FRIZQT__.TTF"
+
+function CreateFont(name)
+    return CreateFrame("Font", name)
+end
+
 function CreateFrame(frameType, name, parent, template)
     local f = {
         __type = frameType, __name = name, __template = template, __scripts = {},
@@ -212,7 +222,9 @@ function CreateFrame(frameType, name, parent, template)
         return #(self.__text or "") * 6
     end
     function f:GetStringHeight() return 12 end
-    function f:SetFont(...) self.__font = {...} end
+    function f:SetFont(...) self.__font = {...} return true end
+    function f:GetFont() return self.__font and self.__font[1] end
+    function f:CopyFontObject(o) self.__copiedFrom = o end
     function f:GetFont() return unpack(self.__font or {}) end
     function f:SetShadowOffset(...) self.__shadowOffset = {...} end
     function f:SetShadowColor(...) self.__shadowColor = {...} end

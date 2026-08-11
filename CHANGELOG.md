@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.74.0a] - 2026-08-09 — UI overhaul, stage 1: the design tokens
+
+First of two staged releases. This one changes **only** `ui/Shared.lua`, because 79% of colour
+use and 95% of font use already go through tokens — so the refresh cascades to all 15 modules
+without touching them. Stage 2 is layout and navigation.
+
+Two defects, both found by measuring rather than by looking, and together they explain why the
+panels read as flat and hard to scan:
+
+### Fixed
+- **The text hierarchy was inverted.** `textHeader` measured **10.90:1** against a `textBody`
+  of **14.18:1** — every section heading was *quieter* than the paragraph beneath it. Both
+  colours look fine in isolation, which is why no amount of care caught it. The scale now
+  descends properly: title 18.28 → header 15.92 → body 12.19 → dim 7.55.
+- **`textDim` failed WCAG AA.** 3.73:1 on buttons, 4.41:1 on inputs — and that is the token
+  hints and secondary labels use, which is exactly the text someone is squinting at when they
+  are already unsure what a control does. Now 5.85:1 at worst.
+- **Six font tokens, three fonts.** `FONT_H1` *was* `FONT_BODY`, and `FONT_H2`, `FONT_H3` and
+  `FONT_SMALL` were all one font. A section heading was literally the same size as its body
+  text. There is a real scale now — 16 / 14 / 13 / 12 / 12 / 10 — built from font objects, so
+  all 264 call sites are unchanged: the tokens are still strings naming a font.
+- **The hover state was shouting.** `buttonHover` was a 2.8× luminance jump off `buttonBg`,
+  loud for a dark theme, and it put dim text on a hovered scale row at 3.26:1. Softened to a
+  ~1.7× lift — still a clear affordance.
+
+### Safety
+`DefineFont` copies the stock font object before changing size, so colour, shadow and
+justification are inherited and only the size moves. If the client refuses the font it returns
+the stock template instead — a bad path would otherwise mean *invisible* text across every
+panel at once, which is far worse than the flat scale being fixed.
+
+### Gates
+- `tools/contrast.js` — every text token must clear AA on every background it is drawn on, and
+  the hierarchy must descend. Mutation-tested four ways, including restoring the original
+  inversion.
+- `tools/typescale.js` — the six tokens must resolve to *real* font objects with distinct
+  descending sizes. The check that they are **not** the stock names is the one doing the work:
+  a silent fallback would restore the old flat scale while every other gate still passed.
+- Both gates found things while being written. Contrast flagged dim-on-hover, which turned out
+  to be real — `ScaleList` dims inactive row names, and rows tween to `buttonHover` on hover.
+  And two of my own type-scale mutations initially survived, because the fallback check matched
+  any of three `return fallbackTemplate` branches rather than the one that mattered.
+
 ## [0.73.0a] - 2026-08-09 — the health check sends you to the wizard now, not to the stat editor
 
 ### Changed

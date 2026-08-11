@@ -47,6 +47,7 @@ loadstring next pairs pcall print rawequal rawget rawlen rawset select setfenv
 setmetatable tonumber tostring type unpack xpcall coroutine debug io math os string
 table bit require module arg
 CreateFrame UIParent GameTooltip GameTooltipTextLeft1 ItemRefTooltip UISpecialFrames
+CreateFont STANDARD_TEXT_FONT
 GetItemInfo GetItemInfoInstant GetItemQualityColor GetItemFamily GetItemCount
 GetContainerNumSlots GetContainerItemLink GetContainerItemInfo GetContainerItemID
 GetContainerNumFreeSlots GetContainerItemQuestInfo GetContainerItemEquipmentSetInfo
