@@ -1,18 +1,35 @@
 #!/usr/bin/env node
 /*
- * @gate The type scale has real, distinct, descending sizes
+ * @gate Every font token names a font the client is guaranteed to have
  *
- * There were six font tokens and three fonts. FONT_H1 and FONT_BODY were the same object,
- * and FONT_H2, FONT_H3 and FONT_SMALL were all a second one - so a section heading was
- * exactly the size of the paragraph beneath it, and a sub-heading was the size of small
- * print. Together with a heading colour that measured dimmer than body text (see
- * tools/contrast.js), that is the entire reason these panels read as flat.
+ * This gate used to assert the opposite of what it asserts now, and the story is the point.
  *
- * This runs ui/Shared.lua for real and checks what the tokens actually resolved to, which
- * matters more than it sounds: DefineFont falls back to the stock template if the client
- * refuses the font, and a silent fallback would restore the old flat scale while every
- * other gate still passed. The check that the tokens are NOT the stock names is the one
- * doing the work here.
+ * v0.74.0a replaced the six font tokens with custom font objects to get a real type scale
+ * (16/14/13/12/12/10), because FONT_H1 and FONT_BODY were the same font and headings were
+ * therefore the same size as their body text. It shipped with a fallback meant to catch a
+ * client that would not take the font. The fallback could not fire:
+ *
+ *     local applied = pcall(font.SetFont, font, FONT_PATH, size)
+ *     if not applied or (font.GetFont and not font:GetFont()) then return fallbackTemplate end
+ *
+ * pcall returns success THEN the call's own result and only the first was captured, so a
+ * SetFont returning false without erroring read as success. And a 3.3.5 Font object has no
+ * GetFont method, so `font.GetFont` is nil and the entire second clause is falsy. DefineFont
+ * returned the name of a font object with NO FONT SET, and the first SetText against it threw
+ * "Font not set" while the window was being built. The UI would not open, and relogging did
+ * not help because the same code ran again.
+ *
+ * The mock made it worse rather than catching it: luaharness answers SetFont with a stored
+ * table and CreateFont with a frame, so every assertion about sizes passed against a fiction.
+ * 25 green checks and a broken client.
+ *
+ * So this gate no longer tries to prove a scale is applied - a headless harness cannot know
+ * whether THIS client accepts a font. It proves the only thing that is checkable here and
+ * that actually matters: every token names a stock font template, which the client ships.
+ *
+ * Reintroducing a real type scale is fine. It has to be verified in the game first, and the
+ * check has to be a functional probe (draw text with it and see), not a guard written against
+ * an API surface nobody confirmed.
  *
  * Usage:  node tools/typescale.js
  */
@@ -20,85 +37,65 @@
 
 const fs = require("fs");
 const path = require("path");
-const { load, ADDON_ROOT } = require("./luaharness.js");
+
+const ADDON_ROOT = fs.existsSync("Valuate.toc") ? "." : path.resolve(__dirname, "..");
+const shared = fs.readFileSync(path.join(ADDON_ROOT, "ui", "Shared.lua"), "utf8");
 
 /*
- * The fallback is what stands between a font this client dislikes and every panel rendering
- * nothing at all, so it must stay reachable rather than being tidied away once the scale
- * works on one machine.
+ * The stock font objects a 3.3.5 client defines. Deliberately a short, conservative list:
+ * anything outside it has to be proven to exist in the game rather than assumed, which is
+ * the mistake this file now exists to prevent.
  */
-// Targets the SPECIFIC guard, not just any "return fallbackTemplate". There are three
-// fallback branches; matching loosely meant deleting the one that matters still passed.
-const shared = fs.readFileSync(path.join(ADDON_ROOT, "ui", "Shared.lua"), "utf8");
-if (!/if not applied or \(font\.GetFont and not font:GetFont\(\)\) then[\s\S]{0,80}return fallbackTemplate/.test(shared)) {
+const STOCK_FONTS = new Set([
+  "GameFontNormal",
+  "GameFontNormalSmall",
+  "GameFontNormalLarge",
+  "GameFontNormalHuge",
+  "GameFontHighlight",
+  "GameFontHighlightSmall",
+  "GameFontHighlightLarge",
+  "GameFontDisable",
+  "GameFontDisableSmall",
+  "NumberFontNormal",
+  "NumberFontNormalSmall",
+  "NumberFontNormalLarge",
+  "ChatFontNormal",
+  "QuestFontNormalSmall",
+  "SystemFont_Shadow_Med1",
+  "SystemFont_Shadow_Small",
+]);
+
+const TOKENS = ["FONT_TITLE", "FONT_H1", "FONT_H2", "FONT_H3", "FONT_BODY", "FONT_SMALL"];
+
+const assigned = {};
+for (const token of TOKENS) {
+  const m = shared.match(new RegExp(`^ns\\.${token}\\s*=\\s*"([^"]+)"`, "m"));
+  if (m) assigned[token] = m[1];
+}
+
+const missing = TOKENS.filter((t) => !assigned[t]);
+if (missing.length) {
   console.error(
-    "DefineFont no longer falls back to a stock template. A font path this client refuses " +
-      "would then leave every panel drawing invisible text - worse than the flat scale this " +
-      "replaced."
+    "These font tokens are not a plain string naming a stock font: " + missing.join(", ") +
+      "\n\nA computed font (CreateFont, SetFont) cannot be verified from here, and shipping " +
+      "one unverified is what broke the UI in v0.74.0a - the token resolved to a font object " +
+      'with no font set and the window would not open ("Font not set").'
   );
   process.exit(1);
 }
 
-const run = load(["ui/Shared.lua"]);
+const unknown = TOKENS.filter((t) => !STOCK_FONTS.has(assigned[t]));
+if (unknown.length) {
+  console.error("Font tokens naming a font this client may not have:");
+  for (const t of unknown) console.error(`  ${t} = "${assigned[t]}"`);
+  console.error(
+    "\nIf it really is a stock 3.3.5 font, add it to STOCK_FONTS. If it is one you defined, " +
+      "it must be proven to draw text in the game before shipping - see the header."
+  );
+  process.exit(1);
+}
 
-run(
-  `
-local failures, checks = {}, 0
-local function ok(cond, what) checks = checks + 1 if not cond then table.insert(failures, what) end end
-local function eq(got, want, what)
-    checks = checks + 1
-    if got ~= want then
-        table.insert(failures, what .. " (got " .. tostring(got) .. ", wanted " .. tostring(want) .. ")")
-    end
-end
-
-local ns = __ns
-
--- ---- the tokens resolved to OUR fonts, not the stock fallbacks -------------------
--- If DefineFont took its fallback branch, every assertion below about sizes would be
--- checking a font object that does not exist, and pass by accident.
-local TOKENS = { "FONT_TITLE", "FONT_H1", "FONT_H2", "FONT_H3", "FONT_BODY", "FONT_SMALL" }
-for _, token in ipairs(TOKENS) do
-    local name = ns[token]
-    ok(type(name) == "string" and name ~= "", token .. " is a font name")
-    ok(name and string.sub(tostring(name), 1, 7) == "Valuate",
-        token .. " resolved to a real font object rather than falling back to a stock template (got "
-        .. tostring(name) .. ")")
-end
-
--- ---- and those objects carry the sizes we asked for --------------------------------
--- Returns 0 rather than nil for a token that never became a font object. A nil here made
--- the comparisons below crash with "attempt to compare two nil values", which aborts the
--- run and hides the named assertions that actually explain what went wrong.
-local function sizeOf(token)
-    local obj = _G[ns[token]]
-    if not obj or not obj.__font then return 0 end
-    return obj.__font[2] or 0
-end
-
-eq(sizeOf("FONT_TITLE"), 16, "title size")
-eq(sizeOf("FONT_H1"), 14, "h1 size")
-eq(sizeOf("FONT_H2"), 13, "h2 size")
-eq(sizeOf("FONT_H3"), 12, "h3 size")
-eq(sizeOf("FONT_BODY"), 12, "body size")
-eq(sizeOf("FONT_SMALL"), 10, "small size")
-
--- ---- the scale actually descends ----------------------------------------------------
--- The rule that was broken: a heading must be LARGER than the body text under it.
-ok(sizeOf("FONT_TITLE") > sizeOf("FONT_H1"), "the window title is larger than a section header")
-ok(sizeOf("FONT_H1") > sizeOf("FONT_H2"), "h1 is larger than h2")
-ok(sizeOf("FONT_H2") > sizeOf("FONT_H3"), "h2 is larger than h3")
-ok(sizeOf("FONT_H1") > sizeOf("FONT_BODY"),
-    "a section header is LARGER than the body text under it - the defect this gate exists for")
-ok(sizeOf("FONT_BODY") > sizeOf("FONT_SMALL"), "body is larger than small print")
-
--- Every step has to be visible. Two tokens one point apart read as a mistake rather than a
--- hierarchy, except where they are deliberately equal (h3 and body).
-ok(sizeOf("FONT_TITLE") - sizeOf("FONT_H1") >= 2, "title and h1 are clearly different sizes")
-ok(sizeOf("FONT_BODY") - sizeOf("FONT_SMALL") >= 2, "body and small are clearly different sizes")
-
-return failures, checks
-`,
-  "typescale",
-  "the type scale"
+console.log(
+  `OK  all ${TOKENS.length} font tokens name stock fonts the client ships ` +
+    `(${new Set(Object.values(assigned)).size} distinct).`
 );

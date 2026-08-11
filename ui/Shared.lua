@@ -199,41 +199,34 @@ ns.BACKDROP_BUTTON = {
 -- of small print - which, together with a heading colour that measured DIMMER than body text,
 -- is the whole reason these panels read as flat and hard to scan.
 --
--- Real sizes now, from one modular scale. The tokens stay STRINGS naming a font object, so
--- all 264 call sites are untouched: CreateFontString takes the name either way.
-local FONT_PATH = (type(STANDARD_TEXT_FONT) == "string" and STANDARD_TEXT_FONT)
-    or "Fonts\\FRIZQT__.TTF"
-
--- Returns the new font's NAME, or the stock template if the client will not take it.
+-- v0.75.0a: REVERTED to stock font templates after v0.74.0a broke the UI in the client.
 --
--- The fallback is the important part. A font path this client rejects would otherwise mean
--- text that is not merely ugly but INVISIBLE, across every panel at once - a far worse
--- failure than the flat scale being fixed. Copying the stock object first means only the
--- SIZE changes: colour, shadow and justification are inherited, so nothing else shifts.
-local function DefineFont(name, size, fallbackTemplate)
-    if type(CreateFont) ~= "function" then return fallbackTemplate end
-
-    local font = _G[name] or CreateFont(name)
-    if not font or not font.SetFont then return fallbackTemplate end
-
-    local base = _G[fallbackTemplate]
-    if base and font.CopyFontObject then pcall(font.CopyFontObject, font, base) end
-
-    local applied = pcall(font.SetFont, font, FONT_PATH, size)
-    -- SetFont returns false on a bad path in some clients rather than erroring, and a font
-    -- object with no font set draws nothing at all.
-    if not applied or (font.GetFont and not font:GetFont()) then
-        return fallbackTemplate
-    end
-    return name
-end
-
-ns.FONT_TITLE = DefineFont("ValuateFontTitle", 16, "GameFontHighlightLarge")
-ns.FONT_H1    = DefineFont("ValuateFontH1",    14, "GameFontHighlight")
-ns.FONT_H2    = DefineFont("ValuateFontH2",    13, "GameFontHighlight")
-ns.FONT_H3    = DefineFont("ValuateFontH3",    12, "GameFontHighlightSmall")
-ns.FONT_BODY  = DefineFont("ValuateFontBody",  12, "GameFontHighlight")
-ns.FONT_SMALL = DefineFont("ValuateFontSmall", 10, "GameFontHighlightSmall")
+-- The custom-font-object version shipped with a fallback that could not fire. It read:
+--
+--     local applied = pcall(font.SetFont, font, FONT_PATH, size)
+--     if not applied or (font.GetFont and not font:GetFont()) then return fallbackTemplate end
+--
+-- Two holes, either one fatal. `pcall` returns success THEN the call's own result, and only
+-- the first was captured - so a SetFont that returned false without erroring read as success.
+-- And a 3.3.5 Font object has no GetFont method, which makes `font.GetFont` nil, which makes
+-- the whole second clause falsy. DefineFont therefore returned the NAME of a font object with
+-- no font set, and the first SetText against it threw "Font not set" while the window was
+-- being built - so the UI would not open at all, and a relog did not help because the same
+-- code ran again.
+--
+-- The lesson is not "write a better guard". It is that the guard was never executed against
+-- the real client, and a mock that answers SetFont with `true` agrees with the mistake. Six
+-- names mapping to three sizes is a cosmetic problem; a window that will not open is not, and
+-- the two are not worth trading.
+-- Stock templates, which the client is guaranteed to have. FONT_H1 and FONT_BODY being the
+-- same object is a real flatness problem, but it is the one this codebase shipped with for
+-- its whole life, and the fix for it has to be verified in the game before it goes back in.
+ns.FONT_TITLE = "GameFontHighlightLarge"    -- ~16pt, white
+ns.FONT_H1 = "GameFontHighlight"            -- ~12pt, white
+ns.FONT_H2 = "GameFontHighlightSmall"       -- ~10pt, white
+ns.FONT_H3 = "GameFontHighlightSmall"       -- ~10pt, white
+ns.FONT_BODY = "GameFontHighlight"          -- ~12pt, white
+ns.FONT_SMALL = "GameFontHighlightSmall"    -- ~10pt, white
 
 -- ========================================
 -- Client compatibility

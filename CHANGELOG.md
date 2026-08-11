@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.75.0a] - 2026-08-09 — HOTFIX: v0.74.0a stopped the UI opening
+
+**If you are on v0.74.0a, update.** The window would not open and relogging did not help.
+
+```
+Error opening UI: ValuateUI.lua:170: <unnamed>:SetText(): Font not set
+```
+
+### Fixed
+- **Reverted the custom font objects.** The type scale added in v0.74.0a shipped with a
+  fallback that *could not fire*:
+
+  ```lua
+  local applied = pcall(font.SetFont, font, FONT_PATH, size)
+  if not applied or (font.GetFont and not font:GetFont()) then return fallbackTemplate end
+  ```
+
+  Two holes, either one fatal. `pcall` returns success *then* the call's own result, and only
+  the first was captured — so a `SetFont` that returned false without erroring read as
+  success. And a 3.3.5 `Font` object has **no `GetFont` method**, so `font.GetFont` is nil and
+  the whole second clause is falsy. `DefineFont` returned the name of a font object with no
+  font set, and the first `SetText` against it threw while the window was being built.
+
+The colour work from v0.74.0a is **unaffected and stays** — the contrast fixes and the
+hierarchy repair are numbers in a table, with nothing to fail at runtime. What is lost is the
+type scale: `FONT_H1` is `FONT_BODY` again, so headings are once more the same size as their
+body text. That is a cosmetic problem and a window that will not open is not; the two are not
+worth trading.
+
+### What the gate was doing while this shipped
+Reporting 25 green checks against a fiction. The harness answers `SetFont` with a stored table
+and `CreateFont` with a frame, so every assertion about font sizes passed — *the mock agreed
+with the mistake*. This is the third time this session a mock has been wrong in the addon's
+favour, and the first time it reached the client.
+
+`tools/typescale.js` has been rewritten to assert the only thing that is honestly checkable
+without the game: every font token names a **stock** font template the client is guaranteed to
+ship. It no longer claims to verify a type scale, because a headless harness cannot know
+whether *this* client accepts a font.
+
+Reintroducing the scale is still worth doing — but it needs a functional probe (draw text with
+the font and see whether it throws), verified in the game, not a guard written against an API
+surface nobody confirmed.
+
 ## [0.74.0a] - 2026-08-09 — UI overhaul, stage 1: the design tokens
 
 First of two staged releases. This one changes **only** `ui/Shared.lua`, because 79% of colour
