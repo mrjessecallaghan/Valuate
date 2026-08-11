@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.76.0a] - 2026-08-09 — collect wardrobe appearances you don't have yet
+
+### Added
+- **`/valuate wardrobe`** — lists every item in your bags whose appearance you have not
+  collected. Read-only; this is the one to run first.
+- **`/valuate wardrobenow`** — collects them.
+- **`/valuate autowardrobe`** — does it automatically as items arrive. Off by default,
+  throttled, and it runs *below* the in-transit guard so nothing is collected while items are
+  still moving between bags and slots.
+
+### What I could not verify, and why it shapes the design
+The API is Ascension's, not Blizzard's — `C_Appearance.GetItemAppearanceID`,
+`C_AppearanceCollection.IsAppearanceCollected` and `CollectItemAppearance`. I read it out of
+PastLoot rather than guessing, but **I have never run it**, and an hour before writing this a
+font object built against an unconfirmed API surface stopped the whole UI from opening.
+
+**Collecting may BIND the item.** PastLoot only ever calls it on things it is about to delete
+or vendor, which is consistent with binding and proves nothing either way. Nothing available to
+an addon can settle it. So: off by default, and a preview exists precisely so you can look at
+the list and decide before switching anything on.
+
+Everything uncertain therefore means **do nothing**:
+- No wardrobe API → a reason, never an error.
+- `IsAppearanceCollected` returns nil or errors → the item is left alone. *"I could not find
+  out"* and *"you do not have it"* are different answers, and only one justifies acting.
+- Two items sharing an appearance → collected once, since the collected-state cannot catch up
+  within a single pass.
+
+### Gates
+- `tools/wardrobetest.js`, 31 checks, mutation-tested six ways.
+- Two bugs found by writing it. The re-verify-before-acting guard was **theatre** — the
+  function built its own list moments before acting, so nothing could change in between;
+  it now accepts a list you previewed earlier, which makes the check real. And the throttle
+  used `0` as its "never ran" sentinel, which collides with a legitimate `GetTime()` of 0, so
+  the first pass was skipped; it has its own flag now.
+- One mutation initially **survived**: treating a falsy collected-state as "uncollected". My
+  error-case mock made `pcall` hand back the error *string*, which is truthy, so the mutation
+  passed through it untouched. The case that actually mattered — the API answering with **nil**
+  — had no test until that survival pointed at it.
+
 ## [0.75.0a] - 2026-08-09 — HOTFIX: v0.74.0a stopped the UI opening
 
 **If you are on v0.74.0a, update.** The window would not open and relogging did not help.

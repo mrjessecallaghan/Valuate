@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.75.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.76.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -65,6 +65,7 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 | **Cleanup verdict on tooltips** | While auto-sell or auto-delete is on, item tooltips say whether Valuate would remove the item, or what is protecting it. No setting - it appears only when cleanup is armed. | (automatic) |
 | **Junk auto-delete** | Keeps N bag slots free by removing the least valuable junk. **Irreversible.** | `/valuate autodelete`, `deletepreview`, `deletenow`, `keepfree <n>` |
 | **Merchant** | Sells junk and repairs on arrival. Safer than deleting — gold, plus Buyback. | `/valuate sell`, `sellnow`, `repair` |
+| **Wardrobe collecting** | Collects appearances you don't have yet from items in your bags. **May bind the items** — that is not verifiable from an addon, so look before you enable it. | `/valuate wardrobe`, `wardrobenow`, `autowardrobe` |
 | **Surplus gear as junk** *(AdiBags)* | Routes gear that is neither best-in-slot nor a future upgrade into the Junk section. **Off by default** — junk feeds auto-delete. Re-evaluated live, so an item that later becomes your best un-marks itself. | `/valuate junkmarks` |
 
 **Safety.** Deleting and selling never touch best-in-slot items, weapon-set members, future
@@ -81,6 +82,7 @@ Every automated path has a diagnostic that explains why it did *nothing* — tha
 ```
 /valuate                  open the UI
 /valuate wizard           build an optimized scale from the gear you're wearing
+/valuate wardrobe         list bag appearances you have not collected yet
 /valuate scan             rescan bags and equipped gear
 /valuate check            is it actually working? start here
 /valuate report           what's armed, when each automation last ran, and what it concluded
@@ -102,7 +104,7 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. **29 subsystems execute real Lua** headlessly against a
+Developed without the game running. **30 subsystems execute real Lua** headlessly against a
 mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
 
 - **Things that can destroy or spend something** — the deletion protections, surplus-gear
@@ -145,7 +147,7 @@ becoming a nil global, an unstable sort producing different "best" items between
 bank data reaching a delete path, an option with no way to switch it on, a destructive
 command missing from the in-game help.
 
-29 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+30 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.

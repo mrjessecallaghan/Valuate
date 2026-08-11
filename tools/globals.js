@@ -48,6 +48,7 @@ setmetatable tonumber tostring type unpack xpcall coroutine debug io math os str
 table bit require module arg
 CreateFrame UIParent GameTooltip GameTooltipTextLeft1 ItemRefTooltip UISpecialFrames
 CreateFont STANDARD_TEXT_FONT
+GetContainerItemGUID C_Appearance C_AppearanceCollection
 GetItemInfo GetItemInfoInstant GetItemQualityColor GetItemFamily GetItemCount
 GetContainerNumSlots GetContainerItemLink GetContainerItemInfo GetContainerItemID
 GetContainerNumFreeSlots GetContainerItemQuestInfo GetContainerItemEquipmentSetInfo

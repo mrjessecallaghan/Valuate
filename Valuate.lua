@@ -571,6 +571,11 @@ local function OnEvent(self, event, addonName, ...)
             return
         end
 
+        -- Below the in-transit guard on purpose, so it inherits that protection without
+        -- altering it: nothing is collected while items are still moving between bags and
+        -- slots. Throttled internally, and a no-op unless you switched it on.
+        if Valuate.AutoLearnAppearances then Valuate:AutoLearnAppearances() end
+
         -- Check if we should scan on bag updates (for "always" mode).
         -- Debouncing is handled entirely by ScheduleScan (it cancels and
         -- reschedules on every call) plus the scan callback's own bag-quiet
@@ -795,6 +800,11 @@ local DEFAULT_OPTIONS = {
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
     showUpgradeArrows = true,              -- green arrow on merchant/loot/bag icons that upgrade a scale
     includeBankItems = true,              -- count banked gear as best-in-slot candidates (Equip All still skips it)
+    -- Collect wardrobe appearances you do not have yet, from items in your bags. Off by
+    -- default like every automation here, and with more reason than most: collecting may
+    -- BIND the item, which nothing in this client lets me verify. /valuate wardrobe lists
+    -- exactly what it would take before you switch it on.
+    autoLearnAppearances = false,
 }
 
 -- Backfill any missing option keys from DEFAULT_OPTIONS without clobbering saved
@@ -6591,6 +6601,154 @@ local function SellNextBatch()
 end
 
 -- Collects junk (same classification + protections as auto-delete) and sells it.
+-- ============================================================================
+-- Wardrobe: collect appearances you do not already have
+-- ============================================================================
+-- Ascension keeps a wardrobe of collected appearances. Items in your bags whose look you
+-- have not collected yet can be collected without consuming the item - PastLoot does exactly
+-- this immediately before deleting or vendoring something, which is where the API below was
+-- read from rather than guessed at.
+--
+-- Treated as UNVERIFIED throughout: this is a custom-server API, seen working in another
+-- addon but never run by me. Every call is feature-detected and wrapped, because the cost of
+-- being wrong about an API on this client was demonstrated an hour ago by a font object that
+-- would not draw and stopped the UI opening at all.
+--
+-- One thing I cannot check from here and you should know: collecting an appearance may BIND
+-- the item. PastLoot only ever calls it on things it is about to destroy or sell, which is
+-- consistent with binding and proves nothing either way. That is why this is off by default
+-- and why the preview exists - run it, look at the list, and decide.
+local APPEARANCE_THROTTLE = 5      -- seconds between automatic passes
+local lastAppearancePass = 0
+-- Separate from the timestamp rather than overloading 0 for "never". GetTime() really can be
+-- 0, and a sentinel that collides with a legitimate value is how the first pass ends up
+-- either always skipped or never throttled.
+local appearancePassRan = false
+
+local function AppearanceApiReady()
+    return type(C_Appearance) == "table"
+        and type(C_Appearance.GetItemAppearanceID) == "function"
+        and type(C_AppearanceCollection) == "table"
+        and type(C_AppearanceCollection.IsAppearanceCollected) == "function"
+        and type(C_AppearanceCollection.CollectItemAppearance) == "function"
+        and type(GetContainerItemGUID) == "function"
+end
+
+-- Read-only. Returns the list of bag items whose appearance is not collected yet, so the
+-- preview and the action are the same decision rather than two implementations that can
+-- disagree - the shape that has caused this project trouble more than once.
+--
+-- Bags only, never the bank: the bank cannot be reached without the frame open, and a
+-- best-effort pass over stale cached data is not something to hand to an automated feature.
+function Valuate:GetUncollectedAppearances()
+    if not AppearanceApiReady() then
+        return nil, "this client has no wardrobe API"
+    end
+
+    local found, seenAppearance = {}, {}
+    for bag = 0, 4 do
+        local slots = GetContainerNumSlots(bag) or 0
+        for slot = 1, slots do
+            local link = GetContainerItemLink(bag, slot)
+            local itemId = link and tonumber(link:match("item:(%d+)"))
+            if itemId then
+                local okId, appearanceId = pcall(C_Appearance.GetItemAppearanceID, itemId)
+                if okId and appearanceId then
+                    local okHas, collected =
+                        pcall(C_AppearanceCollection.IsAppearanceCollected, appearanceId)
+                    -- Only when the API positively says NOT collected. An errored call
+                    -- leaves `collected` nil, and treating unknown as "not collected" would
+                    -- have us act on an answer we never got.
+                    if okHas and collected == false and not seenAppearance[appearanceId] then
+                        -- Two items can share one appearance. Collecting either collects it,
+                        -- but IsAppearanceCollected will not have caught up within this pass,
+                        -- so without this the second one is collected redundantly.
+                        seenAppearance[appearanceId] = true
+                        found[#found + 1] = {
+                            bag = bag, slot = slot, link = link,
+                            itemId = itemId, appearanceId = appearanceId,
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    -- Bag then slot order, which is what the loops produce, so the preview lists items in the
+    -- order you would find them and two runs agree.
+    return found
+end
+
+-- Collects them. Returns how many were collected, and a reason whenever that is zero, so the
+-- caller never has to guess between "nothing to do" and "could not do it".
+-- `pending` is optional: pass a list you already showed the user, and the re-verify below
+-- becomes a real check. Without it this function scans and acts in one breath, nothing can
+-- move in between, and the guard would be theatre - which is what it was until the gate for
+-- it could not be made to fail.
+function Valuate:LearnUncollectedAppearances(pending)
+    local why
+    if not pending then
+        pending, why = Valuate:GetUncollectedAppearances()
+    end
+    if not pending then
+        return 0, why
+    end
+    if #pending == 0 then
+        return 0, "every appearance in your bags is already collected"
+    end
+
+    local collected = 0
+    for _, entry in ipairs(pending) do
+        -- Re-read the GUID at the moment of acting. The list may be a few frames old, and a
+        -- GUID that no longer matches means the slot changed under us - the same
+        -- re-verify-before-acting rule the delete and sell paths follow.
+        local guid = GetContainerItemGUID(entry.bag, entry.slot)
+        if guid and guid ~= "" then
+            local link = GetContainerItemLink(entry.bag, entry.slot)
+            if link == entry.link then
+                if pcall(C_AppearanceCollection.CollectItemAppearance, guid) then
+                    collected = collected + 1
+                end
+            end
+        end
+    end
+
+    if collected == 0 then
+        return 0, "found " .. #pending .. " uncollected, but the items moved before I could act"
+    end
+    return collected
+end
+
+-- The automatic pass. Off unless you switch it on, throttled, and silent when it finds
+-- nothing - an automation that announces "did nothing" every few seconds is one you turn off.
+function Valuate:AutoLearnAppearances()
+    if not Valuate:GetOptions().autoLearnAppearances then return end
+
+    local now = (GetTime and GetTime()) or 0
+    -- `lastAppearancePass ~= 0` means "has never run", so the FIRST pass is never throttled.
+    -- Without it the first call is skipped whenever GetTime() is near zero, which is exactly
+    -- what a fresh session looks like to a test and what the gate caught.
+    --
+    -- `now < lastAppearancePass` catches a clock that went backwards on /reload, which would
+    -- otherwise pin the throttle shut for as long as the difference.
+    if appearancePassRan
+        and now - lastAppearancePass < APPEARANCE_THROTTLE
+        and now >= lastAppearancePass then
+        return
+    end
+    appearancePassRan = true
+    lastAppearancePass = now
+
+    local collected, why = Valuate:LearnUncollectedAppearances()
+    if collected > 0 then
+        print(string.format("|cFF00FF00Valuate|r: collected %d new wardrobe appearance(s).",
+            collected))
+        Valuate:MarkAutomation("wardrobe", string.format("collected %d appearance(s)", collected))
+    else
+        Valuate:MarkAutomation("wardrobe", why or "nothing to collect")
+    end
+end
+
 function Valuate:AutoSellJunk(verbose)
     local options = Valuate:GetOptions()
     if not MerchantFrame or not MerchantFrame:IsShown() then
@@ -7335,6 +7493,7 @@ function Valuate:PrintReport()
         { key = "autoRepair",    label = "Auto-repair" },
         { key = "questReward",   label = "Quest reward taken" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
+        { key = "wardrobe",      label = "Wardrobe collecting" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -8384,6 +8543,9 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
         print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
         print("  |cFF3FE0C8/valuate wizard|r - Build an optimized scale from the gear you are wearing")
+        print("  /valuate wardrobe - List bag appearances you have not collected yet")
+        print("  /valuate wardrobenow - Collect those appearances now (may bind the items)")
+        print("  /valuate autowardrobe - Toggle collecting new appearances automatically")
         print("  /valuate scales - List all stat weight scales")
         print("  /valuate bank - Show the bank snapshot used for best-in-slot")
         print("  /valuate equip - Equip the best set for the active scale")
@@ -8516,6 +8678,39 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif strsub(command, 1, 6) == "verify" then
         Valuate:RunVerify(strtrim(strsub(command, 7)))
+    elseif command == "wardrobe" then
+        -- The preview. Deliberately the SHORT name, because it is the one to reach for
+        -- first; the command that acts has to be typed deliberately.
+        local pending, why = Valuate:GetUncollectedAppearances()
+        if not pending then
+            print("|cFFFF8800Valuate|r: " .. tostring(why))
+        elseif #pending == 0 then
+            print("|cFF00FF00Valuate|r: every appearance in your bags is already collected.")
+        else
+            print(string.format("|cFF00FF00Valuate|r: %d uncollected appearance(s) in your bags:",
+                #pending))
+            for _, entry in ipairs(pending) do
+                print("   " .. tostring(entry.link))
+            end
+            print("|cFFAAAAAACollecting may BIND these items - that is not something I can " ..
+                "verify on this server. Run|r /valuate wardrobenow |cFFAAAAAAto collect them.|r")
+        end
+    elseif command == "wardrobenow" then
+        local collected, why = Valuate:LearnUncollectedAppearances()
+        if collected > 0 then
+            print(string.format("|cFF00FF00Valuate|r: collected %d new appearance(s).", collected))
+        else
+            print("|cFFFF8800Valuate|r: " .. tostring(why or "nothing to collect"))
+        end
+    elseif command == "autowardrobe" then
+        local options = Valuate:GetOptions()
+        options.autoLearnAppearances = not options.autoLearnAppearances
+        if options.autoLearnAppearances then
+            print("|cFF00FF00Valuate|r: auto-collect wardrobe appearances |cFF00FF00ON|r. " ..
+                "Run /valuate wardrobe first if you have not seen what it would take.")
+        else
+            print("|cFF00FF00Valuate|r: auto-collect wardrobe appearances |cFFFF8800OFF|r.")
+        end
     elseif command == "wizard" then
         -- The guided scale builder. Lives in ui/Wizard.lua, so it is absent if the UI
         -- modules failed to load - which is worth saying rather than doing nothing.
