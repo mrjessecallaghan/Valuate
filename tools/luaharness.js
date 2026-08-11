@@ -36,10 +36,14 @@ __frames = {}
 UIParent = { __name = "UIParent" }
 UISpecialFrames = {}
 
--- The client's default UI font, and the font-object factory the type scale is built on.
--- Modelled rather than left nil so the gates exercise the REAL path in ui/Shared.lua; with
--- CreateFont missing, DefineFont would silently take its fallback branch every time and the
--- scale would never be tested.
+-- The client's default UI font and the font-object factory. Both are real 3.3.5 APIs, so they
+-- are modelled here - but nothing in the addon uses them any more, and that is deliberate.
+--
+-- v0.74.0a built font objects with these at file scope. This mock answered SetFont with a
+-- stored table and CreateFont with a frame, so every assertion about the resulting type scale
+-- passed while the real client refused the font and the UI would not open. The mock agreed
+-- with the mistake. tools/loadtime.js now refuses file-scope calls to anything outside a tiny
+-- guaranteed set, CreateFont among them, so that shape cannot ship again.
 STANDARD_TEXT_FONT = "Fonts\\\\FRIZQT__.TTF"
 
 function CreateFont(name)

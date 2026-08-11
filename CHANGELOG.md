@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.77.0a] - 2026-08-09 — a gate for the one failure that reached the client
+
+Every bug this session was caught by a gate except one, and that one broke the addon for a
+real person. This is the gate for its shape.
+
+### Gates
+- **`tools/loadtime.js`** — at **file scope**, only APIs guaranteed to exist on every 3.3.5
+  client may be called. Everything else has to move inside a function that runs after load.
+
+File-scope code is uniquely unforgiving. It runs on every login, before any of the addon's own
+error handling exists; there is no setting or command to avoid it; and relogging just runs it
+again — which is exactly what you saw when v0.74.0a would not open. A headless mock cannot
+tell you whether *this* client has the function you are calling, and in that case it confidently
+told me it did.
+
+The allowlist is deliberately tiny — `CreateFrame`, `IsAddOnLoaded`, `GetAddOnMetadata`, the
+`Valuate` table itself, and Lua's own library. Each entry is a promise that the call exists
+everywhere this addon runs. **`CreateFont` is not on it**, even though it is a genuine 3.3.5
+API, because what failed was not its existence but the `SetFont` that follows it.
+
+Built on the AST rather than line matching, and it does not descend into function bodies — a
+call inside one runs later, when a failure costs one feature instead of the whole addon.
+Method calls on locals are excluded too: `animDriver:SetScript(...)` is calling a frame that
+`CreateFrame` just returned on the line above. That left 58 real file-scope calls across 20
+files, all legitimate.
+
+**It catches the actual bug.** Reintroducing the v0.74.0a font code as a mutation fails the
+gate at `ui/Shared.lua:224 CreateFont(...)`, as do a custom-server API and a retail-only one
+called at load.
+
+### Also
+- Corrected a comment in `tools/luaharness.js` that claimed the `CreateFont` mock existed to
+  exercise a real code path in `ui/Shared.lua`. That path was reverted in v0.75.0a, so the
+  comment described something that no longer happened — the same species of stale claim these
+  gates exist to catch.
+
 ## [0.76.0a] - 2026-08-09 — collect wardrobe appearances you don't have yet
 
 ### Added
