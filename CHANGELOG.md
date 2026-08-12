@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.85.0a] - 2026-08-09 — the wizard was throwing away every template's banned stats
+
+### Fixed
+- **Wizard-made scales had an empty `Unusable` table, always.** `CommitAutoScale` hardcoded
+  `Unusable = {}` and `PlanAutoScale` never read `spec.unusable`, so the templates' banned
+  stats were discarded on the way through. Retribution bans nine weapon types; a scale built
+  from it happily scored daggers, staves and wands, and Best Equipment would offer them.
+
+Found while deciding what to do about CoA's `unusable` blocks — the question "what happens to
+these?" turned out to have the answer "nothing, ever". It affects the **classic** realm too,
+where all 31 templates define them carefully.
+
+The banned stats are **copied**, not referenced, for the same reason the weights are: the
+wizard shows the plan again on its final screen, and a shared table would let a later edit to
+either change the other. Mutation-tested both ways.
+
+### And a decision about CoA's own `unusable` blocks: there aren't any, deliberately
+CoA's armour and weapon rules are barely documented. Confirmed: Bloodmage wears leather, Witch
+Hunter's Black Knight tanks in mail, Guardian uses shields, Templar fights with fists. That is
+four data points across 21 classes, and CoA also has **smart drops tailored to your active
+spec**, which is the game already solving much of this.
+
+Inventing bans from that would be worse than having none. An empty list means nothing is
+wrongly excluded; a wrong list actively hides gear you can use, and hides it *silently*. So
+the CoA templates ship with no `unusable`, and the reason is recorded next to them rather than
+left as an apparent oversight for someone to "complete".
+
 ## [0.84.0a] - 2026-08-09 — all 21 CoA classes, 70 specs
 
 The last class is in. **Son of Arugal** — which turns out to be the same class as

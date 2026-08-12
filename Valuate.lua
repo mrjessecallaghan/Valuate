@@ -1171,6 +1171,16 @@ function Valuate:PlanAutoScale(opts)
         icon = spec.icon,
         basedOn = tostring(class and class.class or "?") .. " " .. tostring(spec.name or "?"),
         role = spec.role,
+        -- The template's banned stats travel with the plan.
+        --
+        -- They were being dropped: every wizard-made scale got an EMPTY Unusable table, so a
+        -- two-hander-only build scored daggers and wands as normal candidates and Best
+        -- Equipment would offer them. The templates define these carefully - Retribution bans
+        -- nine weapon types - and the wizard was throwing all of it away.
+        --
+        -- CoA templates have no unusable list yet, so this is nil for them, which is the same
+        -- empty table they got before. No change there, and no invented restrictions either.
+        unusable = spec.unusable,
         confidence = score,
         -- Only when it really was close. Certainty you have not earned is worse than a
         -- question, but so is a hedge you have not earned.
@@ -1211,6 +1221,11 @@ function Valuate:CommitAutoScale(plan, scales)
         Unusable = {},
         Visible = true,
     }
+    -- Banned stats, copied for the same reason the weights are: the plan outlives the commit.
+    for stat in pairs(plan.unusable or {}) do
+        scale.Unusable[stat] = true
+    end
+
     -- COPIED, not referenced. The plan can be shown again or thrown away without the saved
     -- scale changing underneath it - and the wizard does show it again on the last screen.
     for stat, weight in pairs(plan.weights or {}) do

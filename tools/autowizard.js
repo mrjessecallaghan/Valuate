@@ -273,6 +273,40 @@ ok(tankPlan ~= nil, "asking for a tank plan works")
 eq(tankPlan.role, "TANK", "and it really is a tank build")
 ok(tankPlan.name ~= plan.name, "which names itself differently: " .. tankPlan.name)
 
+-- ---- the template's banned stats reach the scale ----------------------------------
+-- Every wizard-made scale used to get an EMPTY Unusable table, so a two-hander-only build
+-- scored daggers and wands as ordinary candidates. The templates ban them deliberately.
+local banned = {
+    { class = "Bantest", specs = {
+        { name = "TwoHandOnly", role = "DAMAGER", icon = "x",
+          weights = { Strength = 1.0, CritRating = 0.5 },
+          unusable = { IsDagger = true, IsWand = true, IsStaff = true } } } },
+}
+local banPlan = Valuate:PlanAutoScale({ templates = banned, totals = plateMelee })
+ok(banPlan ~= nil, "a template with banned stats plans")
+ok(banPlan.unusable ~= nil, "and the plan carries them")
+
+local banScale = Valuate:CommitAutoScale(banPlan)
+ok(banScale ~= nil, "it commits")
+eq(banScale.Unusable.IsDagger, true, "the created scale bans daggers as the template did")
+eq(banScale.Unusable.IsWand, true, "and wands")
+eq(banScale.Unusable.IsStaff, true, "and staves")
+
+-- Copied, not shared: the plan is shown again on the last screen.
+banPlan.unusable.IsSword = true
+eq(banScale.Unusable.IsSword, nil, "editing the plan afterwards does not change the scale")
+
+-- A template with no banned stats still produces a usable empty table rather than nil.
+local free = {
+    { class = "Freetest", specs = {
+        { name = "Anything", role = "DAMAGER", icon = "x",
+          weights = { Strength = 1.0 } } } },
+}
+local freePlan = Valuate:PlanAutoScale({ templates = free, totals = plateMelee })
+local freeScale = Valuate:CommitAutoScale(freePlan)
+ok(type(freeScale.Unusable) == "table", "a template with no bans still gets an Unusable table")
+eq(next(freeScale.Unusable), nil, "and it is empty rather than invented")
+
 return failures, checks
 `,
   "autowizard",
