@@ -3,8 +3,8 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. No CoA templates have been added yet, and no CoA data exists
-on this machine to build them from.**
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 2 of 21
+classes extracted. No CoA templates written yet.**
 
 ---
 
@@ -69,15 +69,16 @@ confirming before anything is built on them.
 | Tinker | Demolition, Mechanics, Invention | — |
 | Witch Doctor | Voodoo, Brewing, Shadowhunting | Brewing = healer |
 | Witch Hunter | Boltslinger, Inquisitor, Darkness | — |
-| Primalist | (3 unknown by name) | tank, healer and DPS specs exist; "Restoration" is the healer |
+| Primalist | Mountain King, Life, Wildwalker, Geomancy | **confirmed below** - four specs |
 | Sun Cleric | Seraphim, Blessings (+1 unknown) | Seraphim = tank, Blessings = healer |
 | Reaper | (unknown) | soul-infusion mechanic |
-| Venomancer | (unknown) | forms covering tank / DPS / healer / support |
+| Venomancer | Fortitude, Stalking, Rot Weaver, Vizir | **confirmed below** - four specs |
 | Stormbringer | (unknown) | "Static" resource management |
 | Templar | (unknown) | holy martial arts; tank/DPS |
 | Son of Arugal | (unknown) | — |
 
-Roughly **47 of 69** spec names, and still **zero** stat priorities.
+Roughly **47 of 69** spec names. Superseded in part by the per-class pages below, which give
+spec names, roles AND stat priorities together and should be treated as the better source.
 
 ### Contradictions in the sources, left unresolved on purpose
 
@@ -92,6 +93,70 @@ settling before the table is built rather than papered over:
 
 The 21-class list itself is consistent across three independent sources, so where they disagree
 that list wins. The extra names are most likely sub-specs, renamed content, or wiki drift.
+
+## Stat priorities: found, and a method that works
+
+Earlier passes concluded no source published CoA stat priorities. That was wrong — I had been
+searching for class *lists*, not for stat priorities. There is one wiki page per class carrying
+explicit, ordered priorities:
+
+```
+https://www.conquestofazerothwiki.wiki/classes/conquest-of-azeroth-<class>
+```
+
+So the remaining work is mechanical rather than blocked: 21 pages, one per class.
+
+### Data collected so far
+
+| Class | Spec | Role | Stat priority (as published) |
+|---|---|---|---|
+| Primalist | Mountain King | TANK | Armor > Stamina > Defense Rating > Strength |
+| Primalist | Life | HEALER | Spell Power > Intellect > Critical Strike > Haste |
+| Primalist | Wildwalker | DAMAGER (melee) | Strength > Attack Power > Hit Rating > Critical Strike |
+| Primalist | Geomancy | DAMAGER (caster) | Spell Power > Haste > Intellect > Spell Critical |
+| Venomancer | Fortitude | TANK | Armor, health, intellect, agility |
+| Venomancer | Stalking | DAMAGER (melee) | Leech, melee uptime, survivability |
+| Venomancer | Rot Weaver | DAMAGER (caster) | Haste, crit, spell power |
+| Venomancer | Vizir | HEALER | Haste, mana, healing throughput |
+
+Partial notes from search summaries, to confirm against their own pages:
+
+- **Necromancer** — Intellect primary; spell power, haste, crit for DoT uptime and pet damage.
+- **Pyromancer** — **Crit over Haste**, deliberately: its mechanic makes crits shorten the next
+  cast, so crit is the rotational engine.
+- **Cultist** — Haste and Crit; haste builds Insanity, crit triggers void procs.
+- **Starcaller** — Intellect is the foundation for every build.
+
+### Two things this immediately confirms
+
+- **Four specs is normal.** Both classes documented so far have four, not three. 21 x 3 = 63
+  against 69 total, so roughly six classes carry a fourth. The table must not assume three.
+- **CoA really does break WotLK's stat assumptions.** Venomancer *Fortitude* is a **tank that
+  wants intellect**, and Primalist *Mountain King* puts **Armor above Stamina**. Neither makes
+  sense under 3.3.5 rules, which is exactly why the existing templates cannot be adapted.
+
+### The conversion problem, stated before it is solved
+
+These are **ordered lists**, not numeric weights, and Valuate scores with numbers. Turning
+"A > B > C > D" into weights needs a stated rule rather than taste. Proposed, to be applied
+uniformly and recorded in the template comments:
+
+| Rank | Weight |
+|---|---|
+| 1st (primary) | 1.0 |
+| 2nd | 0.75 |
+| 3rd | 0.55 |
+| 4th | 0.40 |
+| unlisted but plausible | 0.05–0.1 |
+
+A uniform rule is defensible and reproducible; hand-tuning each spec would be inventing
+precision the source does not contain. Where a page states a *reason* for an ordering — the
+Pyromancer's crit engine, for instance — that is worth reflecting with a wider gap than the
+default.
+
+Some published entries are not stat names at all: Venomancer Stalking's "melee uptime,
+survivability" and Vizir's "healing throughput" describe intent, not gear stats. Those need a
+judgement call per spec, and it must be recorded as one.
 
 ## What is still needed, in order
 
