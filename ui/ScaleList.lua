@@ -700,7 +700,7 @@ local function CreateScaleList(parent)
     -- The wizard goes FIRST and full width, in its own colour.
     --
     -- Same argument the comment below makes about Blank vs From Template, taken one step
-    -- further: the person who needs help most cannot choose between 45 presets either,
+    -- further: the person who needs help most cannot choose between 31 presets either,
     -- because that still assumes they know which one they are. The wizard is the only
     -- entry point here that answers that question for them, so it gets the top row and a
     -- slash command is not the only way to find it.
@@ -731,7 +731,7 @@ local function CreateScaleList(parent)
     -- 20%-wide "+". That put the emphasis exactly backwards for the person who needs it
     -- most. A new user cannot usefully fill in a blank scale - they do not yet know what
     -- their stat weights should be, which is the entire problem the addon solves - while
-    -- the "+" hid 45 researched class/spec presets behind a symbol nobody hovers.
+    -- the "+" hid 31 researched class/spec presets behind a symbol nobody hovers.
     local newButtonWidth = math.floor((200 - ELEMENT_SPACING) * 0.4)
     local newButton = CreateStyledButton(buttonContainer, "Blank", newButtonWidth, BUTTON_HEIGHT)
     newButton:SetPoint("TOPLEFT", wizardButton, "BOTTOMLEFT", 0, -ELEMENT_SPACING)

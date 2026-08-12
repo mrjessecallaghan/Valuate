@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.78.0a] - 2026-08-09 — Death Knight existed everywhere except in Valuate
+
+Starting a pass over the class/spec templates. Two defects before any research, both invisible
+by reading the file, because both are *things that are not there*.
+
+### Fixed
+- **Death Knight had no templates at all.** Nine classes, 28 specs. Blood, Frost and Unholy
+  simply did not exist — so a plate-and-Strength tank asking the wizard for a tank scale got
+  Protection Warrior or Protection Paladin, because Blood was not in the running. The wizard
+  hands out the closest *other* build and looks like it worked; nothing anywhere says a better
+  match was missing. All three are in, with WotLK 3.3.5 stat priorities.
+- **Paladin Retribution had `role = "SUPPORT"`.** The wizard offers Tank, Healer and Damage, so
+  Retribution could not be matched by role **at all** — not a wrong answer, an unreachable one.
+  It is `DAMAGER` now.
+
+31 specs across 10 classes.
+
+### Gates
+- **`tools/speccoverage.js`** — every class and spec in the 3.3.5 list has a template, every
+  role is one the wizard can actually ask for, and every spec has weights, an icon and a
+  colour. Mutation-tested against all three real shapes: a missing class, a missing spec, and
+  a role outside the set.
+- The templates are the wizard's entire source of intelligence, and this table is 1700 lines.
+  A gap in it is silent by construction, which is exactly what a gate is for.
+
+### Still to do
+The stat weights are WotLK baselines — the same basis as the 28 that were already here. Where
+**Ascension CoA** diverges from stock 3.3.5, they will need correcting against a real source,
+which is the rest of this job.
+
 ## [0.77.0a] - 2026-08-09 — a gate for the one failure that reached the client
 
 Every bug this session was caught by a gate except one, and that one broke the addon for a

@@ -882,7 +882,11 @@ local CLASS_SPEC_TEMPLATES = {
                 name = "Retribution",
                 icon = "Interface\\Icons\\Spell_Holy_AuraOfLight",
                 color = "CC0000",  -- Crimson - righteous vengeance
-                role = "SUPPORT",
+                -- Was "SUPPORT", which is not a role anything asks for. The wizard offers
+                -- Tank, Healer and Damage, so Retribution could not be matched by role at
+                -- all - a plate-and-Strength build asking for a damage scale would be given
+                -- Arms or Fury and never the paladin spec it actually resembles.
+                role = "DAMAGER",
                 description = "Holy warrior bringing righteous vengeance with two-handed strikes and sacred buffs.",
                 weights = {
                     Strength = 1.0, AttackPower = 0.5, CritRating = 0.8, HitRating = 1.0,
@@ -1678,6 +1682,114 @@ local CLASS_SPEC_TEMPLATES = {
                     FeralAP = true,
                     -- Block Stats (can't use shields)
                     BlockRating = true, BlockValue = true
+                }
+            }
+        }
+    },
+    {
+        class = "Death Knight",
+        color = "C41F3B",
+        description = "Fallen champions raised to serve, wielding runic power, disease and unholy strength.",
+        specs = {
+            {
+                name = "Blood",
+                icon = "Interface\\Icons\\Spell_Deathknight_BloodPresence",
+                color = "8B0000",  -- Dark red - the tanking presence
+                role = "TANK",
+                description = "Plate tank sustained by leeching strikes, converting damage taken into staying power.",
+                weights = {
+                    Stamina = 1.0, DefenseRating = 0.9, Strength = 0.55, DodgeRating = 0.5,
+                    ParryRating = 0.45, ExpertiseRating = 0.4, HitRating = 0.35, Armor = 0.3,
+                    Agility = 0.2, AttackPower = 0.2, CritRating = 0.2, ArmorPenetration = 0.1,
+                    Health = 0.1, Hp5 = 0.05, HasteRating = 0.15,
+                    TwoHandDps = 0.6, OneHandDps = 0.3, MainHandDps = 0.3,
+                    IsSigil = 0.3, ResilienceRating = 0.05,
+                    Intellect = 0.005, Spirit = 0.005, Mana = 0.005, Mp5 = 0.005,
+                    SpellPower = 0.005, FireResist = 0.02, FrostResist = 0.02,
+                    ShadowResist = 0.02, NatureResist = 0.02, ArcaneResist = 0.02,
+                    AllResist = 0.02
+                },
+                unusable = {
+                    -- Weapons (class cannot use)
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Offhands (death knights have no shields)
+                    IsFrill = true, IsShield = true,
+                    -- Relics (sigils only)
+                    IsTotem = true, IsLibram = true, IsIdol = true,
+                    -- No ranged slot
+                    RangedDps = true, RangedAP = true,
+                    -- Feral Stats
+                    FeralAP = true,
+                    -- Block Stats (can't use shields)
+                    BlockRating = true, BlockValue = true,
+                    -- Off-school Spell Power
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true, HolySpellPower = true
+                }
+            },
+            {
+                name = "Frost",
+                icon = "Interface\\Icons\\Spell_Deathknight_FrostPresence",
+                color = "5599FF",  -- Ice blue - the dual-wield killer
+                role = "DAMAGER",
+                description = "Dual-wielding or two-handed damage built on frost strikes and relentless hit chance.",
+                weights = {
+                    Strength = 1.0, HitRating = 0.95, ExpertiseRating = 0.75, CritRating = 0.6,
+                    HasteRating = 0.55, ArmorPenetration = 0.5, AttackPower = 0.5,
+                    Agility = 0.25, Stamina = 0.15, Armor = 0.05,
+                    -- Frost is the one spec that genuinely runs either setup, so both weapon
+                    -- configurations carry real weight rather than one being noise.
+                    TwoHandDps = 0.7, OneHandDps = 0.55, MainHandDps = 0.55, OffHandDps = 0.45,
+                    IsSigil = 0.3, ResilienceRating = 0.05,
+                    Intellect = 0.005, Spirit = 0.005, Mana = 0.005, Mp5 = 0.005,
+                    Hp5 = 0.005, Health = 0.005, SpellPower = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01
+                },
+                unusable = {
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    IsFrill = true, IsShield = true,
+                    IsTotem = true, IsLibram = true, IsIdol = true,
+                    RangedDps = true, RangedAP = true,
+                    FeralAP = true,
+                    BlockRating = true, BlockValue = true,
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true, HolySpellPower = true
+                }
+            },
+            {
+                name = "Unholy",
+                icon = "Interface\\Icons\\Spell_Deathknight_UnholyPresence",
+                color = "6BAA3B",  -- Plague green - disease and the ghoul
+                role = "DAMAGER",
+                description = "Two-handed damage through spreading disease and a permanent risen ghoul.",
+                weights = {
+                    Strength = 1.0, HitRating = 0.9, HasteRating = 0.7, ExpertiseRating = 0.65,
+                    ArmorPenetration = 0.6, CritRating = 0.55, AttackPower = 0.5,
+                    Agility = 0.25, Stamina = 0.15, Armor = 0.05,
+                    TwoHandDps = 0.75, IsSigil = 0.3, ResilienceRating = 0.05,
+                    Intellect = 0.005, Spirit = 0.005, Mana = 0.005, Mp5 = 0.005,
+                    Hp5 = 0.005, Health = 0.005, SpellPower = 0.005,
+                    DefenseRating = 0.005, DodgeRating = 0.005, ParryRating = 0.005,
+                    FireResist = 0.01, FrostResist = 0.01, ShadowResist = 0.01,
+                    NatureResist = 0.01, ArcaneResist = 0.01, AllResist = 0.01
+                },
+                unusable = {
+                    IsDagger = true, IsFist = true, IsStaff = true, IsWand = true,
+                    IsBow = true, IsCrossbow = true, IsGun = true, IsThrown = true,
+                    -- Two-handed spec: one-handers are not what this build wants
+                    IsAxe = true, IsMace = true, IsSword = true,
+                    IsFrill = true, IsShield = true,
+                    IsTotem = true, IsLibram = true, IsIdol = true,
+                    OffHandDps = true, MainHandDps = true, OneHandDps = true,
+                    RangedDps = true, RangedAP = true,
+                    FeralAP = true,
+                    BlockRating = true, BlockValue = true,
+                    FireSpellPower = true, FrostSpellPower = true, ShadowSpellPower = true,
+                    NatureSpellPower = true, ArcaneSpellPower = true, HolySpellPower = true
                 }
             }
         }

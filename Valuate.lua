@@ -974,7 +974,7 @@ end
 -- Matching a build to a curated template
 -- ============================================================================
 -- Ascension is classless, so "what class are you" is the wrong question and a spec list is
--- the wrong menu. But the 28 CLASS_SPEC_TEMPLATES are still hand-tuned weight sets, and
+-- the wrong menu. But the 31 CLASS_SPEC_TEMPLATES are still hand-tuned weight sets, and
 -- the gear you are ALREADY wearing says which of them you resemble. Comparing the two is
 -- how the wizard proposes an answer instead of interrogating you for one.
 --

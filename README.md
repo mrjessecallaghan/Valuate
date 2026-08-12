@@ -6,7 +6,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.77.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.78.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -23,7 +23,7 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 
 - **Guided scale wizard** — the fastest way in, and the one to start with. `/valuate wizard`
   (or **Make me a scale** at the top of the scale list) reads the gear you're already
-  wearing, works out which of 28 hand-tuned builds you most resemble, and creates an
+  wearing, works out which of 31 hand-tuned builds you most resemble, and creates an
   optimized scale from it — named after its own top five stats, like
   `Auto - Str/Crit/Hit/AP/Haste`. Three screens, one click each. It shows you exactly what
   it would make *before* making anything, tells you how confident it is (and says so plainly

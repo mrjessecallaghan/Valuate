@@ -116,8 +116,8 @@ all-enabled (backwards compatibility).
 
 ## The scale wizard
 
-Ascension is classless, so "what class are you" is the wrong question and a 28-entry spec
-list is the wrong menu. The 28 `CLASS_SPEC_TEMPLATES` are still hand-tuned weight sets
+Ascension is classless, so "what class are you" is the wrong question and a 31-entry spec
+list is the wrong menu. The 31 `CLASS_SPEC_TEMPLATES` are still hand-tuned weight sets
 though, and the gear you already wear says which one you resemble — so the wizard **proposes**
 and you confirm, rather than interrogating you.
 
