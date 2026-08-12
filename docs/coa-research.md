@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 17 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 20 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -68,12 +68,12 @@ confirming before anything is built on them.
 | Starcaller | Warden, Sentinel, Moon Priest, Moon Guard | **confirmed below** - four specs |
 | Tinker | Demolition, Mechanics, Invention | — |
 | Witch Doctor | Voodoo, Brewing, Shadowhunting | Brewing = healer |
-| Witch Hunter | Boltslinger, Inquisitor, Darkness | — |
+| Witch Hunter | Boltslinger, Darkness, Inquisitor, Black Knight | **confirmed below** - four specs |
 | Primalist | Mountain King, Life, Wildwalker, Geomancy | **confirmed below** - four specs |
 | Sun Cleric | Piety, Valkyrie, Seraphim, Blessings | **confirmed below** - four specs |
-| Reaper | (unknown) | soul-infusion mechanic |
+| Reaper | Harvest, Soul, Domination | **confirmed below** |
 | Venomancer | Fortitude, Stalking, Rot Weaver, Vizir | **confirmed below** - four specs |
-| Stormbringer | (unknown) | "Static" resource management |
+| Stormbringer | Lightning, Maelstrom, Wind | **confirmed below** |
 | Templar | Oathkeeper, Zealot, Crusader | **confirmed below** |
 | Son of Arugal | (unknown) | — |
 
@@ -85,7 +85,8 @@ spec names, roles AND stat priorities together and should be treated as the bett
 The wiki that supplied most of the spec names is internally inconsistent, and these need
 settling before the table is built rather than papered over:
 
-- **"Black Knight"** appears both as a class of its own *and* as a fourth Witch Hunter spec.
+- ~~**"Black Knight"** appears both as a class and as a Witch Hunter spec~~ — **RESOLVED**: it is
+  Witch Hunter's TANK spec. Witch Hunter has four.
 - ~~**"Valkyrie"** is listed as a class whose spec is "Sun Cleric"~~ — **RESOLVED**: Valkyrie is
   a *spec* of Sun Cleric (its melee DPS one). The class-list article had it backwards.
 - **"Blood Mage"** appears as a class, but is not in the 21-class list from the other sources.
@@ -166,8 +167,19 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Knight of Xoroth | War | DAMAGER (melee) | Strength |
 | Knight of Xoroth | Hellfire | DAMAGER (melee/caster hybrid) | Intellect / Strength |
 | Knight of Xoroth | Defiance | TANK | Strength / Intellect |
+| Reaper | Harvest | DAMAGER (melee bruiser) | Strength |
+| Reaper | Soul | DAMAGER (melee shadow caster) | Intellect |
+| Reaper | Domination | TANK (plate) | Strength |
+| Stormbringer | Lightning | DAMAGER | Haste (high), **Mastery** (high), Crit (med) |
+| Stormbringer | Maelstrom | DAMAGER (frost-storm hybrid) | Haste (high), **Mastery** (high), Crit (med) |
+| Stormbringer | Wind | **SUPPORT** | Haste (high), **Versatility** (damage reduction) |
+| Witch Hunter | Boltslinger | DAMAGER (ranged) | Agility, Crit Rating (proc resets) |
+| Witch Hunter | Darkness | DAMAGER (ranged) | Agility |
+| Witch Hunter | Inquisitor | DAMAGER (melee) | Agility, Haste |
+| Witch Hunter | **Black Knight** | TANK | Agility, **mail** armour, Shadow resistance, Parry |
 
-**17 of 21 classes** extracted (57 specs).
+**20 of 21 classes** extracted (67 specs). Only **Son of Arugal** remains — its page 404s at
+the usual URL pattern and needs finding another way.
 
 Sun Cleric is the first page to label stats **primary / secondary / tertiary** explicitly —
 exactly the shape the templates need, and a useful confirmation that the ladder proposed above
