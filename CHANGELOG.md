@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.83.0a] - 2026-08-09 — the wizard uses the CoA templates now
+
+The CoA table existed but nothing read it. This connects it.
+
+### Added
+- **`Valuate:GetTemplateSet()`** — returns the template set matching this character, and a
+  word naming which it picked. The wizard now asks it instead of always taking the classic
+  table, so a Necromancer is matched against CoA builds and a Warrior against classic ones.
+
+### Detected from the CLASS, not the realm name
+Conquest of Azeroth launched on Vol'jin, and a hardcoded check for that string would quietly
+stop working the day a second CoA realm opens. A Necromancer is a Necromancer wherever they
+log in, and no classic character is ever one.
+
+It falls back to the classic set whenever the answer is not *clearly* CoA — an unrecognised
+class, a missing `UnitClass`, a nil class name, or the classless realms. That is the safe
+direction: the classic set has been the only set for this addon's entire life, so falling
+back to it is exactly the behaviour everyone already has.
+
+### Gates
+- Five runtime checks in `tools/wizarduitest.js` covering every branch — no `UnitClass`, a
+  classic class, a CoA class, an unrecognised class, and a nil class name.
+- Mutation-tested both ways that matter: a selector that always returns classic (CoA players
+  would silently get Warrior builds) and one that always returns CoA (everyone else would).
+- `GetTemplateSet` is in the `/valuate selftest` list. It lives in `ui/Data.lua`, so checking
+  it also proves that module loaded — the same reason `ShowScaleWizard` is listed.
+
 ## [0.82.0a] - 2026-08-09 — CoA templates: 20 of 21 classes, 66 of 69 specs
 
 Nine more classes transcribed — Tinker, Barbarian, Felsworn, Witch Doctor, Chronomancer,

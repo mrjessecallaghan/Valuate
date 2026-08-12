@@ -299,6 +299,37 @@ for _, line in ipairs(__printed) do
 end
 ok(said, "it explains why instead of failing silently")
 
+-- ---- the right template set for the character -------------------------------------
+-- Detected from the CLASS, not the realm name: realm names change and a second CoA realm
+-- would silently break a hardcoded check, while a Necromancer is one wherever they log in.
+ns.COA_CLASS_SPEC_TEMPLATES = {
+    { class = "Necromancer", specs = {
+        { name = "Death", role = "DAMAGER", icon = "x", weights = { Intellect = 1.0 } } } },
+}
+
+UnitClass = nil
+local set, which = Valuate:GetTemplateSet()
+eq(which, "classic", "no UnitClass at all falls back to the classic set")
+eq(set, ns.CLASS_SPEC_TEMPLATES, "and returns it")
+
+UnitClass = function() return "Warrior" end
+local _, warriorSet = Valuate:GetTemplateSet()
+eq(warriorSet, "classic", "a classic class gets the classic set")
+
+UnitClass = function() return "Necromancer" end
+local coaSet, coaWhich = Valuate:GetTemplateSet()
+eq(coaWhich, "coa", "a CoA class gets the CoA set")
+eq(coaSet, ns.COA_CLASS_SPEC_TEMPLATES, "and it is the CoA table")
+
+UnitClass = function() return "Somethingelse" end
+local _, unknownWhich = Valuate:GetTemplateSet()
+eq(unknownWhich, "classic",
+    "an unrecognised class falls back to classic rather than guessing CoA")
+
+UnitClass = function() return nil end
+local _, nilWhich = Valuate:GetTemplateSet()
+eq(nilWhich, "classic", "a nil class name falls back too")
+
 return failures, checks
 `,
   "wizarduitest",

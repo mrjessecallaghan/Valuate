@@ -7570,6 +7570,9 @@ function Valuate:RunSelfTest()
         -- ARCHITECTURE.md tells integrations to register through this. If it disappeared,
         -- AdiBags would simply stop refreshing and nothing would say why.
         "RegisterBestEquipmentListener",
+        -- Picks the CoA or classic template set. Lives in ui/Data.lua, so this also proves
+        -- that module loaded.
+        "GetTemplateSet",
     }
     for _, m in ipairs(methods) do
         check(type(Valuate[m]) == "function", "method " .. m)

@@ -343,7 +343,10 @@ function ns.WizardPlan(role)
 
     local totals = Valuate.GetCachedEquippedStatTotals and Valuate:GetCachedEquippedStatTotals()
     local plan, why = Valuate:PlanAutoScale({
-        templates = ns.CLASS_SPEC_TEMPLATES,
+        -- The set matching this character's class: Conquest of Azeroth's 21 classes, or the
+        -- classic ten. Proposing "Stormbringer Lightning" to a Warrior would be nonsense, and
+        -- so would proposing "Arms Warrior" to a Necromancer.
+        templates = (Valuate.GetTemplateSet and Valuate:GetTemplateSet()) or ns.CLASS_SPEC_TEMPLATES,
         totals = totals,
         role = role,
     })

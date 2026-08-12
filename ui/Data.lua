@@ -2427,3 +2427,29 @@ local COA_CLASS_SPEC_TEMPLATES = {
 ns.SCALE_ICON_LIST = SCALE_ICON_LIST
 ns.CLASS_SPEC_TEMPLATES = CLASS_SPEC_TEMPLATES
 ns.COA_CLASS_SPEC_TEMPLATES = COA_CLASS_SPEC_TEMPLATES
+
+-- Which template set applies to this character, and a word naming which it picked.
+--
+-- Detected from the player's CLASS, not the realm name. Realm names change and new ones get
+-- added - Conquest of Azeroth launched on Vol'jin, and a hardcoded check for that string
+-- would quietly stop working the day a second CoA realm opens. A Necromancer is a
+-- Necromancer wherever they log in, and no classic character is ever one.
+--
+-- Falls back to the classic set whenever the answer is not clearly CoA: an unrecognised
+-- class, a missing UnitClass, or the classless realms where the class is a WotLK one. That
+-- is the safe direction - the classic set has been the only set for this addon's whole life,
+-- so falling back to it is the behaviour everyone already has.
+function Valuate:GetTemplateSet()
+    local coa = ns.COA_CLASS_SPEC_TEMPLATES
+    if coa and type(UnitClass) == "function" then
+        local className = UnitClass("player")
+        if type(className) == "string" and className ~= "" then
+            for _, entry in ipairs(coa) do
+                if entry.class == className then
+                    return coa, "coa"
+                end
+            end
+        end
+    end
+    return ns.CLASS_SPEC_TEMPLATES, "classic"
+end
