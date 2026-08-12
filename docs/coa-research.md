@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 13 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 15 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -64,13 +64,13 @@ confirming before anything is built on them.
 | Necromancer | Death, Animation, Rime | pet-based dark caster, DPS |
 | Pyromancer | Flame Weaver, Incineration, Draconic | fire DPS; Draconic is the dragon-form spec |
 | Ranger | Archer, Brigand, Farstrider | all DPS *(implied)* |
-| Runemaster | Engravement, Glyph, Rift Blade | — |
+| Runemaster | Engravement, Glyph, Rift Blade | **confirmed below** - all Agility, all DPS |
 | Starcaller | Warden, Sentinel, Moon Priest, Moon Guard | **confirmed below** - four specs |
 | Tinker | Demolition, Mechanics, Invention | — |
 | Witch Doctor | Voodoo, Brewing, Shadowhunting | Brewing = healer |
 | Witch Hunter | Boltslinger, Inquisitor, Darkness | — |
 | Primalist | Mountain King, Life, Wildwalker, Geomancy | **confirmed below** - four specs |
-| Sun Cleric | Seraphim, Blessings (+1 unknown) | Seraphim = tank, Blessings = healer |
+| Sun Cleric | Piety, Valkyrie, Seraphim, Blessings | **confirmed below** - four specs |
 | Reaper | (unknown) | soul-infusion mechanic |
 | Venomancer | Fortitude, Stalking, Rot Weaver, Vizir | **confirmed below** - four specs |
 | Stormbringer | (unknown) | "Static" resource management |
@@ -86,8 +86,8 @@ The wiki that supplied most of the spec names is internally inconsistent, and th
 settling before the table is built rather than papered over:
 
 - **"Black Knight"** appears both as a class of its own *and* as a fourth Witch Hunter spec.
-- **"Valkyrie"** is listed as a class whose spec is "Sun Cleric", while Sun Cleric is also one
-  of the 21 classes.
+- ~~**"Valkyrie"** is listed as a class whose spec is "Sun Cleric"~~ — **RESOLVED**: Valkyrie is
+  a *spec* of Sun Cleric (its melee DPS one). The class-list article had it backwards.
 - **"Blood Mage"** appears as a class, but is not in the 21-class list from the other sources.
 - **Starcaller shows four specs** where every other class shows three.
 
@@ -153,8 +153,19 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Chronomancer | Displacement | HEALER | Intellect / Haste |
 | Chronomancer | Duality | DAMAGER (ranged) | Intellect / Crit |
 | Chronomancer | Artificer | DAMAGER (ranged hybrid) | **Spirit / Hit** |
+| Sun Cleric | Piety | DAMAGER (caster) | Intellect > Haste > Spell Crit |
+| Sun Cleric | **Valkyrie** | DAMAGER (melee) | Strength > Melee Crit > Haste |
+| Sun Cleric | Seraphim | TANK | Strength > Armor/Stamina > Parry/Dodge |
+| Sun Cleric | Blessings | HEALER | Intellect > Spell Power > Mana Regeneration |
+| Runemaster | Engravement | DAMAGER (sustained/CC) | Agility |
+| Runemaster | Glyph | DAMAGER (AoE/control) | Agility |
+| Runemaster | Rift Blade | DAMAGER (burst) | Agility |
 
-**13 of 21 classes** extracted (44 specs).
+**15 of 21 classes** extracted (51 specs).
+
+Sun Cleric is the first page to label stats **primary / secondary / tertiary** explicitly —
+exactly the shape the templates need, and a useful confirmation that the ladder proposed above
+matches how the source thinks about them.
 
 ### A strong TENDENCY toward one class stat — but not a rule
 
