@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 7 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 9 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -135,8 +135,42 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Starcaller | Sentinel | DAMAGER (ranged) | Intellect, Spell Power, Critical Strike, Haste |
 | Starcaller | Moon Priest | HEALER | Intellect, Spirit, Spell Power, Critical Strike |
 | Starcaller | Moon Guard | DAMAGER (melee) | Intellect, Attack Power, Haste, Critical Strike |
+| Ranger | Archer | DAMAGER (ranged) | Agility |
+| Ranger | Brigand | DAMAGER (melee) | Agility |
+| Ranger | Farstrider | **SUPPORT** (utility DPS) | Agility |
+| Tinker | Demolition | DAMAGER (ranged) | Intellect > Agility |
+| Tinker | Mechanics | DAMAGER (ranged, pet) | Intellect > Agility |
+| Tinker | Invention | HEALER / SUPPORT | Intellect > Agility |
 
-**7 of 21 classes** extracted (26 specs).
+**9 of 21 classes** extracted (32 specs).
+
+### Confirmed across nine classes: one CLASS stat, not a role stat
+
+The pattern below now holds in every class examined, and it is the single most useful thing
+this research has produced:
+
+| Class | Primary stat | Holds across |
+|---|---|---|
+| Ranger | **Agility** | all 3 specs — ranged DPS, melee DPS, support |
+| Tinker | **Intellect** | all 3 specs — including its healer |
+| Starcaller | **Intellect** | all 4 specs — including a **melee** DPS and a **tank** |
+| Necromancer | **Intellect** | all 3 specs (one shared priority) |
+| Pyromancer | **Crit**, then Intellect | all 3 specs — including its healer |
+
+The role changes the *secondary* stats and almost never the primary. That inverts 3.3.5, where
+the role decides the primary stat and the class merely flavours it.
+
+**Design consequence.** A CoA template set is closer to *21 stat profiles with per-spec
+secondary variations* than to 69 independent builds. That is far less data than 69 hand-tuned
+weight tables, and it also means a wrong role guess costs less than it would on WotLK — the
+primary stat is right either way.
+
+**Matching consequence, and it is not a good one.** `Valuate:MatchTemplateToStats` compares the
+angle between worn gear and a template. If a third of CoA's classes lead with Intellect, their
+templates cluster, and cosine similarity will separate them far less sharply than it does the
+WotLK set. Expect low confidence scores and frequent close runner-ups on this realm — the
+wizard's caution line and "almost as close" line are doing real work there, and the 0.55
+`MATCH_UNSURE` threshold may need to be re-judged against actual CoA data rather than inherited.
 
 ### The pattern that makes CoA templates non-derivable
 
