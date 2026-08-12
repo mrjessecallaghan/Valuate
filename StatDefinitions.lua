@@ -64,6 +64,20 @@ ValuateStatCategories = {
         header = "Resistances",
         stats = { "ResilienceRating", "AllResist", "FireResist", "ShadowResist", "NatureResist", "ArcaneResist", "FrostResist" }
     },
+    -- Ascension's modern secondaries. Not in stock 3.3.5, which is why they were absent:
+    -- Blizzard added Mastery in Cataclysm and Versatility/Leech in Warlords, and Ascension
+    -- back-ported them.
+    --
+    -- They are not optional extras. Conquest of Azeroth publishes them as real priorities -
+    -- Stormbringer wants Mastery high in two specs and Versatility in the third, Pyromancer
+    -- and Barbarian both list Versatility - and AscensionStatWeights, an addon installed
+    -- alongside this one, already weights all three. Without them a CoA scale cannot be
+    -- written honestly, and an item carrying them scores as though it carried nothing.
+    {
+        column = 4,
+        header = "Ascension",
+        stats = { "MasteryRating", "VersatilityRating", "LeechRating" }
+    },
     
     -- Column 5: Weapons
     {
@@ -111,6 +125,8 @@ ValuateStatAbbreviations = {
     -- Defense
     Armor = "Armor", DefenseRating = "Def", DodgeRating = "Dodge", ParryRating = "Parry",
     BlockRating = "Block", BlockValue = "BV", ResilienceRating = "Resil",
+    -- Ascension secondaries (see the Ascension category above)
+    MasteryRating = "Mast", VersatilityRating = "Vers", LeechRating = "Leech",
     -- Resistances
     AllResist = "AllRes", FireResist = "FireRes", ShadowResist = "ShadowRes",
     NatureResist = "NatureRes", ArcaneResist = "ArcaneRes", FrostResist = "FrostRes",
@@ -247,6 +263,21 @@ ValuateStatPatterns = {
     {"^Equip: Increases the block value of your shield by (%d+)%.?$", "BlockValue"},
     
     -- ======== RESISTANCES ========
+    -- Ascension's back-ported secondaries. Patterned on the Resilience lines below,
+    -- which are the closest stock analogue. The bare forms (no "Rating") are included
+    -- because modern WoW drops the word and Ascension may follow either convention -
+    -- an unmatched line is a stat silently scored as zero, not an error.
+    {"^%+?(%d+) Mastery Rating%.?$", "MasteryRating"},
+    {"^%+?(%d+) Mastery%.?$", "MasteryRating"},
+    {"^Equip: Increases your mastery rating by (%d+)%.?$", "MasteryRating"},
+    {"^Equip: Improves your mastery rating by (%d+)%.?$", "MasteryRating"},
+    {"^%+?(%d+) Versatility Rating%.?$", "VersatilityRating"},
+    {"^%+?(%d+) Versatility%.?$", "VersatilityRating"},
+    {"^Equip: Increases your versatility rating by (%d+)%.?$", "VersatilityRating"},
+    {"^Equip: Improves your versatility rating by (%d+)%.?$", "VersatilityRating"},
+    {"^%+?(%d+) Leech Rating%.?$", "LeechRating"},
+    {"^%+?(%d+) Leech%.?$", "LeechRating"},
+    {"^Equip: Increases your leech rating by (%d+)%.?$", "LeechRating"},
     {"^%+?(%d+) Resilience Rating%.?$", "ResilienceRating"},
     {"^Equip: Increases your resilience rating by (%d+)%.?$", "ResilienceRating"},
     {"^Equip: Improves your resilience rating by (%d+)%.?$", "ResilienceRating"},
@@ -363,6 +394,9 @@ ValuateStatNames = {
     BlockRating = "Block Rating",
     BlockValue = "Block Value",
     ResilienceRating = "Resilience",
+    MasteryRating = "Mastery",
+    VersatilityRating = "Versatility",
+    LeechRating = "Leech",
     AllResist = "All Resist",
     FireResist = "Fire Resist",
     ShadowResist = "Shadow Resist",

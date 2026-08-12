@@ -306,6 +306,12 @@ judgement call per spec, and it must be recorded as one.
 4. **CoA's armour and weapon rules**, to rewrite `unusable` per spec rather than inheriting
    WotLK's.
 
+## DONE in v0.79.0a: the three missing stats
+
+MasteryRating, VersatilityRating and LeechRating are now in ValuateStatCategories, the
+abbreviation table, the display names and the tooltip parser. The prerequisite is cleared -
+a CoA template can now reference them.
+
 ## The best source found so far is already on this machine — and it is not CoA
 
 `Interface/AddOns/AscensionStatWeights/AscensionStatWeights.lua` is an installed addon whose

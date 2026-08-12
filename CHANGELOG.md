@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.79.0a] - 2026-08-09 — Mastery, Versatility and Leech are scoreable now
+
+### Added
+- **Three stats Valuate could not see.** `MasteryRating`, `VersatilityRating` and
+  `LeechRating` now exist in the stat list, the abbreviation table, the display names and the
+  tooltip parser. An item carrying them used to score as though it carried nothing.
+
+They are not in stock 3.3.5 — Blizzard added Mastery in Cataclysm and Versatility/Leech in
+Warlords — which is why they were missing. Ascension back-ported them, and two independent
+sources say so:
+
+- **Conquest of Azeroth publishes them as real priorities.** Stormbringer wants Mastery high
+  in two of its three specs and Versatility in the third; Pyromancer and Barbarian both list
+  Versatility.
+- **`AscensionStatWeights`**, an addon installed alongside this one, already weights all
+  three.
+
+### Why this before the CoA templates
+It is the prerequisite. A CoA scale that wants Mastery could not be written at all — the stat
+did not exist to reference, and `tools/autoname.js` requires every stat to have an
+abbreviation. This clears that.
+
+The parser takes both phrasings: `+N Mastery Rating` and the bare `+N Mastery`, since modern
+WoW drops the word and it is not knowable from here which Ascension uses. An unmatched tooltip
+line is not an error — it is a stat silently scored as zero — so covering both is cheap
+insurance against exactly the kind of silent wrongness this addon keeps finding.
+
+### Risk
+Deliberately additive data only: four tables, no new code paths, nothing at file scope. That
+matters given v0.74.0a broke the client with a core change — `tools/loadtime.js` now refuses
+file-scope calls, and this change does not go near one. `datatest.js` picked the new stats up
+automatically and went from 3997 to 4003 checks.
+
 ## [0.78.0a] - 2026-08-09 — Death Knight existed everywhere except in Valuate
 
 Starting a pass over the class/spec templates. Two defects before any research, both invisible
