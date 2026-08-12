@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 2 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 5 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -118,14 +118,41 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Venomancer | Stalking | DAMAGER (melee) | Leech, melee uptime, survivability |
 | Venomancer | Rot Weaver | DAMAGER (caster) | Haste, crit, spell power |
 | Venomancer | Vizir | HEALER | Haste, mana, healing throughput |
+| Necromancer | Death | DAMAGER (ranged) | Intellect + Spell Power, then Haste, Critical Strike |
+| Necromancer | Animation | DAMAGER (ranged) | *(same — the page gives one priority for all three)* |
+| Necromancer | Rime | DAMAGER (ranged) | *(same)* |
+| Pyromancer | Flame Weaver | **HEALER** | Crit (S) > Intellect (A) > Haste (B) > Versatility (C) |
+| Pyromancer | Incineration | DAMAGER (ranged) | *(same tier list)* |
+| Pyromancer | Draconic | DAMAGER (melee-range) | *(same tier list)* |
+| Guardian | Vanguard | TANK | Strength/Stamina > Defense Rating > Parry/Dodge > Block Value |
+| Guardian | Gladiator | DAMAGER (physical) | Strength/Agility > Crit > Haste/Armor Pen > Hit Rating |
+| Guardian | Inspiration | **SUPPORT** | not published; spec is "Banners & Songs" group buffs |
 
-Partial notes from search summaries, to confirm against their own pages:
+**5 of 21 classes** extracted (18 specs).
 
-- **Necromancer** — Intellect primary; spell power, haste, crit for DoT uptime and pet damage.
-- **Pyromancer** — **Crit over Haste**, deliberately: its mechanic makes crits shorten the next
-  cast, so crit is the rotational engine.
-- **Cultist** — Haste and Crit; haste builds Insanity, crit triggers void procs.
-- **Starcaller** — Intellect is the foundation for every build.
+### What these four pages changed
+
+- **Support is real and now has a name.** Guardian *Inspiration* is the first confirmed
+  SUPPORT spec. The fourth wizard role is not hypothetical.
+- **An earlier source was wrong about Pyromancer.** It was described as fire DPS across the
+  board; its own page makes **Flame Weaver a healer**. Class-list articles are not reliable
+  for roles — only the per-class pages are.
+- **Some classes publish one priority for every spec.** Necromancer and Pyromancer both do.
+  That is the source's choice, not missing data, and the templates should reflect it rather
+  than inventing per-spec differences that nobody published.
+- **Not every spec has a priority at all.** Guardian *Inspiration* has none. A support spec
+  built on group buffs may genuinely not have one, and a blank is the honest record.
+
+### CoA uses stats Valuate cannot score
+
+Pyromancer's priority ends in **Versatility**. Valuate's 51-stat list has no Versatility, no
+Mastery and no Leech — and `AscensionStatWeights` weights all three, plus `MYSTIC_ENCHANT`,
+`MYTHIC` and `FERVOR`.
+
+So a faithful CoA template cannot currently be written: the stats it needs to reference do not
+exist in `ValuateStatCategories`, and `tools/autoname.js` requires every stat to have an
+abbreviation. **Adding those stats is a prerequisite**, not a nicety — and it is a change to
+the scoring core, not just the template table.
 
 ### Two things this immediately confirms
 
