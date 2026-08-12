@@ -1827,6 +1827,243 @@ local CLASS_SPEC_TEMPLATES = {
 -- wizard two near-identical candidates that are always each other's runner-up.
 local COA_CLASS_SPEC_TEMPLATES = {
     {
+        class = "Tinker",
+        color = "9FB4C7",
+        description = "Engineers whose gadgets do the fighting for them.",
+        specs = {
+            {
+                name = "Demolition", icon = "Interface\\Icons\\Spell_Fire_SelfDestruct",
+                color = "9FB4C7", role = "DAMAGER",
+                description = "Explosives at range. Intellect first, agility behind it.",
+                weights = { Intellect = 1.0, Agility = 0.75, HasteRating = 0.55, CritRating = 0.40, SpellPower = 0.40 },
+            },
+            {
+                name = "Mechanics", icon = "Interface\\Icons\\INV_Misc_Gear_01",
+                color = "8FA4B7", role = "DAMAGER",
+                description = "Turrets and constructs on the same Intellect and agility footing.",
+                weights = { Intellect = 1.0, Agility = 0.75, HasteRating = 0.55, CritRating = 0.40, SpellPower = 0.40 },
+            },
+            {
+                name = "Invention", icon = "Interface\\Icons\\INV_Gizmo_02",
+                color = "BFD4E7", role = "HEALER",
+                -- Published as Healer/Support; filed as HEALER since healing is the primary duty.
+                description = "Healing and support through invention, still Intellect-led.",
+                weights = { Intellect = 1.0, Agility = 0.75, Mp5 = 0.55, SpellPower = 0.55, HasteRating = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Barbarian",
+        color = "A0522D",
+        description = "Ragers who answer everything with an axe.",
+        specs = {
+            {
+                name = "Brutality", icon = "Interface\\Icons\\Ability_Warrior_Rampage",
+                color = "A0522D", role = "DAMAGER",
+                -- Published as stars: Str and Crit both 5-star, Versatility 4.
+                description = "Melee damage wanting Strength and critical strike equally.",
+                weights = { Strength = 1.0, CritRating = 1.0, VersatilityRating = 0.75, AttackPower = 0.55, HasteRating = 0.40 },
+            },
+            {
+                name = "Head Hunting", icon = "Interface\\Icons\\Ability_Throw",
+                color = "8B4513", role = "DAMAGER",
+                description = "Thrown damage led by critical strike rather than a primary stat.",
+                weights = { CritRating = 1.0, HasteRating = 0.75, VersatilityRating = 0.75, Agility = 0.55, RangedAP = 0.40, Strength = 0.40 },
+            },
+            {
+                name = "Ancestry", icon = "Interface\\Icons\\Spell_Shadow_SpiritLink",
+                color = "C4703D", role = "SUPPORT",
+                description = "Ancestral buffs alongside damage, on Strength and critical strike.",
+                weights = { Strength = 1.0, CritRating = 1.0, HasteRating = 0.75, AttackPower = 0.55, Stamina = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Felsworn",
+        color = "8B3A9E",
+        description = "Those who took the fel bargain and kept fighting.",
+        specs = {
+            {
+                name = "Infernal", icon = "Interface\\Icons\\Spell_Fire_FelFireNova",
+                color = "8B3A9E", role = "DAMAGER",
+                -- Felsworn breaks the one-class-stat pattern: Infernal is Intellect, the other two Agility.
+                description = "Ranged fel damage scaling on Intellect.",
+                weights = { Intellect = 1.0, SpellPower = 0.55, HasteRating = 0.55, CritRating = 0.40, FireSpellPower = 0.05 },
+            },
+            {
+                name = "Slayer", icon = "Interface\\Icons\\Ability_Warrior_Charge",
+                color = "9B4AAE", role = "DAMAGER",
+                description = "High-mobility melee combos scaling on Agility.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.55, HasteRating = 0.40, HitRating = 0.05 },
+            },
+            {
+                name = "Tyrant", icon = "Interface\\Icons\\Ability_Rogue_Evasion",
+                color = "6B2A7E", role = "TANK",
+                description = "Evasion tank: mitigation through avoidance rather than armour.",
+                weights = { Agility = 1.0, DodgeRating = 0.75, ParryRating = 0.55, Stamina = 0.55, Armor = 0.40, DefenseRating = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Witch Doctor",
+        color = "4E9A57",
+        description = "Vol'jin's own: hexes, brews and risen beasts.",
+        specs = {
+            {
+                name = "Voodoo", icon = "Interface\\Icons\\Spell_Shadow_Haunting",
+                color = "4E9A57", role = "DAMAGER",
+                description = "Damage over time and hexes, scaling on Intellect.",
+                weights = { Intellect = 1.0, SpellPower = 0.55, HasteRating = 0.55, CritRating = 0.40, ShadowSpellPower = 0.05 },
+            },
+            {
+                name = "Brewing", icon = "Interface\\Icons\\INV_Drink_05",
+                color = "6EBA77", role = "HEALER",
+                description = "Potions and wards. Intellect-led healing.",
+                weights = { Intellect = 1.0, SpellPower = 0.55, Mp5 = 0.55, HasteRating = 0.40, Spirit = 0.40 },
+            },
+            {
+                name = "Shadowhunting", icon = "Interface\\Icons\\Ability_Hunter_Pet_Raptor",
+                color = "3E8A47", role = "DAMAGER",
+                -- Published as Intellect OR Agility - both weighted, per the dual-primary rule above.
+                description = "Dinosaur summons and shadow tools, taking Intellect or Agility.",
+                weights = { Intellect = 1.0, Agility = 1.0, AttackPower = 0.55, SpellPower = 0.55, CritRating = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Chronomancer",
+        color = "B39DDB",
+        description = "Time-benders who slow, rewind and hasten.",
+        specs = {
+            {
+                name = "Displacement", icon = "Interface\\Icons\\Spell_Arcane_PortalDalaran",
+                color = "B39DDB", role = "HEALER",
+                description = "Healing through rewinding damage. Intellect then haste.",
+                weights = { Intellect = 1.0, HasteRating = 0.75, SpellPower = 0.55, Mp5 = 0.40, CritRating = 0.40 },
+            },
+            {
+                name = "Duality", icon = "Interface\\Icons\\Spell_Arcane_Arcane04",
+                color = "9575CD", role = "DAMAGER",
+                description = "Ranged damage on Intellect and critical strike.",
+                weights = { Intellect = 1.0, CritRating = 0.75, SpellPower = 0.55, HasteRating = 0.40, ArcaneSpellPower = 0.05 },
+            },
+            {
+                name = "Artificer", icon = "Interface\\Icons\\INV_Misc_PocketWatch_01",
+                color = "D1C4E9", role = "DAMAGER",
+                -- SPIRIT as a primary. A regen afterthought in 3.3.5, a lead stat here - not a typo.
+                description = "Ranged hybrid, and the only CoA spec led by Spirit.",
+                weights = { Spirit = 1.0, HitRating = 0.75, Intellect = 0.55, SpellPower = 0.55, HasteRating = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Templar",
+        color = "E6C88C",
+        description = "Holy martial artists who fight with fists and faith.",
+        specs = {
+            {
+                name = "Oathkeeper", icon = "Interface\\Icons\\Spell_Holy_SealOfProtection",
+                color = "E6C88C", role = "TANK",
+                description = "Tank built on stamina and dodging rather than blocking.",
+                weights = { Stamina = 1.0, Agility = 0.75, DodgeRating = 0.75, ParryRating = 0.55, Armor = 0.40, DefenseRating = 0.05 },
+            },
+            {
+                name = "Zealot", icon = "Interface\\Icons\\Ability_Monk_TigerPalm",
+                color = "D6B87C", role = "DAMAGER",
+                description = "Fast melee on Agility, haste and critical strike.",
+                weights = { Agility = 1.0, HasteRating = 0.75, CritRating = 0.55, AttackPower = 0.40, HitRating = 0.05 },
+            },
+            {
+                name = "Crusader", icon = "Interface\\Icons\\Spell_Holy_Crusade",
+                color = "F6D89C", role = "DAMAGER",
+                description = "Heavier melee taking Strength or Agility, then attack power.",
+                weights = { Strength = 1.0, Agility = 1.0, AttackPower = 0.75, ArmorPenetration = 0.55, CritRating = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Knight of Xoroth",
+        color = "8B0000",
+        description = "Dread knights bound to a burning world.",
+        specs = {
+            {
+                name = "War", icon = "Interface\\Icons\\Ability_Warrior_BloodFrenzy",
+                color = "8B0000", role = "DAMAGER",
+                description = "Physical damage and bleeds, on Strength.",
+                weights = { Strength = 1.0, AttackPower = 0.55, CritRating = 0.55, ExpertiseRating = 0.40, HitRating = 0.40 },
+            },
+            {
+                name = "Hellfire", icon = "Interface\\Icons\\Spell_Fire_Fireball02",
+                color = "AB2020", role = "DAMAGER",
+                description = "Melee and fire together, taking Intellect or Strength.",
+                weights = { Intellect = 1.0, Strength = 1.0, SpellPower = 0.55, AttackPower = 0.55, CritRating = 0.40, FireSpellPower = 0.05 },
+            },
+            {
+                name = "Defiance", icon = "Interface\\Icons\\Spell_Shadow_DeathPact",
+                color = "6B0000", role = "TANK",
+                description = "Tank using shields and summons, on Strength or Intellect.",
+                weights = { Strength = 1.0, Intellect = 1.0, Stamina = 0.75, Armor = 0.55, ParryRating = 0.40, BlockValue = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Reaper",
+        color = "4A4A5A",
+        description = "Soul-harvesters in savage plate.",
+        specs = {
+            {
+                name = "Harvest", icon = "Interface\\Icons\\Spell_Shadow_LifeDrain02",
+                color = "4A4A5A", role = "DAMAGER",
+                description = "Melee bruiser draining life, on Strength.",
+                weights = { Strength = 1.0, AttackPower = 0.55, CritRating = 0.55, HasteRating = 0.40, ExpertiseRating = 0.40 },
+            },
+            {
+                name = "Soul", icon = "Interface\\Icons\\Spell_Shadow_SoulLeech_3",
+                color = "6A6A7A", role = "DAMAGER",
+                description = "Melee shadow caster scaling on Intellect instead.",
+                weights = { Intellect = 1.0, SpellPower = 0.55, ShadowSpellPower = 0.55, HasteRating = 0.40, CritRating = 0.40 },
+            },
+            {
+                name = "Domination", icon = "Interface\\Icons\\Spell_Shadow_UnholyFrenzy",
+                color = "3A3A4A", role = "TANK",
+                description = "Savage plate tanking, threat and defence both scaling on Strength.",
+                weights = { Strength = 1.0, Stamina = 0.75, Armor = 0.55, ParryRating = 0.40, DefenseRating = 0.40, DodgeRating = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Witch Hunter",
+        color = "C0C0C0",
+        description = "Zealots who hunt what others fear, in mail.",
+        specs = {
+            {
+                name = "Boltslinger", icon = "Interface\\Icons\\Ability_Hunter_Snipershot",
+                color = "C0C0C0", role = "DAMAGER",
+                description = "Mobile ranged damage; crit resets its own procs.",
+                weights = { Agility = 1.0, CritRating = 0.75, RangedAP = 0.55, HasteRating = 0.40, HitRating = 0.40 },
+            },
+            {
+                name = "Darkness", icon = "Interface\\Icons\\Spell_Shadow_SummonVoidWalker",
+                color = "808090", role = "DAMAGER",
+                description = "Shadow hounds and burst damage, on Agility.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.55, HasteRating = 0.40, ShadowSpellPower = 0.05 },
+            },
+            {
+                name = "Inquisitor", icon = "Interface\\Icons\\Spell_Holy_HolySmite",
+                color = "E0E0E0", role = "DAMAGER",
+                description = "Melee zealot; haste drives resource generation.",
+                weights = { Agility = 1.0, HasteRating = 0.75, AttackPower = 0.55, CritRating = 0.40, HitRating = 0.40 },
+            },
+            {
+                name = "Black Knight", icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain",
+                color = "505060", role = "TANK",
+                -- An AGILITY-scaling tank in MAIL. Neither is possible under 3.3.5 rules.
+                description = "Mail tank using shadow brands for threat and self-healing.",
+                weights = { Agility = 1.0, ParryRating = 0.75, ShadowResist = 0.55, Armor = 0.55, Stamina = 0.55, LeechRating = 0.40 },
+            },
+        },
+    },
+    {
         class = "Venomancer",
         color = "5FA855",
         description = "Plague-shapers who fight through venom, rot and shifting forms.",

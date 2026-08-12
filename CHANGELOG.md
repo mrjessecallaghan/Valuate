@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.82.0a] - 2026-08-09 — CoA templates: 20 of 21 classes, 66 of 69 specs
+
+Nine more classes transcribed — Tinker, Barbarian, Felsworn, Witch Doctor, Chronomancer,
+Templar, Knight of Xoroth, Reaper, Witch Hunter. Every class whose page could be read now has
+templates.
+
+Only **Son of Arugal** is missing; its wiki page 404s at the URL pattern that served the other
+twenty, so it needs finding another way.
+
+### Three entries carry a warning comment, because they look like mistakes and are not
+- **Chronomancer *Artificer* leads with Spirit.** A minor regen afterthought in 3.3.5 and a
+  primary stat here.
+- **Witch Hunter *Black Knight* is an Agility-scaling tank in mail.** Neither half is possible
+  under 3.3.5 rules, and it independently confirms the "mail tanking gear" line on Ascension's
+  own CoA page.
+- **Felsworn splits its primaries** — Intellect for Infernal, Agility for Slayer and Tyrant —
+  which is why the one-class-stat tendency is documented as a tendency and never used to
+  generate anything.
+
+Each has a comment sitting beside its weights, because the next person to read "a tank whose
+primary stat is Intellect" will otherwise assume a typo and helpfully break it.
+
+### Still to do
+CoA-aware `unusable` blocks (the WotLK weapon and armour assumptions are actively wrong here),
+realm detection so the wizard picks the right table, and Son of Arugal.
+
 ## [0.81.0a] - 2026-08-09 — CoA templates: 11 of 21 classes
 
 Six more classes transcribed: Venomancer, Necromancer, Pyromancer, Guardian, Cultist,
