@@ -1827,6 +1827,211 @@ local CLASS_SPEC_TEMPLATES = {
 -- wizard two near-identical candidates that are always each other's runner-up.
 local COA_CLASS_SPEC_TEMPLATES = {
     {
+        class = "Venomancer",
+        color = "5FA855",
+        description = "Plague-shapers who fight through venom, rot and shifting forms.",
+        specs = {
+            {
+                name = "Fortitude", icon = "Interface\\Icons\\Ability_Creature_Poison_06",
+                color = "4F8A47", role = "TANK",
+                description = "Toxin-hardened tank. Armour first, then health, intellect and agility.",
+                weights = { Armor = 1.0, Health = 0.75, Intellect = 0.55, Agility = 0.40,
+                    Stamina = 0.05, DodgeRating = 0.05 },
+            },
+            {
+                name = "Stalking", icon = "Interface\\Icons\\Ability_Rogue_Sprint",
+                color = "6FBF5F", role = "DAMAGER",
+                -- Published as "Leech, melee uptime, survivability". Only the first is a gear
+                -- stat; uptime is read as haste and survivability as stamina, and that is a
+                -- judgement rather than a transcription.
+                description = "Melee damage sustained by leech rather than burst.",
+                weights = { LeechRating = 1.0, HasteRating = 0.75, Stamina = 0.55,
+                    Agility = 0.55, AttackPower = 0.40, Armor = 0.05 },
+            },
+            {
+                name = "Rot Weaver", icon = "Interface\\Icons\\Spell_Shadow_CreepingPlague",
+                color = "8FCF6F", role = "DAMAGER",
+                description = "Caster damage on haste, then critical strike and spell power.",
+                weights = { HasteRating = 1.0, CritRating = 0.75, SpellPower = 0.55,
+                    Intellect = 0.40, NatureSpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Vizir", icon = "Interface\\Icons\\Spell_Nature_HealingWaveGreater",
+                color = "AFDF9F", role = "HEALER",
+                -- "Haste, mana support, healing throughput" - throughput read as spell power.
+                description = "Healer built on haste and sustaining mana.",
+                weights = { HasteRating = 1.0, Mana = 0.75, Mp5 = 0.75, SpellPower = 0.55,
+                    Intellect = 0.40, Spirit = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Necromancer",
+        color = "6E4B8E",
+        description = "Dark casters commanding the risen and draining the living.",
+        specs = {
+            {
+                name = "Death", icon = "Interface\\Icons\\Spell_Shadow_DeathCoil",
+                color = "6E4B8E", role = "DAMAGER",
+                -- The page gives ONE priority for all three specs; that is the source's own
+                -- choice, so all three share it rather than inventing differences.
+                description = "Shadow damage scaling on Intellect and spell power together.",
+                weights = { Intellect = 1.0, SpellPower = 1.0, HasteRating = 0.55,
+                    CritRating = 0.40, ShadowSpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Animation", icon = "Interface\\Icons\\Spell_Shadow_RaiseDead",
+                color = "7E5B9E", role = "DAMAGER",
+                description = "Minion-driven damage on the same Intellect and spell power base.",
+                weights = { Intellect = 1.0, SpellPower = 1.0, HasteRating = 0.55,
+                    CritRating = 0.40, ShadowSpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Rime", icon = "Interface\\Icons\\Spell_Frost_ChillingBlast",
+                color = "8E7BBE", role = "DAMAGER",
+                description = "Frost-tinted necromancy on the same Intellect and spell power base.",
+                weights = { Intellect = 1.0, SpellPower = 1.0, HasteRating = 0.55,
+                    CritRating = 0.40, FrostSpellPower = 0.05, HitRating = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Pyromancer",
+        color = "E25822",
+        description = "Fire-wielders whose crits feed the next cast.",
+        specs = {
+            {
+                name = "Flame Weaver", icon = "Interface\\Icons\\Spell_Fire_FlameBolt",
+                color = "F07830", role = "HEALER",
+                -- Crit leads for every Pyromancer spec, deliberately: a crit shortens the next
+                -- cast, so it is the rotational engine rather than a throughput stat.
+                description = "Healer whose critical strikes accelerate the next cast.",
+                weights = { CritRating = 1.0, Intellect = 0.75, HasteRating = 0.55,
+                    VersatilityRating = 0.40, SpellPower = 0.40, Mp5 = 0.05 },
+            },
+            {
+                name = "Incineration", icon = "Interface\\Icons\\Spell_Fire_Incinerate",
+                color = "E25822", role = "DAMAGER",
+                description = "Ranged fire damage on the same crit-led footing.",
+                weights = { CritRating = 1.0, Intellect = 0.75, HasteRating = 0.55,
+                    VersatilityRating = 0.40, SpellPower = 0.40, FireSpellPower = 0.05 },
+            },
+            {
+                name = "Draconic", icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",
+                color = "C43C10", role = "DAMAGER",
+                description = "Dragon-form damage fought at melee range, still crit-led.",
+                weights = { CritRating = 1.0, Intellect = 0.75, HasteRating = 0.55,
+                    VersatilityRating = 0.40, SpellPower = 0.40, FireSpellPower = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Guardian",
+        color = "C8B273",
+        description = "Shield-bearers who hold the line and lift the band.",
+        specs = {
+            {
+                name = "Vanguard", icon = "Interface\\Icons\\Ability_Warrior_ShieldWall",
+                color = "C8B273", role = "TANK",
+                description = "Shield-and-taunt tank wanting Strength and Stamina equally.",
+                weights = { Strength = 1.0, Stamina = 1.0, DefenseRating = 0.75,
+                    ParryRating = 0.55, DodgeRating = 0.55, BlockValue = 0.40,
+                    BlockRating = 0.40, Armor = 0.05 },
+            },
+            {
+                name = "Gladiator", icon = "Interface\\Icons\\Ability_Warrior_OffensiveStance",
+                color = "B89A5B", role = "DAMAGER",
+                description = "Physical damage taking Strength or Agility, then critical strike.",
+                weights = { Strength = 1.0, Agility = 1.0, CritRating = 0.75,
+                    HasteRating = 0.55, ArmorPenetration = 0.55, HitRating = 0.40,
+                    AttackPower = 0.40 },
+            },
+            {
+                name = "Inspiration", icon = "Interface\\Icons\\Ability_Warrior_BattleShout",
+                color = "E0CE9B", role = "SUPPORT",
+                -- NOT PUBLISHED. The page gives this spec no stat priority at all - it is
+                -- "Banners & Songs" group buffs. These weights are inferred from the class's
+                -- other two specs and flagged here so they can be corrected rather than
+                -- mistaken for transcription.
+                description = "Group buffs through banners and songs. Stat priority not published.",
+                weights = { Strength = 1.0, Stamina = 0.75, CritRating = 0.55,
+                    HasteRating = 0.55, Armor = 0.40, Agility = 0.40 },
+            },
+        },
+    },
+    {
+        class = "Cultist",
+        color = "7B4A9E",
+        description = "Old God fanatics who trade sanity for power.",
+        specs = {
+            {
+                name = "Heretic", icon = "Interface\\Icons\\Spell_Shadow_MindTwisting",
+                color = "9B6ABE", role = "HEALER",
+                description = "Healer scaling on Intellect and Strength together.",
+                weights = { Intellect = 1.0, Strength = 1.0, SpellPower = 0.55,
+                    HasteRating = 0.40, Mp5 = 0.05, CritRating = 0.05 },
+            },
+            {
+                name = "Corruption", icon = "Interface\\Icons\\Spell_Shadow_AbominationExplosion",
+                color = "7B4A9E", role = "DAMAGER",
+                description = "Ranged shadow damage on Intellect, then haste to build Insanity.",
+                weights = { Intellect = 1.0, HasteRating = 0.75, SpellPower = 0.55,
+                    CritRating = 0.40, ShadowSpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "God Blade", icon = "Interface\\Icons\\Ability_Warrior_BloodBath",
+                color = "5B3A7E", role = "DAMAGER",
+                description = "Melee damage on Strength, with crit triggering void procs.",
+                weights = { Strength = 1.0, CritRating = 0.75, AttackPower = 0.55,
+                    HasteRating = 0.40, ExpertiseRating = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Dreadnought", icon = "Interface\\Icons\\Spell_Shadow_ShadowWard",
+                color = "4B2A6E", role = "TANK",
+                description = "Tank wanting Stamina and armour in equal measure.",
+                weights = { Stamina = 1.0, Armor = 1.0, DefenseRating = 0.55,
+                    DodgeRating = 0.40, ParryRating = 0.40, Health = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Starcaller",
+        color = "8AA6E8",
+        description = "Moon-sworn casters who fight, guard and mend by Intellect alike.",
+        specs = {
+            {
+                name = "Warden", icon = "Interface\\Icons\\Spell_Nature_MoonGlow",
+                color = "6A86C8", role = "TANK",
+                -- Intellect leads all four Starcaller specs, tank and melee included. That
+                -- inverts 3.3.5 and is exactly why this table cannot be derived from role.
+                description = "Tank scaling on Intellect before Stamina and armour.",
+                weights = { Intellect = 1.0, Stamina = 0.75, Armor = 0.55, BlockValue = 0.55,
+                    HasteRating = 0.40, DefenseRating = 0.05 },
+            },
+            {
+                name = "Sentinel", icon = "Interface\\Icons\\Spell_Arcane_StarFire",
+                color = "8AA6E8", role = "DAMAGER",
+                description = "Ranged damage: Intellect, spell power, critical strike, haste.",
+                weights = { Intellect = 1.0, SpellPower = 0.75, CritRating = 0.55,
+                    HasteRating = 0.40, ArcaneSpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Moon Priest", icon = "Interface\\Icons\\Spell_Holy_ElunesGrace",
+                color = "C8D6FF", role = "HEALER",
+                description = "Healer: Intellect, spirit, spell power, critical strike.",
+                weights = { Intellect = 1.0, Spirit = 0.75, SpellPower = 0.55,
+                    CritRating = 0.40, Mp5 = 0.05, HasteRating = 0.05 },
+            },
+            {
+                name = "Moon Guard", icon = "Interface\\Icons\\Ability_Druid_Maul",
+                color = "5A76B8", role = "DAMAGER",
+                description = "Melee damage that still scales on Intellect before attack power.",
+                weights = { Intellect = 1.0, AttackPower = 0.75, HasteRating = 0.55,
+                    CritRating = 0.40, Agility = 0.05, HitRating = 0.05 },
+            },
+        },
+    },
+    {
         class = "Primalist",
         color = "8B7355",
         description = "Elemental shapers drawing on stone, storm and life itself.",

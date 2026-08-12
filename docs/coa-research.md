@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 20 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 20 of 21 researched, 11 transcribed into ui/Data.lua;
 classes extracted. No CoA templates written yet.**
 
 ---

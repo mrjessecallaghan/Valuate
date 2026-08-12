@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.81.0a] - 2026-08-09 — CoA templates: 11 of 21 classes
+
+Six more classes transcribed: Venomancer, Necromancer, Pyromancer, Guardian, Cultist,
+Starcaller. **38 of 69 specs** now have templates.
+
+### Three judgement calls, each marked in the source where it was made
+- **Necromancer and Pyromancer publish one priority for all three specs.** That is the
+  source's own choice, so all three share it rather than having differences invented for
+  them.
+- **Venomancer *Stalking* is published as "Leech, melee uptime, survivability."** Only the
+  first is a gear stat. Uptime is read as haste and survivability as stamina — a judgement,
+  not a transcription, and commented as such.
+- **Guardian *Inspiration* has no published priority at all.** Its weights are inferred from
+  the class's other two specs and flagged in the file so they can be corrected rather than
+  mistaken for something a source said.
+
+### What the data keeps confirming
+Starcaller leads with **Intellect in all four specs — tank and melee included**. That inverts
+3.3.5, where the role picks the primary stat, and it is why this table cannot be derived from
+role or from any rule of thumb. The comment sits next to the Warden weights so the next person
+to read them does not "fix" the apparent mistake.
+
 ## [0.80.0a] - 2026-08-09 — the first Conquest of Azeroth templates
 
 Research becomes data. Five CoA classes, 17 specs, transcribed from the per-class pages.
