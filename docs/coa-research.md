@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 11 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 13 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -147,14 +147,21 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Felsworn | Infernal | DAMAGER (ranged) | **Intellect** |
 | Felsworn | Slayer | DAMAGER (melee) | **Agility** |
 | Felsworn | Tyrant | TANK (evasion) | **Agility** |
+| Witch Doctor | Voodoo | DAMAGER (DoT/hexes) | Intellect |
+| Witch Doctor | Brewing | HEALER / SUPPORT | Intellect |
+| Witch Doctor | Shadowhunting | DAMAGER (hybrid) | Intellect **or** Agility |
+| Chronomancer | Displacement | HEALER | Intellect / Haste |
+| Chronomancer | Duality | DAMAGER (ranged) | Intellect / Crit |
+| Chronomancer | Artificer | DAMAGER (ranged hybrid) | **Spirit / Hit** |
 
-**11 of 21 classes** extracted (38 specs).
+**13 of 21 classes** extracted (44 specs).
 
 ### A strong TENDENCY toward one class stat — but not a rule
 
 **Corrected.** This was written as "confirmed in every class examined" at nine classes.
-**Felsworn breaks it at eleven**: Infernal wants **Intellect** while Slayer and Tyrant want
-**Agility**. One class, two different primaries.
+**Two classes break it.** Felsworn: Infernal wants **Intellect** while Slayer and Tyrant want
+**Agility**. Chronomancer: Displacement and Duality lead with Intellect, but **Artificer leads
+with Spirit** — a stat that is a minor regen afterthought in 3.3.5 and a primary here.
 
 So it is a tendency, not a law, and the templates must not be generated from it. Recorded as a
 correction rather than quietly amended, because a rule that holds nine times out of eleven is
