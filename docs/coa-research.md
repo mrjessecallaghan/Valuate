@@ -3,8 +3,22 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 20 of 21 researched AND transcribed into ui/Data.lua (66/69 specs);
-classes extracted. No CoA templates written yet.**
+**Status: COMPLETE as of v0.85.0a.** All 21 classes and 70 specs are transcribed into
+`COA_CLASS_SPEC_TEMPLATES` in `ui/Data.lua`, wired to the wizard through
+`Valuate:GetTemplateSet()`, and covered by `tools/speccoverage.js`.
+
+**What is still open, and why it is not "unfinished research":**
+
+- **Six specs have no published priority** (Son of Arugal's four, Guardian *Inspiration*, and
+  its sibling). Their weights are inferred from published spec descriptions and marked
+  `inferred = true`. Replace them the moment a real source appears.
+- **No `unusable` lists for CoA** — a deliberate decision, not a gap. See the note in
+  `ui/Data.lua`.
+- **None of it has run in the game.** Everything here is transcription plus a headless harness.
+  The wizard proposing something sensible on a real CoA character is unverified.
+
+Everything below is the working record: how the data was found, what the sources disagreed
+about, and which contradictions were resolved.
 
 ---
 

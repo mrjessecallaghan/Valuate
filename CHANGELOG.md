@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.86.0a] - 2026-08-09 — CoA support exists in the documentation now, too
+
+Same gap as v0.71.0a found for the wizard: a major feature present in the code and absent
+from every document describing the addon. Eight releases of Conquest of Azeroth work, and
+neither README nor ARCHITECTURE mentioned it once.
+
+### Added
+- **README** — CoA is in the tagline and has its own feature entry: 21 classes, 70 specs, the
+  wizard picking the right set by class, and the honest caveats (six inferred specs, and the
+  entries that look wrong at a glance but are not).
+- **README** — Mastery, Versatility and Leech are listed as scored stats. They were added in
+  v0.79.0a and never mentioned to anyone.
+- **ARCHITECTURE** — a table of the two template sets, why they are separate, how
+  `Valuate:GetTemplateSet()` chooses, the conversion ladder, and two warnings for whoever
+  edits this next: do **not** generate CoA weights from role, and the missing `unusable`
+  lists are a decision rather than an omission.
+
+### Research notes closed
+`docs/coa-research.md` is marked complete, with what remains open stated plainly: six specs
+whose weights are inferred, no `unusable` lists by choice, and the fact that none of it has
+run in the game.
+
 ## [0.85.0a] - 2026-08-09 — the wizard was throwing away every template's banned stats
 
 ### Fixed

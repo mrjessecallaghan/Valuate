@@ -116,6 +116,35 @@ all-enabled (backwards compatibility).
 
 ## The scale wizard
 
+### Two template sets
+
+| Table | Covers | Roles allowed |
+|---|---|---|
+| `CLASS_SPEC_TEMPLATES` | the classic ten classes, 31 specs | TANK, HEALER, DAMAGER |
+| `COA_CLASS_SPEC_TEMPLATES` | Conquest of Azeroth: 21 classes, 70 specs | + **SUPPORT** |
+
+`Valuate:GetTemplateSet()` picks between them **by the player's class**, not the realm name —
+realm names change and a second CoA realm would silently break a hardcoded check, whereas a
+Necromancer is one wherever they log in. Anything not clearly CoA falls back to the classic
+set, which is the behaviour every existing character already has.
+
+They are separate tables rather than one merged list because a classless player must never be
+offered "Stormbringer Lightning" and a CoA player must never be offered "Arms Warrior".
+
+**CoA weights are transcribed, not derived.** The published priorities are ordered lists, and
+one uniform ladder converts them: 1st `1.0`, 2nd `0.75`, 3rd `0.55`, 4th `0.40`, and `0.05` for
+plausible-but-unlisted. Dual primaries ("Strength/Agility") get `1.0` each. Six specs have no
+published priority at all; those carry `inferred = true` and `tools/speccoverage.js` reports
+the count so the distinction survives.
+
+Do **not** generate CoA weights from role. A CoA class tends to have one stat across all its
+specs — Starcaller is Intellect even on its tank and its melee spec — but Felsworn and
+Chronomancer break that, so the tendency is documented and never used as a rule.
+
+CoA templates carry **no `unusable` list**, deliberately: its armour and weapon rules are
+barely documented, and CoA has smart drops tailored to your spec. An empty list excludes
+nothing; a wrong one hides gear you can use, silently.
+
 Ascension is classless, so "what class are you" is the wrong question and a 31-entry spec
 list is the wrong menu. The 31 `CLASS_SPEC_TEMPLATES` are still hand-tuned weight sets
 though, and the gear you already wear says which one you resemble — so the wizard **proposes**

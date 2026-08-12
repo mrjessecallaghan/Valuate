@@ -1,12 +1,13 @@
 # Valuate
 
-Stat-weight gear scorer for **World of Warcraft: Ascension** (WotLK 3.3.5a, classless).
+Stat-weight gear scorer for **World of Warcraft: Ascension** (WotLK 3.3.5a) — the classless
+realms and **Conquest of Azeroth** alike.
 
 Score every item against your own stat weights, see what's best in each slot, and — if you
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.85.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.86.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -23,14 +24,24 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 
 - **Guided scale wizard** — the fastest way in, and the one to start with. `/valuate wizard`
   (or **Make me a scale** at the top of the scale list) reads the gear you're already
-  wearing, works out which of 31 hand-tuned builds you most resemble, and creates an
+  wearing, works out which hand-tuned build you most resemble, and creates an
   optimized scale from it — named after its own top five stats, like
   `Auto - Str/Crit/Hit/AP/Haste`. Three screens, one click each. It shows you exactly what
   it would make *before* making anything, tells you how confident it is (and says so plainly
   when your gear is mixed), never overwrites a scale you already have, and finishes with the
   new scale selected and your gear rescanned. Generated scales share one **teal** colour, so
-  you can always tell them from the ones you built yourself. Because Ascension is classless,
-  it never asks "what class are you" — it works that out from what you wear.
+  you can always tell them from the ones you built yourself. It never asks "what class are
+  you" — it works that out from what you wear.
+- **Conquest of Azeroth is supported** — all **21 CoA classes and 70 specialisations**, on top
+  of the 31 classic ones. The wizard picks the right set from your character's class, so a
+  Necromancer is matched against CoA builds and a Warrior against classic ones; neither is
+  ever offered the other's. CoA's stat priorities are transcribed from the published per-class
+  pages, not guessed — including the parts that look wrong at a glance, like Starcaller
+  wanting **Intellect on its tank and its melee spec**, and Witch Hunter's Black Knight being
+  an **Agility tank in mail**. Six specs have no published priority; their weights are inferred
+  and marked as such in the source.
+- **Ascension's modern secondaries** — **Mastery, Versatility and Leech** are scored. They are
+  not stock 3.3.5 stats, so an item carrying them used to score as though it carried nothing.
 - **Custom stat-weight scales** — unlimited, per character, with per-stat "ban" flags for
   stats you never want.
 - **Tooltip scores** — live item score, comparison against what you're wearing, and a
