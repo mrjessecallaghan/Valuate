@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.84.0a] - 2026-08-09 — all 21 CoA classes, 70 specs
+
+The last class is in. **Son of Arugal** — which turns out to be the same class as
+**"Bloodmage"**, resolving the third and final source contradiction, where "Blood Mage" looked
+like a 22nd class.
+
+### The one class with no published stat priority
+Its page 404s on the wiki carrying the other twenty, and no source found gives one. What *is*
+published is each spec's description and the class's leather armour, so the weights are
+**inferred from those** — Ferocity shreds in worgen form, Blood spends health on siphons,
+Packleader fights with summons, Fleshweaver heals through ritual.
+
+That is weaker than transcription, and it is labelled as such. Every affected spec carries
+`inferred = true`, and `tools/speccoverage.js` now reports the count in its summary:
+*"6 with INFERRED weights - no published priority"*. Guardian *Inspiration* is marked the same
+way. The alternative was leaving the class out entirely — which would mean the wizard silently
+never proposes it, and a silent gap is the exact failure that gate exists to catch.
+
+### Count
+70 specs against the "69" most sources quote. One source said 70, so this sits at the top of
+the published range rather than contradicting it. Cultist's fourth spec (*Corruption*) is the
+likeliest reason the lower figure circulates: the class-list articles omit it, and only the
+per-class page has it.
+
+### A process note
+The insert script reported success while changing nothing — its anchor used `\n` against a CRLF
+file, and it printed a hardcoded message instead of checking. It now verifies the replacement
+altered the text and re-reads the file to confirm. Third time this session a "success" message
+has been unearned, and the fix is always the same: assert rather than announce.
+
 ## [0.83.0a] - 2026-08-09 — the wizard uses the CoA templates now
 
 The CoA table existed but nothing read it. This connects it.

@@ -140,6 +140,7 @@ for (const [className, specs] of Object.entries(EXPECTED)) {
  */
 let coaClasses = 0;
 let coaSpecs = 0;
+let coaInferred = 0;
 if (coaBlock) {
   for (const chunk of coaBlock.split(/class = "/).slice(1)) {
     const className = chunk.slice(0, chunk.indexOf('"'));
@@ -149,6 +150,7 @@ if (coaBlock) {
 
     coaClasses++;
     coaSpecs += specNames.length;
+    coaInferred += [...chunk.matchAll(/inferred = true/g)].length;
 
     for (const role of roles) {
       if (!COA_ROLES.has(role)) {
@@ -193,5 +195,6 @@ const expectedCount = Object.values(EXPECTED).reduce((a, s) => a + s.length, 0);
 console.log(
   `OK  all ${Object.keys(EXPECTED).length} classic classes and ${expectedCount} specs have ` +
     `templates (${specCount} defined); every role is one the wizard can ask for. ` +
-    `CoA: ${coaClasses}/21 classes, ${coaSpecs}/69 specs transcribed.`
+    `CoA: ${coaClasses}/21 classes, ${coaSpecs} specs` +
+    (coaInferred ? ` (${coaInferred} with INFERRED weights - no published priority).` : ".")
 );

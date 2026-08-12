@@ -1827,6 +1827,53 @@ local CLASS_SPEC_TEMPLATES = {
 -- wizard two near-identical candidates that are always each other's runner-up.
 local COA_CLASS_SPEC_TEMPLATES = {
     {
+        class = "Son of Arugal",
+        color = "6B4423",
+        description = "Bearers of Arugal's curse, shifting between worgen fury and blood magic.",
+        -- ALSO KNOWN AS "Bloodmage". The two names refer to one class, which is what made
+        -- "Blood Mage" look like a 22nd class in the earlier source survey.
+        --
+        -- THE ONLY CLASS WITH NO PUBLISHED STAT PRIORITY. Its page 404s on the wiki that
+        -- carries the other twenty, and no source found gives one. Every weight below is
+        -- INFERRED from the published spec descriptions and the stated leather armour -
+        -- Ferocity shreds in worgen form, Blood spends health on siphons, Packleader fights
+        -- alongside summons, Fleshweaver heals through blood ritual.
+        --
+        -- Each spec is marked inferred = true, and tools/speccoverage.js reports the count,
+        -- so this stays visible rather than ageing into something that looks transcribed.
+        -- Correct it the moment a real priority turns up.
+        specs = {
+            {
+                name = "Ferocity", icon = "Interface\\Icons\\Ability_Druid_Ferociousbite",
+                color = "8B5A33", role = "DAMAGER", inferred = true,
+                description = "Builds rage in human form, then shifts to worgen to shred. Priority INFERRED.",
+                weights = { Agility = 1.0, Strength = 0.75, AttackPower = 0.55,
+                    CritRating = 0.55, HasteRating = 0.40, HitRating = 0.40 },
+            },
+            {
+                name = "Blood", icon = "Interface\\Icons\\Spell_Shadow_LifeDrain02",
+                color = "8B0000", role = "DAMAGER", inferred = true,
+                description = "San'layn blood magic paid for with its own health. Priority INFERRED.",
+                weights = { Intellect = 1.0, SpellPower = 0.75, Stamina = 0.55,
+                    HasteRating = 0.55, CritRating = 0.40, ShadowSpellPower = 0.05 },
+            },
+            {
+                name = "Packleader", icon = "Interface\\Icons\\Ability_Hunter_BeastCall",
+                color = "6B4423", role = "DAMAGER", inferred = true,
+                description = "Permanently worgen, fighting with a summoned shadow pack. Priority INFERRED.",
+                weights = { Agility = 1.0, AttackPower = 0.75, CritRating = 0.55,
+                    HasteRating = 0.40, Strength = 0.40, HitRating = 0.05 },
+            },
+            {
+                name = "Fleshweaver", icon = "Interface\\Icons\\Spell_Shadow_LifeDrain",
+                color = "A34A4A", role = "HEALER", inferred = true,
+                description = "Heals through blood ritual, spending vitality. Priority INFERRED.",
+                weights = { Intellect = 1.0, SpellPower = 0.75, Spirit = 0.55,
+                    Stamina = 0.55, HasteRating = 0.40, Mp5 = 0.40 },
+            },
+        },
+    },
+    {
         class = "Tinker",
         color = "9FB4C7",
         description = "Engineers whose gadgets do the fighting for them.",
@@ -2185,7 +2232,7 @@ local COA_CLASS_SPEC_TEMPLATES = {
             },
             {
                 name = "Inspiration", icon = "Interface\\Icons\\Ability_Warrior_BattleShout",
-                color = "E0CE9B", role = "SUPPORT",
+                color = "E0CE9B", role = "SUPPORT", inferred = true,
                 -- NOT PUBLISHED. The page gives this spec no stat priority at all - it is
                 -- "Banners & Songs" group buffs. These weights are inferred from the class's
                 -- other two specs and flagged here so they can be corrected rather than
