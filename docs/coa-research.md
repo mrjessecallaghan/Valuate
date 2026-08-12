@@ -3,7 +3,8 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. No CoA templates have been added yet.**
+**Status: research in progress. No CoA templates have been added yet, and no CoA data exists
+on this machine to build them from.**
 
 ---
 
@@ -102,6 +103,46 @@ that list wins. The extra names are most likely sub-specs, renamed content, or w
    weights.
 4. **CoA's armour and weapon rules**, to rewrite `unusable` per spec rather than inheriting
    WotLK's.
+
+## The best source found so far is already on this machine — and it is not CoA
+
+`Interface/AddOns/AscensionStatWeights/AscensionStatWeights.lua` is an installed addon whose
+whole purpose is Ascension stat weights. Its `SPEC_WEIGHTS` table carries **real, numeric,
+Ascension-tuned weights** for all 30 class specs plus four classless archetypes
+(`Classless:Physical DPS`, `Spell DPS`, `Healer`, `Tank`).
+
+It is a far better authority than the WotLK knowledge Valuate's templates were built from, and
+its `BASE_WEIGHTS` names Ascension stats that Valuate's own stat list does not model at all:
+`PVP_POWER`, `MYSTIC_ENCHANT` (7.5 — the highest weight in the file), `MYTHIC`, `FERVOR`,
+`VERSATILITY`, `MASTERY`, `LEECH`, `AVOIDANCE`, `SPEED`.
+
+**But it contains no CoA classes.** Its `TALENT_SPECS` is Warrior through Druid, the standard
+ten. So it solves the *classless/standard* realm and says nothing about Conquest of Azeroth.
+
+### A contradiction it exposes in what Valuate now ships
+
+Valuate's `Death Knight:Blood` template (added v0.78.0a) is a **tank** build — Stamina 1.0,
+Defense 0.9, Dodge/Parry. AscensionStatWeights weights `Death Knight:Blood` as **damage**:
+
+```lua
+["Death Knight:Blood"] = { STR = 2.05, ATTACK_POWER = 1.0, ARMOR_PEN = 1.05,
+                           EXPERTISE = 1.15, CRIT = 0.92, HASTE = 0.7 },
+```
+
+No Defense, no Dodge, no Parry. Either Ascension's Blood is not the tank spec WotLK's was, or
+that addon treats all three DK specs as DPS. **Unresolved** — and worth resolving, because
+Valuate would currently propose a Blood tank scale to someone whose gear says otherwise. It was
+written from my own WotLK knowledge, which is exactly the class of assumption this file exists
+to stop.
+
+## No CoA content exists in this client
+
+A scan of the whole `Interface/` tree for CoA class names (Pyromancer, Chronomancer, Necromancer,
+Felsworn, Runemaster) returns only **AtlasLoot mob names** — no class data, no spec data. Nothing
+CoA-related is installed here.
+
+That is worth knowing before more time goes into local archaeology: whatever this installation
+is, it is not a Conquest of Azeroth client, so CoA's own data files are not available to read.
 
 ### Where that is likely to come from
 
