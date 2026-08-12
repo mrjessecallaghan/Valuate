@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 5 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 7 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -57,7 +57,7 @@ confirming before anything is built on them.
 |---|---|---|
 | Barbarian | Brutality, Head Hunting, Ancestry | — |
 | Chronomancer | Displacement, Duality, Artificer | time manipulation; support/utility |
-| Cultist | Heretic, God Blade, Dreadnought | flexes tank / DPS / healer by spec; Insanity mechanic |
+| Cultist | Heretic, Corruption, God Blade, Dreadnought | **confirmed below** - four specs |
 | Felsworn | Infernal, Slayer, Tyrant | Tyrant = tank |
 | Guardian | Vanguard, Gladiator, Inspiration | Vanguard = tank; shield-and-taunt |
 | Knight of Xoroth | War, Hellfire, Defiance | — |
@@ -65,7 +65,7 @@ confirming before anything is built on them.
 | Pyromancer | Flame Weaver, Incineration, Draconic | fire DPS; Draconic is the dragon-form spec |
 | Ranger | Archer, Brigand, Farstrider | all DPS *(implied)* |
 | Runemaster | Engravement, Glyph, Rift Blade | — |
-| Starcaller | Warden, Sentinel, Moon Priest, Moon Guard | Moon Priest = healer. **Four** listed |
+| Starcaller | Warden, Sentinel, Moon Priest, Moon Guard | **confirmed below** - four specs |
 | Tinker | Demolition, Mechanics, Invention | — |
 | Witch Doctor | Voodoo, Brewing, Shadowhunting | Brewing = healer |
 | Witch Hunter | Boltslinger, Inquisitor, Darkness | — |
@@ -127,8 +127,32 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Guardian | Vanguard | TANK | Strength/Stamina > Defense Rating > Parry/Dodge > Block Value |
 | Guardian | Gladiator | DAMAGER (physical) | Strength/Agility > Crit > Haste/Armor Pen > Hit Rating |
 | Guardian | Inspiration | **SUPPORT** | not published; spec is "Banners & Songs" group buffs |
+| Cultist | Heretic | HEALER | Intellect / Strength |
+| Cultist | Corruption | DAMAGER (ranged) | Intellect / Haste |
+| Cultist | God Blade | DAMAGER (melee) | Strength / Crit |
+| Cultist | Dreadnought | TANK | Stamina / Armor |
+| Starcaller | Warden | TANK | Intellect, Stamina, Armor / Block, Haste |
+| Starcaller | Sentinel | DAMAGER (ranged) | Intellect, Spell Power, Critical Strike, Haste |
+| Starcaller | Moon Priest | HEALER | Intellect, Spirit, Spell Power, Critical Strike |
+| Starcaller | Moon Guard | DAMAGER (melee) | Intellect, Attack Power, Haste, Critical Strike |
 
-**5 of 21 classes** extracted (18 specs).
+**7 of 21 classes** extracted (26 specs).
+
+### The pattern that makes CoA templates non-derivable
+
+Starcaller wants **Intellect first in all four specs** — including **Moon Guard, a melee DPS**
+(Intellect, then Attack Power) and **Warden, a tank**. Cultist's **healer wants Strength**.
+
+So a CoA class appears to have one *class stat* that applies whatever the role, rather than the
+role determining the stat as it does in 3.3.5. That is unguessable from role alone, and it is
+the clearest argument yet that these templates must come from the published pages rather than
+from any rule of thumb — including the "tanks want Stamina, casters want Intellect" assumption
+baked into every existing Valuate template.
+
+It also affects **matching**, not just the weights: `Valuate:MatchTemplateToStats` compares the
+angle between your gear and a template. If several CoA specs across different roles all lead
+with Intellect, they will sit closer together than WotLK specs do, and the runner-up will
+genuinely often be close. The wizard's "and X was almost as close" line will earn its keep.
 
 ### What these four pages changed
 
