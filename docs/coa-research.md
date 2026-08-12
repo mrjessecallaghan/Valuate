@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 9 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 11 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -141,13 +141,27 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Tinker | Demolition | DAMAGER (ranged) | Intellect > Agility |
 | Tinker | Mechanics | DAMAGER (ranged, pet) | Intellect > Agility |
 | Tinker | Invention | HEALER / SUPPORT | Intellect > Agility |
+| Barbarian | Brutality | DAMAGER (melee) | Strength (5*) , Critical Strike (5*), Versatility (4*) |
+| Barbarian | Head Hunting | DAMAGER (ranged) | Critical Strike (5*), Haste (4*), Versatility (4*) |
+| Barbarian | Ancestry | **SUPPORT** / DPS | Strength (5*), Critical Strike (5*), Haste (4*) |
+| Felsworn | Infernal | DAMAGER (ranged) | **Intellect** |
+| Felsworn | Slayer | DAMAGER (melee) | **Agility** |
+| Felsworn | Tyrant | TANK (evasion) | **Agility** |
 
-**9 of 21 classes** extracted (32 specs).
+**11 of 21 classes** extracted (38 specs).
 
-### Confirmed across nine classes: one CLASS stat, not a role stat
+### A strong TENDENCY toward one class stat — but not a rule
 
-The pattern below now holds in every class examined, and it is the single most useful thing
-this research has produced:
+**Corrected.** This was written as "confirmed in every class examined" at nine classes.
+**Felsworn breaks it at eleven**: Infernal wants **Intellect** while Slayer and Tyrant want
+**Agility**. One class, two different primaries.
+
+So it is a tendency, not a law, and the templates must not be generated from it. Recorded as a
+correction rather than quietly amended, because a rule that holds nine times out of eleven is
+exactly the kind of thing that gets promoted to an assumption and then silently produces wrong
+templates for the two that break it.
+
+The tendency, where it does hold:
 
 | Class | Primary stat | Holds across |
 |---|---|---|
@@ -156,6 +170,8 @@ this research has produced:
 | Starcaller | **Intellect** | all 4 specs — including a **melee** DPS and a **tank** |
 | Necromancer | **Intellect** | all 3 specs (one shared priority) |
 | Pyromancer | **Crit**, then Intellect | all 3 specs — including its healer |
+| Barbarian | **Strength/Crit** | 3 specs, though Head Hunting leads with Crit |
+| ~~Felsworn~~ | **BREAKS IT** | Intellect for Infernal, Agility for Slayer and Tyrant |
 
 The role changes the *secondary* stats and almost never the primary. That inverts 3.3.5, where
 the role decides the primary stat and the class merely flavours it.
