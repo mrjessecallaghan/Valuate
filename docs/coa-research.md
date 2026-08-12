@@ -3,7 +3,7 @@
 Working notes for adding CoA templates to `ui/Data.lua`. Written down rather than re-fetched,
 because this is a long job and each session would otherwise start from nothing.
 
-**Status: research in progress. Stat priorities ARE published, one wiki page per class; 15 of 21
+**Status: research in progress. Stat priorities ARE published, one wiki page per class; 17 of 21
 classes extracted. No CoA templates written yet.**
 
 ---
@@ -60,7 +60,7 @@ confirming before anything is built on them.
 | Cultist | Heretic, Corruption, God Blade, Dreadnought | **confirmed below** - four specs |
 | Felsworn | Infernal, Slayer, Tyrant | Tyrant = tank |
 | Guardian | Vanguard, Gladiator, Inspiration | Vanguard = tank; shield-and-taunt |
-| Knight of Xoroth | War, Hellfire, Defiance | — |
+| Knight of Xoroth | War, Hellfire, Defiance | **confirmed below** |
 | Necromancer | Death, Animation, Rime | pet-based dark caster, DPS |
 | Pyromancer | Flame Weaver, Incineration, Draconic | fire DPS; Draconic is the dragon-form spec |
 | Ranger | Archer, Brigand, Farstrider | all DPS *(implied)* |
@@ -74,7 +74,7 @@ confirming before anything is built on them.
 | Reaper | (unknown) | soul-infusion mechanic |
 | Venomancer | Fortitude, Stalking, Rot Weaver, Vizir | **confirmed below** - four specs |
 | Stormbringer | (unknown) | "Static" resource management |
-| Templar | (unknown) | holy martial arts; tank/DPS |
+| Templar | Oathkeeper, Zealot, Crusader | **confirmed below** |
 | Son of Arugal | (unknown) | — |
 
 Roughly **47 of 69** spec names. Superseded in part by the per-class pages below, which give
@@ -160,8 +160,14 @@ So the remaining work is mechanical rather than blocked: 21 pages, one per class
 | Runemaster | Engravement | DAMAGER (sustained/CC) | Agility |
 | Runemaster | Glyph | DAMAGER (AoE/control) | Agility |
 | Runemaster | Rift Blade | DAMAGER (burst) | Agility |
+| Templar | Oathkeeper | TANK | Stamina > Agility (Dodge) > Parry Rating |
+| Templar | Zealot | DAMAGER (melee) | Agility > Haste > Critical Strike |
+| Templar | Crusader | DAMAGER (melee) | Strength/Agility > Attack Power > Armor Penetration |
+| Knight of Xoroth | War | DAMAGER (melee) | Strength |
+| Knight of Xoroth | Hellfire | DAMAGER (melee/caster hybrid) | Intellect / Strength |
+| Knight of Xoroth | Defiance | TANK | Strength / Intellect |
 
-**15 of 21 classes** extracted (51 specs).
+**17 of 21 classes** extracted (57 specs).
 
 Sun Cleric is the first page to label stats **primary / secondary / tertiary** explicitly —
 exactly the shape the templates need, and a useful confirmation that the ladder proposed above
