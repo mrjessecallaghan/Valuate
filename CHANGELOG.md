@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.80.0a] - 2026-08-09 — the first Conquest of Azeroth templates
+
+Research becomes data. Five CoA classes, 17 specs, transcribed from the per-class pages.
+
+### Added
+- **`COA_CLASS_SPEC_TEMPLATES`** in `ui/Data.lua` — Primalist, Sun Cleric, Ranger, Runemaster
+  and Stormbringer. Deliberately a **separate table**: a classless player must never be offered
+  "Stormbringer Lightning", and a CoA player must never be offered "Arms Warrior". Neither
+  class exists on the other one's realm.
+- **`SUPPORT` as a real role** — six CoA specs have it. Allowed in the CoA table only; the
+  classic table still forbids it, because Paladin Retribution carried a stray `SUPPORT` until
+  v0.78.0a and was unreachable by role because of it.
+
+### The conversion, stated once and applied uniformly
+The source publishes **ordered lists**; Valuate scores with **numbers**. One ladder everywhere:
+
+| Rank | Weight |     | Rank | Weight |
+|---|---|---|---|---|
+| 1st | 1.00 |  | 4th | 0.40 |
+| 2nd | 0.75 |  | unlisted but plausible | 0.05 |
+| 3rd | 0.55 |  | | |
+
+Uniform is reproducible and honest about its own precision. Hand-tuning each spec would invent
+detail the source does not contain.
+
+**Dual primaries get 1.0 each.** Several specs publish two ("Strength/Agility", "Intellect or
+Agility"). Weighting both scores a character carrying either one correctly and only
+over-values the rare one carrying both — whereas picking one is simply wrong for half the
+people playing that spec, and splitting into two templates hands the wizard two
+near-identical candidates that are permanently each other's runner-up.
+
+### Gates
+- `tools/speccoverage.js` now checks both tables separately, with per-table role sets, and
+  enforces that **every CoA spec's top weight is exactly 1.0** — a converted primary that
+  came out at 0.9 means the ladder was applied wrongly. Mutation-tested three ways.
+- No completeness expectation for CoA yet: 5/21 is a milestone, not a failure, and the gate
+  reports progress rather than pretending the table is finished.
+- The gate reported **"CoA: 0/21"** on its first run while five classes sat in the file. Its
+  slice was anchored on `ns.SCALE_ICON_LIST`, which also appears in a comment on line 6, so
+  `indexOf` matched the comment and produced an empty range. Anchored on the assignment now —
+  and worth recording, because a coverage gate that silently measures nothing is worse than
+  no gate.
+
 ## [0.79.0a] - 2026-08-09 — Mastery, Versatility and Leech are scoreable now
 
 ### Added

@@ -1796,5 +1796,192 @@ local CLASS_SPEC_TEMPLATES = {
     }
 }
 
+
+-- ============================================================================
+-- Conquest of Azeroth templates
+-- ============================================================================
+-- CoA is Ascension's class-based realm: 21 original classes and 69 specialisations that
+-- share nothing with WotLK's. Kept in a SEPARATE table from CLASS_SPEC_TEMPLATES rather
+-- than merged, because a classless player must never be offered "Stormbringer Lightning"
+-- and a CoA player must never be offered "Arms Warrior" - neither class exists on the
+-- other's realm.
+--
+-- Every priority below is transcribed from the per-class pages at
+-- conquestofazerothwiki.wiki. Nothing here is invented; docs/coa-research.md records the
+-- source for each and the contradictions found along the way.
+--
+-- THE CONVERSION. The source publishes ORDERED LISTS ("Strength > Attack Power > Hit >
+-- Crit"), and Valuate scores with numbers. One uniform ladder is applied everywhere:
+--
+--     1st  1.00     3rd  0.55     unlisted-but-plausible  0.05
+--     2nd  0.75     4th  0.40
+--
+-- A uniform rule is reproducible and honest about its own precision. Hand-tuning each spec
+-- would invent detail the source does not contain, which is the failure this whole exercise
+-- is trying to avoid.
+--
+-- DUAL PRIMARIES. Several specs publish two ("Strength/Agility", "Intellect or Agility").
+-- Both are weighted 1.0. That scores a character carrying either one correctly, and only
+-- over-values the rare character carrying both - whereas picking one would simply be wrong
+-- for half the people playing that spec, and splitting into two templates would hand the
+-- wizard two near-identical candidates that are always each other's runner-up.
+local COA_CLASS_SPEC_TEMPLATES = {
+    {
+        class = "Primalist",
+        color = "8B7355",
+        description = "Elemental shapers drawing on stone, storm and life itself.",
+        specs = {
+            {
+                name = "Mountain King", icon = "Interface\\Icons\\Spell_Nature_EarthQuake",
+                color = "9C6B3F", role = "TANK",
+                description = "Stone-clad tank. Armor first, then Stamina, Defense and Strength.",
+                weights = { Armor = 1.0, Stamina = 0.75, DefenseRating = 0.55, Strength = 0.40,
+                    DodgeRating = 0.05, ParryRating = 0.05, Health = 0.05 },
+            },
+            {
+                name = "Life", icon = "Interface\\Icons\\Spell_Nature_Rejuvenation",
+                color = "5FBF5F", role = "HEALER",
+                description = "Restorative healer scaling on raw spell power before Intellect.",
+                weights = { SpellPower = 1.0, Intellect = 0.75, CritRating = 0.55, HasteRating = 0.40,
+                    Mp5 = 0.05, Spirit = 0.05 },
+            },
+            {
+                name = "Wildwalker", icon = "Interface\\Icons\\Ability_Druid_CatForm",
+                color = "C77B3F", role = "DAMAGER",
+                description = "Melee damage built on Strength and reaching the hit cap.",
+                weights = { Strength = 1.0, AttackPower = 0.75, HitRating = 0.55, CritRating = 0.40,
+                    Agility = 0.05, ExpertiseRating = 0.05, HasteRating = 0.05 },
+            },
+            {
+                name = "Geomancy", icon = "Interface\\Icons\\Spell_Nature_StoneClawTotem",
+                color = "7F6A4F", role = "DAMAGER",
+                description = "Caster damage led by spell power, with haste ahead of Intellect.",
+                weights = { SpellPower = 1.0, HasteRating = 0.75, Intellect = 0.55, CritRating = 0.40,
+                    HitRating = 0.05, SpellPenetration = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Sun Cleric",
+        color = "F5DF6E",
+        description = "Champions of the sun, mending and burning in equal measure.",
+        specs = {
+            {
+                name = "Piety", icon = "Interface\\Icons\\Spell_Holy_SearingLight",
+                color = "F5C24E", role = "DAMAGER",
+                description = "Caster damage: Intellect, then haste, then spell critical.",
+                weights = { Intellect = 1.0, HasteRating = 0.75, CritRating = 0.55,
+                    SpellPower = 0.40, HolySpellPower = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Valkyrie", icon = "Interface\\Icons\\Spell_Holy_CrusaderStrike",
+                color = "E8B24A", role = "DAMAGER",
+                description = "Melee damage: Strength, melee critical, then haste.",
+                weights = { Strength = 1.0, CritRating = 0.75, HasteRating = 0.55,
+                    AttackPower = 0.40, ExpertiseRating = 0.05, HitRating = 0.05 },
+            },
+            {
+                name = "Seraphim", icon = "Interface\\Icons\\Spell_Holy_DevotionAura",
+                color = "D9A441", role = "TANK",
+                description = "Plate tank scaling on Strength, then armour and stamina.",
+                weights = { Strength = 1.0, Armor = 0.75, Stamina = 0.75,
+                    ParryRating = 0.55, DodgeRating = 0.55, DefenseRating = 0.40 },
+            },
+            {
+                name = "Blessings", icon = "Interface\\Icons\\Spell_Holy_HolyBolt",
+                color = "FFE9A8", role = "HEALER",
+                description = "Healer: Intellect, then spell power, then mana regeneration.",
+                weights = { Intellect = 1.0, SpellPower = 0.75, Mp5 = 0.55, Spirit = 0.55,
+                    CritRating = 0.05, HasteRating = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Ranger",
+        color = "6BBF59",
+        description = "Marksmen and skirmishers who never miss twice.",
+        specs = {
+            {
+                name = "Archer", icon = "Interface\\Icons\\Ability_Hunter_FocusedAim",
+                color = "6BBF59", role = "DAMAGER",
+                description = "Pure ranged damage. Agility above everything.",
+                weights = { Agility = 1.0, RangedAP = 0.55, AttackPower = 0.55,
+                    CritRating = 0.40, HitRating = 0.40, RangedDps = 0.40, HasteRating = 0.05 },
+            },
+            {
+                name = "Brigand", icon = "Interface\\Icons\\Ability_Rogue_Ambush",
+                color = "4F9E43", role = "DAMAGER",
+                description = "Melee duellist. Agility above everything.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.40,
+                    HitRating = 0.40, ExpertiseRating = 0.40, HasteRating = 0.05 },
+            },
+            {
+                name = "Farstrider", icon = "Interface\\Icons\\Ability_Hunter_MasterMarksman",
+                color = "8FD47E", role = "SUPPORT",
+                description = "Utility and group support, still scaling on Agility.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.40,
+                    HasteRating = 0.40, HitRating = 0.05, Stamina = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Runemaster",
+        color = "7F9FD4",
+        description = "Rune-carvers who bend the battlefield with inscribed power.",
+        specs = {
+            {
+                name = "Engravement", icon = "Interface\\Icons\\Spell_Shadow_Rune",
+                color = "7F9FD4", role = "DAMAGER",
+                description = "Sustained damage and control. Agility-scaling.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.40,
+                    HasteRating = 0.40, HitRating = 0.05, ExpertiseRating = 0.05 },
+            },
+            {
+                name = "Glyph", icon = "Interface\\Icons\\Spell_Shadow_DemonicRune",
+                color = "6F8FC4", role = "DAMAGER",
+                description = "Area damage and battlefield control. Agility-scaling.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.40,
+                    HasteRating = 0.40, HitRating = 0.05 },
+            },
+            {
+                name = "Rift Blade", icon = "Interface\\Icons\\Ability_Warrior_Riposte",
+                color = "9FBFE4", role = "DAMAGER",
+                description = "Burst assassination and escape. Agility-scaling.",
+                weights = { Agility = 1.0, AttackPower = 0.55, CritRating = 0.55,
+                    HasteRating = 0.40, HitRating = 0.05 },
+            },
+        },
+    },
+    {
+        class = "Stormbringer",
+        color = "4FC3F7",
+        description = "Storm-callers who trade static for lightning.",
+        specs = {
+            {
+                name = "Lightning", icon = "Interface\\Icons\\Spell_Nature_Lightning",
+                color = "4FC3F7", role = "DAMAGER",
+                description = "Damage on haste and mastery, with critical strike behind them.",
+                weights = { HasteRating = 1.0, MasteryRating = 1.0, CritRating = 0.55,
+                    Intellect = 0.40, SpellPower = 0.40, NatureSpellPower = 0.05 },
+            },
+            {
+                name = "Maelstrom", icon = "Interface\\Icons\\Spell_Frost_FrostShock",
+                color = "6FD3FF", role = "DAMAGER",
+                description = "Frost-storm hybrid on the same haste and mastery footing.",
+                weights = { HasteRating = 1.0, MasteryRating = 1.0, CritRating = 0.55,
+                    Intellect = 0.40, SpellPower = 0.40, FrostSpellPower = 0.05 },
+            },
+            {
+                name = "Wind", icon = "Interface\\Icons\\Spell_Nature_Cyclone",
+                color = "A8E6FF", role = "SUPPORT",
+                description = "Support build using versatility for group damage reduction.",
+                weights = { HasteRating = 1.0, VersatilityRating = 0.75, Intellect = 0.55,
+                    SpellPower = 0.40, MasteryRating = 0.40, Stamina = 0.05 },
+            },
+        },
+    },
+}
+
 ns.SCALE_ICON_LIST = SCALE_ICON_LIST
 ns.CLASS_SPEC_TEMPLATES = CLASS_SPEC_TEMPLATES
+ns.COA_CLASS_SPEC_TEMPLATES = COA_CLASS_SPEC_TEMPLATES

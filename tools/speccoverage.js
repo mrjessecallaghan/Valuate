@@ -30,10 +30,22 @@ const path = require("path");
 const ADDON_ROOT = fs.existsSync("Valuate.toc") ? "." : path.resolve(__dirname, "..");
 const src = fs.readFileSync(path.join(ADDON_ROOT, "ui", "Data.lua"), "utf8");
 
+/*
+ * Two tables now: the WotLK set for the classless/standard realms, and the Conquest of
+ * Azeroth set. They are checked separately because only the first has a known-complete
+ * expectation - CoA is still being transcribed, and a half-filled table must not read as a
+ * failure while it is honestly in progress.
+ */
+const coaStart = src.indexOf("local COA_CLASS_SPEC_TEMPLATES");
 const block = src.slice(
   src.indexOf("local CLASS_SPEC_TEMPLATES"),
-  src.indexOf("ns.CLASS_SPEC_TEMPLATES")
+  coaStart > 0 ? coaStart : src.indexOf("ns.CLASS_SPEC_TEMPLATES")
 );
+// Anchored on the ASSIGNMENT, not the bare name: "ns.SCALE_ICON_LIST" also appears in a
+// comment on line 6, and matching that gave an empty slice - so this gate cheerfully
+// reported "CoA: 0/21" while five classes sat in the file.
+const coaEnd = src.indexOf("\nns.SCALE_ICON_LIST = SCALE_ICON_LIST");
+const coaBlock = coaStart > 0 && coaEnd > coaStart ? src.slice(coaStart, coaEnd) : "";
 if (!block) {
   console.error("ERROR  could not find CLASS_SPEC_TEMPLATES in ui/Data.lua");
   process.exit(2);
@@ -57,8 +69,19 @@ const EXPECTED = {
   Druid: ["Balance", "Feral DPS", "Feral Tank", "Restoration"],
 };
 
-// The roles the wizard actually offers. A spec outside this set is unreachable by role.
+/*
+ * The roles a spec may declare.
+ *
+ * SUPPORT is here because Conquest of Azeroth genuinely has one - six specs so far (Guardian
+ * Inspiration, Ranger Farstrider, Tinker Invention, Barbarian Ancestry, Stormbringer Wind,
+ * Witch Doctor Brewing). The WotLK table must NOT use it: Paladin Retribution carried a stray
+ * SUPPORT until v0.78.0a and was unreachable by role because of it, which is the whole reason
+ * this check exists.
+ *
+ * Enforced per table below rather than globally, so the distinction survives.
+ */
 const ROLES = new Set(["TANK", "HEALER", "DAMAGER"]);
+const COA_ROLES = new Set(["TANK", "HEALER", "DAMAGER", "SUPPORT"]);
 
 const chunks = block.split(/class = "/).slice(1);
 const found = {};
@@ -110,6 +133,51 @@ for (const [className, specs] of Object.entries(EXPECTED)) {
   }
 }
 
+/*
+ * The CoA table. No completeness expectation yet - it is being transcribed a class at a time
+ * from the per-class wiki pages, and 21/69 is a milestone rather than a bug. What IS checked
+ * is that everything present is well-formed, so a half-built table cannot hide a broken entry.
+ */
+let coaClasses = 0;
+let coaSpecs = 0;
+if (coaBlock) {
+  for (const chunk of coaBlock.split(/class = "/).slice(1)) {
+    const className = chunk.slice(0, chunk.indexOf('"'));
+    const specNames = [...chunk.matchAll(/name = "([^"]+)"/g)].map((m) => m[1]);
+    const roles = [...chunk.matchAll(/role = "(\w+)"/g)].map((m) => m[1]);
+    const weightBlocks = [...chunk.matchAll(/weights = \{/g)].length;
+
+    coaClasses++;
+    coaSpecs += specNames.length;
+
+    for (const role of roles) {
+      if (!COA_ROLES.has(role)) {
+        problems.push(`CoA ${className}: role "${role}" is not one the wizard can offer`);
+      }
+    }
+    if (roles.length !== specNames.length) {
+      problems.push(`CoA ${className}: ${specNames.length} spec(s) but ${roles.length} role(s)`);
+    }
+    if (weightBlocks !== specNames.length) {
+      problems.push(
+        `CoA ${className}: ${specNames.length} spec(s) but ${weightBlocks} weight table(s)`
+      );
+    }
+  }
+
+  // Every CoA spec must lead with something. A template whose top weight is below 1.0 has
+  // been converted wrongly - the ladder puts the published primary at exactly 1.0.
+  for (const m of coaBlock.matchAll(/weights = \{([\s\S]*?)\}/g)) {
+    const values = [...m[1].matchAll(/=\s*([\d.]+)/g)].map((v) => parseFloat(v[1]));
+    if (values.length && Math.max(...values) !== 1.0) {
+      problems.push(
+        `CoA: a spec's highest weight is ${Math.max(...values)}, not 1.0 - the published ` +
+          "primary stat must convert to exactly 1.0 under the documented ladder"
+      );
+    }
+  }
+}
+
 if (problems.length) {
   console.error("Class/spec template coverage problems:");
   for (const p of problems) console.error("  " + p);
@@ -123,6 +191,7 @@ if (problems.length) {
 const specCount = Object.values(found).reduce((a, s) => a + s.length, 0);
 const expectedCount = Object.values(EXPECTED).reduce((a, s) => a + s.length, 0);
 console.log(
-  `OK  all ${Object.keys(EXPECTED).length} classes and ${expectedCount} specs have templates ` +
-    `(${specCount} total defined); every role is one the wizard can ask for.`
+  `OK  all ${Object.keys(EXPECTED).length} classic classes and ${expectedCount} specs have ` +
+    `templates (${specCount} defined); every role is one the wizard can ask for. ` +
+    `CoA: ${coaClasses}/21 classes, ${coaSpecs}/69 specs transcribed.`
 );
