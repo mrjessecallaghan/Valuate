@@ -142,6 +142,24 @@ ok(buttons["Build it for me"] ~= nil, "the recommended action is on the first sc
 ok(buttons["Tank"] ~= nil and buttons["Healer"] ~= nil and buttons["Damage"] ~= nil,
     "and the role overrides are there too")
 
+-- ---- no dead Support button on a realm that has no support specs -------------------
+-- CoA has six support specs; the classic ten classes have none. Drawing the button anyway
+-- would give a control whose only possible answer is "nothing resembles what you are
+-- wearing" - a control that cannot succeed is its own kind of bug.
+--
+-- This wizard was built against the CLASSIC set, so the button must be absent.
+eq(buttons["Support"], nil,
+    "no Support button when the active template set has no support specs")
+
+local roleButtons = 0
+for label in pairs(buttons) do
+    if label == "Build it for me" or label == "Tank" or label == "Healer"
+        or label == "Damage" or label == "Support" then
+        roleButtons = roleButtons + 1
+    end
+end
+eq(roleButtons, 4, "four choices on a classic realm, not five")
+
 -- The hint tooltips. This is one of the contracts that was wrong: ShowTooltipSafe claims
 -- the tooltip, it does not take the text.
 local primary = buttons["Build it for me"]

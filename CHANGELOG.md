@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.87.0a] - 2026-08-09 — you can actually ask the wizard for a Support build
+
+### Fixed
+- **The wizard had no Support choice.** CoA has six support specs, `SUPPORT` became a real
+  role in v0.80.0a, and the templates were all in place — but the first screen still offered
+  only *Build it for me*, Tank, Healer and Damage. There was no way to ask for the thing the
+  data supported. A gap I left open myself.
+
+### It appears only where it can work
+The classic ten classes have no support specs, so on those realms the button could only ever
+answer *"nothing resembles what you are wearing"*. It is filtered out there — a control that
+cannot succeed is its own kind of bug, and the wizard already refuses to draw dead controls
+elsewhere.
+
+Filtering happens **before** the cascade is measured, so the stagger spaces the buttons that
+exist rather than leaving a gap where a hidden one would have been.
+
+### Gates
+Two, because one run cannot cover both cases — the wizard builds its screens once per session,
+so a single harness can only be a classic character *or* a CoA one:
+
+- `tools/wizarduitest.js` builds against the classic set and requires the button to be
+  **absent**, and the choice count to be four rather than five.
+- **`tools/wizardroles.js`** is a fresh session that is CoA from the start, and requires the
+  button to be **present** alongside the other three.
+
+Mutation-tested both directions — always-drawn and never-drawn — and each was caught by
+exactly the gate meant to catch it, which is the evidence that the two are complementary
+rather than one being redundant.
+
 ## [0.86.0a] - 2026-08-09 — CoA support exists in the documentation now, too
 
 Same gap as v0.71.0a found for the wizard: a major feature present in the code and absent

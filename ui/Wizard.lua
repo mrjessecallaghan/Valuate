@@ -102,7 +102,26 @@ local ROLE_CHOICES = {
     { role = "TANK",    label = "Tank",             hint = "Weight survivability and threat instead." },
     { role = "HEALER",  label = "Healer",           hint = "Weight healing throughput and mana instead." },
     { role = "DAMAGER", label = "Damage",           hint = "Weight damage output instead." },
+    -- Conquest of Azeroth only. Shown when the active template set actually HAS support
+    -- specs, and left out otherwise: the classic ten classes have none, so on those realms
+    -- this button could only ever answer "nothing resembles what you are wearing".
+    --
+    -- A control that cannot succeed is its own kind of bug, which is why this is filtered
+    -- rather than always drawn.
+    { role = "SUPPORT", label = "Support",          hint = "Weight group buffs and utility instead.",
+      needsRole = "SUPPORT" },
 }
+
+-- True when the set this character will actually be matched against contains the role.
+local function TemplateSetHasRole(role)
+    local set = (Valuate.GetTemplateSet and Valuate:GetTemplateSet()) or ns.CLASS_SPEC_TEMPLATES
+    for _, class in ipairs(set or {}) do
+        for _, spec in ipairs(class.specs or {}) do
+            if spec.role == role then return true end
+        end
+    end
+    return false
+end
 
 local function BuildStepChoose(parent)
     local f = CreateFrame("Frame", nil, parent)
@@ -116,10 +135,20 @@ local function BuildStepChoose(parent)
         "you are already wearing, so you do not have to know the numbers.")
     blurb:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -INNER_SPACING)
 
+    -- Only the choices this character can actually be answered with. Filtered BEFORE the
+    -- cascade is measured, so the stagger spaces the buttons that exist rather than leaving
+    -- a gap where a hidden one would have been.
+    local choices = {}
+    for _, choice in ipairs(ROLE_CHOICES) do
+        if not choice.needsRole or TemplateSetHasRole(choice.needsRole) then
+            choices[#choices + 1] = choice
+        end
+    end
+
     local previous = blurb
     -- staggerFor returns the GAP between items, not a function of the index.
-    local gap = Anim.staggerFor(#ROLE_CHOICES)
-    for index, choice in ipairs(ROLE_CHOICES) do
+    local gap = Anim.staggerFor(#choices)
+    for index, choice in ipairs(choices) do
         local isPrimary = (index == 1)
         local btn = ns.CreateStyledButton(f, choice.label, WIDTH - PADDING * 2,
             isPrimary and (BUTTON_HEIGHT + 8) or BUTTON_HEIGHT)
