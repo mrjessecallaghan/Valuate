@@ -83,6 +83,24 @@ function apply(m) {
   const body = orig.slice(start, end);
   if (!body.includes(m.from)) return `anchor not found${m.scope ? " in scope" : ""}: ${m.from}`;
 
+  /* AMBIGUITY IS ROT. `String.replace` takes the first match, so an anchor that occurs twice
+   * silently mutates whichever copy happens to come first - and when a new function is added
+   * ABOVE the intended one, a mutation that has been passing for releases quietly starts
+   * breaking code its gate never runs, and reports SURVIVED. That is not hypothetical: it
+   * happened to `return a.slotId < b.slotId` the moment FindEmptySockets landed above
+   * RankAvailableUpgrades, and to `for i = 2, tooltip:NumLines() do`, which TooltipUniqueLimit
+   * has owned all along.
+   *
+   * So: an anchor must identify exactly one site. If it does not, say which and demand a scope
+   * rather than picking one and hoping. */
+  const occurrences = body.split(m.from).length - 1;
+  if (occurrences > 1) {
+    return (
+      `anchor is ambiguous - ${occurrences} occurrences${m.scope ? " within the scope" : " in " + m.file}: ${m.from}\n` +
+      `      Add a \`scope\` so this lands on the site the gate actually exercises.`
+    );
+  }
+
   fs.writeFileSync(abs, orig.slice(0, start) + body.replace(m.from, m.to) + orig.slice(end));
   return null;
 }

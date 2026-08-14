@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.103.1a] - 2026-08-14 — mutations can no longer silently point at the wrong code
+
+No addon behaviour changes. This fixes the tool that checks the other 46 gates are worth
+anything.
+
+### Fixed
+- **`tools/mutate.js` now refuses an ambiguous anchor.** `String.replace` takes the *first*
+  match, so a `from` string occurring twice silently mutates whichever copy comes first. Add a
+  new function above the intended one and a mutation that has been passing for releases quietly
+  starts breaking code its gate never runs — and reports **SURVIVED**, which reads as "your
+  assertion is weak" when the truth is "this test moved house".
+
+That is not hypothetical. It happened twice in v0.103.0a: to `return a.slotId < b.slotId` the
+moment `FindEmptySockets` landed above `RankAvailableUpgrades`, and to
+`for i = 2, tooltip:NumLines() do`, which `TooltipUniqueLimit` has owned all along. I fixed both
+by hand and shipped, which fixed the instances and left the mechanism.
+
+An anchor must now identify **exactly one** site. If it doesn't, the run stops and names the
+count, demanding a `scope` instead of picking one and hoping.
+
+### It found a scope that was never scoping
+First run, immediately: the `NEARMISS` scope ended at a **shared comment** rather than the next
+function, so it spanned **420 lines and three functions**. It had been scoping nothing since the
+day I wrote it — its mutations were landing correctly only because `BuildNearMissLine` happened
+to come first. Now ended at the next function header.
+
+### Verified both directions
+An anchor with 7 occurrences is refused with a non-zero exit; the same anchor with a scope
+resolves to one site and runs normally. Exercised, not assumed — the same standard the baseline
+guard got in v0.99.0a, and for the same reason: a checking tool that cannot fail is decoration.
+
+51 mutations, 46 gates, all passing — and now for reasons I can believe.
+
 ## [0.103.0a] - 2026-08-14 — empty gem sockets: stats you already earned and aren't wearing
 
 ### Added
