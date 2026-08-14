@@ -37,6 +37,9 @@ if (!slots) {
 
 const PIECES = [
   /^local function GetItemIdFromLink\([\s\S]*?\r?\nend/m,
+  /^local levelUpEquipPending = false/m,
+  /^function Valuate:ShouldAutoEquipOnLevelUp\([\s\S]*?\r?\nend/m,
+  /^function Valuate:TryAutoEquipOnLevelUp\([\s\S]*?\r?\nend/m,
   /^function Valuate:UnmatchedBestSlots\([\s\S]*?\r?\nend/m,
   /^function Valuate:PlanEquipmentSetSave\([\s\S]*?\r?\nend/m,
 ];
@@ -174,6 +177,61 @@ local blindPlan = Valuate:PlanEquipmentSetSave("Raid Gear", "Dps")
 ok(blindPlan ~= nil, "a client that cannot list sets can still save one")
 eq(blindPlan.overwrites, false, "and reports no known overwrite rather than guessing")
 GetNumEquipmentSets, GetEquipmentSetInfo = realNum, realInfo
+
+-- ---- equipping when you level ------------------------------------------------
+-- You level mid-pull constantly, so the interesting behaviour is not "does it equip" but
+-- "what does it do when it CANNOT, and does it remember to come back".
+local OPTIONS = {}
+Valuate.GetOptions = function() return OPTIONS end
+local equips = {}
+Valuate.EquipBestSet = function(_, scaleName) table.insert(equips, scaleName) end
+local MARKS = {}
+Valuate.MarkAutomation = function(_, key, detail) MARKS[key] = detail end
+
+OPTIONS.autoEquipOnLevelUp = nil
+eq(Valuate:TryAutoEquipOnLevelUp(false), false, "switched off, levelling equips nothing")
+eq(#equips, 0, "nothing was equipped")
+
+OPTIONS.autoEquipOnLevelUp = true
+eq(Valuate:TryAutoEquipOnLevelUp(false), true, "switched on, levelling equips your best")
+eq(equips[1], "Dps", "for the active scale")
+
+-- In combat it must WAIT, not fail. The client refuses gear changes there anyway, and this
+-- is the common case: you ding in the middle of the pull that levelled you.
+equips = {}
+IN_COMBAT = true
+eq(Valuate:TryAutoEquipOnLevelUp(false), false, "levelling in combat does not swap gear")
+eq(#equips, 0, "nothing equipped mid-fight")
+saysAbout(select(2, Valuate:TryAutoEquipOnLevelUp(false)), "combat", "and says it is waiting")
+
+-- ...and comes back when the fight ends.
+IN_COMBAT = false
+eq(Valuate:TryAutoEquipOnLevelUp(true), true, "leaving combat completes the deferred equip")
+eq(equips[1], "Dps", "equipping what it was waiting to")
+
+-- Leaving combat with nothing pending must do nothing at all. Otherwise every fight you
+-- finish re-equips your gear, forever.
+equips = {}
+eq(Valuate:TryAutoEquipOnLevelUp(true), false, "leaving combat with nothing waiting does nothing")
+eq(#equips, 0, "no gear was touched")
+
+-- A permanent refusal must NOT leave something pending, or it fires at the end of an
+-- unrelated fight much later - gear swapping for no reason the player can connect to.
+equips = {}
+IN_COMBAT = false
+OPTIONS.autoEquipOnLevelUp = nil
+Valuate:TryAutoEquipOnLevelUp(false)
+OPTIONS.autoEquipOnLevelUp = true
+eq(Valuate:TryAutoEquipOnLevelUp(true), false,
+   "a level gained while the option was OFF does not equip when a later fight ends")
+eq(#equips, 0, "nothing swapped out of nowhere")
+
+-- No active scale is a permanent refusal too, named rather than silent.
+equips = {}
+Valuate.GetPrimaryScale = function() return nil, nil end
+eq(Valuate:TryAutoEquipOnLevelUp(false), false, "with no active scale it refuses")
+saysAbout(select(2, Valuate:TryAutoEquipOnLevelUp(false)), "scale", "and says so")
+Valuate.GetPrimaryScale = function() return {}, "Dps" end
 
 return failures, checks
 `,

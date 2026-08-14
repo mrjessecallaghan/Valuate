@@ -751,13 +751,23 @@ local function CreateTemplatePickerFrame()
     -- Temporary font string for measuring text widths
     local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
     
-    -- Create 3 columns
-    local column1 = CreateFrame("Frame", nil, frame)
-    column1:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop)
-    
-    local column2 = CreateFrame("Frame", nil, frame)
-    
-    local column3 = CreateFrame("Frame", nil, frame)
+    -- Columns, however many the class list needs.
+    --
+    -- Three was fine for the nine classes this screen used to show. It is NOT fine for CoA's
+    -- 21: at seven classes a column the window came out around 800px tall, which runs off the
+    -- bottom of a 768-high screen - and this frame does not scroll, it just grows.
+    --
+    -- So the column COUNT grows instead of the column height. Roughly five classes per column
+    -- keeps the window about as tall as the classic layout already was, and widens instead,
+    -- which is the direction a 16:9 screen has room in.
+    local CLASSES_PER_COLUMN = 5
+    local columnCount = math.max(3, math.ceil(#CurrentTemplates() / CLASSES_PER_COLUMN))
+
+    local columns = {}
+    for i = 1, columnCount do
+        columns[i] = CreateFrame("Frame", nil, frame)
+    end
+    columns[1]:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop)
     
     -- Function to create a spec button with dynamic width and role icon
     local function CreateSpecButton(parent, template, classColor, yOffset, columnWidth)
@@ -825,13 +835,12 @@ local function CreateTemplatePickerFrame()
     -- Derived, so a class that exists in the data appears here by construction and the list
     -- can never fall behind again.
     local allTemplates = CurrentTemplates()
-    local column1Classes, column2Classes, column3Classes = {}, {}, {}
-    local perColumn = math.max(1, math.ceil(#allTemplates / 3))
+    local columnClasses = {}
+    for i = 1, columnCount do columnClasses[i] = {} end
+    local perColumn = math.max(1, math.ceil(#allTemplates / columnCount))
     for i, data in ipairs(allTemplates) do
-        local target = (i <= perColumn and column1Classes)
-            or (i <= perColumn * 2 and column2Classes)
-            or column3Classes
-        table.insert(target, data.class)
+        local col = math.min(columnCount, math.floor((i - 1) / perColumn) + 1)
+        table.insert(columnClasses[col], data.class)
     end
     
     -- First pass: calculate required widths for each column
@@ -865,18 +874,17 @@ local function CreateTemplatePickerFrame()
         return math.ceil(maxWidth)
     end
     
-    local width1 = CalculateColumnWidth(column1Classes)
-    local width2 = CalculateColumnWidth(column2Classes)
-    local width3 = CalculateColumnWidth(column3Classes)
-    
-    -- Set column widths
-    column1:SetWidth(width1)
-    column2:SetWidth(width2)
-    column3:SetWidth(width3)
-    
-    -- Position columns
-    column2:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + width1 + ELEMENT_SPACING, contentTop)
-    column3:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING + width1 + ELEMENT_SPACING + width2 + ELEMENT_SPACING, contentTop)
+    -- Width per column, then place each one after the last. Positions are accumulated rather
+    -- than written out, so adding a column cannot leave one stacked on top of another.
+    local widths, xOffset = {}, PADDING
+    for i = 1, columnCount do
+        widths[i] = CalculateColumnWidth(columnClasses[i])
+        columns[i]:SetWidth(widths[i])
+        if i > 1 then
+            columns[i]:SetPoint("TOPLEFT", frame, "TOPLEFT", xOffset, contentTop)
+        end
+        xOffset = xOffset + widths[i] + ELEMENT_SPACING
+    end
     
     local function PopulateColumn(column, classList, columnWidth)
         local yOffset = 0
@@ -915,18 +923,16 @@ local function CreateTemplatePickerFrame()
         return -yOffset  -- Return total height used
     end
     
-    local height1 = PopulateColumn(column1, column1Classes, width1)
-    local height2 = PopulateColumn(column2, column2Classes, width2)
-    local height3 = PopulateColumn(column3, column3Classes, width3)
-    
-    -- Set column heights
-    local maxHeight = math.max(height1, height2, height3)
-    column1:SetHeight(maxHeight)
-    column2:SetHeight(maxHeight)
-    column3:SetHeight(maxHeight)
-    
-    -- Calculate and set window size
-    local windowWidth = PADDING + width1 + ELEMENT_SPACING + width2 + ELEMENT_SPACING + width3 + PADDING
+    local maxHeight = 0
+    for i = 1, columnCount do
+        local used = PopulateColumn(columns[i], columnClasses[i], widths[i])
+        if used > maxHeight then maxHeight = used end
+    end
+    for i = 1, columnCount do columns[i]:SetHeight(maxHeight) end
+
+    -- Width is the accumulated offset: xOffset already carries every column plus its spacing,
+    -- so it cannot disagree with where the columns were actually put.
+    local windowWidth = xOffset - ELEMENT_SPACING + PADDING
     local titleAreaHeight = 45  -- Title area
     if backButton then
         titleAreaHeight = 45 + BUTTON_HEIGHT + 8  -- Title + button + spacing

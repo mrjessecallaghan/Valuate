@@ -548,6 +548,12 @@ local function OnEvent(self, event, addonName, ...)
         if Valuate.AnnounceUnlockedUpgrades then
             Valuate:AnnounceUnlockedUpgrades(newLevel)
         end
+        -- After a beat, so the rescan that levelling triggers has put the newly wearable
+        -- gear into the best-equipment table. Equipping before that would put on the set you
+        -- were already wearing and announce it as a success.
+        if Valuate.TryAutoEquipOnLevelUp then
+            ValuateAfter(4.0, function() Valuate:TryAutoEquipOnLevelUp(false) end)
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 
@@ -727,6 +733,10 @@ local function OnEvent(self, event, addonName, ...)
             end)
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
+        -- A level gained mid-pull could not swap gear at the time; do it now that the fight
+        -- is over. Passing true means "only if something was actually waiting".
+        if Valuate.TryAutoEquipOnLevelUp then Valuate:TryAutoEquipOnLevelUp(true) end
+
         -- Left combat: show any bag-upgrade prompt that was deferred while fighting.
         -- Rescan first, since the deferred check may have been made on stale data.
         if bagUpgradePending then
@@ -790,6 +800,7 @@ local DEFAULT_OPTIONS = {
     autoQueuePvP = false,
     autoQueueDungeon = false,
     autoAcceptBattleground = false,
+    autoEquipOnLevelUp = false,
     -- Nominated by name, so nil means "off". Set with /valuate pvpscale <name>.
     pvpScale = nil,
     pvpScaleRestore = nil,
@@ -6446,6 +6457,57 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Levelling unlocks gear you are already carrying. This puts it on.
+--
+-- The addon already notices - AnnounceUnlockedUpgrades tells you at the moment it happens -
+-- and then you open a panel and click Equip All, every level, for eighty levels. This is the
+-- one automation where the addon knows exactly what to do and was making you do it anyway.
+--
+-- Two guards, both about not acting at a stupid moment:
+--   COMBAT. You level mid-pull constantly. Swapping gear there is refused by the client
+--   anyway, so the answer is to WAIT rather than to fail - it retries when you drop combat.
+--   A SCAN FIRST. The whole point is gear that just became wearable, and it is not in the
+--   best-equipment table until something rescans. Equipping before that would put on the
+--   same set you were already wearing and report a triumph.
+local levelUpEquipPending = false
+
+function Valuate:ShouldAutoEquipOnLevelUp()
+    if not Valuate:GetOptions().autoEquipOnLevelUp then
+        return false, "Auto-equip on level-up is off."
+    end
+    if not Valuate.EquipBestSet then
+        return false, "EquipBestSet is missing."
+    end
+    local _, scaleName = Valuate:GetPrimaryScale()
+    if not scaleName then
+        return false, "No active scale to equip for."
+    end
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        return false, "In combat - will equip when you are out."
+    end
+    return true, scaleName
+end
+
+-- Called on level-up and again when combat drops. Idempotent: the pending flag is what stops
+-- a level gained mid-fight from equipping twice once the fight ends.
+function Valuate:TryAutoEquipOnLevelUp(fromCombatEnd)
+    if fromCombatEnd and not levelUpEquipPending then return false, "Nothing was waiting." end
+
+    local ok, reason = Valuate:ShouldAutoEquipOnLevelUp()
+    if not ok then
+        -- Only combat is worth waiting for. Every other refusal is permanent for this level,
+        -- and leaving the flag set would fire it at the end of an unrelated fight later.
+        levelUpEquipPending = (reason == "In combat - will equip when you are out.")
+        Valuate:MarkAutomation("levelEquip", reason)
+        return false, reason
+    end
+
+    levelUpEquipPending = false
+    Valuate:EquipBestSet(reason)
+    Valuate:MarkAutomation("levelEquip", "equipped best for " .. reason)
+    return true, reason
+end
+
 -- Best-in-slot as a real WoW equipment set.
 --
 -- Valuate knows what your best gear is; the equipment manager knows how to swap to a set with
@@ -9056,6 +9118,7 @@ function Valuate:PrintReport()
         { key = "queueDungeon",  label = "Dungeon queue" },
         { key = "bgAccept",      label = "Battleground invite" },
         { key = "setSave",       label = "Equipment set save" },
+        { key = "levelEquip",    label = "Level-up auto-equip" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -10297,6 +10360,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
+        print("  /valuate autoequiplevel - Toggle equipping your best gear when you level up")
         print("  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere")
         print("  /valuate pvpscale make - Build a PvP scale from the one you use now")
         print("  /valuate queuepvp - Queue for a random battleground now")
@@ -10875,6 +10939,15 @@ SlashCmdList["VALUATE"] = function(msg)
                 print("    " .. tostring(e.message))
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
+        end
+    elseif command == "autoequiplevel" then
+        local options = Valuate:GetOptions()
+        options.autoEquipOnLevelUp = not options.autoEquipOnLevelUp
+        print(string.format("|cFF00FF00Valuate|r: Equip best gear on level-up is %s.",
+            options.autoEquipOnLevelUp and "|cFF00FF00ON|r" or "|cFFFF8800OFF|r"))
+        if options.autoEquipOnLevelUp then
+            print("  |cFFAAAAAALevelling makes gear you already carry wearable. Never swaps " ..
+                  "in combat - it waits until the fight is over.|r")
         end
     elseif command == "autorelease" or command == "autoleavebg" or command == "autoqueuepvp"
         or command == "autoqueuedungeon" or command == "autoacceptbg" then

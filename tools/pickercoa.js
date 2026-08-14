@@ -88,6 +88,26 @@ ok(seen["Witch Hunter"] ~= nil, "Witch Hunter specifically")
 ok(seen["Paladin"] == nil, "no classic class is offered to a CoA character")
 ok(seen["Death Knight"] == nil, "nor Death Knight")
 
+-- ---- and it has to FIT on a screen -------------------------------------------
+-- This frame does not scroll; it grows to whatever its contents need. Making 21 classes
+-- reachable at three columns would have produced a window around 800px tall, which runs off
+-- the bottom of a 768-high display - the fix for one bug quietly creating another.
+--
+-- The window is the widest frame here; nothing else in this harness builds anything close.
+local window
+for _, f in ipairs(__frames) do
+    if f.GetWidth and (not window or f:GetWidth() > window:GetWidth()) then window = f end
+end
+ok(window ~= nil, "the picker window was built")
+
+local h = window:GetHeight()
+ok(h <= 700, "the window fits a 768-high screen with room for the taskbar, got " .. tostring(h))
+ok(h > 100, "and it is not empty, got " .. tostring(h))
+
+-- Wide rather than tall is the deliberate trade: a 16:9 screen has room sideways.
+ok(window:GetWidth() > window:GetHeight() * 0.5,
+   "21 classes spread across columns rather than stacking into one tall list")
+
 return failures, checks
 `,
   "pickercoa",

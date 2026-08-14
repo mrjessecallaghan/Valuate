@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.117.0a] - 2026-08-14 — the picker fits on a screen, and levelling equips your gear
+
+### Fixed — a regression I shipped an hour earlier
+v0.116.0a made CoA's 21 classes reachable in the template picker. It also made the window
+**893 pixels tall**, because that frame doesn't scroll — it grows to fit its contents, and 21
+classes across three columns is seven per column.
+
+That runs off the bottom of a 768-high display. Fixing one bug by creating another.
+
+The column **count** now grows instead of the column height: roughly five classes per column,
+so the window widens — the direction a 16:9 screen has room in — and stays about as tall as the
+classic layout always was. Classic keeps its three columns and looks unchanged; CoA gets five.
+
+`tools/pickercoa.js` now asserts the window fits, and reverting to three columns fails it with
+the real number:
+
+```
+FAIL  the window fits a 768-high screen with room for the taskbar, got 893
+```
+
+### Added — equip your best gear when you level
+- **`/valuate autoequiplevel`** (off by default). Levelling makes gear you're *already carrying*
+  wearable. The addon already noticed and told you; then you opened a panel and clicked Equip
+  All, every level, for eighty levels.
+
+Two guards, both about not acting at a stupid moment:
+
+- **Never in combat.** You ding mid-pull constantly, the client refuses gear changes there
+  anyway, so it **waits** and equips when the fight ends rather than failing.
+- **After the rescan**, not before. The whole point is gear that just became wearable, and it
+  isn't in the best-equipment table until something rescans — equipping first would put on the
+  set you were already wearing and announce it as a success.
+
+A refusal that *isn't* combat clears the pending flag deliberately. Otherwise a level gained
+while the option was off would fire at the end of some unrelated fight later, and gear swapping
+for no reason you can connect to is worse than gear not swapping at all. That one has its own
+mutation.
+
+### Gates
+53 gates, 117 mutations. `equipsettest.js` 25 → 40 checks. Four new mutations including *"every
+fight you finish re-equips your gear, forever"* and *"a permanent refusal stays pending and
+fires after an unrelated fight"*.
+
 ## [0.116.0a] - 2026-08-14 — FIXED: the template picker never offered CoA classes (or Death Knight)
 
 ### Fixed

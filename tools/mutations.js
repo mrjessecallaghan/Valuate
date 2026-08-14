@@ -125,7 +125,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.116.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.117.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -212,6 +212,21 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- equipping on level-up (v0.117.0a) -----------------------------------
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "gear is swapped mid-pull the instant you ding",
+    from: 'return false, "In combat - will equip when you are out."', to: "local _ = 1" },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "a deferred equip never happens, so levelling in combat silently does nothing",
+    from: 'levelUpEquipPending = (reason == "In combat - will equip when you are out.")',
+    to: "levelUpEquipPending = false" },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "every fight you finish re-equips your gear, forever",
+    from: "if fromCombatEnd and not levelUpEquipPending then return false", to: "if false then return false" },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "a permanent refusal stays pending and fires after an unrelated fight",
+    from: "        levelUpEquipPending = (reason ==", to: "        levelUpEquipPending = true or (reason ==" },
 
   // ---- best-in-slot as an equipment set (v0.115.0a) ------------------------
   { gate: "equipsettest", file: "Valuate.lua",
