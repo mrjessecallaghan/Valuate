@@ -743,10 +743,30 @@ local function CreateTemplatePickerFrame()
     end)
     
     -- Content area (adjust for back button if present)
-    local contentTop = -45
+    --
+    -- SEARCH_ROW is reserved above the columns. Nine classes could be read at a glance;
+    -- twenty-one across five columns cannot, and finding "Starcaller" meant scanning seventy
+    -- spec buttons. The search is what makes the CoA list usable rather than merely present.
+    local SEARCH_ROW = BUTTON_HEIGHT + ELEMENT_SPACING
+    local contentTop = -45 - SEARCH_ROW
     if backButton then
-        contentTop = -45 - BUTTON_HEIGHT - 8  -- Title + button + spacing
+        contentTop = -45 - BUTTON_HEIGHT - 8 - SEARCH_ROW  -- Title + button + spacing + search
     end
+
+    -- Forward-declared: the search box needs its onQuery at construction, and that closure
+    -- reaches for the index the columns fill in further down. A local declared below its
+    -- reader compiles to a nil global, which is the quietest bug in this project.
+    local RunTemplateSearch
+    local searchIndex = {}
+
+    local searchBox = ns.CreateSearchBox(frame, {
+        name = "ValuateTemplateSearchBox",
+        hint = "Search classes and specs - frost, tank, necro...",
+        fontObject = _G[FONT_BODY],
+        onQuery = function(text) if RunTemplateSearch then RunTemplateSearch(text) end end,
+    })
+    searchBox:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop + SEARCH_ROW)
+    searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, contentTop + SEARCH_ROW)
     
     -- Temporary font string for measuring text widths
     local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
@@ -906,14 +926,26 @@ local function CreateTemplatePickerFrame()
                 header:SetText(classData.class)
                 local r, g, b = HexToRGB(classData.color)
                 header:SetTextColor(r, g, b, 1)
-                
+
                 yOffset = yOffset - 18  -- Header height + spacing
-                
+
+                -- The header matches on its class name AND every spec under it, so searching
+                -- "frost" leaves the heading of the class that has a Frost spec lit rather
+                -- than a lone button floating under a dimmed, unreadable label.
+                local headerTerms = classData.class:lower()
+
                 -- Spec buttons
                 for _, spec in ipairs(classData.specs) do
                     local btn = CreateSpecButton(column, spec, spec.color, yOffset, columnWidth)
+                    headerTerms = headerTerms .. " " .. (spec.name or ""):lower()
+                    searchIndex[#searchIndex + 1] = {
+                        els = { btn },
+                        text = (classData.class .. " " .. (spec.name or "")):lower(),
+                    }
                     yOffset = yOffset - (BUTTON_HEIGHT + 2)  -- Button height + spacing
                 end
+
+                searchIndex[#searchIndex + 1] = { els = { header }, text = headerTerms }
                 
                 -- Extra spacing after each class
                 yOffset = yOffset - INNER_SPACING
@@ -933,14 +965,38 @@ local function CreateTemplatePickerFrame()
     -- Width is the accumulated offset: xOffset already carries every column plus its spacing,
     -- so it cannot disagree with where the columns were actually put.
     local windowWidth = xOffset - ELEMENT_SPACING + PADDING
-    local titleAreaHeight = 45  -- Title area
+    local titleAreaHeight = 45 + SEARCH_ROW  -- Title area + search row
     if backButton then
-        titleAreaHeight = 45 + BUTTON_HEIGHT + 8  -- Title + button + spacing
+        titleAreaHeight = 45 + BUTTON_HEIGHT + 8 + SEARCH_ROW  -- Title + button + spacing + search
     end
     local windowHeight = titleAreaHeight + maxHeight + PADDING  -- Title area + content + bottom padding
-    
+
     frame:SetSize(windowWidth, windowHeight)
-    
+
+    -- Filtering DIMS rather than hides, the same way the Settings search does.
+    --
+    -- Hiding non-matches would mean relaying out five columns on every keystroke, and every
+    -- surviving button would jump somewhere new as you typed. Dimming keeps the layout still:
+    -- what you were looking at stays where it was, and the matches light up in place.
+    local SEARCH_DIM = 0.25
+
+    -- Set directly, not tweened.
+    --
+    -- The Settings search animates its dimming, but it filters a few dozen controls. This
+    -- index is up to ninety-one elements - seventy spec buttons plus twenty-one headers - and
+    -- starting ninety-one tweens on every keystroke to move something a quarter of the way is
+    -- work nobody asked for. The stat grid is the closer precedent: sixty-odd rows, filtered
+    -- as you type, plain SetAlpha.
+    RunTemplateSearch = function(text)
+        local query = (text or ""):lower()
+        for _, entry in ipairs(searchIndex) do
+            local show = (query == "") or (entry.text:find(query, 1, true) ~= nil)
+            for _, el in ipairs(entry.els) do
+                if el.SetAlpha then el:SetAlpha(show and 1 or SEARCH_DIM) end
+            end
+        end
+    end
+
     -- Clean up temporary measurement string
     measureString:Hide()
     

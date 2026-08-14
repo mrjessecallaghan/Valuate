@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.119.0a] - 2026-08-14 — the template picker gets a search
+
+### Added
+- **A search box on the template picker.** Type part of a class or spec name — `frost`, `necro`,
+  `tank` — and everything else dims.
+
+This is the other half of v0.116.0a. Making 21 CoA classes and 70 specs *reachable* was the bug
+fix; making them **findable** is what turns a list you have to scan into one you can use. Nine
+classes could be read at a glance. Seventy spec buttons across five columns cannot.
+
+The class heading above a matching spec stays lit too — otherwise searching `frost` leaves a
+bright button sitting under an unreadable label, which tells you a spec matched but not whose.
+
+### Dims, never hides — and never animates
+**Dimming rather than hiding** is the same choice the Settings search makes: hiding non-matches
+would relayout five columns on every keystroke, and every surviving button would jump somewhere
+new as you typed. Dimming keeps the page still; what you were looking at stays where it was.
+
+**Set directly, not tweened.** Settings animates its dimming, but it filters a few dozen
+controls. This index is up to **ninety-one** elements, and starting ninety-one tweens per
+keystroke to move something a quarter of the way is work nobody asked for. The stat grid is the
+closer precedent — sixty-odd rows, filtered as you type, plain `SetAlpha`.
+
+That was not a guess: the first version *did* animate, and the gate caught it — the tweens never
+completed under the harness, so the filter appeared to do nothing at all.
+
+### Gates
+`tools/pickercoa.js` 11 → 18 checks: the box exists, a class name dims the rest, clearing
+restores everything, a query matching nothing dims everything rather than erroring, and
+**nothing is ever hidden** — which is what "no reflow" means in a test.
+
+Verified with teeth: stubbing the filter to always return full alpha fails it.
+
+### Three new `/valuate verify` checks (38 → 41)
+The checklist gate fired at **11 releases behind** its budget of 10 — working exactly as
+designed, and correct. The three added are the ones only the client can settle:
+
+- **`saveset`** — writes persistent state the addon cannot undo, and whether `SaveEquipmentSet`
+  exists on Ascension is unanswerable from here. Use a throwaway name first.
+- **`pvpscale`** — the restore is the risky half, and if Ascension's zone events never reach it
+  you simply never see the first message, which is the tell.
+- **`templatesearch`** — the dimmed state needs eyes: at 25% alpha the non-matches should stay
+  legible enough to keep your bearings. If they vanish, the number is wrong.
+
 ## [0.118.0a] - 2026-08-14 — every build values not dying, at least a little
 
 ### Fixed

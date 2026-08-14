@@ -88,6 +88,58 @@ ok(seen["Witch Hunter"] ~= nil, "Witch Hunter specifically")
 ok(seen["Paladin"] == nil, "no classic class is offered to a CoA character")
 ok(seen["Death Knight"] == nil, "nor Death Knight")
 
+-- ---- the search, which is what makes 70 specs usable rather than merely present -
+-- Seventy spec buttons across five columns cannot be read at a glance. The search box is
+-- the difference between "the CoA templates are there" and "you can find yours".
+-- By NAME, for the reason statsearchtest.js learned the hard way: "the EditBox with an
+-- OnTextChanged handler" also matches other boxes, and a gate that types into the wrong one
+-- passes while testing nothing.
+local box
+for _, f in ipairs(__frames) do
+    if f.__name == "ValuateTemplateSearchBox" then box = f end
+end
+ok(box ~= nil, "the picker has a search box")
+
+local function search(text)
+    box:SetText(text)
+    box.__scripts.OnTextChanged(box)
+end
+
+-- Spec buttons are the frames carrying a .template. Counting the LIT ones is how the filter
+-- is observed, since it dims rather than hides.
+local function litSpecs()
+    local lit = 0
+    for _, f in ipairs(__frames) do
+        if f.template and f.GetAlpha and (f:GetAlpha() or 1) > 0.9 then lit = lit + 1 end
+    end
+    return lit
+end
+
+if box then
+    local all = litSpecs()
+    ok(all > 0, "spec buttons start visible, got " .. all)
+
+    search("necroman")
+    local narrowed = litSpecs()
+    ok(narrowed < all, "searching a class name dims the rest (" .. narrowed .. " of " .. all .. ")")
+    ok(narrowed > 0, "and leaves that class's specs lit")
+
+    -- Nothing MOVES. Hiding non-matches would relayout five columns on every keystroke and
+    -- every surviving button would jump somewhere new; dimming keeps the page still.
+    local hidden = 0
+    for _, f in ipairs(__frames) do
+        if f.template and f.IsShown and not f:IsShown() then hidden = hidden + 1 end
+    end
+    eq(hidden, 0, "filtering dims in place rather than hiding and reflowing")
+
+    search("")
+    eq(litSpecs(), all, "clearing the search restores every spec")
+
+    search("zzzznothing")
+    eq(litSpecs(), 0, "a query matching nothing dims everything rather than erroring")
+    search("")
+end
+
 -- ---- and it has to FIT on a screen -------------------------------------------
 -- This frame does not scroll; it grows to whatever its contents need. Making 21 classes
 -- reachable at three columns would have produced a window around 800px tall, which runs off

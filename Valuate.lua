@@ -9727,6 +9727,30 @@ end
 -- than merely wrong: entries far behind the current version are ones nobody got to.
 local VERIFY_CHECKS = {
     {
+        id = "saveset", since = "0.115.0a",
+        gate = "tools/equipsettest.js",
+        title = "Best-in-slot saves as a real equipment set, or refuses and says why",
+        steps = "Run /valuate saveset TestSet. Watch your gear swap, then open the character sheet's equipment manager and look for the set. Then run it AGAIN with the same name and answer the confirm.",
+        expect = "Your best gear goes on, and a few seconds later the set exists holding exactly that gear. Running it again asks before overwriting. If some slot could not be equipped it saves NOTHING and names the slots that failed.",
+        broke = "SaveEquipmentSet saves what you are WEARING - there is no API to write a set from a list - so this equips first and saves after, and equipping is asynchronous. The whole design is a wait loop that refuses rather than saving a half-swapped mix. Use a throwaway name the first time: it writes persistent state the addon cannot undo, and whether SaveEquipmentSet even exists on Ascension is not something any gate here can answer.",
+    },
+    {
+        id = "pvpscale", since = "0.109.0a",
+        gate = "tools/queuetest.js",
+        title = "The PvP scale takes over in a battleground and hands back on the way out",
+        steps = "Run /valuate pvpscale make, then zone into a battleground. Read the chat line. Leave, and read it again. Then /reload while INSIDE a battleground and leave afterwards.",
+        expect = "Zoning in says it switched and names the scale; leaving says it switched back and names the one you were on. After a reload inside, leaving STILL restores - the target is saved, not held in memory.",
+        broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
+    },
+    {
+        id = "templatesearch", since = "0.119.0a",
+        gate = "tools/pickercoa.js",
+        title = "The template picker's search finds a spec without moving the page",
+        steps = "Open the scale list, choose From Template, and type part of a class or spec name - 'frost', 'necro', 'tank'. Then clear it.",
+        expect = "Matches stay bright, everything else dims to about a quarter. NOTHING moves or reflows as you type. Clearing brings it all back. The class heading above a matching spec stays lit too, rather than leaving a bright button under an unreadable label.",
+        broke = "Added because v0.116.0a made 21 CoA classes and 70 specs reachable, which is far more than can be read at a glance. The dimmed state is the part that needs eyes: at 25% alpha the non-matches should still be legible enough to keep your bearings, and if they vanish into the background the number is wrong.",
+    },
+    {
         id = "bgaccept", since = "0.108.0a",
         gate = "tools/queuetest.js",
         title = "A queue pop is taken automatically - but never mid-fight",
