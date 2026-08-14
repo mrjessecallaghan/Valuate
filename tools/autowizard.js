@@ -49,6 +49,9 @@ const pieces = [
   /^function Valuate:FindUpdatableAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
+  // PlanAutoScale floors the template weights before normalising them.
+  /^local DEFENSIVE_FLOORS = \{[\s\S]*?\r?\n\}/m,
+  /^function Valuate:ApplyDefensiveFloor\([\s\S]*?\r?\nend/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
   /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
   /^local DRIFT_TTL = \d+/m,

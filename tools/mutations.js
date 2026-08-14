@@ -125,7 +125,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.117.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.118.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -212,6 +212,23 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- the defensive floor (v0.118.0a) -------------------------------------
+  { gate: "defensive", file: "Valuate.lua",
+    label: "52 CoA specs go back to scoring survivability at zero",
+    from: "        if (out[stat] or 0) < floor then", to: "        if false then" },
+  { gate: "defensive", file: "Valuate.lua",
+    label: "the floor OVERRULES a weight the author deliberately set higher",
+    from: "if (out[stat] or 0) < floor then", to: "if true then" },
+  { gate: "defensive", file: "Valuate.lua",
+    label: "the floor is absolute, so it is invisible on one spec and overwhelming on another",
+    from: "local floor = top * fraction", to: "local floor = fraction" },
+  { gate: "defensive", file: "Valuate.lua",
+    label: "the shared template table is mutated, compounding on every later read",
+    from: "    local out = {}\n    local top = 0", to: "    local out = weights\n    local top = 0" },
+  { gate: "defensive", file: "Valuate.lua",
+    label: "a tank is floored against its own top stat, gaining Armor it never asked for",
+    from: '    if role == "TANK" then return out end', to: "" },
 
   // ---- equipping on level-up (v0.117.0a) -----------------------------------
   { gate: "equipsettest", file: "Valuate.lua",

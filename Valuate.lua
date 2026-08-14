@@ -1258,7 +1258,10 @@ function Valuate:PlanAutoScale(opts)
         return nil, "Nothing in the templates resembles what you are wearing."
     end
 
-    local weights = Valuate:NormalizeWeights(spec.weights)
+    -- Floored before normalising, so the defensive minimum is expressed relative to the
+    -- spec's own weights rather than to whatever normalising rescales them to.
+    local weights = Valuate:NormalizeWeights(
+        Valuate:ApplyDefensiveFloor(spec.weights, spec.role))
     if next(weights) == nil then
         return nil, "The closest template has no weights worth keeping."
     end
@@ -6455,6 +6458,54 @@ function Valuate:HandleBattlefieldEnd()
             end)
         end
     end)
+end
+
+-- Every build should value not dying, at least a little.
+--
+-- Measured across the templates: all 31 classic specs weight Stamina and a token amount of
+-- Armor - Arms, for instance, carries Stamina 0.2 and Armor 0.05 against a 1.0 top stat -
+-- and ALL 52 Conquest of Azeroth specs carry none at all. Scored strictly, a CoA DPS would
+-- treat two otherwise identical chests as equal when one has 300 more stamina on it, which
+-- is not what anyone means by "best".
+--
+-- The floors are the CLASSIC CONVENTION, not a number I picked: 0.20 and 0.05, relative to
+-- whatever that spec's own top weight is. Applying an absolute value would break any spec
+-- whose weights are scaled differently, and the ratio is what the hand-tuned data actually
+-- expresses.
+--
+-- Only ever RAISES. A tank weighting Stamina at 1.0 keeps it, and a spec whose author
+-- deliberately valued Armor highly keeps that too - a floor that could lower a weight would
+-- be overruling a decision rather than filling a gap.
+--
+-- Returns a NEW table. Mutating the template would make the floor permanent for the session
+-- and compound every time a scale was built from it.
+local DEFENSIVE_FLOORS = {
+    Stamina = 0.20,
+    Armor = 0.05,
+}
+
+function Valuate:ApplyDefensiveFloor(weights, role)
+    if type(weights) ~= "table" then return weights end
+
+    local out = {}
+    local top = 0
+    for stat, weight in pairs(weights) do
+        out[stat] = weight
+        if type(weight) == "number" and weight > top then top = weight end
+    end
+    if top <= 0 then return out end
+
+    -- A tank's weights already ARE the defensive ones; a floor there is meaningless at best
+    -- and, if its top stat were an offensive one, actively wrong.
+    if role == "TANK" then return out end
+
+    for stat, fraction in pairs(DEFENSIVE_FLOORS) do
+        local floor = top * fraction
+        if (out[stat] or 0) < floor then
+            out[stat] = floor
+        end
+    end
+    return out
 end
 
 -- Levelling unlocks gear you are already carrying. This puts it on.

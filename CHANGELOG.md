@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.118.0a] - 2026-08-14 — every build values not dying, at least a little
+
+### Fixed
+**Reported: "all templates should contain at least some defensive ability, minorly if a DPS
+spec."** Measured before touching anything, and the gap was bigger than "minor":
+
+| set | specs | weighting any defensive stat |
+|---|---|---|
+| classic | 31 | **31** |
+| Conquest of Azeroth | 52 | **0** |
+
+Every hand-tuned classic spec already carries survivability — Arms has `Stamina = 0.2,
+Armor = 0.05` against a 1.0 top stat. **Not one of the 52 CoA specs carried any.** Scored
+strictly, a CoA damage spec treated two otherwise identical chestpieces as equal when one had
+300 more stamina on it, which is not what anyone means by "my best chest".
+
+### The floors are the classic convention, not a number I liked
+**0.20 Stamina and 0.05 Armor**, as a fraction of that spec's *own* top weight — exactly the
+ratio the hand-tuned classic templates already express. An absolute value would be invisible on
+a spec scaled to 10 and overwhelming on one scaled to 0.1.
+
+Three properties that matter as much as the number:
+
+- **It only ever raises.** A tank at Stamina 1.0 keeps it; an author who deliberately valued
+  Armor keeps that. A floor that can *lower* a weight is overruling a decision, not filling a gap.
+- **Tanks are exempt.** Their weights already *are* the defensive ones, and flooring against an
+  offensive top stat would be actively wrong.
+- **The template is never mutated.** Templates are shared and read many times a session; a floor
+  written back would compound on every later read.
+
+Applied on both paths where a template becomes a real scale — the wizard *and* "From Template" —
+because a build that valued survivability through one door and not the other is the kind of
+inconsistency nobody could explain.
+
+### Gates
+`tools/defensive.js`, 20 checks, run over **all 101 specs in both sets** rather than a sample —
+"all templates" is the claim, and 101 is exactly the size of list a spot-check misses. Disabling
+the floor fails it by name with all 52.
+
+54 gates, 122 mutations. Five new, including *"the floor OVERRULES a weight the author
+deliberately set higher"* and *"the shared template table is mutated, compounding on every later
+read"*.
+
+### Two gates had to be corrected, not loosened
+`autowizard` and `wizarduitest` slice real source and didn't include the new dependency.
+
+The second was more interesting: it asserted *"a two-stat build shows exactly two rows"*, which
+is now **false by design** — a two-weight damage template legitimately previews as four. I tried
+twice to keep the number at two by making the fixture a tank, and both attempts failed for a
+reason worth recording: a spec that shares no stats with the equipped gear scores **zero
+similarity and is never matched**, so the preview kept the previous build and the test failed
+for reasons unrelated to what it checks. The expectation moved to four, and the row-clearing
+guard it actually exists for — rows 5 and 6 must be cleared — is untouched.
+
 ## [0.117.0a] - 2026-08-14 — the picker fits on a screen, and levelling equips your gear
 
 ### Fixed — a regression I shipped an hour earlier

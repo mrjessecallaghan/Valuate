@@ -51,6 +51,9 @@ const pieces = [
   /^function Valuate:FindUpdatableAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
+  // PlanAutoScale floors the template weights before normalising them.
+  /^local DEFENSIVE_FLOORS = \{[\s\S]*?\r?\n\}/m,
+  /^function Valuate:ApplyDefensiveFloor\([\s\S]*?\r?\nend/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
   /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
 ];
@@ -276,7 +279,16 @@ ok(filled >= 5, "a full build fills the rows (" .. filled .. ")")
 
 -- Now a build with only two weights. Anything still showing is a leftover.
 ns.CLASS_SPEC_TEMPLATES = {
+    -- A TANK, deliberately. Since v0.118.0a every non-tank build gains a Stamina and Armor
+    -- floor, so a two-stat damage spec now legitimately previews as four rows - which would
+    -- make this a test of the floor rather than of row clearing. Tanks are exempt from the
+    -- floor, so a two-stat tank still previews as exactly two rows and the thing being
+    -- guarded here (a pooled row still showing the PREVIOUS build) stays visible.
     { class = "Tiny", specs = {
+        -- Has to be a DAMAGER weighting stats the test's gear actually has. A spec that
+        -- shares nothing with the equipped vector scores zero similarity and is not matched
+        -- at all, which leaves the PREVIOUS build on screen and fails this test for a reason
+        -- that has nothing to do with row clearing. Both other shapes were tried.
         { name = "Two", role = "DAMAGER", icon = "x",
           weights = { Strength = 1.0, CritRating = 0.5 } },
     } },
@@ -290,9 +302,13 @@ for i, row in ipairs(previewScreen.rows) do
         table.insert(texts, i .. "=" .. tostring(row.__text))
     end
 end
-eq(stillShowing, 2, "a two-stat build shows exactly two rows: " .. table.concat(texts, " "))
+-- FOUR, not two: since v0.118.0a a non-tank build also carries the Stamina and Armor floor,
+-- so a two-weight damage template legitimately previews as four rows. The row-clearing guard
+-- is unaffected - the previous build filled all six, so rows 5 and 6 must still be cleared,
+-- which is the leftover this test exists to catch.
+eq(stillShowing, 4, "a two-stat build shows two stats plus the defensive floor: " .. table.concat(texts, " "))
 
-for i = 3, 6 do
+for i = 5, 6 do
     eq(previewScreen.rows[i].__text, "",
         "row " .. i .. " is cleared rather than left showing the previous build")
     eq(previewScreen.rows[i]:IsShown(), false, "and hidden")

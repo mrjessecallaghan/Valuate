@@ -888,9 +888,16 @@ function ValuateUI_CreateScaleFromTemplate(template)
         Unusable = {}
     }
     
-    -- Copy stat weights from template
+    -- Copy stat weights from template, with the defensive floor applied.
+    --
+    -- The same treatment the wizard gives them. Building "From Template" is the other way a
+    -- template becomes a real scale, and a build that values survivability through one door
+    -- and not the other would be the sort of inconsistency nobody could explain.
     if template.weights then
-        for statName, value in pairs(template.weights) do
+        local weights = (Valuate.ApplyDefensiveFloor
+            and Valuate:ApplyDefensiveFloor(template.weights, template.role))
+            or template.weights
+        for statName, value in pairs(weights) do
             newScale.Values[statName] = value
         end
     end
