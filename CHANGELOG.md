@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.115.0a] - 2026-08-14 — your best-in-slot, as a real WoW equipment set
+
+### Added
+- **`/valuate saveset <name>`** — equips your best gear for the active scale, waits for it to
+  actually land, then saves it as a **WoW equipment set**.
+
+Valuate knew what your best gear was; the equipment manager knew how to swap to a set with one
+click, a keybind or a macro. Nothing connected them, so "wear my PvP gear" meant opening a panel
+and clicking Equip All every time. Now:
+
+```
+/valuate pvpscale make      -> Arms (PvP)
+/valuate saveset PvP        -> equips it, saves the set
+/valuate pvpscale off       -> back to your PvE scale
+/valuate saveset PvE        -> and again
+```
+
+Two sets, swappable from a keybind, built from scored gear rather than assembled by hand.
+
+### The asynchronous trap this is built around
+`SaveEquipmentSet` saves **what you are wearing** — there is no API to write a set from a list —
+so this equips first and saves after. And equipping is asynchronous.
+
+**Saving too early would write a set that is part best gear and part whatever hadn't swapped
+yet.** Nothing looks wrong at the time. You'd find out a week later when you clicked the set and
+got the mix back, with no way to tell what it was supposed to be.
+
+So it polls until what you're wearing **matches what the scale wanted**, and if it never does,
+it **refuses and says which slots didn't take** — a level requirement, a locked slot, an item
+still in the bank. Refusing is the safe failure here; saving anyway is not.
+
+Bank gear is excluded from that wait: Equip All can't reach it, so waiting for it would mean
+waiting forever and never saving anything.
+
+### It asks before overwriting
+An existing set with that name is a thing someone built by hand, so it confirms first — through
+`Valuate:ShowConfirmDialog`, never `StaticPopup`, which Blizzard recycles and whose taint broke
+`CastSpellByName` in this addon once already.
+
+Names are trimmed, so `"Raid "` and `"Raid"` don't become two different sets.
+
+### Gates
+`tools/equipsettest.js`, 25 checks — 51 gates, 108 mutations. Five new, including *"a set is
+overwritten silently"* and *"your own enchanted copy reads as the wrong item, so the save never
+fires"*.
+
+The ambiguity guard fired twice more: once on my own new probe, and once because
+`UnmatchedBestSlots` introduced a second `best.source ~= "bank"` and made the **existing**
+`upgraderank` mutation point at the wrong function. That's the fifth time it has caught a
+mutation whose meaning an unrelated edit changed.
+
 ## [0.114.0a] - 2026-08-14 — eight gate claims, violated on purpose
 
 No addon changes. After three gates in a row turned out to check something *adjacent* to what

@@ -6446,6 +6446,126 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Best-in-slot as a real WoW equipment set.
+--
+-- Valuate knows what your best gear is; the equipment manager knows how to swap to a set with
+-- one click, a keybind or a macro. Nothing connected the two, so "wear my PvP gear" meant
+-- opening a panel and clicking Equip All every time.
+--
+-- The catch that shapes the whole design: SaveEquipmentSet saves WHAT YOU ARE WEARING. There
+-- is no API to write a set from a list. So this equips first and saves after - and equipping
+-- is ASYNCHRONOUS. Saving immediately would capture a half-swapped mix, and a wrong equipment
+-- set is worse than no equipment set: you would swap to it a week later and get the mix back
+-- with no idea why.
+--
+-- So the save waits until what you are wearing actually MATCHES what the scale wanted, and
+-- refuses if it never does. Refusing is the safe failure here; saving anyway is not.
+
+-- Which slots do not yet hold the item this scale wants?
+-- Bank gear is excluded: Equip All cannot reach it, so a set that omits it is correct rather
+-- than incomplete, and waiting for it would mean waiting forever.
+function Valuate:UnmatchedBestSlots(scaleName)
+    local allBest = Valuate:GetBestEquipment()
+    local be = allBest and allBest[scaleName]
+    if not be then return nil end
+
+    local out = {}
+    for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
+        local best = be[def.slotId]
+        if best and best.itemLink and best.source ~= "bank" then
+            local worn = GetInventoryItemLink("player", def.slotId)
+            local wornId = worn and GetItemIdFromLink(worn)
+            if wornId ~= GetItemIdFromLink(best.itemLink) then
+                table.insert(out, def.name)
+            end
+        end
+    end
+    return out
+end
+
+-- Everything that can be decided BEFORE touching your gear. No side effects, so the command
+-- can refuse cleanly rather than equipping a set it then cannot save.
+function Valuate:PlanEquipmentSetSave(setName, scaleName)
+    if type(setName) ~= "string" or strtrim(setName) == "" then
+        return nil, "Give the set a name: /valuate saveset <name>"
+    end
+    setName = strtrim(setName)
+
+    if type(SaveEquipmentSet) ~= "function" then
+        return nil, "This client has no SaveEquipmentSet() - equipment sets cannot be written here."
+    end
+    if type(InCombatLockdown) == "function" and InCombatLockdown() then
+        return nil, "Not in combat - gear cannot be changed."
+    end
+    if not scaleName then
+        return nil, "No active scale. /valuate wizard builds one."
+    end
+
+    local allBest = Valuate:GetBestEquipment()
+    if not allBest or not allBest[scaleName] then
+        return nil, "No best-in-slot for '" .. tostring(scaleName) .. "' yet - run /valuate scan."
+    end
+
+    -- Overwriting a set you built by hand is a real loss, and this command has no business
+    -- doing it silently. The caller confirms.
+    local exists = false
+    if type(GetNumEquipmentSets) == "function" and type(GetEquipmentSetInfo) == "function" then
+        for i = 1, GetNumEquipmentSets() do
+            local existing = GetEquipmentSetInfo(i)
+            if existing == setName then exists = true break end
+        end
+    end
+
+    return { setName = setName, scaleName = scaleName, overwrites = exists }
+end
+
+-- Equip, wait for the gear to settle, then save. Never save a half-swapped mix.
+local SET_SAVE_POLL = 1.0
+local SET_SAVE_TRIES = 10
+
+function Valuate:CommitEquipmentSetSave(plan)
+    if type(plan) ~= "table" then return false end
+
+    if Valuate.EquipBestSet then Valuate:EquipBestSet(plan.scaleName) end
+
+    local tries = 0
+    local function attempt()
+        tries = tries + 1
+        local unmatched = Valuate:UnmatchedBestSlots(plan.scaleName) or {}
+
+        if #unmatched == 0 then
+            local ok = pcall(SaveEquipmentSet, plan.setName)
+            if ok then
+                print(string.format("|cFF00FF00[Valuate]|r Saved |cFFFFFFFF%s|r from %s. " ..
+                    "|cFFAAAAAAThe equipment manager can swap to it from anywhere.|r",
+                    plan.setName, plan.scaleName))
+                Valuate:MarkAutomation("setSave", "saved " .. plan.setName)
+            else
+                print("|cFFFF0000[Valuate]|r SaveEquipmentSet() was refused by the client.")
+                Valuate:MarkAutomation("setSave", "SaveEquipmentSet refused")
+            end
+            return
+        end
+
+        if tries < SET_SAVE_TRIES then
+            ValuateAfter(SET_SAVE_POLL, attempt)
+            return
+        end
+
+        -- Out of patience. Saving now would write a set that is part best gear and part
+        -- whatever failed to equip - and you would not find out until you used it.
+        print(string.format("|cFFFF8800[Valuate]|r Did NOT save '%s': %d slot(s) never took the " ..
+            "item they were meant to |cFFAAAAAA(%s)|r.",
+            plan.setName, #unmatched, table.concat(unmatched, ", ")))
+        print("  |cFFAAAAAASomething is blocking those equips - a level requirement, a locked " ..
+              "slot, or the item is in your bank. Nothing was saved, so nothing is wrong.|r")
+        Valuate:MarkAutomation("setSave", "refused - " .. #unmatched .. " slot(s) did not match")
+    end
+
+    ValuateAfter(SET_SAVE_POLL, attempt)
+    return true
+end
+
 -- Saying it once, at the moment you are deciding what to do anyway.
 --
 -- /valuate todo answers the question, but only if you think to ask - and the whole point of
@@ -8935,6 +9055,7 @@ function Valuate:PrintReport()
         { key = "queuePvP",      label = "PvP queue" },
         { key = "queueDungeon",  label = "Dungeon queue" },
         { key = "bgAccept",      label = "Battleground invite" },
+        { key = "setSave",       label = "Equipment set save" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -10163,6 +10284,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate saveset <name> - Equip your best gear and save it as a WoW equipment set")
         print("  /valuate todo - Everything worth doing about your gear, in one list")
         print("  /valuate todonotify - Toggle the one-line summary at login")
         print("  /valuate quiet - Toggle Valuate chat messages and the loaded message")
@@ -10935,6 +11057,24 @@ SlashCmdList["VALUATE"] = function(msg)
             options.autoAcceptTrivialBelow = math.floor(n)
             print(string.format("|cFF00FF00Valuate|r: Auto-accept now skips quests more than " ..
                 "|cFFFFFFFF%d|r levels below you.", math.floor(n)))
+        end
+    elseif strsub(command, 1, 7) == "saveset" then
+        local _, activeScale = Valuate:GetPrimaryScale()
+        local plan, why = Valuate:PlanEquipmentSetSave(strtrim(strsub(msg, 9) or ""), activeScale)
+        if not plan then
+            print("|cFFFF8800[Valuate]|r " .. tostring(why))
+        elseif plan.overwrites then
+            -- Never StaticPopup: Blizzard recycles those frames and the taint spreads.
+            Valuate:ShowConfirmDialog({
+                text = string.format("Equipment set |cFFFFFFFF%s|r already exists.\n\n" ..
+                    "Equip your best gear for %s and overwrite it?", plan.setName, plan.scaleName),
+                acceptText = "Overwrite",
+                onAccept = function() Valuate:CommitEquipmentSetSave(plan) end,
+            })
+        else
+            print(string.format("|cFF00FF00[Valuate]|r Equipping your best for %s, then saving it " ..
+                "as |cFFFFFFFF%s|r...", plan.scaleName, plan.setName))
+            Valuate:CommitEquipmentSetSave(plan)
         end
     elseif command == "todonotify" then
         local options = Valuate:GetOptions()

@@ -51,6 +51,10 @@ const FIND_SOCKETS = {
   start: "function Valuate:FindEmptySockets",
   end: "\n-- What is my biggest upgrade right now?",
 };
+const UNMATCHED_SLOTS = {
+  start: "function Valuate:UnmatchedBestSlots",
+  end: "\n-- Everything that can be decided BEFORE touching your gear.",
+};
 const ANNOUNCE_TODO = {
   start: "function Valuate:AnnounceTodo",
   end: "\n-- Everything worth doing about your gear, in one list.",
@@ -121,7 +125,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.114.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.115.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -208,6 +212,23 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- best-in-slot as an equipment set (v0.115.0a) ------------------------
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "a set is overwritten silently, destroying one someone built by hand",
+    from: "if existing == setName then exists = true break end", to: "" },
+  { gate: "equipsettest", file: "Valuate.lua", scope: UNMATCHED_SLOTS,
+    label: "bank gear blocks the save forever, so no set is ever written",
+    from: 'best.source ~= "bank"', to: "true" },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "your own enchanted copy reads as the wrong item, so the save never fires",
+    from: "if wornId ~= GetItemIdFromLink(best.itemLink) then", to: "if worn ~= best.itemLink then" },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "gear is swapped while you are in combat",
+    from: 'return nil, "Not in combat - gear cannot be changed."', to: 'local _ = 1' },
+  { gate: "equipsettest", file: "Valuate.lua",
+    label: "'Raid ' and 'Raid' become two different equipment sets",
+    from: "    setName = strtrim(setName)", to: "" },
 
   /* ---- each gate's HEADLINE CLAIM, violated on purpose (v0.114.0a) ---------
    *
@@ -426,7 +447,9 @@ module.exports = [
     from: "if compared == 0 then", to: "if false then" },
 
   // ---- the ranked upgrade list (v0.99.0a) ----------------------------------
-  { gate: "upgraderank", file: "Valuate.lua",
+  // Scoped since v0.115.0a: UnmatchedBestSlots excludes bank gear with the same line, and
+  // an unscoped anchor would land there instead - breaking a function this gate never runs.
+  { gate: "upgraderank", file: "Valuate.lua", scope: RANK_UPGRADES,
     label: "bank gear is offered as your next upgrade - advice you cannot act on",
     from: 'best.source ~= "bank"', to: "true" },
   // Scoped, because FindEmptySockets uses the same tiebreak line and sits EARLIER in the
