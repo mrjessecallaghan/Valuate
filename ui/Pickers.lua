@@ -16,7 +16,34 @@ local BACKDROP_WINDOW, BACKDROP_PANEL, BACKDROP_BUTTON, BACKDROP_INPUT =
     ns.BACKDROP_WINDOW, ns.BACKDROP_PANEL, ns.BACKDROP_BUTTON, ns.BACKDROP_INPUT
 local FONT_TITLE, FONT_H1, FONT_H2, FONT_H3, FONT_BODY, FONT_SMALL =
     ns.FONT_TITLE, ns.FONT_H1, ns.FONT_H2, ns.FONT_H3, ns.FONT_BODY, ns.FONT_SMALL
-local SCALE_ICON_LIST, CLASS_SPEC_TEMPLATES = ns.SCALE_ICON_LIST, ns.CLASS_SPEC_TEMPLATES
+local SCALE_ICON_LIST = ns.SCALE_ICON_LIST
+
+-- The template set for THIS character, read at use time.
+--
+-- This file used to localise ns.CLASS_SPEC_TEMPLATES at load, which meant the template picker
+-- could only ever show the classic ten - Conquest of Azeroth's 21 classes and 70 specs were
+-- built, documented, wizard-matched and completely unreachable from the one screen whose whole
+-- job is choosing a spec. v0.79.0a switched the wizard to GetTemplateSet and never switched
+-- this, and a localised constant cannot be fixed later by changing what ns holds.
+--
+-- Reported from the game, which is where it had to come from: no gate here can see that a
+-- screen offers the wrong list, only that it offers a list.
+local function CurrentTemplates()
+    if Valuate and Valuate.GetTemplateSet then
+        local set = Valuate:GetTemplateSet()
+        if type(set) == "table" and set[1] then return set end
+    end
+    return ns.CLASS_SPEC_TEMPLATES
+end
+
+-- Ascension may hand back either the display name or the class token, and the two sites that
+-- matched a class here each assumed a different one. Accept both rather than betting.
+local function IsPlayerClass(entry, className, classToken)
+    if not entry or type(entry.class) ~= "string" then return false end
+    if className and entry.class == className then return true end
+    if classToken and entry.class:upper() == classToken then return true end
+    return false
+end
 local CreateStyledButton, ShowTooltipSafe = ns.CreateStyledButton, ns.ShowTooltipSafe
 -- Anim.popIn honours reduceMotion itself, so callers never branch on it.
 local Anim = ns.Anim
@@ -417,20 +444,21 @@ local function CreateClassSpecificPickerFrame()
     end)
     
     -- Get player's class
-    local _, playerClass = UnitClass("player")
-    
+    local playerClassName, playerClass = UnitClass("player")
+    local templates = CurrentTemplates()
+
     -- Find the class data
     local classData = nil
-    for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
-        if data.class:upper() == playerClass then
+    for _, data in ipairs(templates) do
+        if IsPlayerClass(data, playerClassName, playerClass) then
             classData = data
             break
         end
     end
-    
+
     if not classData then
         -- Fallback to showing all classes if player class not found
-        classData = CLASS_SPEC_TEMPLATES[1]
+        classData = templates[1]
     end
     
     -- Title
@@ -674,10 +702,10 @@ local function CreateTemplatePickerFrame()
     title:SetTextColor(unpack(COLORS.textTitle))
     
     -- Get player's class for the back button
-    local _, playerClass = UnitClass("player")
+    local rawClassName, playerClass = UnitClass("player")
     local playerClassName = nil
-    for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
-        if data.class:upper() == playerClass then
+    for _, data in ipairs(CurrentTemplates()) do
+        if IsPlayerClass(data, rawClassName, playerClass) then
             playerClassName = data.class
             break
         end
@@ -787,10 +815,24 @@ local function CreateTemplatePickerFrame()
         return btn
     end
     
-    -- Populate columns with class/spec data (3 columns, 3 classes each)
-    local column1Classes = {"Warrior", "Paladin", "Hunter"}
-    local column2Classes = {"Rogue", "Priest", "Shaman"}
-    local column3Classes = {"Mage", "Warlock", "Druid"}
+    -- Columns built FROM the template set, not from a list typed out by hand.
+    --
+    -- These were three hardcoded rows of three: Warrior/Paladin/Hunter, Rogue/Priest/Shaman,
+    -- Mage/Warlock/Druid. Nine names. That silently excluded Death Knight the moment it was
+    -- added to the templates, and every one of Conquest of Azeroth's 21 classes - a screen
+    -- offering nine of thirty-one options, with nothing anywhere saying so.
+    --
+    -- Derived, so a class that exists in the data appears here by construction and the list
+    -- can never fall behind again.
+    local allTemplates = CurrentTemplates()
+    local column1Classes, column2Classes, column3Classes = {}, {}, {}
+    local perColumn = math.max(1, math.ceil(#allTemplates / 3))
+    for i, data in ipairs(allTemplates) do
+        local target = (i <= perColumn and column1Classes)
+            or (i <= perColumn * 2 and column2Classes)
+            or column3Classes
+        table.insert(target, data.class)
+    end
     
     -- First pass: calculate required widths for each column
     local function CalculateColumnWidth(classList)
@@ -799,7 +841,7 @@ local function CreateTemplatePickerFrame()
         for _, className in ipairs(classList) do
             -- Find the class data
             local classData = nil
-            for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+            for _, data in ipairs(allTemplates) do
                 if data.class == className then
                     classData = data
                     break
@@ -842,7 +884,7 @@ local function CreateTemplatePickerFrame()
         for _, className in ipairs(classList) do
             -- Find the class data
             local classData = nil
-            for _, data in ipairs(CLASS_SPEC_TEMPLATES) do
+            for _, data in ipairs(allTemplates) do
                 if data.class == className then
                     classData = data
                     break

@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.116.0a] - 2026-08-14 — FIXED: the template picker never offered CoA classes (or Death Knight)
+
+### Fixed
+**Reported from the game: "CoA templates are not available in selecting template."** Correct, and
+worse than reported.
+
+`ui/Pickers.lua` — the screen whose entire job is choosing a spec — had two independent faults:
+
+1. It localised `ns.CLASS_SPEC_TEMPLATES` **at file load**, so it could only ever see the classic
+   set. v0.79.0a switched the *wizard* to `GetTemplateSet()` and never switched this, and a
+   constant captured at load cannot be fixed later by changing what `ns` holds.
+2. Its class roster was **typed out by hand** — three columns of three:
+
+   ```lua
+   local column1Classes = {"Warrior", "Paladin", "Hunter"}
+   local column2Classes = {"Rogue", "Priest", "Shaman"}
+   local column3Classes = {"Mage", "Warlock", "Druid"}
+   ```
+
+   Nine names. So **Death Knight vanished the day it was added to the templates**, and has been
+   missing from this screen ever since — a bug that shipped alongside the CoA one and nobody
+   reported, because who checks whether a list is complete?
+
+Between them: a picker offering **nine of thirty-one** classic options and **none of CoA's 21**.
+All that data built, documented, wizard-matched, and unreachable from the one place you'd look.
+
+The columns are now derived from the template set, so a class that exists in the data appears
+by construction. Class matching also accepts the display name *or* the class token — the two
+sites that matched a class here each assumed a different one, which is its own latent bug on a
+server that may return either.
+
+### Why nothing here caught it
+Every gate passed the whole time. They checked the templates existed, that the wizard matched
+them, that the data was internally consistent — and **none checked that the picker offers them**.
+*"The screen draws"* and *"the screen draws the right things"* are different claims, and only the
+first was ever tested.
+
+### Two new gates, and they reproduce the bug
+`tools/pickertest.js` (classic) and `tools/pickercoa.js` (CoA). Reverting the fix makes them fail
+with exactly the user's report:
+
+```
+FAIL  every classic class appears in the picker (missing: Death Knight)
+FAIL  every CoA class is offered (missing: Son of Arugal, Tinker, Barbarian, ... Stormbringer)
+```
+
+They're **two files** for the reason `wizardroles.js` is separate from `wizarduitest.js`: the
+picker builds its frame once and reuses it, so one harness can be a classic character or a CoA
+one, never both. Resetting the file-local frame mid-run would be testing something no player can
+do — the first draft did exactly that and reported a failure that was an artefact of the test.
+
+53 gates now.
+
 ## [0.115.0a] - 2026-08-14 — your best-in-slot, as a real WoW equipment set
 
 ### Added
