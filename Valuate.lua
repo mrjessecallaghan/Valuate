@@ -564,6 +564,11 @@ local function OnEvent(self, event, addonName, ...)
         -- is far cheaper than best-in-slot silently missing half your bags.
         ValuateAfter(6.0, function() ScheduleScan(0, "login") end)
         ValuateAfter(15.0, function() ScheduleScan(0, "login") end)
+        -- After the SECOND scan, not the first: the early one runs against a cold item
+        -- cache, so a to-do list built from it would be confidently short.
+        ValuateAfter(20.0, function()
+            if Valuate.AnnounceTodo then Valuate:AnnounceTodo() end
+        end)
     elseif event == "EQUIPMENT_SWAP_PENDING" then
         -- Equipment swap is starting, pause scanning completely
         equipmentSwapPending = true
@@ -776,6 +781,8 @@ local DEFAULT_OPTIONS = {
     -- Alt-hover expands the tooltip into a per-scale best-in-slot breakdown. On by
     -- default because it costs nothing until you hold the key.
     showAltDetail = true,
+    -- A one-line summary at login. Informational, so on by default - see AnnounceTodo.
+    todoOnLogin = true,
 
     -- Queueing, releasing, leaving. All off, like every other automation here.
     autoRelease = false,
@@ -6439,6 +6446,40 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Saying it once, at the moment you are deciding what to do anyway.
+--
+-- /valuate todo answers the question, but only if you think to ask - and the whole point of
+-- the list is that you should not have to keep it in your head. So it speaks up once per
+-- session, at login, when "what am I doing tonight" is the question you actually have.
+--
+-- ONE LINE, and only when there is something in it. Login chat is already a wall of addon
+-- greetings; a summary that fires when there is nothing to summarise is how an addon teaches
+-- you to filter it out. The detail stays one command away.
+--
+-- Not gated behind an opt-in, and deliberately so. The README's "every automation is off by
+-- default" promise is about features that ACT - deleting, selling, rolling, queueing. This
+-- prints a sentence. The same reasoning already applies to the cleanup verdict on tooltips
+-- and the Alt-hover breakdown, which are informational and on.
+local todoAnnounced = false
+
+function Valuate:AnnounceTodo()
+    if todoAnnounced then return false, "Already said this session." end
+    if Valuate:GetOptions().todoOnLogin == false then return false, "Switched off." end
+    if not Valuate.BuildTodoList then return false, "BuildTodoList is missing." end
+
+    -- Marked BEFORE the early return, so "nothing to do" also counts as having spoken.
+    -- Otherwise a character with nothing outstanding would re-check on every later trigger
+    -- forever, and the first thing to appear would announce itself mid-dungeon.
+    todoAnnounced = true
+
+    local items = Valuate:BuildTodoList()
+    if #items == 0 then return false, "Nothing worth doing." end
+
+    print(string.format("|cFF00FF00[Valuate]|r %d thing%s worth doing - |cFFFFFFFF/valuate todo|r",
+        #items, #items == 1 and "" or "s"))
+    return true, #items .. " announced"
+end
+
 -- Everything worth doing about your gear, in one list.
 --
 -- The addon can answer this already - /valuate upgrades, sockets, enchants, and the scale
@@ -10123,6 +10164,9 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate todo - Everything worth doing about your gear, in one list")
+        print("  /valuate todonotify - Toggle the one-line summary at login")
+        print("  /valuate quiet - Toggle Valuate chat messages and the loaded message")
+        print("  /valuate trivial <levels> - How far below you a quest must be to be skipped")
         print("  /valuate sockets - Empty gem sockets on gear you are wearing")
         print("  /valuate enchants - Gear you are wearing with no enchant")
         print("|cFFFFFF00Queue, release and leave|r |cFFAAAAAA(all off by default)|r")
@@ -10862,6 +10906,42 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  |cFFAAAAAAChecks head, shoulder, back, chest, wrist, hands, legs, feet and main hand. " ..
               "Rings need Enchanting, off-hands only if they are a shield, and ranged wants a scope - " ..
               "those are left out rather than nagging you about what you cannot do.|r")
+    elseif command == "quiet" then
+        -- chatMessages and showStartupMessage have been read-only since they were added:
+        -- the code checked them, and nothing could ever set them. A verbose addon you
+        -- cannot quieten is a verbose addon you uninstall.
+        local options = Valuate:GetOptions()
+        local on = not (options.chatMessages == false)
+        options.chatMessages = not on
+        options.showStartupMessage = not on
+        if options.chatMessages then
+            print("|cFF00FF00Valuate|r: Chat messages |cFF00FF00ON|r - level-up notices, bank " ..
+                  "snapshots and the loaded message.")
+        else
+            print("|cFF00FF00Valuate|r: Chat messages |cFFFF8800OFF|r. |cFFAAAAAAWarnings and " ..
+                  "anything you asked for by typing a command still print.|r")
+        end
+    elseif strsub(command, 1, 7) == "trivial" then
+        local options = Valuate:GetOptions()
+        local arg = strtrim(strsub(msg, 9) or "")
+        local n = tonumber(arg)
+        if arg == "" then
+            print(string.format("|cFF00FF00[Valuate]|r Auto-accept skips quests more than " ..
+                "|cFFFFFFFF%d|r levels below you.", tonumber(options.autoAcceptTrivialBelow) or 8))
+            print("  |cFFAAAAAA/valuate trivial <levels>  ·  0 accepts everything|r")
+        elseif not n or n < 0 or n > 80 then
+            print("|cFFFF0000Valuate|r: Give a number of levels between 0 and 80.")
+        else
+            options.autoAcceptTrivialBelow = math.floor(n)
+            print(string.format("|cFF00FF00Valuate|r: Auto-accept now skips quests more than " ..
+                "|cFFFFFFFF%d|r levels below you.", math.floor(n)))
+        end
+    elseif command == "todonotify" then
+        local options = Valuate:GetOptions()
+        options.todoOnLogin = (options.todoOnLogin == false)
+        print(string.format("|cFF00FF00Valuate|r: The one-line summary at login is %s.",
+            options.todoOnLogin and "|cFF00FF00ON|r" or "|cFFFF8800OFF|r"))
+        print("  |cFFAAAAAA/valuate todo always works either way.|r")
     elseif command == "todo" then
         local items = Valuate:BuildTodoList()
         if #items == 0 then

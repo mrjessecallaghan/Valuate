@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.113.0a] - 2026-08-14 — the to-do list speaks once, and three options become reachable
+
+### Added
+- **A one-line summary at login**, when there's something worth doing:
+  `[Valuate] 3 things worth doing - /valuate todo`
+- **`/valuate quiet`** — turns Valuate's chat messages and the loaded message off.
+- **`/valuate trivial <levels>`** — how far below you a quest must be for auto-accept to skip it.
+- `/valuate todonotify` toggles the login line.
+
+`/valuate todo` answers the question, but only if you think to ask — and the point of the list is
+that you *shouldn't* have to keep it in your head. It waits for the **second** login scan (the
+first runs against a cold item cache, so a list built from it would be confidently short), says
+one line, and never speaks again that session.
+
+"Nothing to do" also counts as having spoken. Otherwise a clean character keeps re-checking and
+the first thing to appear announces itself mid-dungeon — exactly the interruption this avoids.
+
+### The options gate was passing things it shouldn't
+`todoOnLogin` sailed through a gate whose whole job is *"every option is reachable"*, because
+reachable meant **"the key is mentioned somewhere outside the defaults"** — which every option
+satisfies by definition, since something has to read it. `if options.key == false` counted as a
+way to change it.
+
+Reachable now means **something assigns to it**: `options.key =`, a multiple assignment, or a
+key declared as data (the Settings panel builds its battleground toggles from a table and
+assigns through `GetOptions()[toggle.key]`, which no regex will ever see — the declaration *is*
+the control).
+
+### Which immediately found three options nobody could change
+- **`chatMessages`** — the verbose-chat switch. Read since it was added, never settable. A
+  chatty addon you can't quieten is one you uninstall.
+- **`showStartupMessage`** — same.
+- **`autoAcceptTrivialBelow`** — a tunable threshold with nothing to tune it.
+
+All three now have commands. Two of them are, in effect, three-word bug reports that were
+sitting in plain sight behind a check that looked green.
+
+### Gates
+`tools/todotest.js` 24 → 31 checks; 50 gates, 94 mutations. Four new, including *"'nothing to
+do' re-checks forever, so the first new item announces itself mid-dungeon"*.
+
 ## [0.112.0a] - 2026-08-14 — `/valuate todo`: everything worth doing, in one list
 
 ### Added

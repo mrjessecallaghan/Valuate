@@ -28,11 +28,20 @@ const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
 
-const m = lua.match(/^function Valuate:BuildTodoList\([\s\S]*?\r?\nend/m);
-if (!m) {
-  console.error("  SLICE  could not find Valuate:BuildTodoList in Valuate.lua - this gate tests nothing");
-  process.exit(1);
-}
+const PIECES = [
+  /^local todoAnnounced = false/m,
+  /^function Valuate:AnnounceTodo\([\s\S]*?\r?\nend/m,
+  /^function Valuate:BuildTodoList\([\s\S]*?\r?\nend/m,
+];
+const sliced = PIECES.map((re) => {
+  const found = lua.match(re);
+  if (!found) {
+    console.error("  SLICE  could not find " + re + " in Valuate.lua - this gate tests nothing");
+    process.exit(1);
+  }
+  return found[0];
+});
+const m = [sliced.join("\n")];
 
 const run = load([]);
 
@@ -40,6 +49,12 @@ run(
   `
 local failures, checks = {}, 0
 local function ok(cond, what) checks = checks + 1 if not cond then table.insert(failures, what) end end
+local function saysAbout(reason, word, what)
+    checks = checks + 1
+    if type(reason) ~= "string" or not reason:find(word, 1, true) then
+        table.insert(failures, what .. " (reason was: " .. tostring(reason) .. ")")
+    end
+end
 local function eq(got, want, what)
     checks = checks + 1
     if got ~= want then
@@ -49,7 +64,7 @@ end
 
 Valuate = {}
 
-local DRIFT, UPGRADES, SOCKETS, ENCHANTS = nil, nil, 0, 0
+DRIFT, UPGRADES, SOCKETS, ENCHANTS = nil, nil, 0, 0
 function Valuate:GetAutoScaleDrift() return DRIFT end
 function Valuate:GetPrimaryScale() return {}, "Dps" end
 function Valuate:RankAvailableUpgrades() return UPGRADES end
@@ -144,6 +159,42 @@ local degraded
 ok(pcall(function() degraded = Valuate:BuildTodoList() end),
    "missing helpers are handled rather than crashing")
 eq(kinds(degraded), "upgrade", "and what remains still reports")
+
+-- ---- the one-line summary at login -------------------------------------------
+-- It speaks ONCE. A summary that repeats is one you learn to filter out, and the whole
+-- value is that you read it the one time it appears.
+OPTIONS = {}
+function Valuate:GetOptions() return OPTIONS end
+
+-- Put back the helpers the degradation test above deliberately removed, or this block would
+-- be exercising the degraded path while claiming to test the normal one.
+function Valuate:GetAutoScaleDrift() return DRIFT end
+function Valuate:FindEmptySockets() return nil, SOCKETS end
+function Valuate:FindMissingEnchants() return nil, ENCHANTS end
+
+DRIFT, SOCKETS, ENCHANTS = "Auto - Str/Crit", 2, 1
+UPGRADES = { { itemLink = "[Chest]", slotName = "Chest", gain = 40 } }
+todoAnnounced = false
+
+eq(Valuate:AnnounceTodo(), true, "with things to do, it announces")
+eq(Valuate:AnnounceTodo(), false, "and never again this session")
+saysAbout(select(2, Valuate:AnnounceTodo()), "Already", "saying why rather than going quiet")
+
+-- Nothing to do must ALSO count as having spoken. Otherwise a character with a clean list
+-- keeps re-checking, and the first thing to appear announces itself mid-dungeon - which is
+-- precisely the interruption this feature is supposed to avoid.
+todoAnnounced = false
+DRIFT, SOCKETS, ENCHANTS, UPGRADES = nil, 0, 0, nil
+eq(Valuate:AnnounceTodo(), false, "an empty list prints nothing")
+DRIFT = "Auto - Str/Crit"
+eq(Valuate:AnnounceTodo(), false, "and it does not start announcing later in the session")
+
+-- Switched off means off.
+todoAnnounced = false
+OPTIONS.todoOnLogin = false
+eq(Valuate:AnnounceTodo(), false, "switched off, it says nothing")
+saysAbout(select(2, Valuate:AnnounceTodo()), "off", "and says that is why")
+OPTIONS.todoOnLogin = nil
 
 return failures, checks
 `,

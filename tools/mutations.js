@@ -51,6 +51,10 @@ const FIND_SOCKETS = {
   start: "function Valuate:FindEmptySockets",
   end: "\n-- What is my biggest upgrade right now?",
 };
+const ANNOUNCE_TODO = {
+  start: "function Valuate:AnnounceTodo",
+  end: "\n-- Everything worth doing about your gear, in one list.",
+};
 const TODO = {
   start: "function Valuate:BuildTodoList",
   end: "\n-- Making the PvP scale, rather than leaving you an empty slot to fill.",
@@ -117,7 +121,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.112.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.113.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -204,6 +208,20 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- the login summary (v0.113.0a) ---------------------------------------
+  { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,
+    label: "the login summary repeats every time anything triggers it",
+    from: "if todoAnnounced then return false", to: "if false then return false" },
+  { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,
+    label: "'nothing to do' re-checks forever, so the first new item announces itself mid-dungeon",
+    from: "    todoAnnounced = true\n\n    local items", to: "\n    local items" },
+  { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,
+    label: "an empty list still prints a summary of nothing",
+    from: "if #items == 0 then return false", to: "if false then return false" },
+  { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,
+    label: "switching the summary off does not switch it off",
+    from: "if Valuate:GetOptions().todoOnLogin == false then", to: "if false then" },
 
   // ---- the gear to-do list (v0.112.0a) -------------------------------------
   { gate: "todotest", file: "Valuate.lua",

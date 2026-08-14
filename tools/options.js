@@ -73,12 +73,44 @@ const surfaces = collectLua("", []).map(read).join("\n");
 // OUTSIDE the defaults block still counts as reachable.
 const coreOutsideDefaults = core.replace(block[0], "");
 
+/*
+ * Reachable means the user can CHANGE it, not that the code reads it.
+ *
+ * This used to accept any mention of the key anywhere outside the defaults - which every
+ * option satisfies by definition, since something has to read it. The check was therefore
+ * close to vacuous for anything living in the core file, and it waved through `todoOnLogin`
+ * in v0.113.0a, an option with no control and no command at all.
+ *
+ * So: an option is reachable when something ASSIGNS to it - `options.key =`, or an explicit
+ * `["key"] =`. A checkbox handler and a slash toggle both do; a comparison like
+ * `options.key == false` does not, which is exactly the distinction that was missing.
+ *
+ * `==` is excluded deliberately: `=[^=]` would otherwise match the first character of `==`.
+ */
+/*
+ * Two ways to be reachable, because there are two ways this codebase builds a control.
+ *
+ * ASSIGNED - `options.key = x`, or `options.a, options.b = ...` where it is not the last
+ * name on the left. That is a checkbox handler or a slash toggle.
+ *
+ * DECLARED AS DATA - the key appears as a quoted string. The Settings panel builds its
+ * battleground toggles from a table of `{ key = "autoRelease", label = ... }` and assigns
+ * through `GetOptions()[toggle.key]`, which no amount of regex will see as an assignment
+ * to a specific option. The declaration is the control.
+ *
+ * `==` is excluded deliberately: a bare `=[^=]` would match the first character of `==`,
+ * which is how the old rule counted `if options.key == false` as a way to change it.
+ */
 const unreachable = [];
 for (const key of keys) {
-  const re = new RegExp(`\\b${key}\\b`);
-  if (!re.test(surfaces) && !re.test(coreOutsideDefaults)) {
-    unreachable.push(key);
-  }
+  const assigned = new RegExp(
+    `\\.${key}\\b\\s*(,[^=\\n]*)?=(?!=)|\\[\\s*["']${key}["']\\s*\\]\\s*=(?!=)`
+  );
+  const declared = new RegExp(`["']${key}["']`);
+  const reachable =
+    assigned.test(surfaces) || assigned.test(coreOutsideDefaults) ||
+    declared.test(surfaces) || declared.test(coreOutsideDefaults);
+  if (!reachable) unreachable.push(key);
 }
 
 if (unreachable.length) {
