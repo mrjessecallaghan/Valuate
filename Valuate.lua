@@ -1140,6 +1140,48 @@ function Valuate:FindMatchingAutoScale(weights, scales)
     return nil
 end
 
+-- A scale THIS wizard made whose weights no longer match what your gear says.
+--
+-- Without this the wizard can only ever create. Level twenty levels, respec, change armour
+-- class, and the Auto scale you made at the start is quietly wrong - and the only way to fix
+-- it is to delete it and run the wizard again, which is a chore nobody should have to work
+-- out for themselves.
+--
+-- ONLY wizard-made scales qualify, and the colour is the test. A scale you recoloured or
+-- built by hand is yours; the wizard has no business rewriting it. That is deliberately
+-- stricter than matching on the "Auto - " name, which you could have typed yourself.
+-- `basedOn` is the class/spec the new plan came from, and matching on it is what makes this
+-- safe. Without it, asking for a Tank build while you already had a DPS Auto scale would
+-- offer to REPLACE the DPS one - they are two different builds, not one that drifted, and
+-- wanting both is completely ordinary.
+--
+-- Scales made before this existed have no AutoSource, so they are never updated. They get a
+-- second scale instead, which is the old behaviour and the safe direction.
+function Valuate:FindUpdatableAutoScale(weights, basedOn, scales)
+    if type(weights) ~= "table" or next(weights) == nil then return nil end
+    if type(basedOn) ~= "string" or basedOn == "" then return nil end
+    scales = scales or Valuate:GetScales()
+
+    -- Sorted: pairs() has no order, and two updatable scales would otherwise make the wizard
+    -- offer a different one each time you opened it.
+    local names = {}
+    for name in pairs(scales) do table.insert(names, name) end
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+        local scale = scales[name]
+        if scale
+            and scale.Color == AUTO_SCALE_COLOR
+            and scale.AutoSource == basedOn
+            and type(scale.Values) == "table"
+            and next(scale.Values) ~= nil
+            and not WeightsMatch(weights, scale.Values) then
+            return name
+        end
+    end
+    return nil
+end
+
 function Valuate:PlanAutoScale(opts)
     opts = opts or {}
     local totals = opts.totals
@@ -1163,9 +1205,24 @@ function Valuate:PlanAutoScale(opts)
     -- If an identical scale already exists, the plan describes THAT one rather than a twin.
     local duplicateOf = Valuate:FindMatchingAutoScale(weights, opts.existing)
 
+    -- Otherwise, a wizard-made scale that has drifted is offered as an UPDATE rather than as
+    -- a second scale. Checked only when there is no exact duplicate, because "you already
+    -- have this" is the better answer whenever it is true.
+    local updates = nil
+    if not duplicateOf then
+        updates = Valuate:FindUpdatableAutoScale(weights,
+            tostring(class and class.class or "?") .. " " .. tostring(spec.name or "?"),
+            opts.existing)
+    end
+
     return {
         duplicateOf = duplicateOf,
-        name = duplicateOf or Valuate:BuildUniqueAutoScaleName(weights, opts.existing),
+        updates = updates,
+        -- An UPDATE takes the plain name, not a unique one: the scale it replaces is about to
+        -- free that slot, so suffixing would rename your scale to "(2)" for no reason.
+        name = duplicateOf
+            or (updates and Valuate:BuildAutoScaleName(weights))
+            or Valuate:BuildUniqueAutoScaleName(weights, opts.existing),
         weights = weights,
         color = AUTO_SCALE_COLOR,
         icon = spec.icon,
@@ -1213,10 +1270,24 @@ function Valuate:CommitAutoScale(plan, scales)
         return existing, "reused"
     end
 
+    -- Updating a scale the wizard made earlier. The old entry goes, the new one arrives under
+    -- the name the current weights earn - the top five stats may well have changed, and a
+    -- scale called "Auto - Str/Crit/..." that no longer weights Strength first is worse than
+    -- no name at all.
+    --
+    -- Safe because only wizard-coloured scales reach here, and because you pressed a button
+    -- that said "Update" next to a preview of exactly what it would become.
+    if plan.updates and scales[plan.updates] and plan.updates ~= plan.name then
+        scales[plan.updates] = nil
+    end
+
     local scale = {
         DisplayName = plan.name,
         Color = plan.color or AUTO_SCALE_COLOR,
         Icon = plan.icon,
+        -- Which class/spec built this, so a later run can tell "the same build, drifted"
+        -- from "a different build entirely" and only offer to update the former.
+        AutoSource = plan.basedOn,
         Values = {},
         Unusable = {},
         Visible = true,
@@ -1240,7 +1311,9 @@ function Valuate:CommitAutoScale(plan, scales)
     end
     if Valuate.ResetTooltips then Valuate:ResetTooltips() end
     if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
-    return scale
+    -- The caller says what happened rather than inferring it, so the final screen can report
+    -- "updated" instead of claiming to have made something new.
+    return scale, plan.updates and "updated" or nil
 end
 
 -- Get character-specific best equipment table

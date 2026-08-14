@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.87.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.88.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,7 +432,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.87.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.88.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -454,9 +454,14 @@ local function CreateChangelogPanel(parent)
         "   wearing, works out which build you most resemble, and makes an optimized\n" ..
         "   scale named after its top five stats - Auto - Str/Crit/Hit/AP/Haste.\n" ..
         "   Three screens, one click each. It shows you what it would make before\n" ..
-        "   making anything, never overwrites a scale you already have, and leaves\n" ..
+        "   making anything, never touches a scale you built yourself, and leaves\n" ..
         "   the new one selected and scanned. Generated scales share one colour so\n" ..
         "   you can tell them from the ones you built yourself.\n" ..
+        "• The wizard can now UPDATE the scale it made for you. Gear drifts as you\n" ..
+        "   level, so re-running it offers 'Update it' instead of adding a second\n" ..
+        "   Auto scale - and names the one it would replace, right beside the new\n" ..
+        "   weights. Only ever a scale from the SAME spec: ask for a Tank build and\n" ..
+        "   your DPS Auto scale is left alone.\n" ..
         "• FIXED: your minimap button's position now travels with a settings\n" ..
         "   snapshot. It was being saved and counted in the total, then thrown away\n" ..
         "   on load, so an alt got the default spot while everything else came\n" ..

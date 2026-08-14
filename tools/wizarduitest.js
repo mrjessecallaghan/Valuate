@@ -48,6 +48,7 @@ const pieces = [
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
   /^local function WeightsMatch\([\s\S]*?\r?\nend/m,
   /^function Valuate:FindMatchingAutoScale\([\s\S]*?\r?\nend/m,
+  /^function Valuate:FindUpdatableAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,

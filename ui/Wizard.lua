@@ -399,6 +399,14 @@ function ns.WizardPlan(role)
     if plan.duplicateOf then
         screen.caution:SetText("You already have this exact scale. I will just switch to it.")
         screen.create.label:SetText("Use it")
+    elseif plan.updates then
+        -- Replacing a scale the wizard made before, rather than adding a near-duplicate to a
+        -- list that is already hard to tell apart. Names it, because "Update" without saying
+        -- what is being updated is the sort of button people do not press.
+        screen.caution:SetText(string.format(
+            "This replaces %s, which I made earlier and your gear has moved on from.",
+            tostring(plan.updates)))
+        screen.create.label:SetText("Update it")
     else
         screen.caution:SetText(plan.caution or "")
         screen.create.label:SetText("Create it")
@@ -434,7 +442,11 @@ function ns.WizardCommit()
 
     local screen = screens.done
     screen.name:SetText(currentPlan.name)
-    if why == "reused" then
+    if why == "updated" then
+        screen.blurb:SetText(
+            "Updated to match the gear you are wearing now, and made your primary scale. " ..
+            "Your other scales are untouched.")
+    elseif why == "reused" then
         -- Says what actually happened. Reporting "created" here would be a small lie that
         -- sends you looking for a new row that does not exist.
         screen.blurb:SetText(

@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.87.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.88.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -28,10 +28,13 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
   optimized scale from it — named after its own top five stats, like
   `Auto - Str/Crit/Hit/AP/Haste`. Three screens, one click each. It shows you exactly what
   it would make *before* making anything, tells you how confident it is (and says so plainly
-  when your gear is mixed), never overwrites a scale you already have, and finishes with the
+  when your gear is mixed), never touches a scale you built yourself, and finishes with the
   new scale selected and your gear rescanned. Generated scales share one **teal** colour, so
   you can always tell them from the ones you built yourself. It never asks "what class are
-  you" — it works that out from what you wear.
+  you" — it works that out from what you wear. Run it again after levelling and it offers to
+  **update** the scale it made rather than adding a second one — naming what it would replace,
+  and only ever a scale derived from the *same* spec, so asking for a tank build never
+  disturbs your DPS one.
 - **Conquest of Azeroth is supported** — all **21 CoA classes and 70 specialisations**, on top
   of the 31 classic ones. The wizard picks the right set from your character's class, so a
   Necromancer is matched against CoA builds and a Warrior against classic ones; neither is

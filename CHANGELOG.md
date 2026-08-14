@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.88.0a] - 2026-08-14 — the wizard can update the scale it made, not just make another
+
+### Added
+- **Re-running the wizard now offers to *update* the scale it built for you before**, instead of
+  only ever creating a new one. Gear drifts — you level, you re-gem, you pick up a tier piece —
+  and the weights the wizard derived at 62 are not the weights it would derive at 80. Until now
+  the only way to correct a stale `Auto -` scale was to delete it and start over, which meant the
+  addon's own output was the one thing it could not maintain.
+
+The preview screen's button reads **Update it** where it used to read *Create it*, with a line
+naming exactly what would be replaced: *"This replaces Auto - Str/Crit/Hit/AP/Haste, which I made
+earlier and your gear has moved on from."* Replacing edits is only acceptable *because* the
+preview names what it is replacing, beside the weights it would write. Silent would be wrong.
+
+### The design flaw a test caught before it shipped
+The first cut matched any scale carrying the wizard's teal colour. That is wrong, and the gate
+said so within a minute: if you have a DPS `Auto` scale and ask for a **Tank** build, those are
+two different builds, not one drifted build. Offering to overwrite the first with the second
+would destroy a scale you deliberately made.
+
+Scales now record the spec they were derived from (`AutoSource`), and an update is only offered
+when the new weights come from **that same spec**. A different spec always creates. Three
+mutations confirm it: ignoring the source, never offering the update, and never recording the
+source each fail a different assertion.
+
+### Unchanged
+Hand-built scales are still never touched — no colour, no source, no match. Asking for a build
+you already have exactly still says *Use it* and writes nothing at all.
+
 ## [0.87.0a] - 2026-08-09 — you can actually ask the wizard for a Support build
 
 ### Fixed

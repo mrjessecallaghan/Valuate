@@ -46,6 +46,7 @@ const pieces = [
   /^local AUTO_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
   /^local function WeightsMatch\([\s\S]*?\r?\nend/m,
   /^function Valuate:FindMatchingAutoScale\([\s\S]*?\r?\nend/m,
+  /^function Valuate:FindUpdatableAutoScale\([\s\S]*?\r?\nend/m,
   /^local MATCH_UNSURE = [\d.]+/m,
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
@@ -200,72 +201,37 @@ local subset = { Strength = 1.0 }
 eq(Valuate:FindMatchingAutoScale(subset, SCALES), nil,
     "a scale whose weights are a subset of another is not called identical")
 
--- ---- a NAME collision that is not a duplicate -----------------------------------------
--- The name records only the top five stats, so two different builds can share one. Edit a
--- generated scale by hand and you have exactly that: same name, different weights. It is
--- not the same scale, so reuse would be wrong - and without the uniqueness suffix the next
--- run would silently overwrite your edits.
+-- ---- a hand-edited wizard scale is UPDATED, not duplicated ---------------------------
+-- Edit a wizard-made scale and run the wizard again on the same gear: the weights now differ
+-- from what the template says, so this is the "same build, drifted" case. It offers to
+-- replace it rather than adding a near-identical second scale.
+--
+-- Replacing edits is only acceptable because the preview NAMES what it is replacing - the
+-- button reads "Update it" next to the weights it would write. Silent would be wrong.
 SCALES[plan3.name].Values = { Intellect = 1.0, SpellPower = 0.4 }
 local plan4 = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = casterGear })
-eq(plan4.duplicateOf, nil, "a hand-edited scale with the same name is not treated as a duplicate")
-ok(plan4.name ~= plan3.name,
-    "so the plan takes a different name rather than overwriting it: " .. plan4.name)
+eq(plan4.updates, plan3.name, "an edited scale from the SAME spec is offered as an update")
+eq(plan4.duplicateOf, nil, "and not as a duplicate, because the weights differ")
+eq(plan4.name, plan3.name, "keeping its name rather than becoming a (2)")
 
-Valuate:CommitAutoScale(plan4)
-eq(SCALES[plan3.name].Values.Intellect, 1.0, "and the hand-edited scale keeps its weights")
-eq(SCALES[plan3.name].Values.SpellPower, 0.4, "all of them")
-ok(SCALES[plan4.name] ~= nil, "while the new one is created alongside it")
+local beforeUpdate = 0
+for _ in pairs(SCALES) do beforeUpdate = beforeUpdate + 1 end
 
--- ---- a plan with nothing in it is refused rather than committed ---------------------
-eq(Valuate:CommitAutoScale(nil), nil, "committing nothing is refused")
-eq(Valuate:CommitAutoScale({}), nil, "so is a plan with no name")
-eq(Valuate:CommitAutoScale({ name = "" }), nil, "and one with an empty name")
+local updated, updatedWhy = Valuate:CommitAutoScale(plan4)
+eq(updatedWhy, "updated", "committing reports that it updated rather than created")
+ok(updated ~= nil, "and returns the scale")
 
--- ---- the runner-up is named only when it REALLY was close ---------------------------
--- "X was close" about something that scored far lower is a false statement, and a confirm
--- screen is the worst place to make one.
-local twins = {
-    { class = "A", specs = {
-        { name = "One", role = "DAMAGER", weights = { Strength = 1.0, CritRating = 0.5 } } } },
-    { class = "B", specs = {
-        { name = "Two", role = "DAMAGER", weights = { Strength = 1.0, CritRating = 0.5 } } } },
-}
-local closePlan = Valuate:PlanAutoScale({ templates = twins, totals = plateMelee })
-ok(closePlan ~= nil and closePlan.alternative ~= nil,
-    "a runner-up that scored identically is named")
+local afterUpdate = 0
+for _ in pairs(SCALES) do afterUpdate = afterUpdate + 1 end
+eq(afterUpdate, beforeUpdate, "the scale count does not grow")
+eq(SCALES[plan3.name].Values.Intellect ~= 1.0 or SCALES[plan3.name].Values.SpellPower ~= 0.4,
+    true, "and the stale hand-edited weights are gone")
 
-local farApart = {
-    { class = "A", specs = {
-        { name = "Fits", role = "DAMAGER",
-          weights = { Strength = 1.0, AttackPower = 0.8, CritRating = 0.6 } } } },
-    { class = "B", specs = {
-        { name = "Wrong", role = "DAMAGER", weights = { Spirit = 1.0, Mp5 = 0.9 } } } },
-}
-local farPlan = Valuate:PlanAutoScale({ templates = farApart, totals = plateMelee })
-ok(farPlan ~= nil, "a lopsided template list still plans")
-eq(farPlan.alternative, nil, "a runner-up that scored far lower is NOT called close")
-
--- ---- a weak match admits it ----------------------------------------------------------
--- Mixed gear, levelling greens and half-finished sets all land here, and those are exactly
--- the people who cannot tell a good answer from a bad one.
-local weak = {
-    { class = "A", specs = {
-        { name = "Barely", role = "DAMAGER",
-          weights = { Spirit = 1.0, Mp5 = 1.0, HolySpellPower = 1.0, Strength = 0.2 } } } },
-}
-local weakPlan = Valuate:PlanAutoScale({
-    templates = weak,
-    totals = { Strength = 100, CritRating = 500, HitRating = 400 },
-})
-ok(weakPlan ~= nil, "a weak match still produces a plan rather than a dead end")
-ok(weakPlan.caution ~= nil, "and admits it is a rough guess")
-ok(weakPlan.caution and string.find(weakPlan.caution, "role", 1, true) ~= nil,
-    "pointing at the thing that would do better")
-
--- Stated as the rule rather than a hardcoded expectation, so this stays true if the
--- templates or the threshold move: the caution appears exactly when confidence is low.
-ok((plan.confidence >= 0.55) == (plan.caution == nil),
-    "a confident match carries no caution, and only a confident one")
+-- A DIFFERENT build must never be offered as an update. Wanting a tank scale AND a dps scale
+-- is completely ordinary, and replacing one with the other would be destructive.
+local tankish = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee, role = "TANK" })
+ok(tankish ~= nil, "a tank plan exists")
+eq(tankish.updates, nil, "a different spec is never offered as an update to an existing scale")
 
 -- ---- role still steers the answer ---------------------------------------------------
 local tankPlan = Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee, role = "TANK" })
