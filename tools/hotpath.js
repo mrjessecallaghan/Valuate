@@ -31,6 +31,8 @@ const PIECES = [
   /^local function GetItemIdFromLink\([\s\S]*?\r?\nend/m,
   // The cache locals must come BEFORE the function that reads them, or they slice into
   // nil globals and the TTL comparison blows up on the first call.
+  /^local cacheStats = \{[^\r\n]*\}/m,
+  /^function Valuate:GetCacheStats\([\s\S]*?\r?\nend/m,
   /^local ACTIVE_SCALES_TTL = \d+/m,
   /^local activeScalesCache, activeScalesAt = [^\r\n]*/m,
   /^function Valuate:InvalidateActiveScales\([\s\S]*?\r?\nend/m,
@@ -256,6 +258,24 @@ ok(nowKnown ~= nil and #nowKnown == 1,
 local before = counts.getItemInfo
 Valuate:IsBestInSlot(LINKS[50])
 ok(counts.getItemInfo == before, "a known equip location is never looked up twice")
+
+-- ---- the counters /valuate profile reports ---------------------------------
+-- These are the only evidence that will ever exist from inside the client, so they have to
+-- agree with what this gate independently measured. A counter that never moves would report
+-- a healthy "not used yet" forever while the cache quietly missed every time.
+local cs = Valuate:GetCacheStats()
+ok(cs.activeHit > 0 and cs.activeBuild > 0,
+   "the active-scale counters recorded both hits and builds")
+ok(cs.slotHit > 0 and cs.slotMiss > 0,
+   "the slot-lookup counters recorded both hits and misses")
+
+-- The independent check: the gate counted 120 GetItemInfo calls across the cold repaint,
+-- and a miss is the ONLY thing that calls it. If the counter disagrees it is not measuring
+-- what it claims to.
+ok(cs.slotMiss >= ${ITEMS},
+   "slot misses account for at least the one-per-item the cold repaint had to pay")
+ok(cs.activeHit > cs.activeBuild,
+   "the active-scale list is served far more often than it is rebuilt")
 
 return failures, checks
 `,

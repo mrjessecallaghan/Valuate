@@ -3791,6 +3791,18 @@ end
 -- going through ResetTooltips, a stale list would mark gear as surplus that is not - and
 -- surplus feeds auto-delete. One second is imperceptible for a visibility toggle and still
 -- collapses an entire repaint burst into a single build.
+-- Cache effectiveness, counted.
+--
+-- v0.91.0a and v0.92.0a cut a bag repaint from 240 sorts and 240 GetItemInfo calls to none,
+-- and every word of that was proved by a headless gate counting calls - which is evidence
+-- about the SOURCE, not about your client. A cache that silently never hits looks exactly
+-- like a cache that works: same answers, same code path, no error.
+--
+-- Two increments each. /valuate profile reports the hit rate, so one command in the game
+-- confirms or refutes the claim rather than leaving it as a number from a test harness.
+local cacheStats = { activeHit = 0, activeBuild = 0, slotHit = 0, slotMiss = 0 }
+function Valuate:GetCacheStats() return cacheStats end
+
 local ACTIVE_SCALES_TTL = 1
 local activeScalesCache, activeScalesAt = nil, -1
 
@@ -3802,8 +3814,10 @@ function Valuate:GetActiveScales()
     local now = (GetTime and GetTime()) or 0
     -- `now < activeScalesAt` catches a clock that went backwards (a /reload resets GetTime).
     if activeScalesCache and now - activeScalesAt <= ACTIVE_SCALES_TTL and now >= activeScalesAt then
+        cacheStats.activeHit = cacheStats.activeHit + 1
         return activeScalesCache
     end
+    cacheStats.activeBuild = cacheStats.activeBuild + 1
 
     local active = {}
     local scales = Valuate:GetScales()
@@ -4660,8 +4674,10 @@ local targetSlotsCache = {}
 local function TargetSlotsForItem(itemLink, itemId)
     local cached = targetSlotsCache[itemId]
     if cached ~= nil then
+        cacheStats.slotHit = cacheStats.slotHit + 1
         return cached or nil
     end
+    cacheStats.slotMiss = cacheStats.slotMiss + 1
 
     local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
     if itemEquipLoc == nil then
@@ -7769,7 +7785,7 @@ function Valuate:RunSelfTest()
         -- the subsystem a new user meets first.
         "MatchTemplateToStats", "NormalizeWeights", "BuildAutoScaleName",
         "BuildUniqueAutoScaleName", "FindMatchingAutoScale",
-        "PlanAutoScale", "CommitAutoScale", "GetAutoScaleDrift",
+        "PlanAutoScale", "CommitAutoScale", "GetAutoScaleDrift", "GetCacheStats",
         -- These two live in ui/Wizard.lua and MinimapButton.lua rather than here, which is
         -- exactly why they are worth checking: a module that failed to load leaves the rest
         -- of the addon working and only these missing.
@@ -8185,6 +8201,24 @@ function Valuate:RunProfile()
 
     print("  |cFFAAAAAAScan runs on loot/equipment changes; scoring and parsing run per item.|r")
     print("  |cFFAAAAAAArrow and junk costs are per VISIBLE bag icon, per repaint.|r")
+
+    -- Are the caches actually HITTING?
+    --
+    -- A cache that silently never hits looks exactly like one that works - same answers,
+    -- same code path, no error, just the old cost back. The timings above cannot tell the
+    -- difference, and the gates that proved these numbers counted calls in a test harness,
+    -- not in your client. This is the line that carries the claim across.
+    local cs = Valuate:GetCacheStats()
+    local function rate(hit, miss)
+        local total = hit + miss
+        if total == 0 then return "not used yet" end
+        return string.format("%.0f%% hit |cFFAAAAAA(%d of %d)|r", hit / total * 100, hit, total)
+    end
+    print("  |cFF00FF00Caches|r |cFFAAAAAA(since login)|r")
+    print("    Active-scale list   " .. rate(cs.activeHit, cs.activeBuild))
+    print("    Item slot lookups   " .. rate(cs.slotHit, cs.slotMiss))
+    print("  |cFFAAAAAAOpen your bags a few times first - these only move when something " ..
+          "asks. A low rate after that is a real problem; 'not used yet' just means idle.|r")
     return true
 end
 
@@ -8238,6 +8272,21 @@ end
 -- Each entry names the version that introduced it, so a stale list is visible rather
 -- than merely wrong: entries far behind the current version are ones nobody got to.
 local VERIFY_CHECKS = {
+    {
+        id = "cachehit", since = "0.93.0a",
+        gate = "tools/hotpath.js",
+        title = "The repaint caches actually hit in the client, not just in the harness",
+        steps = "Open and close your bags four or five times, moving something between them. Then run /valuate profile and read the Caches section at the bottom.",
+        expect = "Both rates well above 90%. 'Not used yet' means nothing asked - open your bags first. Anything below about half means the cache is being thrown away as fast as it fills.",
+        broke = "v0.91.0a and v0.92.0a cut a bag repaint from 240 sorts and 240 GetItemInfo calls to none. Every word of that was proved by a gate COUNTING CALLS IN A TEST HARNESS - evidence about the source, not about your client. A cache that silently never hits looks exactly like one that works: same answers, same code path, no error, just the old cost quietly back. This is the only check that can tell the two apart.",
+        arm = function()
+            if not Valuate.RunProfile then
+                return false, "RunProfile is missing."
+            end
+            Valuate:RunProfile()
+            return true, "Read the Caches section above."
+        end,
+    },
     {
         id = "coaclass", since = "0.79.0a",
         gate = "tools/speccoverage.js",

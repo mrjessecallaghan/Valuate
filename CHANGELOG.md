@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.93.0a] - 2026-08-14 — proving the last two releases actually did anything, in your client
+
+### Added
+- **`/valuate profile` now reports whether the caches are hitting.** Two lines at the bottom:
+  the active-scale list and item slot lookups, each as a hit rate since login.
+
+v0.91.0a and v0.92.0a cut a bag repaint from 240 sorts and 240 `GetItemInfo` calls to none.
+Every word of that was proved by a gate **counting calls in a test harness** — which is evidence
+about the source, not about your client. And a cache that silently never hits looks exactly like
+one that works: same answers, same code path, no error, just the old cost quietly back. The
+timings already in `/valuate profile` cannot tell those apart, because both are "some number of
+milliseconds".
+
+Two increments per lookup buys the answer. Open your bags a few times and run the command: above
+90% means the last two releases are real on your machine. *Not used yet* means nothing has asked
+yet, which is different from missing.
+
+New verify check **`cachehit`** (32 now), which arms itself by running the profile.
+
+### An optimisation deliberately NOT made
+I went looking for a third hot path and checked two candidates before touching either:
+
+- **`GetStatsForItemLink`** does a full `SetHyperlink` and tooltip parse per call — the most
+  expensive thing a 3.3.5 addon can do. It has exactly **one caller**, a diagnostic. Caching it
+  would have been pure ceremony.
+- **The gear scan's stat parsing** already dedupes by item ID within a scan, and it reads
+  `SetBagItem`/`SetInventoryItem` deliberately, because those carry Ascension's *scaled* values.
+  Those depend on your level, so caching them across scans would be wrong, not just unnecessary.
+
+Both are already right. Recording that here so the next pass does not re-derive it — "I checked
+and there is nothing to do" is a result worth keeping.
+
 ## [0.92.0a] - 2026-08-14 — a repaint you have already done now costs nothing
 
 ### Optimised
