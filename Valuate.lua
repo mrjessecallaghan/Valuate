@@ -6041,24 +6041,20 @@ end
 -- equipment swap is exactly what that guard exists to prevent.
 function Valuate:GetScaledStatsForItem(itemLink)
     local itemId = GetItemIdFromLink(itemLink)
-    local tooltip = Valuate.GetPrivateTooltip and Valuate:GetPrivateTooltip()
 
-    if itemId and tooltip and not equipmentSwapPending then
-        local function readFrom(setter)
-            tooltip:ClearLines()
-            local success = pcall(setter)
-            if not success then return nil end
-            local s = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
-            if s and next(s) ~= nil then return s end
-            return nil
-        end
+    if itemId and not equipmentSwapPending and Valuate.GetStatsForTooltipSetter then
+        -- Reads go through GetStatsForTooltipSetter, which the upgrade arrows, the quest
+        -- reward chooser and the roll decision already use. Its pcall and its rejection of
+        -- an empty parse are the reason those paths are correct, and the first draft of
+        -- this function hand-rolled both again - which is the same "two copies of one
+        -- calculation" that produced the bug it was written to fix.
 
         -- Equipped first: an item you are wearing is the one whose scaled values the best
         -- equipment table was built from, so it is the closest match by construction.
         for slotId = 1, 18 do
             local link = GetInventoryItemLink("player", slotId)
             if link and GetItemIdFromLink(link) == itemId then
-                local s = readFrom(function() tooltip:SetInventoryItem("player", slotId) end)
+                local s = Valuate:GetStatsForTooltipSetter("SetInventoryItem", "player", slotId)
                 if s then return s, true end
             end
         end
@@ -6067,13 +6063,14 @@ function Valuate:GetScaledStatsForItem(itemLink)
             for slotId = 1, (GetContainerNumSlots(bagId) or 0) do
                 local link = GetContainerItemLink(bagId, slotId)
                 if link and GetItemIdFromLink(link) == itemId then
-                    local s = readFrom(function() tooltip:SetBagItem(bagId, slotId) end)
+                    local s = Valuate:GetStatsForTooltipSetter("SetBagItem", bagId, slotId)
                     if s then return s, true end
                 end
             end
         end
     end
 
+    -- valuate-lint-ignore: base-stats-need-scaled-comparison  THIS is the documented fallback the rule points everyone else at. It is reached only when the item is not on your person, it returns `false` for `scaled`, and every caller must say so rather than presenting the numbers as comparable.
     return Valuate:GetStatsForItemLink(itemLink), false
 end
 
@@ -9316,6 +9313,7 @@ SlashCmdList["VALUATE"] = function(msg)
             local options = Valuate:GetOptions()
             local oldDebug = options.debug
             options.debug = true
+            -- valuate-lint-ignore: base-stats-need-scaled-comparison  /valuate test exists to show the BASE parse, compares against nothing, and prints "base values, not scaled" beneath the numbers.
             local stats = Valuate:GetStatsForItemLink(itemLink)
             options.debug = oldDebug
             if stats then

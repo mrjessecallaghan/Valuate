@@ -35,6 +35,10 @@ const PIECES = [
   /^function Valuate:GetActiveScales\([\s\S]*?\r?\nend/m,
   /^local targetSlotsCache = \{\}/m,
   /^local function TargetSlotsForItem\([\s\S]*?\r?\nend/m,
+  // The shared reader. Its pcall and its rejection of an empty parse are why the arrows,
+  // quest rewards and roll decision are correct; GetScaledStatsForItem goes through it
+  // rather than hand-rolling both again.
+  /^function Valuate:GetStatsForTooltipSetter\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetScaledStatsForItem\([\s\S]*?\r?\nend/m,
   /^function Valuate:ExplainBestInSlot\([\s\S]*?\r?\nend/m,
 ];
@@ -99,6 +103,7 @@ local readSource = nil
 local FAKE_TOOLTIP = { ClearLines = function() readSource = nil end }
 function FAKE_TOOLTIP:SetInventoryItem(_, slotId) readSource = "equipped:" .. slotId end
 function FAKE_TOOLTIP:SetBagItem(bagId, slotId) readSource = "bag:" .. bagId .. ":" .. slotId end
+function GetPrivateTooltip() return FAKE_TOOLTIP end
 function Valuate:GetPrivateTooltip() return FAKE_TOOLTIP end
 -- A tooltip that has not populated yet parses to an EMPTY table, not to nil. Treating that
 -- as a valid read would score a perfectly good item at zero.

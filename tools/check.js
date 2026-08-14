@@ -345,6 +345,24 @@ const RULES = [
       path.basename(file) !== "Animations.lua" && /\bAnim\.tween\s*\(/.test(l),
   },
   {
+    // v0.94.0a shipped this exact bug and all 43 gates passed. GetStatsForItemLink uses
+    // SetHyperlink, which reads an item's BASE stats; every score stored by the scan comes
+    // from SetBagItem/SetInventoryItem, which read Ascension's SCALED stats. Subtracting one
+    // from the other produces a confident number that is fiction on a scaling realm - and
+    // nothing about the code looks wrong, which is why a rule is the only way to catch it.
+    //
+    // Two callers are legitimate and both say why on the line: the fallback inside
+    // GetScaledStatsForItem (where base really is all there is, and it is labelled), and
+    // /valuate test, which prints base values and calls them that.
+    name: "base-stats-need-scaled-comparison",
+    why: "GetStatsForItemLink reads BASE stats (SetHyperlink); every scanned score is SCALED (SetBagItem/SetInventoryItem). Comparing them produces a fictional number on a scaling realm - v0.94.0a shipped exactly that. Use Valuate:GetScaledStatsForItem, which finds the item on your person and falls back to base only when it must, reporting which it got - or annotate with -- valuate-lint-ignore: base-stats-need-scaled-comparison  <why base values are correct and are labelled as such>.",
+    test: (l, file) =>
+      path.basename(file) !== "check.js" &&
+      /\bGetStatsForItemLink\s*\(/.test(l) &&
+      // Its own definition, and the one place allowed to call it as a documented fallback.
+      !/^\s*function Valuate:GetStatsForItemLink\b/.test(l),
+  },
+  {
     name: "no-duplicate-junk-logic",
     why: "Junk classification must go through the single IsItemJunk() helper - duplicating it is how the '0 junk found' bug survived two fixes.",
     test: (l, file) =>

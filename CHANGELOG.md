@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.95.0a] - 2026-08-14 — a lint rule for the bug that got past 43 gates, and it found two more
+
+### Added
+- **`base-stats-need-scaled-comparison`**, lint rule 18. `GetStatsForItemLink` reads an item's
+  **base** stats via `SetHyperlink`; every score the scan stores comes from
+  `SetBagItem`/`SetInventoryItem`, which read Ascension's **scaled** stats. Subtracting one from
+  the other produces a confident number that is fiction on a scaling realm.
+
+v0.94.1a fixed one instance of that. Nothing about the code looked wrong — which is exactly why
+all 43 gates passed on it — so the only durable answer is a rule.
+
+### It found two more the moment it ran
+Both in the integration addons, both in paths that make decisions, neither turned up by any
+amount of reading:
+
+- **`Valuate-PassLoot`** — the loot-roll decision. Already tries the loot tooltip first and only
+  falls back to the link, recording which it used. Correct, and now says so on the line.
+- **`Valuate-TSM`** — the Upgrade column. An auction listing is **not on your person**, so no
+  scaled read exists; base stats are the only stats there are. That one is not fixable, so it is
+  now written down: **the Upgrade column is a shopping heuristic on a scaling realm, not a
+  measurement**, because it compares a base score against a scanned best-in-slot.
+
+All four call sites now carry an annotation saying why base values are correct there. That is
+the point of the escape hatch — it turns an invisible assumption into a written one.
+
+### Removed a duplicate I had just written
+`GetScaledStatsForItem` hand-rolled its own tooltip read: `ClearLines`, `pcall` the setter,
+parse, reject an empty result. `Valuate:GetStatsForTooltipSetter` already did all four, and is
+what the upgrade arrows, the quest-reward chooser and the roll decision go through — its
+`pcall` and its empty-parse rejection are *why* those paths are right.
+
+So the fix for a "two copies of one calculation" bug was itself a second copy. It now goes
+through the shared reader, which also means `tools/whybis.js` protects that function for every
+caller: the mutation that makes it accept an empty parse is now caught, and it wasn't before.
+
+### Gates
+`tools/whybis.js` 33 checks, unchanged in count and now exercising the real shared reader
+instead of a stand-in. Five mutations, each caught — including the new one against
+`GetStatsForTooltipSetter` itself.
+
 ## [0.94.1a] - 2026-08-14 — the best-in-slot gap was comparing base stats against scaled ones
 
 ### Fixed
