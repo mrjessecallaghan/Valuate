@@ -8,6 +8,34 @@
 
 local _, ns = ...
 
+-- The equipment slots Valuate ranks, in the order a character sheet reads.
+--
+-- ONE copy. ui/BestEquipment.lua and ui/CharacterWindow.lua each carried a byte-identical
+-- 17-entry table, and /valuate upgrades would have been a third - which is exactly how two
+-- panels end up disagreeing about whether Ranged is a slot.
+--
+-- Shirt (4) and Tabard (19) are absent on purpose: they carry no stats, so a slot that can
+-- never contribute is noise in every list built from this.
+ns.EQUIP_SLOTS = {
+    { slotId = 1,  name = "Head" },
+    { slotId = 2,  name = "Neck" },
+    { slotId = 3,  name = "Shoulder" },
+    { slotId = 15, name = "Back" },
+    { slotId = 5,  name = "Chest" },
+    { slotId = 9,  name = "Wrist" },
+    { slotId = 10, name = "Hands" },
+    { slotId = 6,  name = "Waist" },
+    { slotId = 7,  name = "Legs" },
+    { slotId = 8,  name = "Feet" },
+    { slotId = 11, name = "Ring 1" },
+    { slotId = 12, name = "Ring 2" },
+    { slotId = 13, name = "Trinket 1" },
+    { slotId = 14, name = "Trinket 2" },
+    { slotId = 16, name = "Main Hand" },
+    { slotId = 17, name = "Off Hand" },
+    { slotId = 18, name = "Ranged" },
+}
+
 -- Curated icon list (safe, common icons that exist in WotLK 3.3.5a)
 local SCALE_ICON_LIST = {
     -- No Icon Option (always first)

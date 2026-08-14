@@ -6226,6 +6226,66 @@ function Valuate:BuildNearMissLine(itemLink, stats)
         shown < 1 and "under 1%" or string.format("%.0f%%", shown))
 end
 
+-- What is my biggest upgrade right now?
+--
+-- The Best Equipment panel answers this per slot, which means reading seventeen rows and
+-- doing the arithmetic yourself. When you have five minutes before a raid invite the useful
+-- form is one ranked list, biggest first.
+--
+-- Two exclusions, both because the answer has to be one you can ACT on:
+--   - bank items. Equip All cannot reach them, so offering one as "your next upgrade" is
+--     advice that needs a trip across the city first. /valuate bank covers those.
+--   - anything you are already wearing. The scan records your own gear as best-in-slot when
+--     it is, and a "+0 upgrade" to the item already on your body is noise.
+--
+-- Sorted by gain with the SLOT ID as tiebreaker. pairs() order is not a ranking, and two
+-- slots tying is ordinary - rings and trinkets do it constantly - so without a unique second
+-- key the same list reorders itself between runs.
+function Valuate:RankAvailableUpgrades(scaleName)
+    local scales = Valuate:GetScales()
+    local scale = scales and scales[scaleName]
+    if not scale or not scale.Values then return nil end
+
+    local allBest = Valuate:GetBestEquipment()
+    local be = allBest and allBest[scaleName]
+    local slots = ns.EQUIP_SLOTS
+    if not be or not slots then return nil end
+
+    local out = {}
+    for _, def in ipairs(slots) do
+        local best = be[def.slotId]
+        if best and best.itemLink and best.source ~= "bank" then
+            local equippedLink = GetInventoryItemLink("player", def.slotId)
+            local equippedId = equippedLink and GetItemIdFromLink(equippedLink)
+            if equippedId ~= GetItemIdFromLink(best.itemLink) then
+                local have = Valuate:GetEquippedItemScoreBySlotId(def.slotId, scale) or 0
+                local gain = (best.score or 0) - have
+                if gain > 0 then
+                    table.insert(out, {
+                        slotId = def.slotId,
+                        slotName = def.name,
+                        itemLink = best.itemLink,
+                        gain = gain,
+                        score = best.score or 0,
+                        equipped = have,
+                        -- An empty slot is worth calling out: the gain is the whole score,
+                        -- so it always ranks high, and the reason is "you are wearing
+                        -- nothing" rather than "this item is remarkable".
+                        emptySlot = equippedLink == nil,
+                    })
+                end
+            end
+        end
+    end
+
+    table.sort(out, function(a, b)
+        if a.gain ~= b.gain then return a.gain > b.gain end
+        return a.slotId < b.slotId
+    end)
+
+    return #out > 0 and out or nil
+end
+
 -- The full best-in-slot breakdown, on demand, without typing anything.
 --
 -- /valuate why gives the richest answer in the addon and has the worst friction attached to
@@ -9110,6 +9170,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
         print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
         print("  /valuate check - Is Valuate actually working? Start here")
         print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
@@ -9681,6 +9742,33 @@ SlashCmdList["VALUATE"] = function(msg)
                 print("    " .. tostring(e.message))
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
+        end
+    elseif command == "upgrades" then
+        local _, scaleName = Valuate:GetPrimaryScale()
+        if not scaleName then
+            print("|cFFFF0000Valuate|r: No active scale. |cFFFFFFFF/valuate wizard|r builds one from the gear you are wearing.")
+        else
+            local list = Valuate:RankAvailableUpgrades(scaleName)
+            if not list then
+                print("|cFF00FF00[Valuate]|r Nothing to swap for |cFFFFFFFF" .. scaleName ..
+                      "|r - you are already wearing the best you own in every slot.")
+                print("  |cFFAAAAAABank gear is excluded (Equip All cannot reach it) - see /valuate bank. " ..
+                      "Gear waiting on a level is in /valuate future.|r")
+            else
+                print("|cFF00FF00[Valuate]|r Biggest upgrades you can put on right now |cFFAAAAAA(" ..
+                      scaleName .. ")|r")
+                local shown = math.min(5, #list)
+                for i = 1, shown do
+                    local u = list[i]
+                    print(string.format("  %d. |cFF00FF00+%.1f|r  %s  %s%s",
+                        i, u.gain, u.slotName, u.itemLink,
+                        u.emptySlot and "  |cFFAAAAAA(slot is empty)|r" or ""))
+                end
+                if #list > shown then
+                    print(string.format("  |cFFAAAAAA...and %d more. /valuate equip puts the whole set on.|r",
+                        #list - shown))
+                end
+            end
         end
     elseif command == "detail" then
         local options = Valuate:GetOptions()

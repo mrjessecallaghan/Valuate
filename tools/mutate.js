@@ -87,6 +87,31 @@ function apply(m) {
   return null;
 }
 
+/* A gate that is ALREADY failing reports every mutation as "caught", and the run comes back
+ * green while testing nothing. That is not hypothetical - a stray backtick in a gate's Lua
+ * block made it a syntax error, and this tool cheerfully confirmed all six of its mutations.
+ * So establish the baseline first: every gate must pass on untouched source. */
+const gates = [...new Set(selected.map((m) => m.gate))].sort();
+const unhealthy = [];
+for (const g of gates) {
+  try {
+    execFileSync(process.execPath, [path.join(__dirname, `${g}.js`)], {
+      cwd: ADDON_ROOT,
+      stdio: "pipe",
+    });
+  } catch (e) {
+    unhealthy.push(g);
+  }
+}
+if (unhealthy.length) {
+  console.error(
+    `These gates FAIL on untouched source, so every mutation would look "caught":\n` +
+      unhealthy.map((g) => `  tools/${g}.js`).join("\n") +
+      "\n\nFix them first - a mutation run against a broken gate proves nothing."
+  );
+  process.exit(1);
+}
+
 let caught = 0;
 const survived = [];
 const broken = [];

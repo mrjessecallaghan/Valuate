@@ -131,25 +131,7 @@ local function CreateBestEquipmentPanel(parent)
     end
     
     -- Equipment slot definitions (local to this function)
-    local EquipmentSlots = {
-        { slotId = 1, name = "Head" },
-        { slotId = 2, name = "Neck" },
-        { slotId = 3, name = "Shoulder" },
-        { slotId = 15, name = "Back" },
-        { slotId = 5, name = "Chest" },
-        { slotId = 9, name = "Wrist" },
-        { slotId = 10, name = "Hands" },
-        { slotId = 6, name = "Waist" },
-        { slotId = 7, name = "Legs" },
-        { slotId = 8, name = "Feet" },
-        { slotId = 11, name = "Ring 1" },
-        { slotId = 12, name = "Ring 2" },
-        { slotId = 13, name = "Trinket 1" },
-        { slotId = 14, name = "Trinket 2" },
-        { slotId = 16, name = "Main Hand" },
-        { slotId = 17, name = "Off Hand" },
-        { slotId = 18, name = "Ranged" },
-    }
+    local EquipmentSlots = ns.EQUIP_SLOTS
     
     -- Scan button at top
     local scanButton = CreateFrame("Button", nil, parent)

@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.99.0a] - 2026-08-14 — one command for "what should I put on right now"
+
+### Added
+- **`/valuate upgrades`** — your biggest gains, ranked, that you can act on immediately.
+
+```
+Biggest upgrades you can put on right now (Auto - Str/Crit/Hit/AP/Haste)
+  1. +48.2  Chest  [Breastplate of Tenacity]
+  2. +31.0  Neck   [Pendant of the Vanquished]  (slot is empty)
+  3. +12.4  Ring 2 [Signet of the Kirin Tor]
+  ...and 2 more. /valuate equip puts the whole set on.
+```
+
+The Best Equipment panel already answers this — across seventeen rows, with the arithmetic left
+to you. When you have five minutes before an invite, the useful form is one ranked list.
+
+**Two exclusions, both so every line is something you can do now.** Bank gear is out: Equip All
+cannot reach it, so offering it as "your next upgrade" is advice that needs a trip across the
+city first. Gear you are already wearing is out — including when the recorded and live scores
+have drifted apart, which they do on a scaling realm, and which would otherwise produce
+*"+2.0 — equip the chestpiece you already have on"*.
+
+Ties break on slot id. Rings and trinkets tie constantly, `table.sort` is not stable, and without
+a unique second key "your biggest upgrade" changes identity between runs while your gear does not.
+
+### Removed a duplicate rather than adding a third
+`ui/BestEquipment.lua` and `ui/CharacterWindow.lua` each carried a **byte-identical** 17-entry
+slot table. This feature needed the same list, and a third copy is how two panels end up
+disagreeing about whether Ranged is a slot. There is now one, `ns.EQUIP_SLOTS`, and both panels
+read it.
+
+### The mutation runner could report a green run while testing nothing
+A stray backtick in the new gate's Lua block made it a **syntax error** — so it failed on every
+mutation, and `mutate.js` reported all six as *caught*. A gate that is already broken confirms
+everything.
+
+It now establishes a baseline first: every gate involved must pass on untouched source, or the
+run refuses to start and says which one is broken. Verified by breaking a gate on purpose.
+
+### Gates
+`tools/upgraderank.js`, 34 checks — 44 gates now. Six mutations, and one **survived**: my fixture
+gave the already-worn item an identical score, so the `gain > 0` filter masked the identity check
+entirely. Sixth fixture problem this session, and the second found by the committed tool.
+
 ## [0.98.0a] - 2026-08-14 — hold Alt over an item for the whole answer
 
 ### Added

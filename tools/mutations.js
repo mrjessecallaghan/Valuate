@@ -94,7 +94,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.98.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.99.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -135,6 +135,27 @@ module.exports = [
   { gate: "whybis", file: "Valuate.lua", scope: EXPLAIN,
     label: "scales you have hidden are explained anyway",
     from: "ipairs(Valuate:GetActiveScales())", to: "pairs(Valuate:GetScales())" },
+
+  // ---- the ranked upgrade list (v0.99.0a) ----------------------------------
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "bank gear is offered as your next upgrade - advice you cannot act on",
+    from: 'best.source ~= "bank"', to: "true" },
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "tied slots reorder between runs, so 'your biggest upgrade' changes identity",
+    from: "return a.slotId < b.slotId", to: "return false" },
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "the list is not ranked at all - smallest gain can come first",
+    from: "if a.gain ~= b.gain then return a.gain > b.gain end",
+    to: "if a.gain ~= b.gain then return a.gain < b.gain end" },
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "gear already on your body is listed as an upgrade to itself",
+    from: "if equippedId ~= GetItemIdFromLink(best.itemLink) then", to: "if true then" },
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "a downgrade is presented as an upgrade",
+    from: "if gain > 0 then", to: "if gain >= 0 or true then" },
+  { gate: "upgraderank", file: "Valuate.lua",
+    label: "an empty slot is never flagged, so a huge gain looks like a great item",
+    from: "emptySlot = equippedLink == nil,", to: "emptySlot = false," },
 
   // ---- the Alt-hover breakdown (v0.98.0a) ----------------------------------
   { gate: "whybis", file: "Valuate.lua", scope: DETAIL,
