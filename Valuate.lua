@@ -6226,6 +6226,152 @@ function Valuate:BuildNearMissLine(itemLink, stats)
         shown < 1 and "under 1%" or string.format("%.0f%%", shown))
 end
 
+-- The checks the addon can judge for itself.
+--
+-- /valuate verify holds 32 behavioural checks and every one costs a human: read the steps,
+-- do the thing, decide whether what you saw was right. Some of them do not need eyes at
+-- all - they need a fact from the client that no headless gate can reach, and the addon is
+-- perfectly able to compare that fact against what it expected.
+--
+-- Those are gathered here so the whole set costs ONE command and produces output you can
+-- paste. Everything genuinely visual stays in /valuate verify, where it belongs.
+--
+-- A check returns status, detail:
+--   "pass"  the client agreed with what the addon assumed
+--   "fail"  it did not, and the detail says what was actually seen
+--   "skip"  the situation to test was not present (no such item, nothing measured yet)
+-- "skip" is deliberately NOT a pass. An assumption nobody could test is exactly the kind
+-- this addon has been wrong about.
+local SELF_VERIFY_MIN_HITS = 20
+local NEW_SECONDARIES = { "Mastery", "Versatility", "Leech" }
+
+local function SelfCheckTemplateSet()
+    if not Valuate.GetTemplateSet then
+        return "fail", "GetTemplateSet is missing - ui/Data.lua did not load."
+    end
+    local className = UnitClass and UnitClass("player")
+    if type(className) ~= "string" or className == "" then
+        return "fail", "UnitClass('player') returned nothing, so no template set can be chosen."
+    end
+
+    local set, which = Valuate:GetTemplateSet()
+    for _, entry in ipairs(set or {}) do
+        if entry.class == className then
+            return "pass", string.format("'%s' matched the %s set.", className, tostring(which))
+        end
+    end
+    -- The failure the whole CoA feature rests on: nothing errors, the wizard just proposes
+    -- a build from the wrong game.
+    return "fail", string.format(
+        "UnitClass says '%s', which appears in NO template set (fell back to %s). " ..
+        "Every build for your class is unreachable.", className, tostring(which))
+end
+
+-- The check no headless gate can ever replace: Mastery, Versatility and Leech are not stock
+-- 3.3.5 stats, so their tooltip WORDING had to be guessed. If the guess is wrong, every item
+-- carrying them scores as though it carried nothing - silently, and worst on the best gear.
+--
+-- Method: find an item you own whose tooltip actually contains one of those words, then ask
+-- whether the parser got a number out of it. Reading the same tooltip twice, once as text and
+-- once through the parser, is the only way to tell "no such item" from "did not parse".
+local function SelfCheckNewSecondaries()
+    local tooltip = Valuate.GetPrivateTooltip and Valuate:GetPrivateTooltip()
+    if not tooltip then return "skip", "No private tooltip available." end
+    if equipmentSwapPending then
+        return "skip", "An equipment swap is in flight - try again in a moment."
+    end
+
+    local function inspect(setter)
+        tooltip:ClearLines()
+        if not pcall(setter) then return nil end
+        local seen
+        for i = 2, tooltip:NumLines() do
+            local fs = getglobal("ValuatePrivateTooltipTextLeft" .. i)
+            local text = fs and fs.GetText and fs:GetText()
+            if text and text ~= "" then
+                for _, word in ipairs(NEW_SECONDARIES) do
+                    if text:find(word, 1, true) then seen = seen or { word = word, line = text } end
+                end
+            end
+        end
+        if not seen then return nil end
+        local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+        return seen, stats
+    end
+
+    local function verdict(seen, stats)
+        local key = seen.word .. "Rating"
+        local got = stats and (stats[key] or stats[seen.word])
+        if got and got > 0 then
+            return "pass", string.format("Parsed %s = %s from \"%s\".", seen.word, tostring(got),
+                strtrim(seen.line))
+        end
+        return "fail", string.format(
+            "A tooltip reads \"%s\" but the parser got no %s out of it. " ..
+            "The wording guess is wrong, and every item carrying it scores as if it carried nothing.",
+            strtrim(seen.line), seen.word)
+    end
+
+    for slotId = 1, 18 do
+        if GetInventoryItemLink("player", slotId) then
+            local seen, stats = inspect(function() tooltip:SetInventoryItem("player", slotId) end)
+            if seen then return verdict(seen, stats) end
+        end
+    end
+    for bagId = 0, 4 do
+        for slotId = 1, (GetContainerNumSlots(bagId) or 0) do
+            if GetContainerItemLink(bagId, slotId) then
+                local seen, stats = inspect(function() tooltip:SetBagItem(bagId, slotId) end)
+                if seen then return verdict(seen, stats) end
+            end
+        end
+    end
+
+    return "skip", "Nothing you are wearing or carrying mentions Mastery, Versatility or Leech. " ..
+                   "Pick one up and run this again - until then the parser is untested."
+end
+
+local function SelfCheckCaches()
+    if not Valuate.GetCacheStats then return "skip", "GetCacheStats is missing." end
+    local cs = Valuate:GetCacheStats()
+    local hits = cs.activeHit + cs.slotHit
+    local total = hits + cs.activeBuild + cs.slotMiss
+    if total < SELF_VERIFY_MIN_HITS then
+        return "skip", string.format(
+            "Only %d lookup(s) so far - open your bags a few times and run this again.", total)
+    end
+    local pct = hits / total * 100
+    if pct >= 80 then
+        return "pass", string.format("%.0f%% hit across %d lookups.", pct, total)
+    end
+    return "fail", string.format(
+        "%.0f%% hit across %d lookups. The caches are being dropped as fast as they fill, " ..
+        "so v0.91-0.92's savings are not real on this client.", pct, total)
+end
+
+local SELF_CHECKS = {
+    { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
+    { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries },
+    { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches },
+}
+
+-- Returns an array of { id, title, status, detail } - no printing, so a gate can run it.
+function Valuate:RunSelfVerify()
+    local results = {}
+    for _, check in ipairs(SELF_CHECKS) do
+        local status, detail = check.run()
+        table.insert(results, {
+            id = check.id,
+            title = check.title,
+            -- A check that errored is a FAILURE, not a skip. Swallowing it would report
+            -- all-clear for a subsystem that cannot even be asked.
+            status = status or "fail",
+            detail = detail or "(no detail)",
+        })
+    end
+    return results
+end
+
 -- What is my biggest upgrade right now?
 --
 -- The Best Equipment panel answers this per slot, which means reading seventeen rows and
@@ -9170,6 +9316,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate selfverify - Run every check the addon can judge on its own")
         print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
         print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
         print("  /valuate check - Is Valuate actually working? Start here")
@@ -9743,6 +9890,24 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
         end
+    elseif command == "selfverify" then
+        print("|cFF00FF00[Valuate]|r Self-verify |cFFAAAAAA(the checks the addon can judge on its own)|r")
+        local pass, fail, skip = 0, 0, 0
+        for _, r in ipairs(Valuate:RunSelfVerify()) do
+            local tag
+            if r.status == "pass" then tag, pass = "|cFF00FF00PASS|r", pass + 1
+            elseif r.status == "fail" then tag, fail = "|cFFFF0000FAIL|r", fail + 1
+            else tag, skip = "|cFFFF8800SKIP|r", skip + 1 end
+            print(string.format("  %s  %s", tag, r.title))
+            print("        |cFFAAAAAA" .. r.detail .. "|r")
+        end
+        print(string.format("  %d passed, %d failed, %d could not be tested.", pass, fail, skip))
+        -- A skip is not a pass, and saying so here is the whole point: an assumption nobody
+        -- could test is exactly the kind this addon has been wrong about before.
+        if skip > 0 then
+            print("  |cFFAAAAAAA SKIP means the situation was not present to test - not that it works.|r")
+        end
+        print("  |cFFAAAAAAThe visual checks still need eyes: /valuate verify next.|r")
     elseif command == "upgrades" then
         local _, scaleName = Valuate:GetPrimaryScale()
         if not scaleName then

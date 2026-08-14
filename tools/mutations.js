@@ -94,7 +94,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.99.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.100.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -135,6 +135,27 @@ module.exports = [
   { gate: "whybis", file: "Valuate.lua", scope: EXPLAIN,
     label: "scales you have hidden are explained anyway",
     from: "ipairs(Valuate:GetActiveScales())", to: "pairs(Valuate:GetScales())" },
+
+  // ---- self-verify (v0.100.0a) ---------------------------------------------
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "'nothing owned carries Mastery' reads as 'Mastery parsing works'",
+    from: 'return "skip", "Nothing you are wearing or carrying mentions',
+    to: 'return "pass", "Nothing you are wearing or carrying mentions' },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a tooltip word the parser missed is reported as a pass",
+    from: "if got and got > 0 then", to: "if true then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a class in NO template set passes, so CoA silently falls back to classic",
+    from: '    return "fail", string.format(\n        "UnitClass says', to: '    return "pass", string.format(\n        "UnitClass says' },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "caches judged on one lookup, so a lucky first hit reads as 100%",
+    from: "if total < SELF_VERIFY_MIN_HITS then", to: "if false then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a cold cache passes, hiding that the optimisation is not real on this client",
+    from: "if pct >= 80 then", to: "if pct >= 0 then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a check that returns nothing is recorded as a pass rather than a failure",
+    from: 'status = status or "fail",', to: 'status = status or "pass",' },
 
   // ---- the ranked upgrade list (v0.99.0a) ----------------------------------
   { gate: "upgraderank", file: "Valuate.lua",

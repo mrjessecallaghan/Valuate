@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.100.0a] - 2026-08-14 — `/valuate selfverify`: the checks the addon can judge on its own
+
+### Added
+- **`/valuate selfverify`** — one command, three real answers from inside the client.
+
+`/valuate verify` holds 32 behavioural checks and every one costs a human: read the steps, do
+the thing, decide whether what you saw was right. Some of them never needed eyes — they needed
+a **fact from the client** that no headless gate can reach, and the addon can compare that fact
+against what it assumed all by itself.
+
+| check | what it settles |
+|---|---|
+| **templates** | Does `UnitClass("player")` return a name that appears in a template set? This is the single assumption all **21 CoA classes and 70 builds** rest on. If it doesn't, `GetTemplateSet` silently falls back to the classic ten, nothing errors, and the wizard proposes an Arms Warrior build to a Necromancer. |
+| **newstats** | Mastery, Versatility and Leech aren't stock 3.3.5 stats, so their tooltip **wording was guessed** back in v0.72.0a. This finds an item you actually own that mentions one, then checks the parser got a number out of it. Reading the same tooltip twice — once as text, once through the parser — is the only way to tell *"no such item"* from *"did not parse"*. |
+| **caches** | Are v0.91–0.92's repaint savings real on your machine, or is the cache being dropped as fast as it fills? |
+
+### A SKIP is not a PASS
+Said out loud in the output, because the difference is the whole point. *"Nothing you own
+carries Mastery"* must never read as *"Mastery parsing works"* — that assumption has gone
+untested since it shipped, and reporting it green would be worse than reporting nothing.
+
+A check that returns **nothing at all** counts as a **failure**, for the same reason: a
+subsystem that cannot even be asked has not passed.
+
+### Gates
+`tools/selfverify.js`, 28 checks — 45 gates, 44 mutations now. Six mutations, and one
+**survived**: every check in my fixture always returned a status, so the fallback for one that
+returns nothing was never exercised, and making it default to `"pass"` changed nothing. The
+fixture now includes a check that answers with silence.
+
+Seventh fixture problem this session; third found by the committed tool. The pattern is stable
+enough to state plainly: **my test worlds are consistently tidier than the game**, and mutation
+testing is the only thing that has reliably said so.
+
+### Still not v1.0.0
+The roadmap gates 1.0.0 on in-game verification, and nothing here has run in the client. This
+release makes that verification cheaper — it does not perform it.
+
 ## [0.99.0a] - 2026-08-14 — one command for "what should I put on right now"
 
 ### Added

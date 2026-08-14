@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.99.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.100.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -122,7 +122,7 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. **34 subsystems execute real Lua** headlessly against a
+Developed without the game running. **35 subsystems execute real Lua** headlessly against a
 mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
 
 - **Things that can destroy or spend something** — the deletion protections, surplus-gear
@@ -168,7 +168,7 @@ Then, in-game, for anything the gates structurally cannot see:
 ```
 
 **A passing gate does not mean the gate would notice.** `node tools/mutate.js` breaks the code
-in 38 specific ways and requires the matching gate to fail for each. A `SURVIVED` line means an
+in 44 specific ways and requires the matching gate to fail for each. A `SURVIVED` line means an
 assertion is decorative — it reads like a test and protects nothing. Four of those 29 exist
 because a survivor exposed the **fixture**, not the code: a bag of nothing but chest pieces, a
 bag of nothing but gear, a tooltip parse that was never empty, and a best-score that was always
@@ -182,7 +182,7 @@ becoming a nil global, an unstable sort producing different "best" items between
 bank data reaching a delete path, an option with no way to switch it on, a destructive
 command missing from the in-game help.
 
-34 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+35 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.
