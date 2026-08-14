@@ -109,7 +109,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.105.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.106.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -196,6 +196,26 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- taking the port / missed pops (v0.106.0a) ---------------------------
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "ports you into a battleground mid-fight",
+    from: "elseif type(InCombatLockdown) == \"function\" and InCombatLockdown() then",
+    to: "elseif false then" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "accepts a queue that has not popped, or declines instead of accepting",
+    from: "pcall(AcceptBattlefieldPort, i, 1)", to: "pcall(AcceptBattlefieldPort, i, nil)" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "entering the battleground is mistaken for missing the pop, re-queueing you",
+    from: 'elseif was == "confirm" and status == "none" then',
+    to: 'elseif was == "confirm" then' },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "the previous status is never remembered, so a missed pop is undetectable",
+    from: "bfStatusWas[i] = status", to: "bfStatusWas[i] = nil" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "auto-accept fires even when switched off",
+    from: 'if status == "confirm" and options.autoAcceptBattleground then',
+    to: 'if status == "confirm" then' },
 
   // ---- missing enchants (v0.104.0a) ----------------------------------------
   { gate: "enchants", file: "Valuate.lua",

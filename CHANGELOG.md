@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.106.0a] - 2026-08-14 — take the invite, and notice when you missed one
+
+### Added
+- **`/valuate autoacceptbg`** — takes the battleground port the moment a queue pops.
+- **Re-queue after a missed pop.** If the invite lapses while you're away, `autoqueuepvp` puts
+  you straight back in.
+
+v0.105.0a's auto-queue was half a feature. The queue popped and you still had to be at the
+keyboard to click **Enter Battle** — and if you missed it, the client drops you from the queue
+silently. You find out ten minutes later that you've been standing in a city.
+
+### Accepting is its own opt-in
+`autoqueuepvp` does **not** turn it on. Being yanked out of a quest into Alterac Valley is
+exactly the kind of surprise an addon should make you ask for, and wanting to keep questing
+until *you* choose to go is a perfectly reasonable position. Switching it on says as much.
+
+**Never in combat.** `AcceptBattlefieldPort` is refused mid-fight on some clients, and porting
+out of a fight you're winning is its own kind of rude. The popup stays up, so nothing is lost —
+you get it back when you're out, and `/valuate report` says that's why.
+
+### The missed pop needs memory
+From a standing start, *"still queued"* and *"dropped ten minutes ago"* look identical — both
+are just a slot reading `none`. Only the **previous** status makes it detectable, so it's
+remembered per queue slot. Two distinctions that had to be right:
+
+- `confirm → none` is a **lapsed** pop, and re-queues.
+- `confirm → active` is **you entering the battleground**, the opposite, and must not.
+
+A slot seen for the first time never re-queues either — there's no previous status to compare
+against, and firing on that would queue you the moment you log in.
+
+### Gates
+`tools/queuetest.js` 44 → 58 checks; 67 mutations, all caught. Five new ones, including *"ports
+you into a battleground mid-fight"*, *"entering the battleground is mistaken for missing the
+pop"*, and *"the previous status is never remembered, so a missed pop is undetectable"*.
+
+Also repaired the README: v0.105.0a's note landed **inside** the automation table and orphaned
+the last row.
+
 ## [0.105.0a] - 2026-08-14 — auto-queue, auto-release, auto-leave
 
 ### Added

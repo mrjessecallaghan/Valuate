@@ -35,6 +35,8 @@ const PIECES = [
   /^function Valuate:QueueForDungeon\([\s\S]*?\r?\nend/m,
   /^local bgLeaveScheduled = false/m,
   /^function Valuate:HandleBattlefieldEnd\([\s\S]*?\r?\nend/m,
+  /^local bfStatusWas = \{\}/m,
+  /^function Valuate:HandleBattlefieldQueues\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -100,6 +102,18 @@ function GetRandomDungeonBestChoice() return DUNGEON_CHOICE end
 local setDungeon, joinedLFG = nil, 0
 function SetLFGDungeon(id) setDungeon = id end
 function JoinLFG() joinedLFG = joinedLFG + 1 end
+
+-- Queue slots. Status is the client's own vocabulary: none / queued / confirm / active.
+local BF_STATUS = {}
+function GetMaxBattlefieldID() return 2 end
+function GetBattlefieldStatus(i)
+    local s = BF_STATUS[i]
+    return s and s.status or "none", s and s.map or nil
+end
+local accepted = {}
+function AcceptBattlefieldPort(i, join) table.insert(accepted, { i = i, join = join }) end
+local IN_COMBAT = false
+function InCombatLockdown() return IN_COMBAT end
 
 -- Delays are captured, not run. Firing them by hand is the only way to test what happens
 -- BETWEEN scheduling and firing - which is where the interesting decisions live.
@@ -273,6 +287,94 @@ MARKS.bgLeave = nil
 Valuate:HandleBattlefieldEnd()
 eq(#PENDING, 0, "with auto-leave off nothing is scheduled")
 saysAbout(MARKS.bgLeave, "off", "but /valuate report still learns the match ended")
+
+-- ---- taking the port, and noticing you missed it -----------------------------
+OPTIONS.autoAcceptBattleground = false
+OPTIONS.autoQueuePvP = false
+BF_STATUS = { [1] = { status = "confirm", map = "Warsong Gulch" } }
+Valuate:HandleBattlefieldQueues()
+eq(#accepted, 0, "with auto-accept off, a queue pop is left alone")
+
+OPTIONS.autoAcceptBattleground = true
+BF_STATUS = { [1] = { status = "confirm", map = "Warsong Gulch" } }
+Valuate:HandleBattlefieldQueues()
+eq(#accepted, 1, "with it on, the invite is taken")
+eq(accepted[1].join, 1, "and taken as ACCEPT, not decline")
+
+-- Never mid-fight: the client refuses the port on some builds, and being yanked out of a
+-- fight you are winning is its own kind of rude. The popup stays up either way.
+accepted = {}
+IN_COMBAT = true
+BF_STATUS = { [1] = { status = "confirm", map = "Warsong Gulch" } }
+Valuate:HandleBattlefieldQueues()
+eq(#accepted, 0, "it does not port you out of combat")
+saysAbout(MARKS.bgAccept, "combat", "and the report says why, so it does not look broken")
+IN_COMBAT = false
+
+-- A queue merely WAITING must not be accepted - only a pop.
+accepted = {}
+BF_STATUS = { [1] = { status = "queued", map = "Warsong Gulch" } }
+Valuate:HandleBattlefieldQueues()
+eq(#accepted, 0, "a queue that has not popped yet is not 'accepted'")
+
+-- ---- the missed pop ----------------------------------------------------------
+-- From a standing start, "still queued" and "dropped ten minutes ago" look identical. Only
+-- the PREVIOUS status makes this detectable, which is why it is remembered per slot.
+OPTIONS.autoAcceptBattleground = false
+OPTIONS.autoQueuePvP = true
+BG_LIST = { { name = "Random Battleground", canEnter = true, isRandom = true } }
+INSIDE, KIND = false, nil
+
+BF_STATUS = { [1] = { status = "confirm", map = "Alterac Valley" } }
+Valuate:HandleBattlefieldQueues()          -- remembers "confirm"
+joined = nil
+BF_STATUS = { [1] = { status = "none" } }
+Valuate:HandleBattlefieldQueues()          -- the pop came and went
+eq(joined, 1, "a pop that lapsed re-queues you")
+saysAbout(MARKS.queuePvP, "missed", "and the report says it was a missed pop")
+
+-- Going confirm -> active is ENTERING the battleground, the opposite of missing it.
+joined = nil
+BF_STATUS = { [1] = { status = "confirm", map = "Alterac Valley" } }
+Valuate:HandleBattlefieldQueues()
+BF_STATUS = { [1] = { status = "active", map = "Alterac Valley" } }
+Valuate:HandleBattlefieldQueues()
+eq(joined, nil, "entering the battleground is not treated as missing the pop")
+
+-- And a slot that was simply never queued must not fire on the first look, when there is
+-- no previous status to compare against.
+joined = nil
+bfStatusWas = {}
+BF_STATUS = { [1] = { status = "none" } }
+Valuate:HandleBattlefieldQueues()
+eq(joined, nil, "an idle slot on first sight does not re-queue")
+
+-- With auto-queue off, the miss is recorded but nothing happens.
+OPTIONS.autoQueuePvP = false
+joined, MARKS.queuePvP = nil, nil
+BF_STATUS = { [1] = { status = "confirm", map = "Alterac Valley" } }
+Valuate:HandleBattlefieldQueues()
+BF_STATUS = { [1] = { status = "none" } }
+Valuate:HandleBattlefieldQueues()
+eq(joined, nil, "with auto-queue off a missed pop does not re-queue")
+saysAbout(MARKS.queuePvP, "off", "but the report still learns it happened")
+
+-- Slots are tracked independently: two queues, and only the one that lapsed re-queues.
+OPTIONS.autoQueuePvP = true
+bfStatusWas = {}
+BF_STATUS = { [1] = { status = "confirm", map = "AV" }, [2] = { status = "queued", map = "WSG" } }
+Valuate:HandleBattlefieldQueues()
+joined = nil
+BF_STATUS = { [1] = { status = "none" }, [2] = { status = "queued", map = "WSG" } }
+Valuate:HandleBattlefieldQueues()
+eq(joined, 1, "the lapsed slot re-queues while the other keeps waiting")
+
+-- A client with no queue APIs at all must not crash the event handler.
+local realMax = GetMaxBattlefieldID
+GetMaxBattlefieldID = nil
+local safe = pcall(function() Valuate:HandleBattlefieldQueues() end)
+eq(safe, true, "a client without GetMaxBattlefieldID is handled, not crashed into")
+GetMaxBattlefieldID = realMax
 
 return failures, checks
 `,

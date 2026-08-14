@@ -524,6 +524,7 @@ local function OnEvent(self, event, addonName, ...)
     elseif event == "UPDATE_BATTLEFIELD_STATUS" then
         -- Fires often and for every queue slot; HandleBattlefieldEnd does its own gating and
         -- guards against scheduling the leave twice.
+        if Valuate.HandleBattlefieldQueues then Valuate:HandleBattlefieldQueues() end
         if Valuate.HandleBattlefieldEnd then Valuate:HandleBattlefieldEnd() end
     elseif event == "LFG_COMPLETION_REWARD" then
         -- The random dungeon paid out, so the run is over. Re-queue only if asked, and only
@@ -778,6 +779,7 @@ local DEFAULT_OPTIONS = {
     autoLeaveBattleground = false,
     autoQueuePvP = false,
     autoQueueDungeon = false,
+    autoAcceptBattleground = false,
     chatMessages = true,                  -- verbose chat messages
     scanVerbose = false,                  -- scan completion messages
     showStartupMessage = true,            -- "Valuate loaded" message
@@ -6423,6 +6425,63 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Taking the port, and noticing when you missed it.
+--
+-- Auto-queue without this is half a feature: the queue pops, and you still have to be at the
+-- keyboard to click Enter Battle. Worse, if you miss it you are dropped from the queue
+-- silently and find out ten minutes later that you have been standing in a city.
+--
+-- Accepting is its own opt-in, NOT something autoQueuePvP turns on. Being yanked out of a
+-- quest into Alterac Valley is exactly the kind of surprise an addon should require you to
+-- ask for, and someone who wants to keep questing until they choose to go is a completely
+-- reasonable person.
+--
+-- Never accepts in combat. AcceptBattlefieldPort is refused mid-fight on some clients, and
+-- porting out of a fight you are winning is its own kind of rude. The popup stays up, so
+-- nothing is lost - you just get it back when you are out.
+local bfStatusWas = {}
+
+function Valuate:HandleBattlefieldQueues()
+    local options = Valuate:GetOptions()
+    if type(GetMaxBattlefieldID) ~= "function" or type(GetBattlefieldStatus) ~= "function" then
+        return
+    end
+
+    for i = 1, GetMaxBattlefieldID() do
+        local status, mapName = GetBattlefieldStatus(i)
+        local was = bfStatusWas[i]
+
+        if status == "confirm" and options.autoAcceptBattleground then
+            if type(AcceptBattlefieldPort) ~= "function" then
+                Valuate:MarkAutomation("bgAccept", "no AcceptBattlefieldPort() on this client")
+            elseif type(InCombatLockdown) == "function" and InCombatLockdown() then
+                Valuate:MarkAutomation("bgAccept", "queue popped while in combat - left for you to take")
+            else
+                local ok = pcall(AcceptBattlefieldPort, i, 1)
+                Valuate:MarkAutomation("bgAccept", ok
+                    and ("entered " .. tostring(mapName or "a battleground"))
+                    or "AcceptBattlefieldPort() was refused")
+            end
+
+        -- The pop came and went without you entering. The client simply drops you from the
+        -- queue, so "queued" and "dropped ages ago" look identical from a standing start -
+        -- which is why the PREVIOUS status is what makes this detectable at all.
+        elseif was == "confirm" and status == "none" then
+            if options.autoQueuePvP then
+                print("|cFFFF8800[Valuate]|r Missed the queue pop for " ..
+                      tostring(mapName or "a battleground") .. " - re-queueing.")
+                local ok, reason = Valuate:QueueForBattleground()
+                Valuate:MarkAutomation("queuePvP", ok and "re-queued after a missed pop"
+                    or ("missed pop, could not re-queue: " .. tostring(reason)))
+            else
+                Valuate:MarkAutomation("queuePvP", "missed a queue pop; auto-queue is off")
+            end
+        end
+
+        bfStatusWas[i] = status
+    end
+end
+
 -- The checks the addon can judge for itself.
 --
 -- /valuate verify holds 32 behavioural checks and every one costs a human: read the steps,
@@ -8562,6 +8621,7 @@ function Valuate:PrintReport()
         { key = "bgLeave",       label = "Battleground leave" },
         { key = "queuePvP",      label = "PvP queue" },
         { key = "queueDungeon",  label = "Dungeon queue" },
+        { key = "bgAccept",      label = "Battleground invite" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -9773,6 +9833,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoleavebg - Toggle leaving a battleground once it has finished")
         print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
+        print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
         print("  /valuate queuepvp - Queue for a random battleground now")
         print("  /valuate queuedungeon - Queue for a random dungeon now")
         print("  /valuate queuecheck - What is armed, and which of these APIs your client has")
@@ -10350,21 +10411,22 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
         end
-    elseif command == "autorelease" or command == "autoleavebg"
-        or command == "autoqueuepvp" or command == "autoqueuedungeon" then
+    elseif command == "autorelease" or command == "autoleavebg" or command == "autoqueuepvp"
+        or command == "autoqueuedungeon" or command == "autoacceptbg" then
         local options = Valuate:GetOptions()
-        local key, label = ({
+        local KEYS = {
             autorelease       = { "autoRelease", "Auto-release on death" },
             autoleavebg       = { "autoLeaveBattleground", "Auto-leave a finished battleground" },
-            autoqueuepvp      = { "autoQueuePvP", "Auto-queue for PvP after leaving a battleground" },
+            autoqueuepvp      = { "autoQueuePvP", "Auto-queue for PvP" },
             autoqueuedungeon  = { "autoQueueDungeon", "Auto-queue for a random dungeon after one finishes" },
-        })[command][1], ({
-            autorelease       = "Auto-release on death",
-            autoleavebg       = "Auto-leave a finished battleground",
-            autoqueuepvp      = "Auto-queue for PvP after leaving a battleground",
-            autoqueuedungeon  = "Auto-queue for a random dungeon after one finishes",
-        })[command]
+            autoacceptbg      = { "autoAcceptBattleground", "Auto-accept a battleground invite" },
+        }
+        local key, label = KEYS[command][1], KEYS[command][2]
         options[key] = not options[key]
+        if command == "autoacceptbg" and options[key] then
+            print("  |cFFFF8800This will pull you into a battleground the moment one pops|r " ..
+                  "|cFFAAAAAA- but never while you are in combat.|r")
+        end
         print(string.format("|cFF00FF00Valuate|r: %s is %s.", label,
             options[key] and "|cFF00FF00ON|r" or "|cFFFF8800OFF|r"))
         if options[key] then
@@ -10389,6 +10451,7 @@ SlashCmdList["VALUATE"] = function(msg)
         line("Auto-leave a finished battleground", options.autoLeaveBattleground)
         line("Auto-queue PvP after leaving", options.autoQueuePvP)
         line("Auto-queue a dungeon after one finishes", options.autoQueueDungeon)
+        line("Auto-accept a battleground invite", options.autoAcceptBattleground)
 
         print("  |cFFAAAAAAWhat this client provides:|r")
         local apis = {
@@ -10400,6 +10463,8 @@ SlashCmdList["VALUATE"] = function(msg)
             { "GetRandomDungeonBestChoice", "pick a random dungeon" },
             { "SetLFGDungeon", "select a dungeon" },
             { "JoinLFG", "queue for a dungeon" },
+            { "GetBattlefieldStatus", "see a queue pop" },
+            { "AcceptBattlefieldPort", "take the invite" },
         }
         local missing = 0
         for _, a in ipairs(apis) do
