@@ -8788,6 +8788,62 @@ end
 -- than merely wrong: entries far behind the current version are ones nobody got to.
 local VERIFY_CHECKS = {
     {
+        id = "altdetail", since = "0.102.0a",
+        gate = "tools/whybis.js",
+        title = "Alt-hover expands an item tooltip, and letting go collapses it",
+        steps = "Hold Alt, THEN hover a piece of gear in your bags. Read the block. Move off, let go of Alt, and hover it again.",
+        expect = "With Alt: a 'Best-in-slot, every scale' block, one line per scale. Without: it is gone and the tooltip is its normal length. The rest of the tooltip must look untouched either way.",
+        broke = "The verdicts behind this block are gate-tested; whether the block DRAWS is not, and it rests on an assumption no headless test can reach - that IsAltKeyDown() reports the truth while a tooltip is being built. If it does not, the block either never appears or never goes away, and a tooltip that keeps growing is worse than one that says nothing. 3.3.5 also cannot redraw on a keypress, so hovering first and pressing Alt second is EXPECTED to do nothing - that is not the bug.",
+    },
+    {
+        id = "nearmiss", since = "0.102.0a",
+        gate = "tools/whybis.js",
+        title = "A near-miss line appears on close items and nowhere else",
+        steps = "This command finds an item in your bags that should carry the line. Hover it. Then hover something obviously bad, and something that IS your best.",
+        expect = "\"Just short for <scale> - N% behind your best\" on the close one. Nothing on the bad one. On your best-in-slot item, the '★ Best for' line instead - never both.",
+        broke = "New in v0.96.0a. The threshold and the exclusivity are gate-tested; what a real tooltip looks like with the line on it is not. Watch for it appearing on EVERYTHING, which is the failure that matters - a line on every item is noise that trains you to stop reading, and it sits directly under the line that matters most.",
+        arm = function()
+            if not Valuate.BuildNearMissLine or not Valuate.GetScaledStatsForItem then
+                return false, "The near-miss helpers are missing."
+            end
+            for bagId = 0, 4 do
+                for slotId = 1, (GetContainerNumSlots(bagId) or 0) do
+                    local link = GetContainerItemLink(bagId, slotId)
+                    if link then
+                        local stats, scaled = Valuate:GetScaledStatsForItem(link)
+                        if scaled and stats and Valuate:BuildNearMissLine(link, stats) then
+                            print("|cFF3FE0C8[Valuate]|r Hover this one: " .. link)
+                            return true, "Found a near miss in your bags - hover the item above."
+                        end
+                    end
+                end
+            end
+            return false, "Nothing in your bags is within 10% of a best-in-slot item, so there is " ..
+                          "nothing for the line to appear on. Pick up some gear and try again."
+        end,
+    },
+    {
+        id = "upgradelist", since = "0.102.0a",
+        gate = "tools/upgraderank.js",
+        title = "/valuate upgrades lists real, clickable gear you can act on",
+        steps = "This command runs it. Shift-click one of the listed links, and check the item it names is genuinely in your bags.",
+        expect = "Ranked biggest-gain first, item links that open a tooltip on hover and link into chat on shift-click. Nothing listed that is in your BANK, and nothing you are already wearing.",
+        broke = "New in v0.99.0a. The ranking, the bank exclusion and the tiebreak are gate-tested; whether an item link built from stored scan data still RENDERS as a link is not - a stale or malformed link prints as raw text and cannot be clicked. Bank items appearing here is the failure worth catching: it is advice you cannot act on without crossing the city.",
+        arm = function()
+            if not Valuate.RankAvailableUpgrades then
+                return false, "RankAvailableUpgrades is missing."
+            end
+            -- Through the real slash handler, so this exercises the printer a user sees
+            -- rather than a second copy of it written for the check.
+            local handler = SlashCmdList and SlashCmdList["VALUATE"]
+            if type(handler) ~= "function" then
+                return false, "The slash handler is not registered."
+            end
+            handler("upgrades")
+            return true, "Read the list above."
+        end,
+    },
+    {
         id = "cachehit", since = "0.93.0a",
         gate = "tools/hotpath.js",
         title = "The repaint caches actually hit in the client, not just in the harness",

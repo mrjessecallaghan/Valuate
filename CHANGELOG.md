@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.102.0a] - 2026-08-14 — the checklist catches up with what shipped
+
+### Added
+Three `/valuate verify` checks, 32 → 35. I had declined to add any for five releases on the
+grounds that they would pad a list I'd just spent a release making honest. The `verifytest` gate
+was eight releases from failing and, on re-reading, it was right and I was wrong: each of these
+rests on something **only the client can answer**.
+
+- **`altdetail`** — v0.98.0a's Alt-hover block. The verdicts inside it are gate-tested; whether
+  it *draws* is not, and it rests on an assumption nothing headless can reach: that
+  `IsAltKeyDown()` reports the truth while a tooltip is being built. If it doesn't, the block
+  either never appears or never goes away — and a tooltip that keeps growing is worse than one
+  that says nothing.
+- **`nearmiss`** — v0.96.0a's near-miss line. The threshold and the exclusivity are gate-tested;
+  what a real tooltip looks like carrying it is not. The failure to watch for is it appearing on
+  **everything**.
+- **`upgradelist`** — v0.99.0a's ranked list. The ranking, bank exclusion and tiebreak are
+  gate-tested; whether an item link rebuilt from stored scan data still **renders as a link** is
+  not. A stale or malformed one prints as raw text and cannot be clicked.
+
+### Two of them arm themselves
+`nearmiss` searches your bags for an item that should carry the line and prints it, so the check
+hands you the item instead of asking you to go find one. `upgradelist` runs the command — through
+the **real slash handler**, so it exercises the printer a user sees rather than a second copy
+written for the check.
+
+### On the gate that forced this
+`verifytest` fails when the newest check falls more than ten minor releases behind the `.toc`,
+with no escape hatch, on the reasoning that *shipping ten releases with nothing a human should
+look at is itself worth being told*. I wrote that in v0.90.0a and then spent five releases
+explaining why the growing gap was fine. It wasn't. The lag is 0 again.
+
 ## [0.101.0a] - 2026-08-14 — the check that would have caught v0.94.0a, in your client
 
 ### Added
