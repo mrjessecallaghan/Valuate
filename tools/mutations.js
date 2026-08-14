@@ -121,7 +121,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.113.1a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.114.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -208,6 +208,47 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  /* ---- each gate's HEADLINE CLAIM, violated on purpose (v0.114.0a) ---------
+   *
+   * Three gates in a row turned out to check something ADJACENT to what they claimed - a
+   * read counted as "reachable", any print counted as "documented", and the snapshot
+   * exclusion list had no gate at all. Each passed cleanly for months.
+   *
+   * So the remaining high-stakes claims were tested the only way that works: violate the
+   * sentence on the tin and see whether the gate notices. All eight below were caught on
+   * the first run, which is the result worth having - the three weak ones were the
+   * exception. They live here so that stays true rather than being a thing I checked once.
+   */
+  { gate: "api", file: "Valuate.lua",
+    label: "a method the selftest promises to check no longer exists",
+    from: "function Valuate:GetCacheStats() return cacheStats end",
+    to: "function Valuate:GetCacheStatsRENAMED() return cacheStats end" },
+  { gate: "api", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    label: "an integration addon calls into Valuate for something that is not there",
+    // The filter's call specifically; the file has another at line 380.
+    from: "self:FirstEnabledScale(Valuate:IsBestInSlot(slotData.link))",
+    to: "self:FirstEnabledScale(Valuate:IsBestInSlotNOPE(slotData.link))" },
+  { gate: "tocsync", file: "Valuate.toc",
+    label: "a ui module drops out of the .toc and simply stops loading",
+    from: "ui\\Wizard.lua\n", to: "" },
+  { gate: "globals", file: "ui/Wizard.lua",
+    label: "a nil global is read - the silent failure this codebase's worst bugs were",
+    from: "local _, ns = ...",
+    to: "local _, ns = ...\nlocal __probe = SomeGlobalThatDoesNotExistAnywhere" },
+  { gate: "contrast", file: "ui/Shared.lua",
+    label: "a text colour stops clearing WCAG AA against the panel it is drawn on",
+    from: "textDim = { 0.60, 0.64, 0.72, 1 },", to: "textDim = { 0.18, 0.19, 0.22, 1 }," },
+  { gate: "speccoverage", file: "ui/Data.lua",
+    label: "a class loses its templates, so the wizard can never match it",
+    from: 'class = "Warrior"', to: 'class = "WarriorTYPO"' },
+  { gate: "options", file: "Valuate.lua",
+    label: "an automation ships defaulted ON, breaking the opt-in promise",
+    from: "autoQueuePvP = false,", to: "autoQueuePvP = true," },
+  { gate: "check", file: "ui/Wizard.lua",
+    label: "StaticPopup is used again - the frame taint that broke CastSpellByName",
+    from: "local _, ns = ...",
+    to: 'local _, ns = ...\nlocal __t = StaticPopup_Show("X")' },
 
   // ---- /valuate help really is the source of truth (v0.114.0a) -------------
   // Removing a real help line must fail. Before v0.114.0a it did not: "documented" was

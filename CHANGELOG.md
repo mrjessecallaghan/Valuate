@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.114.0a] - 2026-08-14 — eight gate claims, violated on purpose
+
+No addon changes. After three gates in a row turned out to check something *adjacent* to what
+they claimed, the obvious question was: **how many of the others do?**
+
+### Method
+Take each gate's headline sentence, break exactly that, and see whether it notices. Not "does
+the gate pass" — it always did — but *"can I violate the claim on the tin without failing it?"*
+
+| gate | claim violated |
+|---|---|
+| `api` | a selftest-listed method no longer exists |
+| `api` | an integration addon calls into Valuate for something that isn't there |
+| `tocsync` | a `ui/` module drops out of the `.toc` and stops loading |
+| `globals` | a nil global is read — this codebase's worst bug class |
+| `contrast` | a text colour stops clearing WCAG AA |
+| `speccoverage` | a class loses its templates, so the wizard can never match it |
+| `options` | an automation ships defaulted **ON**, breaking the opt-in promise |
+| `check` | `StaticPopup` is used again — the frame taint that broke `CastSpellByName` |
+
+**All eight were caught on the first run.** That's the result worth having: the three weak gates
+were the exception, not the rule, and the rest of the suite means what it says.
+
+### They live in `mutations.js` now
+Structurally these *are* mutations — break something, require a gate to fail — so they went into
+the existing manifest rather than becoming a second tool that does the same job. 103 mutations
+now, and "I checked this once" became "this is checked every run".
+
+### Two things the mutation runner caught about my own probes
+- The AdiBags anchor matched **twice**, so it was refused as ambiguous rather than silently
+  breaking the wrong call site. That guard is now four-for-four.
+- One probe reaches **across a repo boundary** into `Valuate-AdiBags`. Restoration is verified
+  byte-for-byte, and the sibling addon is clean afterwards — checked, not assumed, because a
+  half-restored file in a *different* git repo is exactly the mess a tool like this could leave.
+
 ## [0.113.1a] - 2026-08-14 — "documented in /valuate help" now means that
 
 No addon changes. Third gate in a row whose check turned out to be weaker than its claim.
