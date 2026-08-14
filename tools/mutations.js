@@ -79,6 +79,20 @@ const NEARMISS = {
   end: "\nfunction Valuate:RankAvailableUpgrades",
 };
 
+// The dungeon-leave feature spans two files: the counting lives in ui/DungeonLoot.lua and
+// the decision to interrupt you lives in Valuate.lua. Scoped separately, because "does it
+// count right" and "does it know when to shut up" fail in different ways.
+const D_COUNT = { start: "function ns.CountRemainingUpgrades(", end: "\nend" };
+const D_KNOWN = { start: "function ns.BossLootKnown(", end: "\nend" };
+const D_GET = { start: "function ns.GetDungeonLoot(", end: "\nend" };
+const D_CONSIDER = { start: "function Valuate:ConsiderDungeonLeave(", end: "\nend" };
+const D_ITEM = { start: "local function DungeonItemIsUpgrade(", end: "\nend" };
+const D_CURRENT = { start: "function Valuate:GetCurrentDungeon(", end: "\nend" };
+const D_TRACK = { start: "function Valuate:UpdateDungeonTracking(", end: "\nend" };
+const D_NOTE = { start: "function Valuate:NoteDungeonUnitDeath(", end: "\nend" };
+const D_RESET = { start: "function Valuate:ResetDungeonProgress(", end: "\nend" };
+
+
 module.exports = [
   // ---- the repaint caches (v0.91.0a, v0.92.0a) -----------------------------
   { gate: "hotpath", file: "Valuate.lua",
@@ -123,9 +137,12 @@ module.exports = [
     from: "    RefreshWizardButton()", to: "    --RefreshWizardButton()" },
 
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
+  // Jumps far past LAG_ALLOWED rather than one release over it. A mutation tuned to sit
+  // exactly on the boundary goes stale every time the checklist gains an entry - this one
+  // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.119.1a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.120.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -532,4 +549,62 @@ module.exports = [
   { gate: "whybis", file: "Valuate.lua", scope: NEARMISS,
     label: "the gap is a percentage of nothing - correct only when your best scores 100",
     from: "local pct = e.gap / e.bestScore", to: "local pct = e.gap / 100" },
+
+  // ---- the dungeon leave suggestion (v0.120.0a) ----------------------------
+  // This feature tells you to leave a dungeon. Its claim is "nothing left in here is an
+  // upgrade"; its RIGHT to make that claim is "nothing left in here is unknown". Both
+  // halves get broken here, because on a loot table this incomplete, the willingness to
+  // stay quiet is the whole feature.
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_KNOWN,
+    label: "a boss nobody filled in reads as a boss that drops nothing for you",
+    from: "and type(boss.items) == \"table\" and #boss.items > 0", to: "" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "an unmapped boss stops counting as unknown, so a half-written table gives advice",
+    from: "unknown = unknown + 1   -- no list at all", to: "unknown = unknown + 0   --" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "an item the client could not resolve is treated as a definite 'no'",
+    from: "elseif answer == nil then", to: "elseif answer == false then" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "a boss you already killed is still counted as standing between you and the door",
+    from: "if not killed[boss.name] then", to: "if true then" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_GET,
+    label: "an unlisted dungeon returns an answer instead of silence",
+    from: "return ns.DUNGEON_LOOT[instanceName]",
+    to: "return ns.DUNGEON_LOOT[instanceName] or { bosses = {} }" },
+
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
+    label: "it offers to leave while bosses it knows nothing about are still alive",
+    from: "if status.unknown > 0 then", to: "if false then" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
+    label: "it offers to leave with an upgrade still ahead of you - the Mr Smite case",
+    from: "if status.upgrades > 0 then return end", to: "if false then return end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
+    label: "the prompt fires again on every later kill instead of once",
+    from: "if dungeonLeaveOffered then return end", to: "if false then return end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
+    label: "a switched-off automation runs anyway",
+    from: "if not options.notifyDungeonNoUpgrades then return end", to: "if false then return end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_ITEM,
+    label: "an item missing from the client cache is scored as 'not an upgrade'",
+    from: "if not link then return nil end", to: "if not link then return false end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_ITEM,
+    label: "an item whose tooltip parsed to nothing is scored as 'not an upgrade'",
+    from: "then return nil end -- parsed nothing", to: "then return false end --" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CURRENT,
+    label: "raids and the open world are treated as 5-man dungeons",
+    from: "if instanceType ~= \"party\" then return nil end", to: "if false then return nil end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_TRACK,
+    label: "the loudest event in the game stays registered everywhere, forever",
+    from: "local want = Valuate:GetOptions().notifyDungeonNoUpgrades and Valuate:GetCurrentDungeon() ~= nil",
+    to: "local want = true" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_NOTE,
+    label: "the prompt fires on the kill, before the corpse has been looted",
+    from: "ValuateAfter(6, function() Valuate:ConsiderDungeonLeave() end)",
+    to: "Valuate:ConsiderDungeonLeave()" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_RESET,
+    label: "a second run of the same dungeon inherits the first run's kills",
+    from: "    dungeonKilled = {}", to: "    if true then return end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
+    label: "it offers to leave a dungeon that is already finished, which is just noise",
+    from: "if status.remaining <= 0 then return end", to: "if false then return end" },
 ];

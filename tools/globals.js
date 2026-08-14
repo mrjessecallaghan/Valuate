@@ -88,6 +88,7 @@ IsInInstance GetNumPartyMembers GetNumRaidMembers RepopMe InCombatLockdown
 GetMaxBattlefieldID GetBattlefieldStatus AcceptBattlefieldPort
 GetBattlefieldWinner LeaveBattlefield GetBattlegroundInfo JoinBattlefield
 GetRandomDungeonBestChoice SetLFGDungeon JoinLFG
+GetInstanceInfo LeaveParty
 strtrim strsplit strjoin strlower strupper strsub strlen strfind strmatch strrep
 tinsert tremove twipe wipe format gsub gmatch max min abs floor ceil
 date time difftime random

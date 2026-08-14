@@ -423,7 +423,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.119.1a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.120.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,10 +432,18 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.119.1a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.120.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
+        "• Dungeons can say when they are DONE with you. While auto-queueing, the\n" ..
+        "   addon tracks which bosses are still alive and asks whether to leave once\n" ..
+        "   the last one that could drop an upgrade is dead and looted. Off by\n" ..
+        "   default; it asks rather than acting.\n" ..
+        "   The loot table is deliberately SMALL and unverified for Ascension, so it\n" ..
+        "   stays silent about anything it has no data for - a boss it knows nothing\n" ..
+        "   about suppresses the prompt entirely. 'I don't know' must never be\n" ..
+        "   delivered as 'there is nothing here'. /valuate dungeon shows what is known.\n" ..
         "• Settings has a SEARCH BOX. Type part of an option's name and everything\n" ..
         "   else dims. Nothing moves while you filter.\n" ..
         "• Item tooltips now tell you what cleanup would do. While auto-sell or\n" ..

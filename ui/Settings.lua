@@ -1384,6 +1384,8 @@ local function CreateSettingsPanel(parent)
           tip = "Queues for a random battleground after you leave one, or after a queue pop lapsed while you were away. Never queues while you are still inside a match." },
         { key = "autoQueueDungeon", label = "Re-queue for a dungeon",
           tip = "Queues for a random dungeon after one finishes." },
+        { key = "notifyDungeonNoUpgrades", label = "Say when a dungeon is done with you",
+          tip = "Asks whether to leave once every remaining boss has been checked and none of them drop anything that beats your gear. It stays quiet whenever a boss has no loot data - 'I don't know' must never be delivered as 'there is nothing here'. /valuate dungeon shows exactly what is known for where you are standing." },
     }
 
     local bgPrevious = bgHeader

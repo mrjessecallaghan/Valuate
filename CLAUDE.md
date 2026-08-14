@@ -416,6 +416,7 @@ callback either reschedule or be genuinely final.
 |---|---|
 | `Shared.lua` | Design tokens (spacing, `COLORS`, backdrops, fonts) **and shared mutable state** |
 | `Data.lua` | Icon list, class/spec templates |
+| `DungeonLoot.lua` | Per-boss dungeon loot, and the rule that missing data means silence |
 | `Animations.lua` | Shared-ticker tween engine, easing, Reduce Motion |
 | `Widgets.lua` | Validation, colour conversion, `CreateStyledButton`, `ShowTooltipSafe` |
 | `Dialog.lua` | `Valuate:ShowConfirmDialog` — the StaticPopup replacement (§3) |

@@ -518,6 +518,19 @@ local function OnEvent(self, event, addonName, ...)
         Valuate:Initialize()
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+        -- A new zone is a new dungeon: forget the last run's kills before tracking this one.
+        if Valuate.ResetDungeonProgress then Valuate:ResetDungeonProgress() end
+        if Valuate.UpdateDungeonTracking then Valuate:UpdateDungeonTracking() end
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+        -- Only registered while standing in a dungeon this addon has data for; see
+        -- UpdateDungeonTracking for why it is not left on.
+        --
+        -- OnEvent names the first payload slot `addonName` because ADDON_LOADED got there
+        -- first, so for the combat log that is the timestamp and everything else is in `...`.
+        -- 3.3.5 UNIT_DIED: subevent, srcGUID, srcName, srcFlags, dstGUID, dstName, dstFlags.
+        if select(1, ...) == "UNIT_DIED" and Valuate.NoteDungeonUnitDeath then
+            Valuate:NoteDungeonUnitDeath(select(6, ...))
+        end
     elseif event == "PLAYER_DEAD" then
         if Valuate.AutoReleaseSpirit then
             local ok, reason = Valuate:AutoReleaseSpirit()
@@ -801,6 +814,9 @@ local DEFAULT_OPTIONS = {
     autoQueueDungeon = false,
     autoAcceptBattleground = false,
     autoEquipOnLevelUp = false,
+    -- Offer to leave a dungeon whose remaining bosses hold nothing for you. Notify-only: it
+    -- asks rather than acting, and only when nothing remaining is unknown.
+    notifyDungeonNoUpgrades = false,
     -- Nominated by name, so nil means "off". Set with /valuate pvpscale <name>.
     pvpScale = nil,
     pvpScaleRestore = nil,
@@ -6460,6 +6476,162 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Is there anything left in this dungeon worth staying for?
+--
+-- The ask: while auto-queueing dungeons, stay quiet until the last boss that could drop an
+-- upgrade is dead, then offer to leave. Deadmines where only Mr Smite has something for you
+-- says nothing until Smite is looted.
+--
+-- Two things have to be true before this may speak, and they are different from each other:
+--   NOTHING REMAINING IS AN UPGRADE  - the thing being claimed.
+--   NOTHING REMAINING IS UNKNOWN     - the right to claim it.
+-- ui/DungeonLoot.lua counts both. This file may only act on the first when the second is 0.
+--
+-- 3.3.5 has no BOSS_KILL event, so kills are read out of the combat log by name. That is a
+-- weaker signal than a real event and it is treated as one: a name that does not match any
+-- boss in the table is ignored rather than guessed at.
+local dungeonKilled = {}
+local dungeonKilledIn = nil
+local dungeonLeaveOffered = false
+local dungeonTracking = false
+
+-- Which dungeon the addon has data for, or nil.
+--
+-- Nil is returned for every "not sure" - not in an instance, not a 5-man, no entry in the
+-- table - and the callers all treat nil as SAY NOTHING. That is the whole safety property:
+-- a dungeon nobody mapped must be indistinguishable from silence, never from an answer.
+function Valuate:GetCurrentDungeon()
+    if type(GetInstanceInfo) ~= "function" then return nil end
+    local ok, name, instanceType = pcall(GetInstanceInfo)
+    if not ok or type(name) ~= "string" then return nil end
+    if instanceType ~= "party" then return nil end     -- raids and the open world are not this feature
+    local dungeon = ns.GetDungeonLoot and ns.GetDungeonLoot(name)
+    if not dungeon then return nil, name end
+    return dungeon, name
+end
+
+-- Can this item id beat what you are wearing?  true / false / nil for "cannot tell".
+--
+-- Nil is returned whenever the client has not cached the item, which on a fresh login is
+-- most of them. GetItemInfo is what populates that cache, so asking is also what fixes it -
+-- the same question a minute later usually answers. Reporting the failure as "not an
+-- upgrade" would quietly turn an empty cache into advice to leave.
+local function DungeonItemIsUpgrade(itemId)
+    if type(itemId) ~= "number" then return nil end
+    local _, link = GetItemInfo(itemId)
+    if not link then return nil end                    -- not cached; the ask itself queues it
+
+    local stats = Valuate.GetScaledStatsForItem and Valuate:GetScaledStatsForItem(link)
+    if not stats or not next(stats) then return nil end -- parsed nothing: unknown, not "no"
+
+    local isUpgrade = Valuate:IsUpgradeForAnyScale(link, stats, { includeInactive = true })
+    return isUpgrade and true or false
+end
+
+-- What is left in here, as numbers. Nil when there is nothing to say.
+function Valuate:GetDungeonUpgradeStatus()
+    local dungeon, name = Valuate:GetCurrentDungeon()
+    if not dungeon then return nil, name end
+
+    local killed = (dungeonKilledIn == name) and dungeonKilled or {}
+    local remaining, upgrades, unknown =
+        ns.CountRemainingUpgrades(dungeon, killed, DungeonItemIsUpgrade)
+    if not remaining then return nil, name end
+
+    return {
+        name = name,
+        remaining = remaining,
+        upgrades = upgrades,
+        unknown = unknown,
+        killed = killed,
+        dungeon = dungeon,
+    }
+end
+
+-- Offer to leave, once, when the last boss that could drop an upgrade is dead.
+function Valuate:ConsiderDungeonLeave()
+    local options = Valuate:GetOptions()
+    if not options.notifyDungeonNoUpgrades then return end
+    if dungeonLeaveOffered then return end
+
+    local status = Valuate:GetDungeonUpgradeStatus()
+    if not status then return end                      -- no data: silence, not "nothing here"
+    if status.remaining <= 0 then return end           -- the dungeon is done; leaving is obvious
+    if status.unknown > 0 then
+        -- The interesting case, and the reason this feature is safe to ship on a partial
+        -- table. It says nothing rather than "nothing left for you", because it does not know.
+        Valuate:MarkAutomation("dungeonLeave", string.format(
+            "%d boss(es) left with no loot data - staying quiet", status.unknown))
+        return
+    end
+    if status.upgrades > 0 then return end             -- something ahead is worth staying for
+
+    dungeonLeaveOffered = true
+    Valuate:MarkAutomation("dungeonLeave", "offered to leave " .. tostring(status.name))
+    Valuate:ShowConfirmDialog({
+        text = string.format(
+            "|cFFFFFFFF%s|r: none of the %d remaining boss(es) drop anything that beats your gear.\n\n" ..
+            "Leave the group?",
+            tostring(status.name), status.remaining),
+        acceptText = "Leave",
+        cancelText = "Stay",
+        onAccept = function()
+            if type(LeaveParty) == "function" then
+                pcall(LeaveParty)
+                Valuate:MarkAutomation("dungeonLeave", "left the group")
+            end
+        end,
+    })
+end
+
+-- Combat-log kill tracking. Reset whenever the instance changes, so a second run of the
+-- same dungeon starts from a clean slate rather than inheriting the first run's kills.
+function Valuate:ResetDungeonProgress()
+    dungeonKilled = {}
+    dungeonKilledIn = nil
+    dungeonLeaveOffered = false
+end
+
+-- Listen to the combat log only while it can tell us something.
+--
+-- COMBAT_LOG_EVENT_UNFILTERED is the loudest event in the game - every tick of damage from
+-- every unit in range, hundreds a second in a busy pull - and this feature needs eight of
+-- them per run. Leaving it registered would mean the addon pays that cost in every raid and
+-- every quest hub to answer a question nobody asked there. So it goes on when you enter a
+-- dungeon this addon has data for, and off the moment you leave.
+function Valuate:UpdateDungeonTracking()
+    local want = Valuate:GetOptions().notifyDungeonNoUpgrades and Valuate:GetCurrentDungeon() ~= nil
+    if want == dungeonTracking then return end
+    dungeonTracking = want
+    if want then
+        frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    else
+        frame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+    end
+end
+
+function Valuate:NoteDungeonUnitDeath(destName)
+    if type(destName) ~= "string" or destName == "" then return end
+    local dungeon, name = Valuate:GetCurrentDungeon()
+    if not dungeon then return end
+
+    for _, boss in ipairs(dungeon.bosses) do
+        if boss.name == destName then
+            if dungeonKilledIn ~= name then
+                dungeonKilled, dungeonKilledIn = {}, name
+            end
+            if not dungeonKilled[destName] then
+                dungeonKilled[destName] = true
+                -- Deliberately after the loot, not on the kill: the corpse is looted a moment
+                -- later, and offering to leave over an unlooted body is the one thing the
+                -- request explicitly ruled out.
+                ValuateAfter(6, function() Valuate:ConsiderDungeonLeave() end)
+            end
+            return
+        end
+    end
+end
+
 -- Every build should value not dying, at least a little.
 --
 -- Measured across the templates: all 31 classic specs weight Stamina and a token amount of
@@ -9170,6 +9342,10 @@ function Valuate:PrintReport()
         { key = "bgAccept",      label = "Battleground invite" },
         { key = "setSave",       label = "Equipment set save" },
         { key = "levelEquip",    label = "Level-up auto-equip" },
+        -- Worth displaying precisely because its usual outcome is "stayed quiet, and here is
+        -- why". A feature whose correct behaviour is silence is otherwise indistinguishable
+        -- from one that is broken.
+        { key = "dungeonLeave",  label = "Dungeon leave check" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -9741,6 +9917,30 @@ local VERIFY_CHECKS = {
         steps = "Run /valuate pvpscale make, then zone into a battleground. Read the chat line. Leave, and read it again. Then /reload while INSIDE a battleground and leave afterwards.",
         expect = "Zoning in says it switched and names the scale; leaving says it switched back and names the one you were on. After a reload inside, leaving STILL restores - the target is saved, not held in memory.",
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
+    },
+    {
+        id = "dungeondata", since = "0.120.0a",
+        gate = "tools/dungeonloot.js",
+        title = "The dungeon panel is honest about what it does not know",
+        steps = "Run /valuate dungeon in the open world, then inside a dungeon that is NOT in the table (anything but Deadmines), then inside Deadmines itself.",
+        expect = "Outside an instance: 'Not in a 5-man dungeon.' In an unlisted one: it names the dungeon and says nothing will be suggested there - and says so in a way that cannot be mistaken for 'there is nothing worth staying for'. In Deadmines: six bosses in kill order, each marked 'no loot data - keeps the addon quiet', and a summary reading 6 left, 0 with an upgrade, 6 unknown.",
+        broke = "This is the check the whole feature rests on. The loot table ships with NO item ids, so the honest output today is 'I know the bosses, I know nothing about their drops'. If any boss reads 'nothing here for you' instead, the code is converting missing data into a negative answer - stop and fix that before adding a single id. Also confirm GetInstanceInfo's name matches the table key exactly; if Ascension reports Deadmines under a different string, the entry silently never matches.",
+    },
+    {
+        id = "dungeonkills", since = "0.120.0a",
+        gate = "tools/dungeonloot.js",
+        title = "Boss kills are noticed, and the prompt does not fire on a table it cannot read",
+        steps = "Switch on /valuate autoleavedungeon, run Deadmines, and check /valuate dungeon after each boss dies. Then /valuate report.",
+        expect = "Killed bosses go grey and read 'dead' - that proves the combat-log name matching works on this server. NO leave prompt ever appears, because every boss is unknown. The report's 'Dungeon leave check' heartbeat says how many bosses had no loot data.",
+        broke = "3.3.5 has no BOSS_KILL, so kills are matched by name out of the combat log, and the argument positions are the part that cannot be verified headlessly. If bosses never go grey, the name is arriving in a different slot than select(6, ...) - the failure is silent by design, since an unmatched name is ignored rather than guessed at. A prompt appearing at all on today's table means the unknown check is broken.",
+    },
+    {
+        id = "dungeonlisten", since = "0.120.0a",
+        gate = "tools/dungeonloot.js",
+        title = "The combat-log listener is not left running everywhere",
+        steps = "With the option ON, zone into Deadmines, then leave. Watch for any frame-rate change in a busy raid or a crowded city with the option on.",
+        expect = "No noticeable cost anywhere. COMBAT_LOG_EVENT_UNFILTERED should be registered only while you are inside a dungeon the addon has data for.",
+        broke = "This event fires hundreds of times a second in a busy pull and the feature needs about eight of them per run. The gate proves the register/unregister logic; what it cannot prove is that ZONE_CHANGED_NEW_AREA actually fires on this server when you zone into and out of an instance. If it does not, the listener either never turns on (no kills tracked) or never turns off (a permanent cost for nothing).",
     },
     {
         id = "templatesearch", since = "0.119.0a",
@@ -10434,6 +10634,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoleavebg - Toggle leaving a battleground once it has finished")
         print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
+        print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
+        print("  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
         print("  /valuate autoequiplevel - Toggle equipping your best gear when you level up")
         print("  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere")
@@ -10834,6 +11036,64 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "dungeon" then
+        -- What this addon knows about where you are standing, boss by boss.
+        --
+        -- The point of printing it is that the loot table is incomplete and cannot be
+        -- verified from outside the game. A wrong or missing entry has to be VISIBLE, not
+        -- something you infer from the addon having said nothing for an hour.
+        local dungeon, name = Valuate:GetCurrentDungeon()
+        if not dungeon then
+            if name then
+                print("|cFF00FF00Valuate|r: No loot data for |cFFFFFFFF" .. tostring(name) ..
+                    "|r. That means |cFFFFFF00nothing will be suggested here|r - not that " ..
+                    "there is nothing worth staying for.")
+            else
+                print("|cFF00FF00Valuate|r: Not in a 5-man dungeon.")
+            end
+            return
+        end
+
+        local status = Valuate:GetDungeonUpgradeStatus()
+        print("|cFF00FF00Valuate|r: |cFFFFFFFF" .. tostring(name) .. "|r")
+        for _, boss in ipairs(dungeon.bosses) do
+            local mark, note
+            if status and status.killed[boss.name] then
+                mark, note = "|cFF888888", "dead"
+            elseif not ns.BossLootKnown(boss) then
+                mark, note = "|cFFFFFF00", "no loot data - keeps the addon quiet"
+            else
+                local best, unresolved = false, 0
+                for _, itemId in ipairs(boss.items) do
+                    local answer = DungeonItemIsUpgrade(itemId)
+                    if answer == true then best = true break
+                    elseif answer == nil then unresolved = unresolved + 1 end
+                end
+                if best then
+                    mark, note = "|cFF00FF00", "has an upgrade for you"
+                elseif unresolved > 0 then
+                    mark, note = "|cFFFFFF00", unresolved .. " item(s) not in the client cache yet"
+                else
+                    mark, note = "|cFFAAAAAA", "nothing here for you"
+                end
+            end
+            print("  " .. mark .. boss.name .. "|r - " .. note)
+        end
+        if status then
+            print(string.format("  |cFFAAAAAA%d left, %d with an upgrade, %d unknown.|r",
+                status.remaining, status.upgrades, status.unknown))
+            if status.unknown > 0 then
+                print("  |cFFFFFF00Something is unknown, so no leave prompt will appear.|r")
+            elseif not Valuate:GetOptions().notifyDungeonNoUpgrades then
+                print("  |cFFAAAAAAThe leave prompt is switched off - Settings, or /valuate autoleavedungeon.|r")
+            end
+        end
+    elseif command == "autoleavedungeon" then
+        local options = Valuate:GetOptions()
+        options.notifyDungeonNoUpgrades = not options.notifyDungeonNoUpgrades
+        print("|cFF00FF00Valuate|r: Leave-suggestion for exhausted dungeons " ..
+            (options.notifyDungeonNoUpgrades and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
+        if Valuate.UpdateDungeonTracking then Valuate:UpdateDungeonTracking() end
     elseif command == "sell" then
         local options = Valuate:GetOptions()
         options.autoSellJunk = not options.autoSellJunk

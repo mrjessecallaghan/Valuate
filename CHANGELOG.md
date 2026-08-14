@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.120.0a] - 2026-08-15 — dungeons say when they are done with you
+
+### Added
+While auto-queueing dungeons, the addon now tracks which bosses are still alive and whether any
+of them can drop something that beats what you are wearing. When the last one that could is dead
+and looted, it asks whether to leave. Deadmines where only Mr Smite has something for you stays
+quiet until Smite is down.
+
+**Off by default**, like every automation here, and it *asks* rather than acting — Settings →
+Battlegrounds & Dungeons, or `/valuate autoleavedungeon`.
+
+### About the loot table — please read this one
+
+The feature is finished. **The data is not, and cannot be finished from outside the game.**
+
+Every item id is a claim about what drops on a modified server, and I have no way to verify one
+from here. Inventing plausible ids would produce exactly the failure that matters most: an addon
+that confidently tells you to leave a dungeon your boots were in. So `ui/DungeonLoot.lua` ships
+deliberately small — Deadmines, bosses in kill order, **no item ids at all yet** — and the code
+around it is built so that being incomplete is safe rather than merely tolerable:
+
+- **A dungeon that is not listed produces silence.** Not "nothing here for you" — nothing. Those
+  are opposite answers that look identical to someone standing at the portal.
+- **A boss with no loot data counts as *unknown*, not empty.** One unknown boss left anywhere in
+  the instance suppresses the prompt entirely, because "no upgrades remain" would be a guess.
+- **An item the client has never cached is unknown too.** `GetItemInfo` returns nothing for an
+  item you have never seen, which on a fresh login is most of them. Reading that as "not an
+  upgrade" would make the addon most confident about leaving exactly when it knows least.
+
+So on today's table the prompt will essentially never fire, and that is the correct behaviour
+rather than a bug. `/valuate dungeon` prints what is known for the instance you are standing in,
+boss by boss — a wrong or missing entry is meant to be *visible*, not something you infer from
+the addon having said nothing for an hour. Add ids you have actually watched drop; an id you are
+unsure of belongs in no list.
+
+### Added
+- `/valuate dungeon` — what this addon knows about where you are standing, boss by boss.
+- `/valuate autoleavedungeon` — toggle the leave suggestion.
+- A **Dungeon leave check** heartbeat in `/valuate report`, worth showing precisely because its
+  usual outcome is "stayed quiet, and here is why". A feature whose correct behaviour is silence
+  is otherwise indistinguishable from one that is broken.
+
+### Technical
+3.3.5 has no `BOSS_KILL`, so kills are read out of `COMBAT_LOG_EVENT_UNFILTERED`. That is the
+loudest event in the game — hundreds a second in a busy pull — and this feature needs eight of
+them per run, so it is registered only while you are inside a dungeon the addon has data for and
+unregistered the moment you leave. A name that matches no boss in the table is ignored rather
+than guessed at. The check runs a few seconds *after* the kill, not on it: offering to leave over
+an unlooted corpse is the one thing the request explicitly ruled out.
+
+The gate (`tools/dungeonloot.js`, 65 checks) slices the real functions out of `Valuate.lua` and
+runs them against a mocked client. Mutation testing then broke each guard in turn — 16 mutations,
+all caught — and in doing so found two assertions of mine that protected nothing: the "asks only
+once" check passed because the fixture had run out of bosses before the guard was ever reached,
+and the reset check passed because two redundant lines were each covering for the other.
+
 ## [0.119.1a] - 2026-08-14 — the picker search says how many it found
 
 ### Fixed
