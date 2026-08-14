@@ -135,6 +135,30 @@ if box then
     search("")
     eq(litSpecs(), all, "clearing the search restores every spec")
 
+    -- The COUNT. Without it, a query matching nothing dims all ninety-one entries and says
+    -- nothing at all - which looks exactly like the picker breaking. The state most in need
+    -- of a caption is the one where everything has gone quiet.
+    local countText
+    for _, r in ipairs(box.__regions or {}) do
+        if r.GetText and r.SetText then countText = r end
+    end
+    ok(countText ~= nil, "the search box carries a count label")
+
+    if countText then
+        search("")
+        eq(countText:GetText(), "", "an empty query says nothing - there is nothing to report")
+
+        search("necroman")
+        local hit = countText:GetText() or ""
+        ok(hit:find("spec", 1, true) ~= nil, "a match reports how many specs, got: " .. hit)
+        ok(hit:find("no matches", 1, true) == nil, "and does not claim there were none")
+
+        search("zzzznothing")
+        local miss = countText:GetText() or ""
+        ok(miss:find("no matches", 1, true) ~= nil,
+           "a query matching nothing SAYS so rather than leaving a silent dimmed page, got: " .. miss)
+    end
+
     search("zzzznothing")
     eq(litSpecs(), 0, "a query matching nothing dims everything rather than erroring")
     search("")

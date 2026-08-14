@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.119.1a] - 2026-08-14 — the picker search says how many it found
+
+### Fixed
+v0.119.0a shipped a search that, when a query matched nothing, **dimmed all ninety-one entries
+and said nothing at all**. That looks exactly like the picker breaking.
+
+My own gate from that release asserts the state — *"a query matching nothing dims everything"* —
+and I wrote it without noticing that a user standing in front of that page has no way to tell a
+successful empty search from a broken one. The state most in need of a caption is the one where
+everything has gone quiet.
+
+Same place and wording as the Settings search: `no matches` in red, or `12 specs` in grey, at
+the right-hand end of the box. Empty query says nothing, because there is nothing to report.
+
+**Only specs are counted.** Class headings match too — deliberately, so a lit spec never sits
+under an unreadable label — but counting them would report thirteen matches for a search that
+found ten specs and three headings.
+
+### Gates
+`tools/pickercoa.js` 18 → 23 checks. Verified with teeth: silencing the `no matches` caption
+fails it by name.
+
 ## [0.119.0a] - 2026-08-14 — the template picker gets a search
 
 ### Added

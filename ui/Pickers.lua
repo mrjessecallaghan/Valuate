@@ -767,6 +767,15 @@ local function CreateTemplatePickerFrame()
     })
     searchBox:SetPoint("TOPLEFT", frame, "TOPLEFT", PADDING, contentTop + SEARCH_ROW)
     searchBox:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -PADDING, contentTop + SEARCH_ROW)
+
+    -- A count, in the same place and words the Settings search uses.
+    --
+    -- Without it, a query that matches nothing dims all ninety-one entries and says nothing -
+    -- which looks exactly like the picker breaking. The state most in need of a caption is
+    -- the one where everything has gone quiet.
+    local searchCount = searchBox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    searchCount:SetPoint("RIGHT", searchBox, "RIGHT", -7, 0)
+    searchCount:SetJustifyH("RIGHT")
     
     -- Temporary font string for measuring text widths
     local measureString = frame:CreateFontString(nil, "OVERLAY", FONT_BODY)
@@ -941,6 +950,7 @@ local function CreateTemplatePickerFrame()
                     searchIndex[#searchIndex + 1] = {
                         els = { btn },
                         text = (classData.class .. " " .. (spec.name or "")):lower(),
+                        isSpec = true,
                     }
                     yOffset = yOffset - (BUTTON_HEIGHT + 2)  -- Button height + spacing
                 end
@@ -989,11 +999,25 @@ local function CreateTemplatePickerFrame()
     -- as you type, plain SetAlpha.
     RunTemplateSearch = function(text)
         local query = (text or ""):lower()
+        local matched = 0
         for _, entry in ipairs(searchIndex) do
             local show = (query == "") or (entry.text:find(query, 1, true) ~= nil)
+            -- Only SPECS are counted. Class headings match too - deliberately, so a lit spec
+            -- never sits under an unreadable label - but counting them would report thirteen
+            -- matches for a search that found ten specs and three headings.
+            if show and query ~= "" and entry.isSpec then matched = matched + 1 end
             for _, el in ipairs(entry.els) do
                 if el.SetAlpha then el:SetAlpha(show and 1 or SEARCH_DIM) end
             end
+        end
+
+        if query == "" then
+            searchCount:SetText("")
+        elseif matched == 0 then
+            searchCount:SetText("|cFFFF5555no matches|r")
+        else
+            searchCount:SetText("|cFF888888" .. matched .. " spec"
+                .. (matched == 1 and "" or "s") .. "|r")
         end
     end
 
