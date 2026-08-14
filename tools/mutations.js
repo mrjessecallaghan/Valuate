@@ -109,7 +109,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.106.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.107.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -196,6 +196,21 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- toggle vs capability (v0.107.0a) ------------------------------------
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "an armed automation the client cannot perform is reported as fine",
+    from: "if #broken == 0 then", to: "if true then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "features you never switched on are reported as broken - noise you learn to ignore",
+    from: "if options[need.opt] then", to: "if true then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "only the first API a feature needs is checked",
+    from: "for _, api in ipairs(need.apis) do", to: "for _, api in ipairs({ need.apis[1] }) do" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "nothing switched on reads as a pass rather than 'nothing to check'",
+    from: 'return "skip", "None of the queue, release or leave automations are switched on."',
+    to: 'return "pass", "None of the queue, release or leave automations are switched on."' },
 
   // ---- taking the port / missed pops (v0.106.0a) ---------------------------
   { gate: "queuetest", file: "Valuate.lua",

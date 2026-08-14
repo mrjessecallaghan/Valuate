@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.107.0a] - 2026-08-14 — self-verify catches a toggle your client can't honour
+
+### Added
+- **`/valuate selfverify` gains a `canrun` check**: for every queue, release and leave
+  automation you have **switched on**, does this client actually provide the APIs it needs?
+
+`/valuate queuecheck` already answered this — but only if you thought to ask, and the moment
+you'd think to ask is *after* it has already failed to do something. A toggle that's on but
+can't fire looks exactly like one that simply hasn't had a reason to yet.
+
+```
+FAIL  Automations you switched on can actually run here
+      Switched ON but cannot work on this client - Auto-queue PvP needs JoinBattlefield().
+      The toggle will sit there looking armed and never fire.
+```
+
+### Silent unless it matters
+**Nothing switched on → SKIP**, not a pass. A warning about features you aren't using is noise,
+and noise is how a list stops being read — the same reasoning behind keeping the near-miss line
+inside 10% and leaving ring enchants out of `/valuate enchants`.
+
+An API missing for a feature you never enabled is **not your problem** and isn't reported.
+
+### Why this one can only live here
+Whether a toggle and a capability agree depends entirely on which functions *your* client
+defines. No gate can see it: every headless test defines whatever mocks it needs. Five self-checks
+now, and two of them — this and `agreement` — can find a **new** problem rather than confirm a
+known assumption.
+
+### Gates
+`tools/selfverify.js` 39 → 48 checks; 71 mutations, all caught. Four new, including *"features
+you never switched on are reported as broken"* and *"only the first API a feature needs is
+checked"*.
+
 ## [0.106.0a] - 2026-08-14 — take the invite, and notice when you missed one
 
 ### Added

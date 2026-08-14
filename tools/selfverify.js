@@ -36,6 +36,8 @@ const PIECES = [
   /^local function SelfCheckCaches\([\s\S]*?\r?\nend/m,
   /^local SCORE_AGREEMENT_TOLERANCE = [\d.]+/m,
   /^local function SelfCheckScoreAgreement\([\s\S]*?\r?\nend/m,
+  /^local QUEUE_AUTOMATION_NEEDS = \{[\s\S]*?\r?\n\}/m,
+  /^local function SelfCheckAutomationsCanRun\([\s\S]*?\r?\nend/m,
   /^local SELF_CHECKS = \{[\s\S]*?\r?\n\}/m,
   /^function Valuate:RunSelfVerify\([\s\S]*?\r?\nend/m,
 ];
@@ -73,6 +75,9 @@ function Valuate:GetTemplateSet() return TEMPLATES, SET_NAME end
 
 local CACHE = { activeHit = 0, activeBuild = 0, slotHit = 0, slotMiss = 0 }
 function Valuate:GetCacheStats() return CACHE end
+
+local OPTIONS = {}
+function Valuate:GetOptions() return OPTIONS end
 
 -- A tooltip is a list of text lines plus whatever the parser makes of them. Keeping those
 -- two independent is the point: the check exists to notice when the text says "Mastery" and
@@ -235,9 +240,45 @@ equipmentSwapPending = true
 eq(resultFor("agreement").status, "skip", "mid-swap is a skip - the guard is read, not relaxed")
 equipmentSwapPending = false
 
+-- ---- a toggle that is on but cannot possibly fire ----------------------------
+-- /valuate queuecheck answers this, but only if you think to ask - and the moment you would
+-- think to ask is after it has already failed to do something.
+RepopMe = function() end
+LeaveBattlefield = function() end
+GetBattlefieldWinner = function() end
+
+OPTIONS.autoRelease = nil
+eq(resultFor("canrun").status, "skip", "with nothing switched on it says nothing")
+
+OPTIONS.autoRelease = true
+eq(resultFor("canrun").status, "pass", "an automation whose API exists passes")
+
+-- The case worth catching: switched on, and the client simply cannot do it. The toggle sits
+-- there looking armed and never fires, which is indistinguishable from "nothing happened yet".
+RepopMe = nil
+local cannot = resultFor("canrun")
+eq(cannot.status, "fail", "switched on with the API missing is a failure")
+ok(cannot.detail:find("RepopMe", 1, true) ~= nil, "and names the API that is missing")
+ok(cannot.detail:find("Auto-release", 1, true) ~= nil, "and which feature needs it")
+
+-- An automation you have NOT switched on must not be reported, however broken the client is.
+OPTIONS.autoRelease = nil
+OPTIONS.autoLeaveBattleground = true
+eq(resultFor("canrun").status, "pass",
+   "a missing API for a feature you are not using is not your problem")
+RepopMe = function() end
+
+-- Every API a feature needs is checked, not just the first.
+OPTIONS.autoLeaveBattleground = true
+LeaveBattlefield = nil
+ok(resultFor("canrun").detail:find("LeaveBattlefield", 1, true) ~= nil,
+   "a later API in the list is checked too, not only the first")
+LeaveBattlefield = function() end
+OPTIONS.autoLeaveBattleground = nil
+
 -- ---- the shape of the report -------------------------------------------------
 local all = Valuate:RunSelfVerify()
-eq(#all, 4, "every check reports, none silently dropped")
+eq(#all, 5, "every check reports, none silently dropped")
 for _, r in ipairs(all) do
     ok(r.status == "pass" or r.status == "fail" or r.status == "skip",
        "every status is one of the three, never nil: " .. tostring(r.id))
@@ -253,7 +294,7 @@ table.insert(SELF_CHECKS, { id = "silent", title = "a check that returns nothing
 local silent = resultFor("silent")
 eq(silent.status, "fail", "a check that returns nothing is a FAILURE, not a pass")
 ok(type(silent.detail) == "string" and silent.detail ~= "", "and still says something")
-eq(#Valuate:RunSelfVerify(), 5, "and it is reported, not dropped")
+eq(#Valuate:RunSelfVerify(), 6, "and it is reported, not dropped")
 
 return failures, checks
 `,

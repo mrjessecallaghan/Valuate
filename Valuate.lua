@@ -6667,11 +6667,59 @@ local function SelfCheckScoreAgreement()
         worstSlot, worstA, worstB, worst * 100, tostring(scaleName))
 end
 
+-- Have you switched on an automation this client cannot perform?
+--
+-- /valuate queuecheck answers this, but only if you think to ask - and the moment you would
+-- think to ask is after it has already failed to do something. This asks for you.
+--
+-- It is deliberately SILENT when nothing is enabled: a warning about features you are not
+-- using is noise, and this list only speaks when the answer changes what you should do.
+--
+-- The check that a toggle and a capability disagree is one no headless gate can make. It
+-- depends entirely on which functions this particular client happens to define.
+local QUEUE_AUTOMATION_NEEDS = {
+    { opt = "autoRelease", label = "Auto-release", apis = { "RepopMe" } },
+    { opt = "autoLeaveBattleground", label = "Auto-leave battleground",
+      apis = { "GetBattlefieldWinner", "LeaveBattlefield" } },
+    { opt = "autoQueuePvP", label = "Auto-queue PvP",
+      apis = { "GetBattlegroundInfo", "JoinBattlefield" } },
+    { opt = "autoQueueDungeon", label = "Auto-queue dungeon",
+      apis = { "GetRandomDungeonBestChoice", "SetLFGDungeon", "JoinLFG" } },
+    { opt = "autoAcceptBattleground", label = "Auto-accept invite",
+      apis = { "GetMaxBattlefieldID", "GetBattlefieldStatus", "AcceptBattlefieldPort" } },
+}
+
+local function SelfCheckAutomationsCanRun()
+    local options = Valuate:GetOptions()
+    local enabled, broken = 0, {}
+
+    for _, need in ipairs(QUEUE_AUTOMATION_NEEDS) do
+        if options[need.opt] then
+            enabled = enabled + 1
+            for _, api in ipairs(need.apis) do
+                if type(_G[api]) ~= "function" then
+                    table.insert(broken, need.label .. " needs " .. api .. "()")
+                end
+            end
+        end
+    end
+
+    if enabled == 0 then
+        return "skip", "None of the queue, release or leave automations are switched on."
+    end
+    if #broken == 0 then
+        return "pass", string.format("All %d switched-on automation(s) have the APIs they need.", enabled)
+    end
+    return "fail", "Switched ON but cannot work on this client - " .. table.concat(broken, "; ") ..
+                   ". The toggle will sit there looking armed and never fire."
+end
+
 local SELF_CHECKS = {
     { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
     { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries },
     { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches },
     { id = "agreement",  title = "Two scoring paths agree about your gear", run = SelfCheckScoreAgreement },
+    { id = "canrun",     title = "Automations you switched on can actually run here", run = SelfCheckAutomationsCanRun },
 }
 
 -- Returns an array of { id, title, status, detail } - no printing, so a gate can run it.
