@@ -26,6 +26,8 @@ const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
 const PIECES = [
   /^local EquipSlotToInvNumber = \{[\s\S]*?\r?\n\}/m,
   /^local function GetItemIdFromLink\([\s\S]*?\r?\nend/m,
+  // The in-transit guard, read (never relaxed) by GetScaledStatsForItem.
+  /^local equipmentSwapPending = false/m,
   /^local cacheStats = \{[^\r\n]*\}/m,
   /^local ACTIVE_SCALES_TTL = \d+/m,
   /^local activeScalesCache, activeScalesAt = [^\r\n]*/m,
@@ -33,6 +35,7 @@ const PIECES = [
   /^function Valuate:GetActiveScales\([\s\S]*?\r?\nend/m,
   /^local targetSlotsCache = \{\}/m,
   /^local function TargetSlotsForItem\([\s\S]*?\r?\nend/m,
+  /^function Valuate:GetScaledStatsForItem\([\s\S]*?\r?\nend/m,
   /^function Valuate:ExplainBestInSlot\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
@@ -87,6 +90,29 @@ function GetItemInfo(link)
 end
 
 local function link(id) return "|Hitem:" .. id .. ":0:0:0:0:0:0:0:80|h[Item]|h" end
+
+-- ---- the world an item can be found in --------------------------------------
+-- SCALED stats come from SetBagItem/SetInventoryItem; BASE stats from the link. The whole
+-- point of GetScaledStatsForItem is telling those apart, so the mock must too.
+local EQUIPPED, BAGS = {}, { [0] = {} }
+local readSource = nil
+local FAKE_TOOLTIP = { ClearLines = function() readSource = nil end }
+function FAKE_TOOLTIP:SetInventoryItem(_, slotId) readSource = "equipped:" .. slotId end
+function FAKE_TOOLTIP:SetBagItem(bagId, slotId) readSource = "bag:" .. bagId .. ":" .. slotId end
+function Valuate:GetPrivateTooltip() return FAKE_TOOLTIP end
+-- A tooltip that has not populated yet parses to an EMPTY table, not to nil. Treating that
+-- as a valid read would score a perfectly good item at zero.
+local EMPTY_PARSE = {}
+function Valuate:ParseStatsFromTooltip()
+    if not readSource then return nil end
+    if EMPTY_PARSE[readSource] then return {} end
+    return { Strength = 500, __from = readSource }  -- scaled: deliberately different
+end
+function Valuate:GetStatsForItemLink() return { Strength = 10, __from = "link" } end
+
+function GetInventoryItemLink(_, slotId) return EQUIPPED[slotId] end
+function GetContainerNumSlots(bagId) return BAGS[bagId] and 16 or 0 end
+function GetContainerItemLink(bagId, slotId) return BAGS[bagId] and BAGS[bagId][slotId] end
 
 ` + sliced.join("\n") + `
 
@@ -155,6 +181,59 @@ ok(Valuate:ExplainBestInSlot("|Hitem:9:0:0:0:0:0:0:0:80|h[nongear]|h", { Strengt
    "something that goes in no slot cannot be best AT anything")
 ok(Valuate:ExplainBestInSlot(nil, { Strength = 1 }) == nil, "no link is handled, not crashed")
 ok(Valuate:ExplainBestInSlot(CANDIDATE, nil) == nil, "no stats is handled, not crashed")
+
+-- ---- SCALED vs BASE: the v0.94.0a bug --------------------------------------
+-- v0.94.0a scored the item from its LINK (base stats) and compared that against best
+-- equipment scores built from the bag/inventory tooltip (Ascension's scaled stats). Two
+-- different numbers for one item, subtracted and reported to three significant figures.
+-- On a scaling realm the gap was fiction, and "would win" could fire for an item that
+-- would not.
+local FOUND = link(4000)
+
+EQUIPPED[5] = FOUND
+local s1, scaled1 = Valuate:GetScaledStatsForItem(FOUND)
+eq(s1.__from, "equipped:5", "an EQUIPPED item is read from its inventory slot, not its link")
+eq(scaled1, true, "and is reported as scaled")
+EQUIPPED[5] = nil
+
+BAGS[0][7] = FOUND
+local s2, scaled2 = Valuate:GetScaledStatsForItem(FOUND)
+eq(s2.__from, "bag:0:7", "an item in your BAGS is read from the bag slot")
+eq(scaled2, true, "and is reported as scaled")
+
+-- Equipped wins when the item is in both places: that is the copy the best-equipment
+-- table was built from.
+EQUIPPED[5] = FOUND
+eq(Valuate:GetScaledStatsForItem(FOUND).__from, "equipped:5",
+   "equipped is preferred when the same item is in both")
+EQUIPPED[5] = nil
+
+-- A chat link for something you do not have: base stats are all there is, and the caller
+-- MUST be told so rather than being handed numbers that look comparable.
+BAGS[0][7] = nil
+local s3, scaled3 = Valuate:GetScaledStatsForItem(FOUND)
+eq(s3.__from, "link", "an item you do not have falls back to the link")
+eq(scaled3, false, "and says the numbers are base values")
+
+-- An item whose tooltip has not populated parses to an EMPTY table. Accepting that as a
+-- scaled read would score a good item at zero and report "scores nothing" about it - a
+-- confident wrong answer, which is the failure this whole diagnostic exists to avoid.
+BAGS[0][9] = FOUND
+EMPTY_PARSE["bag:0:9"] = true
+local s4, scaled4 = Valuate:GetScaledStatsForItem(FOUND)
+eq(scaled4, false, "a tooltip that parsed to nothing is not accepted as a scaled read")
+eq(s4.__from, "link", "...it falls back to the link rather than scoring the item as zero")
+EMPTY_PARSE["bag:0:9"] = nil
+BAGS[0][9] = nil
+
+-- The in-transit guard is READ, never relaxed. Touching SetBagItem mid-swap is what it
+-- exists to prevent, so a pending swap must fall back rather than read.
+BAGS[0][7] = FOUND
+equipmentSwapPending = true
+eq(select(2, Valuate:GetScaledStatsForItem(FOUND)), false,
+   "a pending equipment swap falls back to base rather than touching the bag tooltip")
+equipmentSwapPending = false
+BAGS[0][7] = nil
 
 -- ---- two slots: you displace the WEAKER one ---------------------------------
 -- Rings and trinkets occupy either of two slots. Comparing against the stronger one would

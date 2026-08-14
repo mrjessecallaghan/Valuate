@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.94.1a] - 2026-08-14 — the best-in-slot gap was comparing base stats against scaled ones
+
+### Fixed
+- **v0.94.0a, shipped an hour earlier, reported a fictional number on scaling realms.**
+  `ExplainBestInSlot` scored the item you asked about from `GetStatsForItemLink`, which uses
+  `SetHyperlink` and therefore reads **base** stats — then subtracted that from best-equipment
+  scores built with `SetBagItem`/`SetInventoryItem`, which read Ascension's **scaled** stats.
+  Two different numbers for one item, subtracted from each other and printed to three
+  significant figures.
+
+The gap was wrong. Worse, the **"would win"** verdict could fire for an item that would not —
+the one verdict I'd singled out as needing to be right, because it tells you to go and equip
+something.
+
+Every gate passed. They were all testing the verdict logic, which was correct; nothing checked
+where the two numbers came from. A fixture that hands both sides the same stats table cannot
+notice that production reads them two different ways.
+
+### The fix
+`Valuate:GetScaledStatsForItem` finds the item on your person and reads it the way the scan
+did — equipped slot first, since that is the copy the best-equipment table was built from, then
+your bags. Failing that it falls back to the link and **says so**:
+
+```
+Read from the link, not from the item - these are BASE stats.
+Put it in your bags for numbers that match what was scanned.
+```
+
+That line matters more than the fix. A chat link for something you do not own is a case where
+base stats are genuinely all there is, so the honest move is to label them, not to hide them
+behind a confident-looking number.
+
+It **reads** the in-transit guard, never relaxes it — `SetBagItem` during an equipment swap is
+exactly what that guard exists to prevent — and falls back to base while a swap is pending.
+
+### Gates
+`tools/whybis.js` 23 → 33 checks. Five mutations, each caught: the scaled read removed
+entirely, base stats labelled as scaled, equipped slots never searched, the in-transit guard
+ignored, and an empty parse accepted as a real read.
+
+That last one **survived the first run**. My mock returned either real stats or `nil` — but a
+tooltip that has not populated parses to an **empty table**, and accepting that as a scaled read
+would score a perfectly good item at zero and report *"scores nothing"* about it. Third time
+this session a mutation has found the fixture modelling something the client does not do.
+
 ## [0.94.0a] - 2026-08-14 — "why isn't this my best-in-slot?" finally has an answer
 
 ### Added

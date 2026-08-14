@@ -6023,6 +6023,60 @@ function Valuate:GetUpgradeBaseline(itemLink, scale, scaleName)
     return minScore or 0
 end
 
+-- Stats for an item the way the SCAN reads them.
+--
+-- This exists because v0.94.0a shipped a real bug: ExplainBestInSlot scored the item from
+-- GetStatsForItemLink, which uses SetHyperlink and therefore reads BASE stats, and compared
+-- that against bestEquipment scores built from SetBagItem/SetInventoryItem, which read
+-- Ascension's SCALED stats. Two different numbers for the same item, subtracted from each
+-- other and reported to three significant figures. On a scaling realm that gap is fiction,
+-- and it could fire "would win" for an item that would not.
+--
+-- So: find the item on your person and read it the way the scan did. Returns
+--   stats, scaled     scaled = false means these are base values from the link, which is
+--                     the best available for an item you are only holding a chat link to.
+-- The caller has to say so rather than presenting them as comparable.
+--
+-- Respects the in-transit guard by reading it, never by relaxing it: SetBagItem during an
+-- equipment swap is exactly what that guard exists to prevent.
+function Valuate:GetScaledStatsForItem(itemLink)
+    local itemId = GetItemIdFromLink(itemLink)
+    local tooltip = Valuate.GetPrivateTooltip and Valuate:GetPrivateTooltip()
+
+    if itemId and tooltip and not equipmentSwapPending then
+        local function readFrom(setter)
+            tooltip:ClearLines()
+            local success = pcall(setter)
+            if not success then return nil end
+            local s = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+            if s and next(s) ~= nil then return s end
+            return nil
+        end
+
+        -- Equipped first: an item you are wearing is the one whose scaled values the best
+        -- equipment table was built from, so it is the closest match by construction.
+        for slotId = 1, 18 do
+            local link = GetInventoryItemLink("player", slotId)
+            if link and GetItemIdFromLink(link) == itemId then
+                local s = readFrom(function() tooltip:SetInventoryItem("player", slotId) end)
+                if s then return s, true end
+            end
+        end
+
+        for bagId = 0, 4 do
+            for slotId = 1, (GetContainerNumSlots(bagId) or 0) do
+                local link = GetContainerItemLink(bagId, slotId)
+                if link and GetItemIdFromLink(link) == itemId then
+                    local s = readFrom(function() tooltip:SetBagItem(bagId, slotId) end)
+                    if s then return s, true end
+                end
+            end
+        end
+    end
+
+    return Valuate:GetStatsForItemLink(itemLink), false
+end
+
 -- Why is this item not my best-in-slot?
 --
 -- The single most common question a gear addon gets, and the one thing /valuate why could
@@ -7863,6 +7917,7 @@ function Valuate:RunSelfTest()
         "MatchTemplateToStats", "NormalizeWeights", "BuildAutoScaleName",
         "BuildUniqueAutoScaleName", "FindMatchingAutoScale",
         "PlanAutoScale", "CommitAutoScale", "GetAutoScaleDrift", "GetCacheStats",
+        "ExplainBestInSlot", "GetScaledStatsForItem",
         -- These two live in ui/Wizard.lua and MinimapButton.lua rather than here, which is
         -- exactly why they are worth checking: a module that failed to load leaves the rest
         -- of the addon working and only these missing.
@@ -9208,8 +9263,14 @@ SlashCmdList["VALUATE"] = function(msg)
                 -- The addon's core output finally gets its own diagnostic. "Why isn't this
                 -- my best?" had no answer anywhere - not in the tooltip, not here.
                 print("  |cFFAAAAAA-- best-in-slot --|r")
-                local bisStats = Valuate:GetStatsForItemLink(itemLink)
+                local bisStats, bisScaled = Valuate:GetScaledStatsForItem(itemLink)
                 local bis = bisStats and Valuate:ExplainBestInSlot(itemLink, bisStats)
+                if bis and not bisScaled then
+                    -- Never present base numbers as if they were comparable. On a scaling
+                    -- realm the difference is the whole answer, not a rounding detail.
+                    print("  |cFFFF8800Read from the link, not from the item|r - these are BASE stats. " ..
+                          "|cFFAAAAAAPut it in your bags for numbers that match what was scanned.|r")
+                end
                 if not bisStats then
                     print("  |cFFFF8800Could not read its stats|r - hover the item once, then try again.")
                 elseif not bis then
