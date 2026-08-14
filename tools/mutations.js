@@ -51,6 +51,10 @@ const FIND_SOCKETS = {
   start: "function Valuate:FindEmptySockets",
   end: "\n-- What is my biggest upgrade right now?",
 };
+const TODO = {
+  start: "function Valuate:BuildTodoList",
+  end: "\n-- Making the PvP scale, rather than leaving you an empty slot to fill.",
+};
 const BUILD_PVP = {
   start: "function Valuate:BuildPvPScaleFrom",
   end: "\n-- Your PvP answer and your PvE answer are not the same answer.",
@@ -113,7 +117,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.111.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.112.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -200,6 +204,24 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- the gear to-do list (v0.112.0a) -------------------------------------
+  { gate: "todotest", file: "Valuate.lua",
+    label: "upgrades are listed above the stale scale that CHOSE them",
+    from: '            kind = "scale",', to: '            kind = "zscale",' },
+  { gate: "todotest", file: "Valuate.lua",
+    label: "all seventeen slots are listed, so it stops being an answer",
+    from: "for i = 1, math.min(3, #upgrades) do", to: "for i = 1, #upgrades do" },
+  { gate: "todotest", file: "Valuate.lua", scope: TODO,
+    label: "'Fill 0 empty sockets' - the list is never empty and stops being read",
+    from: "    if sockets > 0 then", to: "    if sockets >= 0 then" },
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the socket count is silently nil, so that item can never appear",
+    from: "        local _, n = Valuate:FindEmptySockets()\n        sockets = n or 0",
+    to: "        local n = Valuate:FindEmptySockets()\n        sockets = n or 0" },
+  { gate: "todotest", file: "Valuate.lua",
+    label: "an empty slot is not called out, so a huge gain looks like a remarkable item",
+    from: 'detail = u.emptySlot and "That slot is empty." or nil,', to: "detail = nil," },
 
   // ---- the settings snapshot (v0.111.0a) -----------------------------------
   // The first of these IS the bug that shipped in v0.109.0a and sat unnoticed for two

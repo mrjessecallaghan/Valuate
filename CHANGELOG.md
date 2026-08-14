@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.112.0a] - 2026-08-14 — `/valuate todo`: everything worth doing, in one list
+
+### Added
+- **`/valuate todo`** — one command for "what should I do about my gear?"
+
+```
+3 things worth doing
+  1. Refresh Auto - Str/Crit/Hit/AP/Haste - your gear has moved on from it
+      Everything below is scored by this scale, so it is worth doing first.
+  2. Equip [Breastplate of Tenacity] in Chest  +48.2
+  3. Fill 3 empty sockets
+      Stats you have already earned and are not wearing.
+  More detail: /valuate wizard  ·  /valuate upgrades  ·  /valuate sockets
+```
+
+The addon could already answer all of this — across `/valuate upgrades`, `sockets`, `enchants`
+and the scale list's Refresh button. Which means it could only answer it **if you remembered
+four places to look**, which is exactly backwards for a thing whose purpose is saving you the
+effort.
+
+### The order is the argument
+A **stale scale comes first**, because everything under it is scored *by* that scale. Put
+upgrades on top and the list confidently tells you to equip things chosen by weights you've
+outgrown. Then upgrades (free, immediate), then sockets and enchants (need materials or a
+vendor). The scale entry says *why* it's first rather than just being first.
+
+**At most three upgrades.** Seventeen slots is the Best Equipment panel, not an answer to "what
+should I do next".
+
+**Empty means empty.** No heading over an empty space, no *"Fill 0 empty sockets"* — a to-do
+list that always has something in it is one you stop opening.
+
+### The gate caught a real bug before it shipped
+I first wrote the counts as `local _, n = Valuate.FindEmptySockets and Valuate:FindEmptySockets()`.
+
+Lua adjusts an `and` expression to a **single value**, so the second return — the count, which
+is the entire point — was silently `nil`, and the socket and enchant items could never appear.
+The command would have worked, printed a plausible list, and quietly never mentioned either
+one. Both now use an explicit `if`, with the reason written next to them.
+
+### Gates
+`tools/todotest.js`, 24 checks — 50 gates, 90 mutations. Five mutations including *"upgrades are
+listed above the stale scale that CHOSE them"* and *"the socket count is silently nil"*, which
+is the bug above, now permanent.
+
 ## [0.111.0a] - 2026-08-14 — the battleground automations appear in Settings, and stop following you to alts
 
 ### Added

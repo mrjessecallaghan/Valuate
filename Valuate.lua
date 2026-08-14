@@ -6439,6 +6439,84 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Everything worth doing about your gear, in one list.
+--
+-- The addon can answer this already - /valuate upgrades, sockets, enchants, and the scale
+-- list's Refresh button - which means it can only answer it if you remember four places to
+-- look. That is exactly backwards for a thing whose whole purpose is saving you the effort.
+--
+-- ORDER IS THE ARGUMENT, not decoration. A stale scale comes first because everything below
+-- it is scored BY that scale: if your weights are out of date, the upgrade list underneath is
+-- confidently answering the wrong question, and doing it first makes the rest correct.
+-- Then upgrades (free, immediate), then sockets and enchants (need materials or a vendor).
+--
+-- Only what you can act on. An empty list means an empty list, not a heading with nothing
+-- under it - a to-do list that always has entries is one you stop opening.
+function Valuate:BuildTodoList()
+    local items = {}
+
+    local drifted = Valuate.GetAutoScaleDrift and Valuate:GetAutoScaleDrift()
+    if drifted then
+        table.insert(items, {
+            kind = "scale",
+            text = "Refresh " .. drifted .. " - your gear has moved on from it",
+            detail = "Everything below is scored by this scale, so it is worth doing first.",
+            command = "/valuate wizard",
+        })
+    end
+
+    local _, scaleName = Valuate:GetPrimaryScale()
+    local upgrades = scaleName and Valuate.RankAvailableUpgrades
+        and Valuate:RankAvailableUpgrades(scaleName)
+    if upgrades then
+        -- Three, not all of them. This is a to-do list, not the Best Equipment panel, and a
+        -- seventeen-line answer to "what should I do next" is not an answer.
+        for i = 1, math.min(3, #upgrades) do
+            local u = upgrades[i]
+            table.insert(items, {
+                kind = "upgrade",
+                text = string.format("Equip %s in %s  |cFF00FF00+%.1f|r", u.itemLink, u.slotName, u.gain),
+                detail = u.emptySlot and "That slot is empty." or nil,
+                command = "/valuate upgrades",
+            })
+        end
+    end
+
+    -- Guarded with an `if`, NOT `local _, n = Valuate.X and Valuate:X()`. Lua adjusts an
+    -- `and` expression to a SINGLE value, so the second return - the count, which is the
+    -- whole point - silently becomes nil and these two items could never appear. Written
+    -- that way first; the gate caught it before it shipped.
+    local sockets = 0
+    if Valuate.FindEmptySockets then
+        local _, n = Valuate:FindEmptySockets()
+        sockets = n or 0
+    end
+    if sockets > 0 then
+        table.insert(items, {
+            kind = "sockets",
+            text = string.format("Fill %d empty socket%s", sockets, sockets == 1 and "" or "s"),
+            detail = "Stats you have already earned and are not wearing.",
+            command = "/valuate sockets",
+        })
+    end
+
+    local unenchanted = 0
+    if Valuate.FindMissingEnchants then
+        local _, n = Valuate:FindMissingEnchants()
+        unenchanted = n or 0
+    end
+    if unenchanted > 0 then
+        table.insert(items, {
+            kind = "enchants",
+            text = string.format("Enchant %d item%s", unenchanted, unenchanted == 1 and "" or "s"),
+            detail = nil,
+            command = "/valuate enchants",
+        })
+    end
+
+    return items
+end
+
 -- Making the PvP scale, rather than leaving you an empty slot to fill.
 --
 -- /valuate pvpscale nominates a scale for battlegrounds and most people do not have one, so
@@ -10044,6 +10122,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate todo - Everything worth doing about your gear, in one list")
         print("  /valuate sockets - Empty gem sockets on gear you are wearing")
         print("  /valuate enchants - Gear you are wearing with no enchant")
         print("|cFFFFFF00Queue, release and leave|r |cFFAAAAAA(all off by default)|r")
@@ -10783,6 +10862,32 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  |cFFAAAAAAChecks head, shoulder, back, chest, wrist, hands, legs, feet and main hand. " ..
               "Rings need Enchanting, off-hands only if they are a shield, and ranged wants a scope - " ..
               "those are left out rather than nagging you about what you cannot do.|r")
+    elseif command == "todo" then
+        local items = Valuate:BuildTodoList()
+        if #items == 0 then
+            print("|cFF00FF00[Valuate]|r Nothing to do - you are wearing the best you own, " ..
+                  "gemmed and enchanted.")
+            print("  |cFFAAAAAA/valuate future lists gear waiting on a level.|r")
+        else
+            print(string.format("|cFF00FF00[Valuate]|r %d thing%s worth doing",
+                #items, #items == 1 and "" or "s"))
+            for i, item in ipairs(items) do
+                print(string.format("  %d. %s", i, item.text))
+                if item.detail then
+                    print("      |cFFAAAAAA" .. item.detail .. "|r")
+                end
+            end
+            -- Named once at the end rather than on every line: the commands repeat, and a
+            -- list where half the text is the same four words is harder to read, not easier.
+            local seen, commands = {}, {}
+            for _, item in ipairs(items) do
+                if item.command and not seen[item.command] then
+                    seen[item.command] = true
+                    table.insert(commands, item.command)
+                end
+            end
+            print("  |cFFAAAAAAMore detail: " .. table.concat(commands, "  ·  ") .. "|r")
+        end
     elseif command == "sockets" then
         local list, total = Valuate:FindEmptySockets()
         if not list then
