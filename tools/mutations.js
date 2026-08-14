@@ -109,7 +109,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.103.1a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.104.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -171,6 +171,21 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua",
     label: "a check that returns nothing is recorded as a pass rather than a failure",
     from: 'status = status or "fail",', to: 'status = status or "pass",' },
+
+  // ---- missing enchants (v0.104.0a) ----------------------------------------
+  { gate: "enchants", file: "Valuate.lua",
+    label: "the item ID is read instead of the enchant, so nothing is EVER reported",
+    from: 'itemLink:match("|?H?item:%d+:(%d+)")', to: 'itemLink:match("item:(%d+)")' },
+  { gate: "enchants", file: "Valuate.lua",
+    label: "an unreadable link is called unenchanted - a trip to the enchanter for nothing",
+    from: "if link and LinkEnchantId(link) == 0 then", to: "if link and not LinkEnchantId(link) or (link and LinkEnchantId(link) == 0) then" },
+  { gate: "enchants", file: "Valuate.lua",
+    label: "every slot is checked, so rings and trinkets nag about enchants you cannot apply",
+    from: "if ENCHANTABLE_SLOTS[def.slotId] then", to: "if true then" },
+  { gate: "enchants", file: "Valuate.lua",
+    label: "waist creeps into the enchantable set",
+    from: "    [10] = true, [7] = true, [8] = true, [16] = true,",
+    to: "    [10] = true, [7] = true, [8] = true, [16] = true, [6] = true," },
 
   // ---- empty sockets (v0.103.0a) -------------------------------------------
   { gate: "sockets", file: "Valuate.lua",

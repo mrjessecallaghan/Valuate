@@ -6517,6 +6517,51 @@ function Valuate:FindEmptySockets()
     return #out > 0 and out or nil, total
 end
 
+-- The other half of "stats you have already earned": unenchanted gear.
+--
+-- Read straight out of the item link, which is |Hitem:ID:ENCHANT:gem:gem:gem:gem:suffix:...|h.
+-- Field two is the enchant, and zero means none. No tooltip, no parsing, no guessing - the
+-- cheapest check in the addon, and it costs nothing to run alongside the socket count.
+--
+-- CONSERVATIVE by design. Only the slots that plainly take an enchant on any character are
+-- listed. Rings need Enchanting, an off-hand only takes one if it is a shield or holdable,
+-- and a ranged slot wants a scope only for some weapons - reporting those as "missing" would
+-- be nagging most players about something they cannot do, which is how a useful list becomes
+-- one you stop reading. Ascension may differ again, so the footer says which slots were
+-- considered rather than implying the list is exhaustive.
+local ENCHANTABLE_SLOTS = {
+    [1] = true, [3] = true, [15] = true, [5] = true, [9] = true,
+    [10] = true, [7] = true, [8] = true, [16] = true,
+}
+
+local function LinkEnchantId(itemLink)
+    if type(itemLink) ~= "string" then return nil end
+    -- Anchored on "item:<id>:" so the capture is field TWO, not whatever number appears
+    -- first anywhere in the string.
+    local enchant = itemLink:match("|?H?item:%d+:(%d+)")
+    return enchant and tonumber(enchant) or nil
+end
+
+-- Returns { { slotId, slotName, itemLink }, ... } and the count, or nil.
+function Valuate:FindMissingEnchants()
+    local out = {}
+    for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
+        if ENCHANTABLE_SLOTS[def.slotId] then
+            local link = GetInventoryItemLink("player", def.slotId)
+            -- A nil enchant field means the link could not be read at all; that is not the
+            -- same as "no enchant", and reporting it would send you to an enchanter for
+            -- nothing. Only an explicit zero counts.
+            if link and LinkEnchantId(link) == 0 then
+                table.insert(out, { slotId = def.slotId, slotName = def.name, itemLink = link })
+            end
+        end
+    end
+
+    -- Character-sheet order, which is how ENCHANTABLE_SLOTS is iterated via ns.EQUIP_SLOTS,
+    -- so no sort is needed and none can drift.
+    return #out > 0 and out or nil, #out
+end
+
 -- What is my biggest upgrade right now?
 --
 -- The Best Equipment panel answers this per slot, which means reading seventeen rows and
@@ -9518,6 +9563,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate sockets - Empty gem sockets on gear you are wearing")
+        print("  /valuate enchants - Gear you are wearing with no enchant")
         print("  /valuate selfverify - Run every check the addon can judge on its own")
         print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
         print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
@@ -10092,6 +10138,20 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
         end
+    elseif command == "enchants" then
+        local list, n = Valuate:FindMissingEnchants()
+        if not list then
+            print("|cFF00FF00[Valuate]|r Every enchantable slot you are wearing has an enchant.")
+        else
+            print(string.format("|cFF00FF00[Valuate]|r |cFFFFFFFF%d|r unenchanted item%s",
+                n, n == 1 and "" or "s"))
+            for _, e in ipairs(list) do
+                print(string.format("  %s  %s", e.slotName, e.itemLink))
+            end
+        end
+        print("  |cFFAAAAAAChecks head, shoulder, back, chest, wrist, hands, legs, feet and main hand. " ..
+              "Rings need Enchanting, off-hands only if they are a shield, and ranged wants a scope - " ..
+              "those are left out rather than nagging you about what you cannot do.|r")
     elseif command == "sockets" then
         local list, total = Valuate:FindEmptySockets()
         if not list then
@@ -10155,10 +10215,16 @@ SlashCmdList["VALUATE"] = function(msg)
             -- Sockets belong here rather than in their own corner: this is the moment you
             -- are thinking about gear, and an empty socket is a gain you already own.
             local _, sockets = Valuate:FindEmptySockets()
+            local _, unenchanted = Valuate:FindMissingEnchants()
             if sockets > 0 then
                 print(string.format(
                     "  |cFFAAAAAAAlso %d empty socket%s on gear you are wearing - /valuate sockets|r",
                     sockets, sockets == 1 and "" or "s"))
+            end
+            if unenchanted > 0 then
+                print(string.format(
+                    "  |cFFAAAAAAAnd %d unenchanted item%s - /valuate enchants|r",
+                    unenchanted, unenchanted == 1 and "" or "s"))
             end
         end
     elseif command == "detail" then

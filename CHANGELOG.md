@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.104.0a] - 2026-08-14 — unenchanted gear, the other half of "stats you already earned"
+
+### Added
+- **`/valuate enchants`** — gear you're wearing with no enchant on it. The count also joins the
+  socket line at the foot of `/valuate upgrades`.
+
+v0.103.0a covered empty sockets; this is the same idea from the other side. Both are stats you
+have already earned and aren't wearing, and both are invisible unless you go looking.
+
+Cheaper than sockets, too: an item link is `|Hitem:ID:ENCHANT:...`, so this reads **field two**
+and never touches a tooltip.
+
+### Conservative on purpose
+Only the nine slots that plainly take an enchant on any character: head, shoulder, back, chest,
+wrist, hands, legs, feet, main hand. **Rings need Enchanting**, an off-hand only takes one if
+it's a shield or holdable, and ranged wants a scope. Reporting those would nag most players about
+something they can't act on — which is exactly how a useful list becomes one you stop reading,
+the same reasoning that keeps the near-miss line inside 10%.
+
+The footer names which slots were checked, rather than implying the list is exhaustive. Ascension
+may differ again.
+
+### "Can't read it" is not "unenchanted"
+Only an explicit **zero** counts. A link that fails to parse returns nil, and nil is left alone —
+the two look identical in a list and lead to completely different actions: one is a trip to an
+enchanter, the other is a bug in the addon.
+
+### Gates
+`tools/enchants.js`, 16 checks — 47 gates, 55 mutations, all caught first time. The mutation that
+matters most reads **field one** instead of field two: an item ID is never zero, so the command
+would silently report "everything's enchanted" forever while checking nothing.
+
 ## [0.103.1a] - 2026-08-14 — mutations can no longer silently point at the wrong code
 
 No addon behaviour changes. This fixes the tool that checks the other 46 gates are worth
