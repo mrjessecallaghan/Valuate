@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.91.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.92.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -131,8 +131,9 @@ mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
 - **What a bag repaint COSTS** — `hotpath.js` counts calls rather than milliseconds, because
   wall-clock under a Lua-in-JS harness says nothing about the client while "how many times did
   we sort a list that cannot have changed" transfers exactly. It found the AdiBags path
-  rebuilding and re-sorting the active-scale list **240 times per repaint** and now holds a
-  budget against it.
+  rebuilding and re-sorting the active-scale list **240 times per repaint**, and asking the
+  client where the same item is worn twice per item on top. A repaint you've already done
+  now costs **zero** of either, and the gate holds budgets so a regression has to say so.
 - **Pure logic whose wrong answer still looks plausible** — the animation engine, input and
   colour handling, scale-tag parsing, the spec templates, tooltip comparison text, the slot
   comparison states, stat shares, future-upgrade grouping and its tooltip line, the verify

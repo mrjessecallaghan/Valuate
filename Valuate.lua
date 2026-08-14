@@ -4641,6 +4641,38 @@ function Valuate:ScanBestEquipment()
     return true
 end
 
+-- Which inventory slots an item can go in, memoised by item ID.
+--
+-- The AdiBags filter asks two questions per item per repaint - is this best-in-slot, and is
+-- it a future upgrade - and both used to call GetItemInfo for the same item to find out the
+-- same immutable fact. tools/hotpath.js measured 240 calls for a 120-item bag.
+--
+-- Cached FOREVER and never invalidated, which is safe only because an item's equip location
+-- is intrinsic: no enchant, gem, scaling or reforge moves a chest piece to the finger slot.
+-- Keyed by item ID rather than link for the same reason - two links for one item differ by
+-- enchants and gems, and keying on the link would fragment the cache for no gain.
+--
+-- The one thing that MUST not be cached is a miss. GetItemInfo returns nil for an item the
+-- client has not received from the server yet; storing that would leave the item permanently
+-- unequippable in Valuate's eyes, and it would fix itself only on a /reload. `false` means
+-- "asked, and it genuinely goes nowhere", which is a different answer from "do not know yet".
+local targetSlotsCache = {}
+local function TargetSlotsForItem(itemLink, itemId)
+    local cached = targetSlotsCache[itemId]
+    if cached ~= nil then
+        return cached or nil
+    end
+
+    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
+    if itemEquipLoc == nil then
+        return nil  -- not cached client-side yet; ask again next time
+    end
+
+    local slots = (itemEquipLoc ~= "") and EquipSlotToInvNumber[itemEquipLoc] or nil
+    targetSlotsCache[itemId] = slots or false
+    return slots
+end
+
 -- Returns "best for" info for an item across active scales, or nil.
 -- Each entry: { scaleName = <string>, category = <nil|"twohander"|"onehander"|"shield"|"offhand"> }.
 -- Weapons are matched via each scale's weaponKeep union, so an item that is best in ANY
@@ -4655,8 +4687,7 @@ function Valuate:GetBestForInfo(itemLink)
 
     local bestEquipment = Valuate:GetBestEquipment()
     local activeScales = Valuate:GetActiveScales()
-    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-    local targetSlots = (itemEquipLoc and itemEquipLoc ~= "") and EquipSlotToInvNumber[itemEquipLoc] or nil
+    local targetSlots = TargetSlotsForItem(itemLink, itemId)
 
     local results = {}
     for _, scaleName in ipairs(activeScales) do
@@ -4737,8 +4768,7 @@ function Valuate:GetFutureUpgradeScales(itemLink)
     local itemId = GetItemIdFromLink(itemLink)
     if not itemId then return nil end
 
-    local _, _, _, _, _, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
-    local targetSlots = (itemEquipLoc and itemEquipLoc ~= "") and EquipSlotToInvNumber[itemEquipLoc] or nil
+    local targetSlots = TargetSlotsForItem(itemLink, itemId)
     if not targetSlots then return nil end
 
     local bestEquipment = Valuate:GetBestEquipment()

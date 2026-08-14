@@ -35,6 +35,8 @@ const PIECES = [
   /^local activeScalesCache, activeScalesAt = [^\r\n]*/m,
   /^function Valuate:InvalidateActiveScales\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetActiveScales\([\s\S]*?\r?\nend/m,
+  /^local targetSlotsCache = \{\}/m,
+  /^local function TargetSlotsForItem\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetBestForInfo\([\s\S]*?\r?\nend/m,
   /^function Valuate:IsBestInSlot\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetFutureUpgradeScales\([\s\S]*?\r?\nend/m,
@@ -94,8 +96,20 @@ function Valuate:IsItemExcludedFromEvaluation() return false end
 local clock = 0
 function GetTime() return clock end
 
+-- Items the client has not received from the server yet. GetItemInfo returns nothing at
+-- all for these, which is a different answer from "this goes nowhere".
+local UNCACHED = {}
+-- Half the bag is not gear at all - potions, reagents, quest items. That is the REALISTIC
+-- shape, and it is also the branch that remembers "this goes nowhere": a first draft of
+-- this gate made every item a chest piece, so that branch was never taken and a mutation
+-- deleting it passed cleanly.
+local NONGEAR = {}
 function GetItemInfo(link)
     counts.getItemInfo = counts.getItemInfo + 1
+    if UNCACHED[link] then return nil end
+    if NONGEAR[link] then
+        return "Potion", link, 1, 80, 70, "Consumable", "Potion", 20, ""
+    end
     return "Item", link, 4, 80, 70, "Armor", "Plate", 1, "INVTYPE_CHEST"
 end
 
@@ -113,6 +127,10 @@ local LINKS = {}
 for i = 1, ${ITEMS} do
     LINKS[i] = "|cffa335ee|Hitem:" .. (40000 + i) .. ":0:0:0:0:0:0:0:80|h[Item " .. i .. "]|h|r"
 end
+
+-- The back half of the bag is not equippable. The named items below stay gear so the
+-- correctness checks keep meaning what they say.
+for i = 61, ${ITEMS} do NONGEAR[LINKS[i]] = true end
 
 -- Item 1 is best-in-slot for two scales; item 2 is a future upgrade for one. Everything
 -- else is neither, which is the common case and the one that must stay cheapest.
@@ -134,18 +152,29 @@ ok(Valuate:GetFutureUpgradeScales(LINKS[3]) == nil, "an ordinary item has no fut
 -- honest measurement pays for one build rather than inheriting a warm cache from the
 -- correctness checks above.
 Valuate:InvalidateActiveScales()
+for k in pairs(targetSlotsCache) do targetSlotsCache[k] = nil end
 counts = { sorts = 0, getItemInfo = 0, scaleWalks = 0, activeCalls = 0 }
 for i = 1, ${ITEMS} do
     Valuate:IsBestInSlot(LINKS[i])
     Valuate:GetFutureUpgradeScales(LINKS[i])
 end
+local cold = counts
 
-local perItem = counts.activeCalls / ${ITEMS}
+-- And again, warm - which is what every repaint after the first one actually is.
+counts = { sorts = 0, getItemInfo = 0, scaleWalks = 0, activeCalls = 0 }
+for i = 1, ${ITEMS} do
+    Valuate:IsBestInSlot(LINKS[i])
+    Valuate:GetFutureUpgradeScales(LINKS[i])
+end
+local warm = counts
+
 __report = string.format(
-    "  |  %d items x %d scales, one repaint: %d GetActiveScales (%.1f per item), %d sorts, " ..
-    "%d scale-table walks, %d GetItemInfo",
-    ${ITEMS}, ${SCALES}, counts.activeCalls, perItem, counts.sorts, counts.scaleWalks,
-    counts.getItemInfo)
+    "  |  %d items x %d scales. Cold repaint: %d GetActiveScales (%.1f/item), %d sorts, " ..
+    "%d scale walks, %d GetItemInfo.  Warm repaint: %d sorts, %d GetItemInfo.",
+    ${ITEMS}, ${SCALES}, cold.activeCalls, cold.activeCalls / ${ITEMS}, cold.sorts,
+    cold.scaleWalks, cold.getItemInfo, warm.sorts, warm.getItemInfo)
+
+counts = cold
 
 -- The active-scale list is derived from the scales table alone. It cannot change while a
 -- repaint is in flight, so rebuilding and re-SORTING it per item is work with no possible
@@ -154,10 +183,14 @@ __report = string.format(
 budget("sorts per repaint", counts.sorts, 8)
 budget("scale-table walks per repaint", counts.scaleWalks, 8)
 
--- GetItemInfo is the expensive one in the client - it can miss the local cache entirely.
--- Twice per item is the shape of the AdiBags filter itself (two questions per item), so
--- that is the ceiling, not a target to optimise below.
-budget("GetItemInfo per repaint", counts.getItemInfo, ${ITEMS} * 2)
+-- GetItemInfo is the expensive one in the client: for an item the server has not sent yet
+-- it misses entirely. The filter asks two questions per item and both need the same
+-- immutable fact - where the item is worn - so ONE call per item is the ceiling cold, and
+-- none at all once seen. An item's equip location cannot change, so a warm repaint has
+-- nothing left to ask.
+budget("GetItemInfo, cold repaint", cold.getItemInfo, ${ITEMS})
+budget("GetItemInfo, warm repaint", warm.getItemInfo, 0)
+budget("sorts, warm repaint", warm.sorts, 1)
 
 -- And the cache must not have broken the answers it speeds up.
 local again = Valuate:IsBestInSlot(LINKS[1])
@@ -203,6 +236,26 @@ clock = 3
 SCALES_TABLE.Scale9 = { DisplayName = "Scale 9", Visible = true, Values = { Spirit = 1.0 } }
 ok(#Valuate:GetActiveScales() == baseline + 2,
    "a backwards clock rebuilds rather than serving a stale list")
+
+-- ---- the one thing the slot cache must never remember: a miss ---------------
+-- GetItemInfo returns nothing for an item the server has not sent yet. Storing that as
+-- "goes nowhere" would leave the item unequippable in Valuate's eyes until a /reload -
+-- and the items most likely to be uncached are the ones that just dropped.
+for k in pairs(targetSlotsCache) do targetSlotsCache[k] = nil end
+UNCACHED[LINKS[50]] = true
+BEST.Scale3[5] = { itemLink = LINKS[50] }
+ok(Valuate:IsBestInSlot(LINKS[50]) == nil,
+   "an item the client has not cached yet is nobody's best, for now")
+
+UNCACHED[LINKS[50]] = nil
+local nowKnown = Valuate:IsBestInSlot(LINKS[50])
+ok(nowKnown ~= nil and #nowKnown == 1,
+   "and once the client has it, it is evaluated - the miss was not remembered")
+
+-- A genuine "this is not equippable" IS worth remembering, and must not cost a second call.
+local before = counts.getItemInfo
+Valuate:IsBestInSlot(LINKS[50])
+ok(counts.getItemInfo == before, "a known equip location is never looked up twice")
 
 return failures, checks
 `,

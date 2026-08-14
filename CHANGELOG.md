@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.92.0a] - 2026-08-14 — a repaint you have already done now costs nothing
+
+### Optimised
+Same path as v0.91.0a, the other half of it. The AdiBags filter asks two questions per item —
+is this best-in-slot, is it a future upgrade — and **both called `GetItemInfo` for the same
+item** to learn the same immutable fact: where it is worn. 240 calls for a 120-item bag, and
+`GetItemInfo` is the expensive one in the client, missing entirely for an item the server has
+not sent yet.
+
+An item's equip location is intrinsic. No enchant, gem, reforge or scaling moves a chest piece
+to the finger slot, so the answer is memoised by item ID and **never invalidated**. Keyed by ID
+rather than link, because two links for one item differ by enchants and would fragment the
+cache for nothing.
+
+```
+                    before          after (cold)     after (warm)
+GetActiveScales       240             180              180
+table.sorts           240               1                0
+scales-table walks    240               1                0
+GetItemInfo           240             120                0
+```
+
+### The one thing that must never be cached is a miss
+`GetItemInfo` returns nothing for an item the client has not received yet. Storing that as
+"goes nowhere" would leave the item unequippable in Valuate's eyes until a `/reload` — and the
+items most likely to be uncached are the ones that just dropped. `false` means *asked, and it
+genuinely goes nowhere*; that is a different answer from *do not know yet*, and only one of them
+is worth remembering.
+
+### A benchmark that modelled a bag nobody has
+Three mutations, and the third **survived**: deleting the "goes nowhere" branch changed nothing,
+because every item in the benchmark was a chest piece. A real bag is mostly *not* gear — potions,
+reagents, quest items — which makes that branch the common case, not an edge case. Half the
+simulated bag is now non-equippable, which is both more realistic and enough to catch it.
+
+The measurement moved when the model got honest: cold `GetActiveScales` fell from 240 to 180,
+because a non-gear item leaves `GetFutureUpgradeScales` before it asks. That number was never
+wrong — the bag was.
+
 ## [0.91.0a] - 2026-08-14 — a bag repaint stops re-sorting a list that cannot have changed
 
 ### Measured, then fixed
