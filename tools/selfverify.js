@@ -34,6 +34,8 @@ const PIECES = [
   /^local function SelfCheckTemplateSet\([\s\S]*?\r?\nend/m,
   /^local function SelfCheckNewSecondaries\([\s\S]*?\r?\nend/m,
   /^local function SelfCheckCaches\([\s\S]*?\r?\nend/m,
+  /^local SCORE_AGREEMENT_TOLERANCE = [\d.]+/m,
+  /^local function SelfCheckScoreAgreement\([\s\S]*?\r?\nend/m,
   /^local SELF_CHECKS = \{[\s\S]*?\r?\n\}/m,
   /^function Valuate:RunSelfVerify\([\s\S]*?\r?\nend/m,
 ];
@@ -88,6 +90,23 @@ function getglobal(name)
     if not i or not LINES[i - 1] then return nil end
     return { GetText = function() return LINES[i - 1] end }
 end
+
+-- The two scoring routes, kept independent on purpose: the check exists to notice when they
+-- disagree, so a mock that computes both from one number would test nothing.
+ns = {}
+ns.EQUIP_SLOTS = { { slotId = 5, name = "Chest" }, { slotId = 7, name = "Legs" } }
+local PRIMARY = { DisplayName = "Dps", Values = { Strength = 1.0 } }
+function Valuate:GetPrimaryScale() return PRIMARY, "Dps" end
+function Valuate:IsItemExcludedFromEvaluation() return false end
+
+local VIA_SLOT, VIA_LINK, LINK_SCALED = {}, {}, {}
+function Valuate:GetEquippedItemScoreBySlotId(slotId) return VIA_SLOT[slotId] or 0 end
+function Valuate:GetScaledStatsForItem(link)
+    local slotId = tonumber(link:match("slot(%d+)"))
+    if LINK_SCALED[slotId] == false then return { base = true }, false end
+    return { slotId = slotId }, true
+end
+function Valuate:CalculateItemScore(stats) return VIA_LINK[stats.slotId] or 0 end
 
 local EQUIPPED, BAGS = {}, {}
 function GetInventoryItemLink(_, slotId) return EQUIPPED[slotId] end
@@ -172,9 +191,53 @@ local cold = resultFor("caches")
 eq(cold.status, "fail", "a low hit rate fails - the optimisation is not real on this client")
 ok(cold.detail:find("%%") ~= nil, "and reports the rate it measured")
 
+-- ---- two scoring paths must agree --------------------------------------------
+-- The check that would have caught v0.94.0a in the client: two pieces of code reading one
+-- item's stats from different sources. No gate can see that, because a fixture hands both
+-- sides the same numbers. Here they are deliberately separate.
+EQUIPPED[5], EQUIPPED[7] = "slot5", "slot7"
+VIA_SLOT[5], VIA_LINK[5] = 100, 100
+VIA_SLOT[7], VIA_LINK[7] = 200, 200
+eq(resultFor("agreement").status, "pass", "two routes landing on the same number passes")
+
+-- A hair apart is rounding, not a bug.
+VIA_LINK[7] = 200.5
+eq(resultFor("agreement").status, "pass", "a quarter of a percent is tolerated as rounding")
+
+-- Meaningfully apart is the bug, and the detail has to name the slot and both numbers so it
+-- can be acted on rather than just believed.
+VIA_LINK[7] = 240
+local disagree = resultFor("agreement")
+eq(disagree.status, "fail", "a 20% divergence between the two routes is a failure")
+ok(disagree.detail:find("Legs", 1, true) ~= nil, "naming the slot it found")
+ok(disagree.detail:find("200", 1, true) and disagree.detail:find("240", 1, true),
+   "and both numbers, so it can be checked by hand")
+VIA_LINK[7] = 200
+
+-- An item whose second route could only get BASE stats is skipped, not compared. Comparing
+-- base against scaled would report exactly the mismatch this check hunts, on an item where
+-- it is expected and harmless - a false alarm that would teach you to ignore a real one.
+LINK_SCALED[7] = false
+VIA_LINK[7] = 999
+eq(resultFor("agreement").status, "pass", "an item that only has base stats is not compared")
+LINK_SCALED[7] = nil
+VIA_LINK[7] = 200
+
+EQUIPPED[5], EQUIPPED[7] = nil, nil
+eq(resultFor("agreement").status, "skip", "nothing equipped is a skip, not a vacuous pass")
+EQUIPPED[5] = "slot5"
+
+PRIMARY = { DisplayName = "Dps", Values = {} }
+eq(resultFor("agreement").status, "skip", "a scale with no weights has nothing to compare")
+PRIMARY = { DisplayName = "Dps", Values = { Strength = 1.0 } }
+
+equipmentSwapPending = true
+eq(resultFor("agreement").status, "skip", "mid-swap is a skip - the guard is read, not relaxed")
+equipmentSwapPending = false
+
 -- ---- the shape of the report -------------------------------------------------
 local all = Valuate:RunSelfVerify()
-eq(#all, 3, "every check reports, none silently dropped")
+eq(#all, 4, "every check reports, none silently dropped")
 for _, r in ipairs(all) do
     ok(r.status == "pass" or r.status == "fail" or r.status == "skip",
        "every status is one of the three, never nil: " .. tostring(r.id))
@@ -190,7 +253,7 @@ table.insert(SELF_CHECKS, { id = "silent", title = "a check that returns nothing
 local silent = resultFor("silent")
 eq(silent.status, "fail", "a check that returns nothing is a FAILURE, not a pass")
 ok(type(silent.detail) == "string" and silent.detail ~= "", "and still says something")
-eq(#Valuate:RunSelfVerify(), 4, "and it is reported, not dropped")
+eq(#Valuate:RunSelfVerify(), 5, "and it is reported, not dropped")
 
 return failures, checks
 `,

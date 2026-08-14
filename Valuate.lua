@@ -6349,10 +6349,73 @@ local function SelfCheckCaches()
         "so v0.91-0.92's savings are not real on this client.", pct, total)
 end
 
+-- Do two independent paths agree about the same item?
+--
+-- This is the check that would have caught v0.94.0a in the client. That bug was two pieces
+-- of code reading one item's stats from different sources and subtracting the results, and
+-- all 43 gates passed on it: a fixture that hands both sides the same numbers cannot notice
+-- that production fetches them two different ways. Only the client can.
+--
+-- GetEquippedItemScoreBySlotId goes slot -> SetInventoryItem -> parse -> score.
+-- GetScaledStatsForItem goes link -> find on your person -> GetStatsForTooltipSetter -> parse,
+-- and the caller scores it. Same item, same scale, two routes. They must land on one number.
+--
+-- Deliberately compares two LIVE reads rather than a live read against the stored scan: the
+-- stored one legitimately drifts when you level, and a check that cries wolf after every ding
+-- teaches you to ignore it.
+local SCORE_AGREEMENT_TOLERANCE = 0.01
+
+local function SelfCheckScoreAgreement()
+    if not Valuate.GetScaledStatsForItem or not Valuate.GetEquippedItemScoreBySlotId then
+        return "fail", "The scoring helpers are missing - the core did not finish loading."
+    end
+    if equipmentSwapPending then
+        return "skip", "An equipment swap is in flight - try again in a moment."
+    end
+
+    local scale, scaleName = Valuate:GetPrimaryScale()
+    if not scale or not scale.Values or next(scale.Values) == nil then
+        return "skip", "No active scale with weights - /valuate wizard builds one."
+    end
+
+    local compared, worst, worstSlot, worstA, worstB = 0, 0, nil, 0, 0
+    for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
+        local link = GetInventoryItemLink("player", def.slotId)
+        if link and not Valuate:IsItemExcludedFromEvaluation(link) then
+            local viaSlot = Valuate:GetEquippedItemScoreBySlotId(def.slotId, scale) or 0
+            local stats, isScaled = Valuate:GetScaledStatsForItem(link)
+            -- Only compare when the second route got SCALED stats too. Comparing against a
+            -- base-stat fallback would report the very mismatch this check exists to find,
+            -- on an item where it is expected and harmless.
+            if isScaled and stats and viaSlot > 0 then
+                local viaLink = Valuate:CalculateItemScore(stats, scale) or 0
+                compared = compared + 1
+                local drift = math.abs(viaLink - viaSlot) / viaSlot
+                if drift > worst then
+                    worst, worstSlot, worstA, worstB = drift, def.name, viaSlot, viaLink
+                end
+            end
+        end
+    end
+
+    if compared == 0 then
+        return "skip", "Nothing equipped that both paths could score - put some gear on."
+    end
+    if worst <= SCORE_AGREEMENT_TOLERANCE then
+        return "pass", string.format("%d equipped item(s); the two paths agree to within %.2f%%.",
+            compared, worst * 100)
+    end
+    return "fail", string.format(
+        "%s scores %.1f one way and %.1f the other (%.1f%% apart) for '%s'. " ..
+        "Two code paths are reading the same item differently - every delta built on them is fiction.",
+        worstSlot, worstA, worstB, worst * 100, tostring(scaleName))
+end
+
 local SELF_CHECKS = {
     { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
     { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries },
     { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches },
+    { id = "agreement",  title = "Two scoring paths agree about your gear", run = SelfCheckScoreAgreement },
 }
 
 -- Returns an array of { id, title, status, detail } - no printing, so a gate can run it.

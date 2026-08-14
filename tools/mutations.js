@@ -94,7 +94,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.100.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.101.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -156,6 +156,17 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua",
     label: "a check that returns nothing is recorded as a pass rather than a failure",
     from: 'status = status or "fail",', to: 'status = status or "pass",' },
+
+  // ---- the cross-path agreement check (v0.101.0a) --------------------------
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "two paths disagreeing about your gear is reported as agreement",
+    from: "if worst <= SCORE_AGREEMENT_TOLERANCE then", to: "if true then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a base-stat fallback is compared against a scaled read - a false alarm every time",
+    from: "if isScaled and stats and viaSlot > 0 then", to: "if stats and viaSlot > 0 then" },
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "nothing equipped reads as 'the paths agree' rather than 'nothing to compare'",
+    from: "if compared == 0 then", to: "if false then" },
 
   // ---- the ranked upgrade list (v0.99.0a) ----------------------------------
   { gate: "upgraderank", file: "Valuate.lua",

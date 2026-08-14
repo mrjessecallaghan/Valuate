@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.101.0a] - 2026-08-14 — the check that would have caught v0.94.0a, in your client
+
+### Added
+- **`/valuate selfverify` gains an `agreement` check.** Two independent code paths score the
+  same equipped item; they must land on the same number.
+
+v0.94.0a was two pieces of code reading one item's stats from different sources and subtracting
+the results. **All 43 gates passed on it.** They always will: a fixture hands both sides the same
+numbers, so nothing headless can notice that production fetches them two different ways. Only the
+client can.
+
+```
+GetEquippedItemScoreBySlotId   slot -> SetInventoryItem -> parse -> score
+GetScaledStatsForItem          link -> find on your person -> shared reader -> parse -> score
+```
+
+Same item, same scale, two routes. If they diverge by more than 1%, every delta built on
+them — upgrade arrows, the ranked list, the near-miss line, the Alt breakdown — is fiction, and
+the check names the slot and both numbers so you can check it by hand rather than take its word.
+
+### Two live reads, not live-versus-stored
+Comparing against the stored scan would flag every level-up: scaled values legitimately move, the
+scan hasn't rerun, and a check that cries wolf after every ding teaches you to ignore it. Both
+sides are read *now*.
+
+An item where the second route can only reach **base** stats is skipped rather than compared —
+comparing base against scaled would report exactly the mismatch this check hunts, on an item
+where it is expected and harmless. A false alarm here would be worse than no check, because it
+would train you past a real one.
+
+### Gates
+`tools/selfverify.js` 28 → 39 checks; 47 mutations. All three new mutations caught, including
+the false-alarm one.
+
+Four self-checks now, and this is the first that can find a **new** bug rather than confirm a
+known assumption — the other three ask whether the client matches what I assumed; this one asks
+whether the addon agrees with itself.
+
 ## [0.100.0a] - 2026-08-14 — `/valuate selfverify`: the checks the addon can judge on its own
 
 ### Added
