@@ -37,6 +37,7 @@ const PIECES = [
   /^function Valuate:HandleBattlefieldEnd\([\s\S]*?\r?\nend/m,
   /^local bfStatusWas = \{\}/m,
   /^function Valuate:HandleBattlefieldQueues\([\s\S]*?\r?\nend/m,
+  /^function Valuate:ApplyContextScale\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -375,6 +376,72 @@ GetMaxBattlefieldID = nil
 local safe = pcall(function() Valuate:HandleBattlefieldQueues() end)
 eq(safe, true, "a client without GetMaxBattlefieldID is handled, not crashed into")
 GetMaxBattlefieldID = realMax
+
+-- ---- the PvP scale swap ------------------------------------------------------
+-- Resilience is worth a great deal in a battleground and nothing in a dungeon, so "what is
+-- my best chest" has two right answers. The swap itself is easy; the RESTORE is where this
+-- can quietly leave you scoring your dungeon gear against a PvP scale for days.
+local SCALES = { Arena = {}, Raid = {} }
+function Valuate:GetScales() return SCALES end
+function Valuate:ResetTooltips() end
+
+OPTIONS.pvpScale = nil
+OPTIONS.characterWindowScale = "Raid"
+INSIDE, KIND = true, "pvp"
+eq(Valuate:ApplyContextScale(), false, "with no PvP scale nominated it does nothing")
+eq(OPTIONS.characterWindowScale, "Raid", "and leaves your scale alone")
+
+OPTIONS.pvpScale = "Arena"
+eq(Valuate:ApplyContextScale(), true, "zoning into a battleground switches to the PvP scale")
+eq(OPTIONS.characterWindowScale, "Arena", "which is now active")
+eq(OPTIONS.pvpScaleRestore, "Raid", "and what you were using is remembered")
+
+-- Idempotent: the events that drive this fire repeatedly, and a second switch would
+-- overwrite the restore target with the PvP scale itself - stranding you on it forever.
+eq(Valuate:ApplyContextScale(), false, "switching again while already switched does nothing")
+eq(OPTIONS.pvpScaleRestore, "Raid", "and the restore target is NOT overwritten with the PvP scale")
+
+INSIDE, KIND = false, nil
+eq(Valuate:ApplyContextScale(), true, "leaving restores")
+eq(OPTIONS.characterWindowScale, "Raid", "the scale you were using")
+eq(OPTIONS.pvpScaleRestore, nil, "and the marker is cleared")
+
+eq(Valuate:ApplyContextScale(), false, "with nothing to restore, leaving again does nothing")
+eq(OPTIONS.characterWindowScale, "Raid", "and does not disturb your scale")
+
+-- The restore target is PERSISTED, so a reload inside a battleground still restores. This
+-- simulates exactly that: the marker survives, memory does not.
+OPTIONS.characterWindowScale, OPTIONS.pvpScaleRestore = "Arena", "Raid"
+INSIDE, KIND = false, nil
+eq(Valuate:ApplyContextScale(), true, "a reload inside a battleground still restores on the way out")
+eq(OPTIONS.characterWindowScale, "Raid", "back to the right one")
+
+-- Having no explicit scale before is a real state, and must come back as no scale rather
+-- than being quietly promoted to whichever one PvP used.
+OPTIONS.characterWindowScale = nil
+INSIDE, KIND = true, "pvp"
+Valuate:ApplyContextScale()
+eq(OPTIONS.pvpScaleRestore, "", "no previous scale is remembered as empty, not as nil")
+INSIDE, KIND = false, nil
+Valuate:ApplyContextScale()
+eq(OPTIONS.characterWindowScale, nil, "and you go back to having no specific scale")
+
+-- Nominated scale deleted: say so, change nothing. Switching to a scale that is not there
+-- would leave every score reading zero.
+OPTIONS.pvpScale = "Deleted"
+OPTIONS.characterWindowScale = "Raid"
+INSIDE, KIND = true, "pvp"
+eq(Valuate:ApplyContextScale(), false, "a nominated scale that no longer exists is refused")
+eq(OPTIONS.characterWindowScale, "Raid", "and your current scale is untouched")
+eq(OPTIONS.pvpScaleRestore, nil, "with no restore marker left behind to confuse the way out")
+
+-- The scale you were using got deleted while you were in the battleground.
+OPTIONS.pvpScale = "Arena"
+OPTIONS.characterWindowScale, OPTIONS.pvpScaleRestore = "Arena", "Gone"
+INSIDE, KIND = false, nil
+eq(Valuate:ApplyContextScale(), false, "restoring to a deleted scale is refused")
+eq(OPTIONS.characterWindowScale, "Arena", "leaving the PvP one active rather than nothing")
+eq(OPTIONS.pvpScaleRestore, nil, "and the marker is cleared so it does not retry forever")
 
 return failures, checks
 `,

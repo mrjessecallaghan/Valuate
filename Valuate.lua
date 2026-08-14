@@ -516,6 +516,8 @@ local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
         -- Addon loaded, initialize
         Valuate:Initialize()
+    elseif event == "ZONE_CHANGED_NEW_AREA" then
+        if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
     elseif event == "PLAYER_DEAD" then
         if Valuate.AutoReleaseSpirit then
             local ok, reason = Valuate:AutoReleaseSpirit()
@@ -524,6 +526,7 @@ local function OnEvent(self, event, addonName, ...)
     elseif event == "UPDATE_BATTLEFIELD_STATUS" then
         -- Fires often and for every queue slot; HandleBattlefieldEnd does its own gating and
         -- guards against scheduling the leave twice.
+        if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
         if Valuate.HandleBattlefieldQueues then Valuate:HandleBattlefieldQueues() end
         if Valuate.HandleBattlefieldEnd then Valuate:HandleBattlefieldEnd() end
     elseif event == "LFG_COMPLETION_REWARD" then
@@ -780,6 +783,9 @@ local DEFAULT_OPTIONS = {
     autoQueuePvP = false,
     autoQueueDungeon = false,
     autoAcceptBattleground = false,
+    -- Nominated by name, so nil means "off". Set with /valuate pvpscale <name>.
+    pvpScale = nil,
+    pvpScaleRestore = nil,
     chatMessages = true,                  -- verbose chat messages
     scanVerbose = false,                  -- scan completion messages
     showStartupMessage = true,            -- "Valuate loaded" message
@@ -6425,6 +6431,70 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Your PvP answer and your PvE answer are not the same answer.
+--
+-- Resilience, PvP Power and a chunk of stamina are worth a great deal in a battleground and
+-- close to nothing in a dungeon, so "what is my best chest" has two correct answers depending
+-- on where you are standing. Until now the addon gave you one of them everywhere.
+--
+-- Nominate a scale for battlegrounds and it becomes the active one when you zone in, and the
+-- one you were using comes back when you leave.
+--
+-- The restore target is PERSISTED, not held in memory. Reloading inside a battleground - or
+-- crashing in one - would otherwise strand you on the PvP scale with no record of what you
+-- were using before, and you would find out days later when your dungeon gear looked wrong.
+-- Saved, it restores on the next zone out however you got there.
+--
+-- Announced both ways. Silently changing which scale drives your upgrade arrows, your
+-- best-in-slot and your junk marking would be indistinguishable from the addon breaking.
+function Valuate:ApplyContextScale()
+    local options = Valuate:GetOptions()
+    local wanted = options.pvpScale
+    if type(wanted) ~= "string" or wanted == "" then return false, "No PvP scale set." end
+
+    local scales = Valuate:GetScales() or {}
+
+    if InBattleground() then
+        if options.characterWindowScale == wanted then
+            return false, "Already using it."
+        end
+        if not scales[wanted] then
+            -- Deleted since it was nominated. Say so rather than switching to nothing.
+            print("|cFFFF8800[Valuate]|r PvP scale |cFFFFFFFF" .. wanted ..
+                  "|r no longer exists - staying on your current one. /valuate pvpscale <name>")
+            return false, "The nominated scale is gone."
+        end
+
+        options.pvpScaleRestore = options.characterWindowScale or ""
+        options.characterWindowScale = wanted
+        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        print("|cFF00FF00[Valuate]|r Battleground - switched to |cFFFFFFFF" .. wanted .. "|r.")
+        return true, "Switched to " .. wanted .. "."
+    end
+
+    -- Out of the battleground. Only act if we are the ones who switched.
+    local restore = options.pvpScaleRestore
+    if restore == nil then return false, "Nothing to restore." end
+    options.pvpScaleRestore = nil
+
+    if restore == "" then
+        -- There was no explicit scale before; go back to having none rather than inventing one.
+        options.characterWindowScale = nil
+    elseif scales[restore] then
+        options.characterWindowScale = restore
+    else
+        print("|cFFFF8800[Valuate]|r The scale you were using before (" .. tostring(restore) ..
+              ") is gone - leaving the PvP one active.")
+        if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        return false, "The previous scale is gone."
+    end
+
+    if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+    print("|cFF00FF00[Valuate]|r Left the battleground - back to |cFFFFFFFF" ..
+          (restore ~= "" and restore or "no specific scale") .. "|r.")
+    return true, "Restored " .. (restore ~= "" and restore or "no scale") .. "."
+end
+
 -- Taking the port, and noticing when you missed it.
 --
 -- Auto-queue without this is half a feature: the queue pops, and you still have to be at the
@@ -8404,6 +8474,9 @@ frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 frame:RegisterEvent("PLAYER_LEVEL_UP")
 frame:RegisterEvent("PLAYER_DEAD")
 frame:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
+-- Zone changes are how entering and leaving a battleground is noticed for the PvP scale.
+-- PLAYER_ENTERING_WORLD is unregistered after the first fire, so it cannot serve here.
+frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 frame:RegisterEvent("LFG_COMPLETION_REWARD")
 frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
 frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
@@ -9906,6 +9979,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
+        print("  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere")
         print("  /valuate queuepvp - Queue for a random battleground now")
         print("  /valuate queuedungeon - Queue for a random dungeon now")
         print("  /valuate queuecheck - What is armed, and which of these APIs your client has")
@@ -10503,6 +10577,47 @@ SlashCmdList["VALUATE"] = function(msg)
             options[key] and "|cFF00FF00ON|r" or "|cFFFF8800OFF|r"))
         if options[key] then
             print("  |cFFAAAAAA/valuate queuecheck says whether this client can actually do it.|r")
+        end
+    elseif strsub(command, 1, 8) == "pvpscale" then
+        local options = Valuate:GetOptions()
+        local arg = strtrim(strsub(msg, 10) or "")
+        if arg == "" then
+            if options.pvpScale then
+                print("|cFF00FF00[Valuate]|r In battlegrounds, Valuate switches to |cFFFFFFFF" ..
+                      options.pvpScale .. "|r and back again when you leave.")
+            else
+                print("|cFF00FF00[Valuate]|r No PvP scale set - the same scale is used everywhere.")
+                print("  |cFFAAAAAAResilience and PvP Power are worth a lot in a battleground and " ..
+                      "almost nothing in a dungeon, so one scale cannot be right in both.|r")
+            end
+            print("  |cFFAAAAAA/valuate pvpscale <name>  ·  /valuate pvpscale off|r")
+        elseif arg == "off" then
+            options.pvpScale = nil
+            -- Any pending restore is honoured first, or switching this off inside a
+            -- battleground would strand you on the PvP scale permanently.
+            if options.pvpScaleRestore ~= nil then
+                local back = options.pvpScaleRestore
+                options.pvpScaleRestore = nil
+                options.characterWindowScale = (back ~= "" and back) or nil
+                if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+                print("|cFF00FF00Valuate|r: PvP scale off, and put you back on |cFFFFFFFF" ..
+                      ((back ~= "" and back) or "no specific scale") .. "|r.")
+            else
+                print("|cFF00FF00Valuate|r: PvP scale off - the same scale is used everywhere now.")
+            end
+        else
+            local scales = Valuate:GetScales() or {}
+            if not scales[arg] then
+                print("|cFFFF0000Valuate|r: No scale called |cFFFFFFFF" .. arg .. "|r.")
+                print("  |cFFAAAAAA/valuate scales lists them, and the name must match exactly.|r")
+            else
+                options.pvpScale = arg
+                print("|cFF00FF00Valuate|r: |cFFFFFFFF" .. arg ..
+                      "|r will be active in battlegrounds.")
+                -- Applied immediately if you are already standing in one, rather than
+                -- waiting for a zone change that may not come for twenty minutes.
+                if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+            end
         end
     elseif command == "queuepvp" then
         local ok, reason = Valuate:QueueForBattleground()

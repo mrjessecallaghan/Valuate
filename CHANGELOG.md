@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.109.0a] - 2026-08-14 — one scale in battlegrounds, yours everywhere else
+
+### Added
+- **`/valuate pvpscale <name>`** — nominate a scale for battlegrounds. It becomes active when
+  you zone in, and the one you were using comes back when you leave.
+
+Resilience, PvP Power and a chunk of stamina are worth a great deal in a battleground and close
+to nothing in a dungeon, so *"what is my best chest"* has **two correct answers** depending on
+where you're standing. Until now the addon gave you one of them everywhere — which, if you're
+grinding battlegrounds, is the wrong one for most of your evening.
+
+Everything downstream follows: upgrade arrows, best-in-slot, `/valuate upgrades`, junk marking.
+
+### The restore is the risky half
+Switching is easy. Getting you *back* is where this could quietly leave you scoring dungeon gear
+against a PvP scale for days, so:
+
+- **The restore target is persisted, not held in memory.** Reloading — or crashing — inside a
+  battleground would otherwise strand you with no record of what you were using. Saved, it
+  restores on the next zone out however you got there.
+- **Re-entry never overwrites it.** The events driving this fire repeatedly, and a second switch
+  would set the restore target to the PvP scale itself. That one is permanent damage from a
+  one-line mistake, and it has a mutation.
+- **"No scale before" is a real state** and comes back as no scale, rather than quietly
+  promoting the PvP one to your default.
+- **Deleted scales are refused, both directions**, and say so. Switching to a scale that isn't
+  there would make every score read zero.
+- **`/valuate pvpscale off` honours a pending restore first**, or switching it off inside a
+  battleground would strand you on the PvP scale permanently.
+
+Announced both ways. Silently changing which scale drives your arrows and your junk marking is
+indistinguishable from the addon breaking.
+
+### A gate caught me telling you to run a command I hadn't written
+The "that scale no longer exists" message pointed at `/valuate pvpscale` before the command
+existed. `commands.js` refused the build: *"These are printed to someone who is already stuck.
+They will type exactly what they were told, get 'unknown command', and conclude something worse
+is wrong."*
+
+### Gates
+`tools/queuetest.js` 58 → 80 checks; 75 mutations, all caught.
+
 ## [0.108.0a] - 2026-08-14 — the three automations that move your character get checks
 
 ### Added

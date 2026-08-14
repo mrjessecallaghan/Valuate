@@ -109,7 +109,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.108.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.109.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -196,6 +196,23 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- the PvP scale swap (v0.109.0a) --------------------------------------
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "re-entry overwrites the restore target, stranding you on the PvP scale forever",
+    from: "        if options.characterWindowScale == wanted then\n            return false, \"Already using it.\"",
+    to: "        if false then\n            return false, \"Already using it.\"" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "switches to a scale that was deleted, so every score reads zero",
+    from: "if not scales[wanted] then", to: "if false then" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "the restore marker is never cleared, so it fights you on every zone change",
+    from: "options.pvpScaleRestore = nil\n\n    if restore == \"\" then",
+    to: "\n    if restore == \"\" then" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "'no scale before' is forgotten, promoting the PvP scale to your default",
+    from: "options.pvpScaleRestore = options.characterWindowScale or \"\"",
+    to: "options.pvpScaleRestore = options.characterWindowScale" },
 
   // ---- toggle vs capability (v0.107.0a) ------------------------------------
   { gate: "selfverify", file: "Valuate.lua",
