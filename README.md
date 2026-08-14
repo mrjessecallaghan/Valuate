@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.89.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.90.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -169,7 +169,7 @@ only see structure — they cannot see a correct-looking branch in the wrong ord
 check wiring: that a file loads, a symbol resolves, a list stays in step.
 
 Neither kind can tell you the UI looks right. That is what **`/valuate verify`** is for
-in-game. It holds **21 checks** — it was short once and has grown with the addon, so it now
+in-game. It holds **31 checks** — it was short once and has grown with the addon, so it now
 says which of them a build gate already proves the *logic* for. Those are "does it look
 right", a smaller ask; the rest are the only evidence those behaviours will ever have, and
 **`/valuate verify next` hands you those first** so a half-finished sitting covers the half

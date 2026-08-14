@@ -4,34 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.88.0a] - 2026-08-14 — the wizard can update the scale it made, not just make another
+## [0.90.0a] - 2026-08-14 — the in-game checklist covers what actually shipped
 
-### Added
-- **Re-running the wizard now offers to *update* the scale it built for you before**, instead of
-  only ever creating a new one. Gear drifts — you level, you re-gem, you pick up a tier piece —
-  and the weights the wizard derived at 62 are not the weights it would derive at 80. Until now
-  the only way to correct a stale `Auto -` scale was to delete it and start over, which meant the
-  addon's own output was the one thing it could not maintain.
+### Fixed
+- **`/valuate verify` had stopped growing at v0.64.0a while the addon went on to v0.89.0a.**
+  Twenty-five releases — the CoA template set, Mastery/Versatility/Leech, wardrobe collecting,
+  the AdiBags scan button, this week's wizard work — every one of them resting on an assumption
+  about the client that no headless gate can test, and none of them on the list. A checklist
+  that quietly falls behind is worse than a short one: it reports "nothing pending" and sounds
+  like assurance.
 
-The preview screen's button reads **Update it** where it used to read *Create it*, with a line
-naming exactly what would be replaced: *"This replaces Auto - Str/Crit/Hit/AP/Haste, which I made
-earlier and your gear has moved on from."* Replacing edits is only acceptable *because* the
-preview names what it is replacing, beside the weights it would write. Silent would be wrong.
+### Five new checks, 21 → 31
+The one that matters most is **`coaclass`**, because the entire 21-class, 70-spec feature hangs
+on a single untested assumption: that `UnitClass("player")` returns the CoA class name, spelled
+the way the templates spell it. If it returns a stock token instead, `GetTemplateSet` falls
+through to the classic ten and every CoA build is silently unreachable — nothing errors, the
+wizard just proposes an Arms Warrior build to a Necromancer. The check arms itself: it prints
+what the client said and which set matched, so the answer takes one command.
 
-### The design flaw a test caught before it shipped
-The first cut matched any scale carrying the wizard's teal colour. That is wrong, and the gate
-said so within a minute: if you have a DPS `Auto` scale and ask for a **Tank** build, those are
-two different builds, not one drifted build. Offering to overwrite the first with the second
-would destroy a scale you deliberately made.
+- **`newstats`** — Mastery, Versatility and Leech tooltip wording was **guessed**. The parser
+  accepts `+12 Mastery Rating` and a bare `+12 Mastery` because I could not see which Ascension
+  uses. If it uses neither, every item carrying them scores as though it carried nothing.
+- **`scalerefresh`** — v0.89.0a's Refresh button and the update path behind it.
+- **`wardrobebind`** — whether `CollectItemAppearance` binds the item. An addon cannot see this
+  until after the fact, which is why the README warns rather than guessing.
+- **`adibagscan`** — another addon's header-widget contract, and a guessed ordering value.
 
-Scales now record the spec they were derived from (`AutoSource`), and an update is only offered
-when the new weights come from **that same spec**. A different spec always creates. Three
-mutations confirm it: ignoring the source, never offering the update, and never recording the
-source each fail a different assertion.
+### And a gate so it cannot happen again
+`tools/verifytest.js` now reads the real list and fails when its newest entry falls more than ten
+minor releases behind the `.toc`. **No escape hatch on purpose** — shipping ten releases with
+nothing a human should look at is itself the thing worth being told. It also rejects duplicate
+check ids, which would share one tick: verifying either would mark both done, which is precisely
+the failure the checklist exists to prevent.
 
-### Unchanged
-Hand-built scales are still never touched — no colour, no source, no match. Asking for a build
-you already have exactly still says *Use it* and writes nothing at all.
+Three mutations confirm it: eleven releases behind, two checks sharing an id, and the list
+renamed out from under the gate.
 
 ## [0.89.0a] - 2026-08-14 — the scale list tells you when your Auto scale has gone stale
 
@@ -72,6 +79,35 @@ never reverts, name not carried to the tooltip, refresh never called.
 Writing the button test surfaced a second thing worth recording: wrapping `ns.CreateStyledButton`
 from the harness captures **nothing**, because `ui/ScaleList.lua` localises it at load and is
 already holding its own reference. The test finds the button in the frame registry instead.
+
+## [0.88.0a] - 2026-08-14 — the wizard can update the scale it made, not just make another
+
+### Added
+- **Re-running the wizard now offers to *update* the scale it built for you before**, instead of
+  only ever creating a new one. Gear drifts — you level, you re-gem, you pick up a tier piece —
+  and the weights the wizard derived at 62 are not the weights it would derive at 80. Until now
+  the only way to correct a stale `Auto -` scale was to delete it and start over, which meant the
+  addon's own output was the one thing it could not maintain.
+
+The preview screen's button reads **Update it** where it used to read *Create it*, with a line
+naming exactly what would be replaced: *"This replaces Auto - Str/Crit/Hit/AP/Haste, which I made
+earlier and your gear has moved on from."* Replacing edits is only acceptable *because* the
+preview names what it is replacing, beside the weights it would write. Silent would be wrong.
+
+### The design flaw a test caught before it shipped
+The first cut matched any scale carrying the wizard's teal colour. That is wrong, and the gate
+said so within a minute: if you have a DPS `Auto` scale and ask for a **Tank** build, those are
+two different builds, not one drifted build. Offering to overwrite the first with the second
+would destroy a scale you deliberately made.
+
+Scales now record the spec they were derived from (`AutoSource`), and an update is only offered
+when the new weights come from **that same spec**. A different spec always creates. Three
+mutations confirm it: ignoring the source, never offering the update, and never recording the
+source each fail a different assertion.
+
+### Unchanged
+Hand-built scales are still never touched — no colour, no source, no match. Asking for a build
+you already have exactly still says *Use it* and writes nothing at all.
 
 ## [0.87.0a] - 2026-08-09 — you can actually ask the wizard for a Support build
 

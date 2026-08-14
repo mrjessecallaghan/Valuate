@@ -42,6 +42,68 @@ function slice(name) {
 
 const REAL = ["VersionOlder", "VerifiedState", "NextPendingCheck"].map(slice).join("\n");
 
+/* ---------------------------------------------------------------------------
+ * The REAL list, checked statically: does it still describe the addon that ships?
+ *
+ * This checklist is the only evidence some behaviours will ever have, and it stopped
+ * growing at 0.64.0a while the addon went on to 0.89.0a - twenty-five releases, including
+ * the CoA template set, the new secondaries, wardrobe collecting and the AdiBags button,
+ * every one of them resting on an assumption about the client that nothing here can test.
+ *
+ * A checklist that quietly falls behind is worse than a short one: `/valuate verify`
+ * reports "nothing pending" and sounds like assurance. So the newest entry has to stay
+ * within sight of the .toc. There is no escape hatch on purpose - shipping ten minor
+ * releases with nothing a human should look at is itself the thing worth being told.
+ * ------------------------------------------------------------------------- */
+const LAG_ALLOWED = 10;
+
+const listBlock = lua.match(/^local VERIFY_CHECKS = \{[\s\S]*?\n\}/m);
+if (!listBlock) {
+  console.error("  SLICE  could not find `local VERIFY_CHECKS` in Valuate.lua - this gate tests nothing");
+  process.exit(1);
+}
+const entries = [...listBlock[0].matchAll(/\bid = "([^"]+)",\s*since = "(\d+)\.(\d+)\.(\d+)a"/g)];
+if (entries.length === 0) {
+  console.error("  SLICE  VERIFY_CHECKS parsed to zero entries - the shape changed");
+  process.exit(1);
+}
+
+const seen = new Map();
+for (const [, id] of entries) {
+  // A duplicate id silently shares one tick in verifiedChecks, so verifying either marks
+  // both done - the exact failure this whole checklist exists to prevent.
+  if (seen.has(id)) {
+    console.error(`Two verify checks share the id "${id}". Ticking one would tick both.`);
+    process.exit(1);
+  }
+  seen.set(id, true);
+}
+
+const toc = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.toc"), "utf8");
+const tocV = toc.match(/^## Version:\s*(\d+)\.(\d+)\.(\d+)a/m);
+if (!tocV) {
+  console.error("  Could not read `## Version:` from Valuate.toc");
+  process.exit(1);
+}
+const tocMinor = Number(tocV[2]);
+const newest = entries.reduce((best, e) => {
+  const minor = Number(e[3]);
+  return minor > best.minor ? { minor, id: e[1], since: `${e[2]}.${e[3]}.${e[4]}a` } : best;
+}, { minor: -1, id: null, since: null });
+
+const lag = tocMinor - newest.minor;
+if (lag > LAG_ALLOWED) {
+  console.error(
+    `The verify checklist has fallen ${lag} minor releases behind.\n` +
+      `  newest check: ${newest.since} ("${newest.id}")\n` +
+      `  Valuate.toc:  ${tocV[1]}.${tocV[2]}.${tocV[3]}a\n\n` +
+      "Something has shipped since then that only the client can prove. Add a check for it\n" +
+      "in VERIFY_CHECKS - or if nothing in those releases is worth a human's eyes, that is\n" +
+      "itself worth being sure about before you raise LAG_ALLOWED."
+  );
+  process.exit(1);
+}
+
 const run = load([]);
 
 run(
@@ -157,5 +219,5 @@ ok(c and c.id == "ungated1", "a stale gated check does not jump the queue")
 return failures, checks
 `,
   "verifytest",
-  "the /valuate verify walkthrough"
+  `the /valuate verify walkthrough (${entries.length} checks listed, newest ${newest.since}, ${lag} behind the .toc)`
 );

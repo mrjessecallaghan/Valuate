@@ -8174,6 +8174,57 @@ end
 -- than merely wrong: entries far behind the current version are ones nobody got to.
 local VERIFY_CHECKS = {
     {
+        id = "coaclass", since = "0.79.0a",
+        gate = "tools/speccoverage.js",
+        title = "A Conquest of Azeroth character is matched against CoA builds, not classic ones",
+        steps = "This command prints which template set your character resolved to and the name the client gave for your class. Run it on a CoA realm.",
+        expect = "On CoA: the CoA set, and a class name that appears in it - Necromancer, Starcaller, Witch Hunter and so on. On a classless realm: the classic set. Never the classic set on a CoA character.",
+        broke = "The whole 21-class, 70-spec feature hangs on one assumption no gate can test: that UnitClass(\"player\") returns the CoA class name at all, spelled the way the templates spell it. If it returns a stock class token instead - or a localised string, or nothing on a classless realm - GetTemplateSet falls through to the classic ten and the entire CoA data set is silently unreachable. Nothing errors. The wizard just quietly proposes an Arms Warrior build to a Necromancer.",
+        arm = function()
+            if not Valuate.GetTemplateSet then
+                return false, "GetTemplateSet is missing - ui/Data.lua did not load."
+            end
+            local className, classToken = UnitClass("player")
+            local set, which = Valuate:GetTemplateSet()
+            local count = 0
+            for _ in ipairs(set or {}) do count = count + 1 end
+            print(string.format(
+                "|cFF3FE0C8[Valuate]|r UnitClass says |cFFFFFFFF%s|r (token %s); matched the |cFFFFFFFF%s|r set of %d classes.",
+                tostring(className), tostring(classToken), tostring(which), count))
+            return true, "Read the line above - does that set match the realm you are on?"
+        end,
+    },
+    {
+        id = "newstats", since = "0.72.0a",
+        title = "Mastery, Versatility and Leech are actually read off a tooltip",
+        steps = "Find any item carrying Mastery, Versatility or Leech - bags, a vendor, the auction house. Hover it, then run /valuate why <item link> for the same item.",
+        expect = "The stat is named in the breakdown with the number the tooltip shows. A score that ignores it means the line was not parsed.",
+        broke = "These are not stock 3.3.5 stats, so their tooltip wording had to be GUESSED. The parser accepts both \"+12 Mastery Rating\" and a bare \"+12 Mastery\" because I could not see which Ascension uses. If it uses neither - a percentage, a different order, a suffix - every item carrying them scores as though it carried nothing, silently, and the gear that most needs scoring is the gear that gets it wrong. This is the check no headless test can ever replace.",
+    },
+    {
+        id = "scalerefresh", since = "0.89.0a",
+        gate = "tools/scalelisttest.js",
+        title = "The wizard button offers to REFRESH a scale that has gone stale",
+        steps = "On a character with a wizard-made 'Auto - ' scale, level up or change several pieces of gear, then open Valuate and look at the button above the scale list. Hover it, then click through the wizard.",
+        expect = "It reads 'Refresh my scale' and its tooltip names the scale. The wizard's preview button says 'Update it', and finishing leaves you with the SAME number of scales - the old one replaced, not a twin. If nothing has drifted it reads 'Make me a scale' as before.",
+        broke = "New in this version, and the whole update path is unreachable without it. Two things to watch: a scale you built YOURSELF must never be offered (no teal, no source), and asking for a different ROLE must create rather than replace - a tank build is not a drifted DPS build.",
+    },
+    {
+        id = "wardrobebind", since = "0.74.0a",
+        gate = "tools/wardrobetest.js",
+        title = "Wardrobe collecting does not bind something you meant to sell",
+        steps = "Run /valuate wardrobe to LIST what it would collect - do not enable the automation yet. Pick one item on that list you do not care about. Note whether it is already soulbound. Then /valuate wardrobenow and look at the item again.",
+        expect = "The appearance is collected. Whether the item became soulbound is the thing to find out, and the answer decides whether this feature is safe to leave on.",
+        broke = "CollectItemAppearance is an Ascension API with no documented binding behaviour, and an addon cannot see the difference until after the fact. The README says so rather than guessing. Do this once, deliberately, on something worthless - and if it does bind, that is worth knowing before it runs unattended on a bag full of quest rewards.",
+    },
+    {
+        id = "adibagscan", since = "0.77.0a",
+        title = "The scan button sits with AdiBags' own buttons and works",
+        steps = "With AdiBags loaded, open your bags. Look along the top row of buttons for a teal V. Click it.",
+        expect = "It is in line with AdiBags' own header buttons, not overlapping them or floating. Clicking rescans - best-in-slot markers update. Disabling the Valuate-AdiBags module makes the button disappear rather than leaving a dead one behind.",
+        broke = "AddHeaderWidget is another addon's contract, and the ordering value is a guess about what else is already there. A widget that lands on top of AdiBags' search box would be obvious in the client and invisible to every gate here.",
+    },
+    {
         id = "press", since = "0.23.2a",
         title = "Buttons show a pressed state on a fast click",
         steps = "Open the UI, hover any button, then click it within about a fifth of a second.",
