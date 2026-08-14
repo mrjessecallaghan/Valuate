@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.110.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.110.1a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -162,7 +162,7 @@ the specific things worth checking by hand.
 
 ```bash
 cd tools && npm install     # once: installs luaparse + fengari
-node gates.js               # run every gate (about 1.5s)
+node gates.js               # run every gate, in parallel
 node mutate.js              # break the code on purpose; every gate must notice
 node mutate.js whybis       # ...or just one gate's mutations
 node gates.js --list        # ...or just see what would run

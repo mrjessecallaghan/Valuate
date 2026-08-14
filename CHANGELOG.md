@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.110.1a] - 2026-08-14 — the gate suite runs in parallel: 198s → 22s
+
+No addon changes. This is the tool a **pre-commit hook** runs, so its wall-clock is a tax on
+every change I make.
+
+### Fixed
+- **48 gates ran one after another.** Each is a separate node process reading source and running
+  fengari; none of them write anything (only `backup.js` and `mutate.js` do, and neither is a
+  gate). So on a six-core machine, 47 of every 48 startups were pure queueing.
+
+Measured on this box while it was under load: **198s → 22s**. On an idle one, 16s.
+
+That number is why this was worth doing rather than tolerating. A check that takes three minutes
+before every commit is one you start reasoning your way out of running — and a gate you skip is
+worth exactly nothing.
+
+### Output stays in list order
+Finishing order is whatever the scheduler decides. Results are collected and printed in the
+original order, because a pass list that shuffles itself between runs is unreadable — the same
+"undefined order is not an order" rule the addon follows for `pairs()`.
+
+### It now names its slowest gates
+```
+All 48 gates passed in 15.9s (5 at a time; slowest: check.js 4.1s, automatch.js 3.1s, tabtest.js 3.0s).
+```
+Without this, a gate that has quietly become pathological shows up only as *"the hook feels slow
+lately"*. It also settled the question here: nothing was pathological, the slowest was 6.1s, and
+the 198 seconds really was 48 startups queueing behind each other.
+
+### Verified the failure path, not just the fast one
+A runner that cannot report a failure is worse than no runner. Broke a gate on purpose: the
+`===== enchants.js FAILED =====` banner appears, the failing gate's **full output** is preserved
+rather than reduced to its last line, and the process exits **1**. The passing gates around it
+still report normally.
+
 ## [0.110.0a] - 2026-08-14 — `/valuate pvpscale make` builds the scale the last release asked for
 
 ### Added
