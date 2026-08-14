@@ -6023,6 +6023,83 @@ function Valuate:GetUpgradeBaseline(itemLink, scale, scaleName)
     return minScore or 0
 end
 
+-- Why is this item not my best-in-slot?
+--
+-- The single most common question a gear addon gets, and the one thing /valuate why could
+-- not answer: it explained rolls, arrows and junk - every automated DECISION - while the
+-- addon's own core output, "this is your best chest", had no diagnostic at all. "Every
+-- automated path has a diagnostic that explains why it did nothing" was true of everything
+-- except the headline feature.
+--
+-- Returns an array, one entry per active scale, each:
+--   { scaleName, verdict, score, bestScore, bestLink, gap }
+-- verdict is one of:
+--   "best"       this item IS the best for that scale
+--   "beaten"     something scores higher; bestLink names it and gap is the difference
+--   "unscored"   the scale gives this item nothing, so it can never win
+--   "noweights"  the scale has no weights at all
+--
+-- Deliberately does NOT consider equippability. "You cannot wear this yet" is a different
+-- answer from "this loses on points", and conflating them is what made the old silence
+-- confusing - a level-gated item and a genuinely worse one looked identical.
+function Valuate:ExplainBestInSlot(itemLink, stats)
+    if not itemLink or not stats then return nil end
+
+    local itemId = GetItemIdFromLink(itemLink)
+    if not itemId then return nil end
+
+    local targetSlots = TargetSlotsForItem(itemLink, itemId)
+    if not targetSlots then return nil end  -- not equippable gear; nothing to be best AT
+
+    local bestEquipment = Valuate:GetBestEquipment()
+    local results = {}
+
+    for _, scaleName in ipairs(Valuate:GetActiveScales()) do
+        local scale = Valuate:GetScales()[scaleName]
+        local be = bestEquipment[scaleName]
+        if scale then
+            local entry = { scaleName = scaleName }
+            if not scale.Values or next(scale.Values) == nil then
+                entry.verdict = "noweights"
+            else
+                entry.score = Valuate:CalculateItemScore(stats, scale) or 0
+
+                -- The winner among the slots this item could occupy. The WEAKEST of them
+                -- is the one it would actually displace, which is the same rule
+                -- GetUpgradeBaseline uses - two answers from one rule, not two rules.
+                local bestScore, bestLink
+                for _, slotId in ipairs(targetSlots) do
+                    local b = be and be[slotId]
+                    local s = (b and b.score) or 0
+                    if not bestScore or s < bestScore then
+                        bestScore, bestLink = s, b and b.itemLink
+                    end
+                end
+                entry.bestScore = bestScore or 0
+                entry.bestLink = bestLink
+
+                if entry.score <= 0 then
+                    entry.verdict = "unscored"
+                elseif bestLink and GetItemIdFromLink(bestLink) == itemId then
+                    entry.verdict = "best"
+                elseif entry.score > entry.bestScore then
+                    -- Scores higher than the incumbent but is not recorded as best: the
+                    -- scan has not run since this arrived. Saying "beaten" here would be
+                    -- a lie, so say what is actually true.
+                    entry.verdict = "unscanned"
+                    entry.gap = entry.score - entry.bestScore
+                else
+                    entry.verdict = "beaten"
+                    entry.gap = entry.bestScore - entry.score
+                end
+            end
+            table.insert(results, entry)
+        end
+    end
+
+    return #results > 0 and results or nil
+end
+
 -- How much this item would improve each scale, given already-parsed stats.
 -- Returns an array of { scaleName, scale, score, baseline, delta }, or nil.
 -- opts.includeInactive = true considers every configured scale, not just active ones
@@ -9126,6 +9203,40 @@ SlashCmdList["VALUATE"] = function(msg)
                             print("  |cFFAAAAAAArrows follow the CURRENT spec only; it may still be an upgrade for another scale.|r")
                         end
                     end
+                end
+
+                -- The addon's core output finally gets its own diagnostic. "Why isn't this
+                -- my best?" had no answer anywhere - not in the tooltip, not here.
+                print("  |cFFAAAAAA-- best-in-slot --|r")
+                local bisStats = Valuate:GetStatsForItemLink(itemLink)
+                local bis = bisStats and Valuate:ExplainBestInSlot(itemLink, bisStats)
+                if not bisStats then
+                    print("  |cFFFF8800Could not read its stats|r - hover the item once, then try again.")
+                elseif not bis then
+                    print("  |cFFAAAAAANot equippable gear, so there is no slot for it to win.|r")
+                else
+                    for _, e in ipairs(bis) do
+                        if e.verdict == "best" then
+                            print(string.format("  |cFF00FF00BEST|r for |cFFFFFFFF%s|r (%.1f).",
+                                e.scaleName, e.score))
+                        elseif e.verdict == "beaten" then
+                            print(string.format("  |cFFFF8800Beaten|r for |cFFFFFFFF%s|r: %.1f vs %.1f, short by |cFFFF8800%.1f|r.",
+                                e.scaleName, e.score, e.bestScore, e.gap))
+                            if e.bestLink then
+                                print("      beaten by " .. e.bestLink)
+                            end
+                        elseif e.verdict == "unscanned" then
+                            print(string.format("  |cFF00FF00Would win|r for |cFFFFFFFF%s|r by %.1f - but the scan has not run since it arrived. |cFFAAAAAA/valuate scan|r",
+                                e.scaleName, e.gap))
+                        elseif e.verdict == "unscored" then
+                            print(string.format("  |cFFFF8800Scores nothing|r for |cFFFFFFFF%s|r - none of its stats are weighted, so it can never win.",
+                                e.scaleName))
+                        else
+                            print(string.format("  |cFFFF8800%s has no weights|r, so nothing can be best for it.",
+                                e.scaleName))
+                        end
+                    end
+                    print("  |cFFAAAAAAThis is about POINTS, not whether you can wear it - see the arrow line above for that.|r")
                 end
 
                 -- And whether the bag integrations would act on it.

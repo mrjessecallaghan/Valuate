@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.94.0a] - 2026-08-14 — "why isn't this my best-in-slot?" finally has an answer
+
+### Added
+- **`/valuate why <item>` now explains best-in-slot**, per scale, with the score, what beat
+  it, and by how much.
+
+It already explained rolls, arrows and junk — every automated *decision*. The addon's own core
+output, "this is your best chest", had no diagnostic at all. *"Every automated path has a
+diagnostic that explains why it did nothing"* was true of everything except the headline
+feature, and "why isn't this my best?" is the most common question a gear addon gets.
+
+```
+-- best-in-slot --
+BEST for Dps (412.0).
+Beaten for Tank: 180.0 vs 244.0, short by 64.0.
+    beaten by [Breastplate of Tenacity]
+Scores nothing for Healer - none of its stats are weighted, so it can never win.
+```
+
+### Four verdicts that used to look identical
+All of these were silence before, and they call for completely different actions:
+
+| verdict | what it means |
+|---|---|
+| **best** | it is your best for that scale |
+| **beaten** | something scores higher — named, with the gap |
+| **would win** | it outscores what you have, but the scan hasn't run since it arrived |
+| **scores nothing** | the scale weights none of its stats, so it can never win |
+
+**"Would win" is the one that had to be right.** Reporting it as *beaten* would be a confident
+lie about an item you should go and equip — so it is its own verdict, and it tells you to run
+`/valuate scan`.
+
+Deliberately **not** mixed with equippability. "You can't wear this yet" is a different answer
+from "this loses on points", and the arrow line above already covers the first.
+
+### Rings
+An item with two possible slots is compared against the **weaker** of them, because that is the
+one it would displace. Comparing against the stronger would report a good second ring as beaten
+while you wear junk in the other hand. Same rule `GetUpgradeBaseline` already uses — two answers
+from one rule, not two rules that can drift apart.
+
+Matching is by **item ID, not link**: the recorded link carries whatever enchants and gems the
+item had when scanned, so comparing strings would call your own gear an impostor.
+
+### Gates
+`tools/whybis.js`, 23 checks. Five mutations, each caught: "would win" collapsed into "beaten",
+matching by link, "scores nothing" dropped, comparing against the stronger of two slots, and
+explaining scales you have hidden.
+
+The two-slot case only became testable because writing the mutations exposed that the fixture
+was all chest pieces — the ring rule was unexercised, so the mutation that broke it passed.
+
 ## [0.93.0a] - 2026-08-14 — proving the last two releases actually did anything, in your client
 
 ### Added
