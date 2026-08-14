@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.91.0a] - 2026-08-14 — a bag repaint stops re-sorting a list that cannot have changed
+
+### Measured, then fixed
+The roadmap has flagged the AdiBags filter as the likeliest hot spot since before there was a
+way to check. There is one now: **`tools/hotpath.js`** drives the path AdiBags drives — one
+filter call per item per repaint, each asking `IsBestInSlot` and `GetFutureUpgradeScales` — and
+found a 120-item bag with 6 scales doing this per repaint:
+
+```
+240 GetActiveScales calls, 240 table.sorts, 240 full walks of the scales table
+```
+
+`GetActiveScales` allocated a table, walked every scale and **sorted** the result, on every
+call. The list is derived from the scales table alone, so it cannot change while a repaint is
+in flight: **239 of those 240 sorts could not affect any answer.** Now cached:
+
+```
+240 GetActiveScales calls, 1 sort, 1 walk
+```
+
+### Invalidation is the risky half, so it hangs off something that already exists
+The cache is dropped in `ResetTooltips`, which is already the "scoring inputs changed" signal
+and already drops the upgrade-arrow cache for exactly this reason. Hanging it there rather than
+on thirty individual mutation sites means a new one inherits it.
+
+A one-second **TTL** backs that up. It is the safety net, not the mechanism: if some future path
+edits scales without going through `ResetTooltips`, a stale list would mark gear as surplus that
+is not — and surplus feeds auto-delete. One second is imperceptible for a visibility toggle and
+still collapses an entire repaint burst into a single build.
+
+### Counts, not milliseconds
+Wall-clock under a Lua-in-JS harness says nothing about Lua 5.1 in the client. "How many times
+did we sort a list that cannot have changed" transfers exactly. The budgets are ceilings the
+current code sits under, so a change that makes a repaint measurably worse has to say so out
+loud rather than shipping quietly.
+
+`GetItemInfo` stays at 2 per item and is deliberately *not* optimised below that — it is the
+shape of the filter itself asking two questions, not waste.
+
+### Gates
+`tools/hotpath.js`, 14 checks, and the harness now prints a benchmark's measurement alongside
+its OK line — a number that only appears when a budget breaks is a number you never see.
+
+Four mutations, each caught: cache never invalidated (which would keep marking gear as best for
+a scale you had hidden), cache never stored, TTL never lapsing, backwards-clock guard removed.
+The backwards-clock one **survived the first run** — the assertion did not exist until it said
+so, which is the whole reason for mutating.
+
 ## [0.90.0a] - 2026-08-14 — the in-game checklist covers what actually shipped
 
 ### Fixed

@@ -3346,6 +3346,11 @@ function Valuate:ResetTooltips()
     -- the old weights until you happened to equip something.
     if Valuate.ResetUpgradeArrowCache then Valuate:ResetUpgradeArrowCache() end
 
+    -- Same argument, one cache further down: the active-scale list is derived from the
+    -- scales table, so a scale toggled or renamed has to drop it here or the change would
+    -- not reach a bag repaint until the TTL happened to lapse.
+    if Valuate.InvalidateActiveScales then Valuate:InvalidateActiveScales() end
+
     -- Reset main tooltip
     ResetTooltip("GameTooltip")
     
@@ -3770,14 +3775,43 @@ end
 
 -- Gets all active scales (scales that should be displayed)
 -- Returns: Table of scale names that are active
+-- The sorted active list, cached.
+--
+-- MEASURED, not guessed: tools/hotpath.js drives the path AdiBags drives - one filter call
+-- per item per repaint, each asking IsBestInSlot and GetFutureUpgradeScales - and found a
+-- 120-item bag with 6 scales rebuilding and re-SORTING this list 240 times per repaint.
+-- The list is derived from the scales table alone, so it cannot change while a repaint is
+-- in flight; 239 of those sorts could not affect any answer.
+--
+-- Invalidated from ResetTooltips, which is already the "scoring inputs changed" signal and
+-- already drops the upgrade-arrow cache for the same reason. Hanging this there rather than
+-- on thirty individual mutation sites means a new one inherits it.
+--
+-- The TTL is a safety net, not the mechanism. If some future path edits scales without
+-- going through ResetTooltips, a stale list would mark gear as surplus that is not - and
+-- surplus feeds auto-delete. One second is imperceptible for a visibility toggle and still
+-- collapses an entire repaint burst into a single build.
+local ACTIVE_SCALES_TTL = 1
+local activeScalesCache, activeScalesAt = nil, -1
+
+function Valuate:InvalidateActiveScales()
+    activeScalesCache, activeScalesAt = nil, -1
+end
+
 function Valuate:GetActiveScales()
+    local now = (GetTime and GetTime()) or 0
+    -- `now < activeScalesAt` catches a clock that went backwards (a /reload resets GetTime).
+    if activeScalesCache and now - activeScalesAt <= ACTIVE_SCALES_TTL and now >= activeScalesAt then
+        return activeScalesCache
+    end
+
     local active = {}
     local scales = Valuate:GetScales()
-    
+
     if not scales then
         return active
     end
-    
+
     for scaleName, scaleData in pairs(scales) do
         -- Check if scale has values and is visible
         if scaleData.Values and (scaleData.Visible ~= false) then  -- Default to visible if not set
@@ -3801,6 +3835,7 @@ function Valuate:GetActiveScales()
         return a < b
     end)
 
+    activeScalesCache, activeScalesAt = active, now
     return active
 end
 

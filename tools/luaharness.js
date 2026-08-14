@@ -366,6 +366,15 @@ function load(files) {
       process.exit(1);
     }
     console.log("OK  " + subject + " passed " + checks + " runtime checks against a mocked WoW API.");
+
+    // A benchmark that never shows its number is half a benchmark: a budget only reports
+    // when it is breached, so the measurement itself would be invisible on every green
+    // run. A block may set a global __report string to have it printed alongside the OK.
+    lua.lua_getglobal(L, to_luastring("__report"));
+    if (lua.lua_isstring(L, -1)) {
+      console.log("      " + to_jsstring(lua.lua_tostring(L, -1)));
+    }
+    lua.lua_pop(L, 1);
   };
 }
 
