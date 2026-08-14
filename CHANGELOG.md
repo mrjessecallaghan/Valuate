@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.111.0a] - 2026-08-14 — the battleground automations appear in Settings, and stop following you to alts
+
+### Added
+- **A "Battlegrounds & Dungeons" section in Settings**, with the five automations from
+  v0.105–0.106: release on death, leave a finished battleground, take the invite, re-queue for
+  PvP, re-queue for a dungeon.
+
+They were **command-only**, which meant the newest and most consequential features in the addon
+— the ones that move your character — were invisible to anyone who doesn't read `/valuate help`.
+A feature nobody can find is a feature that doesn't exist.
+
+Each tooltip ends with the same pointer: *"/valuate queuecheck says whether this client can
+actually do it."* Every one depends on an API Ascension may not have, and saying so on the
+control beats finding out when it silently never fires.
+
+### Fixed
+- **`pvpScale` was travelling in settings snapshots.** Shipped in v0.109.0a, unnoticed for two
+  releases.
+
+`characterWindowScale` is excluded from snapshots for a stated reason — *"names a scale that may
+not exist on the target character"* — and `pvpScale` has exactly that problem. Copy your
+Warrior's settings to your Necromancer and it would nominate **"Arms (PvP)"**, a scale that
+character has never had, then switch to nothing every time it zoned into a battleground. That
+looks precisely like the feature being broken.
+
+`pvpScaleRestore` too: it's mid-battleground bookkeeping, and copying it makes an alt "restore"
+to a scale it was never using.
+
+### The exclusion list had no gate, which is why
+`tools/snapshottest.js`, 21 checks. Five mutations, and the first one **is** the bug: deleting
+`pvpScale` from the exclusion list. Two survived the first run, both fixture faults —
+
+- Every table in the fixture was *also* excluded by name, so the "never copy tables" rule was
+  never doing any work.
+- The excluded keys had `nil` defaults, meaning they were absent from `DEFAULT_OPTIONS`
+  entirely — so the loader's *"is this still a real option?"* guard refused them and the
+  exclusion check never ran. Two guards, one of them dead.
+
+### A lint rule I chose not to suppress
+`settings-anchor-chain` flagged the new section's loop cursor as a shared anchor. It can't see
+that the variable is reassigned each pass, so the report was wrong — but the escape hatch would
+have blunted a rule that catches a real overlap bug. Instead the loop's cursor and the final
+control are named separately, which is also just clearer: one is loop state, the other is one
+specific frame. A future second anchor to that frame still gets caught.
+
+### Gates
+49 gates, 85 mutations. `settingstest.js` 108 → 123 checks — it drives the real Settings panel,
+so the new controls are built and layout-checked by the gate that already existed.
+
 ## [0.110.1a] - 2026-08-14 — the gate suite runs in parallel: 198s → 22s
 
 No addon changes. This is the tool a **pre-commit hook** runs, so its wall-clock is a tax on

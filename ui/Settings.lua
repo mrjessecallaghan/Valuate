@@ -1362,6 +1362,79 @@ local function CreateSettingsPanel(parent)
     valueHint:SetTextColor(unpack(COLORS.textDim))
     columnHeights[2] = columnHeights[2] + 52 + ELEMENT_SPACING
 
+    -- ---- Battlegrounds & Dungeons -------------------------------------------
+    --
+    -- Command-only until now, which meant the newest and most consequential automations in
+    -- the addon - the ones that move your character - were invisible to anyone who does not
+    -- read /valuate help. A feature nobody can find is a feature that does not exist.
+    --
+    -- Built in a loop, so five near-identical blocks cannot drift apart the way hand-copied
+    -- ones do. Each control anchors to the PREVIOUS control, never to a shared sibling: two
+    -- controls sharing an anchor is the overlap bug CheckColumnAnchors exists to catch.
+    local bgHeader = CreateSectionHeader(col2, 2, "Battlegrounds & Dungeons", valueHint)
+
+    local BG_TOGGLES = {
+        { key = "autoRelease", label = "Release on death",
+          tip = "Releases your spirit automatically. Never while you are dead in a party or raid instance with other people - someone is probably mid battle-rez, and throwing that away is not a preference anyone holds on purpose." },
+        { key = "autoLeaveBattleground", label = "Leave a finished battleground",
+          tip = "Leaves 8 seconds after the match ends, so the scoreboard stays readable. Switching this off DURING the countdown cancels it." },
+        { key = "autoAcceptBattleground", label = "Take the battleground invite",
+          tip = "Accepts the port the moment a queue pops - but never while you are in combat. Deliberately separate from re-queueing: being pulled out of a quest is a surprise you should have to ask for." },
+        { key = "autoQueuePvP", label = "Re-queue for PvP",
+          tip = "Queues for a random battleground after you leave one, or after a queue pop lapsed while you were away. Never queues while you are still inside a match." },
+        { key = "autoQueueDungeon", label = "Re-queue for a dungeon",
+          tip = "Queues for a random dungeon after one finishes." },
+    }
+
+    local bgPrevious = bgHeader
+    for _, toggle in ipairs(BG_TOGGLES) do
+        local cb = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
+        cb:SetSize(24, 24)
+        cb:SetPoint("TOPLEFT", bgPrevious, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+        local lbl = cb:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        lbl:SetPoint("LEFT", cb, "RIGHT", 5, 0)
+        lbl:SetText(toggle.label)
+
+        cb:SetChecked(Valuate:GetOptions()[toggle.key] == true)
+        cb:SetScript("OnClick", function(self)
+            Valuate:GetOptions()[toggle.key] =
+                (self:GetChecked() == 1) or (self:GetChecked() == true)
+        end)
+        cb:SetScript("OnEnter", function(self)
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                GameTooltip:AddLine(toggle.label, 1, 1, 1)
+                GameTooltip:AddLine(toggle.tip, 0.8, 0.8, 0.8, true)
+                GameTooltip:AddLine(" ")
+                -- Every one of these depends on an API Ascension may not have. Saying so on
+                -- the control itself beats finding out when it silently never fires.
+                GameTooltip:AddLine("/valuate queuecheck says whether this client can actually do it.",
+                    0.6, 0.9, 0.6, true)
+                GameTooltip:Show()
+            end
+        end)
+        cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
+        bgPrevious = cb
+    end
+
+    -- Named separately from the loop's cursor on purpose. `bgPrevious` is loop STATE - a
+    -- different frame on every pass - while this is one specific control, and anchoring to
+    -- it twice really would be the overlap bug. Keeping the names apart means the lint rule
+    -- still catches that, instead of being told to ignore a variable it cannot reason about.
+    local lastBgToggle = bgPrevious
+
+    local bgHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    bgHint:SetPoint("TOPLEFT", lastBgToggle, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    bgHint:SetWidth(settingsColumnWidth)
+    bgHint:SetJustifyH("LEFT")
+    bgHint:SetText("These act in the world. /valuate queuecheck lists which of\n" ..
+                   "their APIs your client has.\n" ..
+                   "A different scale inside battlegrounds: /valuate pvpscale make")
+    bgHint:SetTextColor(unpack(COLORS.textDim))
+    columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 3: Character Window, Keybindings, Advanced
     -- ========================================

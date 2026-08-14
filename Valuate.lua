@@ -911,6 +911,14 @@ local SNAPSHOT_EXCLUDED = {
     professionOverrides = true,
     -- Names a scale that may not exist on the target character.
     characterWindowScale = true,
+    -- Same reason, and it arrived in v0.109.0a without being added here: your Warrior's
+    -- "Arms (PvP)" is not a scale your Necromancer has, and nominating it there would leave
+    -- that character switching to nothing every time it zoned into a battleground.
+    pvpScale = true,
+    -- In-flight state, not a setting. This records which scale to switch BACK to, and
+    -- copying one character's mid-battleground bookkeeping onto another would have that
+    -- alt "restore" to a scale it was never using.
+    pvpScaleRestore = true,
 }
 
 function Valuate:SaveSettingsSnapshot()

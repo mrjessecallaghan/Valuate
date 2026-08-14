@@ -113,7 +113,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.110.1a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.111.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -200,6 +200,27 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- the settings snapshot (v0.111.0a) -----------------------------------
+  // The first of these IS the bug that shipped in v0.109.0a and sat unnoticed for two
+  // releases: pvpScale travelling to an alt that has no such scale.
+  { gate: "snapshottest", file: "Valuate.lua",
+    label: "your Warrior's PvP scale name is copied onto a character that has no such scale",
+    from: "    pvpScale = true,", to: "" },
+  { gate: "snapshottest", file: "Valuate.lua",
+    label: "mid-battleground bookkeeping is copied to an alt, which then 'restores' to nothing",
+    from: "    pvpScaleRestore = true,", to: "" },
+  { gate: "snapshottest", file: "Valuate.lua",
+    label: "the active scale name travels, pointing every alt at a scale it does not have",
+    from: "    characterWindowScale = true,", to: "" },
+  { gate: "snapshottest", file: "Valuate.lua",
+    label: "tables are copied by reference, aliasing two characters' settings to one object",
+    from: 'if not SNAPSHOT_EXCLUDED[key] and type(value) ~= "table" then',
+    to: "if not SNAPSHOT_EXCLUDED[key] then" },
+  { gate: "snapshottest", file: "Valuate.lua",
+    label: "an old snapshot can reintroduce an option that no longer exists",
+    from: "if DEFAULT_OPTIONS[key] ~= nil and not SNAPSHOT_EXCLUDED[key] then",
+    to: "if DEFAULT_OPTIONS[key] ~= nil then" },
 
   // ---- deriving the PvP scale (v0.110.0a) ----------------------------------
   { gate: "queuetest", file: "Valuate.lua",
