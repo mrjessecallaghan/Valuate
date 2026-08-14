@@ -84,6 +84,9 @@ ITEM_QUALITY_EPIC OKAY YES NO CANCEL ACCEPT CLOSE
 ITEM_UNIQUE ITEM_UNIQUE_MULTIPLE ITEM_UNIQUE_EQUIPPABLE ITEM_SPELL_KNOWN
 EMPTY_SOCKET_RED EMPTY_SOCKET_YELLOW EMPTY_SOCKET_BLUE EMPTY_SOCKET_META EMPTY_SOCKET_PRISMATIC
 GetNumSkillLines GetSkillLineInfo
+IsInInstance GetNumPartyMembers GetNumRaidMembers RepopMe
+GetBattlefieldWinner LeaveBattlefield GetBattlegroundInfo JoinBattlefield
+GetRandomDungeonBestChoice SetLFGDungeon JoinLFG
 strtrim strsplit strjoin strlower strupper strsub strlen strfind strmatch strrep
 tinsert tremove twipe wipe format gsub gmatch max min abs floor ceil
 date time difftime random

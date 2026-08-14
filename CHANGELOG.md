@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.105.0a] - 2026-08-14 — auto-queue, auto-release, auto-leave
+
+### Added
+Four automations for the loop that is mostly clicking: **queue → play → it ends → leave →
+queue again.** All **off by default**, like every other automation here.
+
+| command | what it does |
+|---|---|
+| `/valuate autorelease` | Releases your spirit on death |
+| `/valuate autoleavebg` | Leaves a battleground once it has finished |
+| `/valuate autoqueuepvp` | Re-queues for a random battleground after you leave one |
+| `/valuate autoqueuedungeon` | Re-queues for a random dungeon after one finishes |
+| `/valuate queuepvp` · `queuedungeon` | Queue right now, once |
+| `/valuate queuecheck` | What's armed, and **which of these APIs your client actually has** |
+
+### Three deliberate refusals
+- **Auto-release will not fire while you're dead in a party or raid instance with other
+  people.** Someone is very likely mid battle-rez, and releasing throws it away. Not
+  configurable — "release even though my healer is casting on me" isn't a preference anyone
+  holds on purpose. In the open world or a battleground it releases normally.
+- **Leaving waits 8 seconds** and says so. The scoreboard is the only record of the match, and
+  ripping it away instantly is worse than the clicking this replaces. The option is **re-read
+  when the timer fires**, so switching it off during the countdown cancels the leave rather
+  than carrying out a decision you've since reversed.
+- **Re-queueing happens only after you've left.** Queueing from inside a match would either be
+  refused or drop you into a second one.
+
+### The unusual risk here
+Everything else in this addon *reports*; these four *act*, and each calls an API Ascension may
+have changed or removed. So every capability is **detected before use** and every refusal
+**names the exact API it couldn't find** — `/valuate queuecheck` lists all eight without
+touching anything. A toggle that's on but says `no` next to `JoinBattlefield` cannot work,
+whatever the toggle says, and now you can see that in one command instead of inferring it from
+silence.
+
+The random battleground is found by its **isRandom flag**, not its name or position, so it
+survives localisation and whatever Ascension calls it.
+
+### Gates
+`tools/queuetest.js`, 44 checks — 48 gates, 62 mutations. Seven mutations, and one **survived**:
+I'd tested that a missing `JoinBattlefield` names itself but never that a missing
+`GetBattlegroundInfo` does — one unnamed API is enough to reproduce the exact "nothing happened
+and I can't tell why" this design exists to prevent.
+
+**Untested in-game, and more consequential than usual** — these are the first features here that
+can take an action in the world. Run `/valuate queuecheck` before trusting any of them.
+
 ## [0.104.0a] - 2026-08-14 — unenchanted gear, the other half of "stats you already earned"
 
 ### Added

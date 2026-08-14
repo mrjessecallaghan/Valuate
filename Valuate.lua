@@ -516,6 +516,26 @@ local function OnEvent(self, event, addonName, ...)
     if event == "ADDON_LOADED" and addonName == "Valuate" then
         -- Addon loaded, initialize
         Valuate:Initialize()
+    elseif event == "PLAYER_DEAD" then
+        if Valuate.AutoReleaseSpirit then
+            local ok, reason = Valuate:AutoReleaseSpirit()
+            Valuate:MarkAutomation("autoRelease", ok and "released" or tostring(reason))
+        end
+    elseif event == "UPDATE_BATTLEFIELD_STATUS" then
+        -- Fires often and for every queue slot; HandleBattlefieldEnd does its own gating and
+        -- guards against scheduling the leave twice.
+        if Valuate.HandleBattlefieldEnd then Valuate:HandleBattlefieldEnd() end
+    elseif event == "LFG_COMPLETION_REWARD" then
+        -- The random dungeon paid out, so the run is over. Re-queue only if asked, and only
+        -- after a beat - the reward window is still up and queueing under it is jarring.
+        if Valuate:GetOptions().autoQueueDungeon then
+            ValuateAfter(5, function()
+                local ok, reason = Valuate:QueueForDungeon()
+                print((ok and "|cFF00FF00[Valuate]|r " or "|cFFFF8800[Valuate]|r ") .. tostring(reason))
+            end)
+        else
+            Valuate:MarkAutomation("queueDungeon", "dungeon finished; auto-queue is off")
+        end
     elseif event == "PLAYER_LEVEL_UP" then
         -- The new level arrives in the first vararg slot, which this handler names
         -- `addonName` because ADDON_LOADED got there first. Fall back to UnitLevel if
@@ -752,6 +772,12 @@ local DEFAULT_OPTIONS = {
     -- Alt-hover expands the tooltip into a per-scale best-in-slot breakdown. On by
     -- default because it costs nothing until you hold the key.
     showAltDetail = true,
+
+    -- Queueing, releasing, leaving. All off, like every other automation here.
+    autoRelease = false,
+    autoLeaveBattleground = false,
+    autoQueuePvP = false,
+    autoQueueDungeon = false,
     chatMessages = true,                  -- verbose chat messages
     scanVerbose = false,                  -- scan completion messages
     showStartupMessage = true,            -- "Valuate loaded" message
@@ -6226,6 +6252,177 @@ function Valuate:BuildNearMissLine(itemLink, stats)
         shown < 1 and "under 1%" or string.format("%.0f%%", shown))
 end
 
+-- ============================================================================
+-- Queueing, releasing and leaving
+-- ============================================================================
+--
+-- The battleground grind is queue -> play -> it ends -> leave -> queue again, and three of
+-- those four are pure clicking. Same for dungeons.
+--
+-- Every one of these calls an API that Ascension may have changed, renamed or removed, and
+-- unlike the rest of the addon a wrong guess here does something rather than mis-reporting
+-- something. So: each capability is DETECTED before use, each refusal names the exact API it
+-- could not find, and /valuate queuecheck lists the lot without touching anything. Nothing
+-- silently does nothing.
+--
+-- All four default OFF, like every other automation here.
+local BG_LEAVE_DELAY = 8
+
+-- What the client must provide for each feature, so a refusal can name it.
+local function ApiPresent(name)
+    return type(_G[name]) == "function"
+end
+
+local function InBattleground()
+    if type(IsInInstance) ~= "function" then return false end
+    local inside, kind = IsInInstance()
+    return (inside and kind == "pvp") or false
+end
+
+-- Auto-release.
+--
+-- Guarded against the one case where releasing is actively harmful: dead in a party or raid
+-- INSTANCE, where someone is very likely about to resurrect you and releasing throws that
+-- away. Out in the world, or in a battleground, releasing is what you were going to do
+-- anyway. This is not configurable because "release even though my healer is casting on me"
+-- is not a preference anyone holds on purpose.
+function Valuate:AutoReleaseSpirit()
+    local options = Valuate:GetOptions()
+    if not options.autoRelease then
+        return false, "Auto-release is off - /valuate autorelease turns it on."
+    end
+    if not ApiPresent("RepopMe") then
+        return false, "This client has no RepopMe() - releasing cannot be automated here."
+    end
+
+    if type(IsInInstance) == "function" then
+        local inside, kind = IsInInstance()
+        if inside and (kind == "party" or kind == "raid") then
+            local party = (type(GetNumPartyMembers) == "function" and GetNumPartyMembers()) or 0
+            local raid = (type(GetNumRaidMembers) == "function" and GetNumRaidMembers()) or 0
+            if party > 0 or raid > 0 then
+                return false, "In a group inside an instance - someone may resurrect you, so this stays your call."
+            end
+        end
+    end
+
+    local ok = pcall(RepopMe)
+    if not ok then
+        return false, "RepopMe() was refused - the client may not be ready to release yet."
+    end
+    return true, "Released."
+end
+
+-- Queueing.
+--
+-- Both return ok, reason. The reason is the whole point: a queue that quietly does not
+-- happen is indistinguishable from a queue that is still waiting.
+function Valuate:QueueForBattleground()
+    if not ApiPresent("GetBattlegroundInfo") then
+        return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."
+    end
+    if not ApiPresent("JoinBattlefield") then
+        return false, "No JoinBattlefield() on this client - queueing cannot be automated here."
+    end
+    if InBattleground() then
+        return false, "Already in a battleground."
+    end
+
+    -- The Random Battleground entry, which is what "queue for PvP" means to almost everyone.
+    -- Found by its isRandom flag rather than by name, so it survives localisation and
+    -- whatever Ascension calls it.
+    for i = 1, 20 do
+        local name, canEnter, _, _, _, isRandom = GetBattlegroundInfo(i)
+        if not name then break end
+        if isRandom and canEnter then
+            local ok = pcall(JoinBattlefield, i, false)
+            if ok then
+                Valuate:MarkAutomation("queuePvP", "queued for " .. tostring(name))
+                return true, "Queued for " .. tostring(name) .. "."
+            end
+            return false, "JoinBattlefield() was refused for " .. tostring(name) .. "."
+        end
+    end
+    return false, "No random battleground you can enter was listed - check your level, or queue once by hand."
+end
+
+function Valuate:QueueForDungeon()
+    if not ApiPresent("SetLFGDungeon") or not ApiPresent("JoinLFG") then
+        return false, "This client has no SetLFGDungeon()/JoinLFG() - dungeon queueing cannot be automated here."
+    end
+    if not ApiPresent("GetRandomDungeonBestChoice") then
+        return false, "No GetRandomDungeonBestChoice() - nothing can say which random dungeon fits your level."
+    end
+
+    local dungeonId = GetRandomDungeonBestChoice()
+    if not dungeonId then
+        return false, "The client offered no random dungeon for your level right now."
+    end
+
+    local ok = pcall(function()
+        SetLFGDungeon(dungeonId)
+        JoinLFG()
+    end)
+    if not ok then
+        return false, "SetLFGDungeon()/JoinLFG() were refused."
+    end
+    Valuate:MarkAutomation("queueDungeon", "queued for random dungeon " .. tostring(dungeonId))
+    return true, "Queued for the random dungeon."
+end
+
+-- Leaving a finished battleground, and re-queueing after.
+--
+-- A battleground is over when GetBattlefieldWinner() stops returning nil. Leaving the
+-- INSTANT that happens would rip the scoreboard away before you could read it - and the
+-- scoreboard is the only record of the match - so it waits, says how long, and says how to
+-- stop it.
+local bgLeaveScheduled = false
+
+function Valuate:HandleBattlefieldEnd()
+    local options = Valuate:GetOptions()
+    if not InBattleground() then return end
+    if type(GetBattlefieldWinner) ~= "function" then return end
+    if GetBattlefieldWinner() == nil then return end   -- still playing
+    if bgLeaveScheduled then return end                -- the event fires repeatedly
+    if not options.autoLeaveBattleground then
+        Valuate:MarkAutomation("bgLeave", "match ended; auto-leave is off")
+        return
+    end
+    if not ApiPresent("LeaveBattlefield") then
+        Valuate:MarkAutomation("bgLeave", "no LeaveBattlefield() on this client")
+        return
+    end
+
+    bgLeaveScheduled = true
+    print(string.format("|cFF00FF00[Valuate]|r Match over - leaving in %d seconds. " ..
+        "|cFFAAAAAA/valuate autoleavebg cancels it.|r", BG_LEAVE_DELAY))
+
+    ValuateAfter(BG_LEAVE_DELAY, function()
+        bgLeaveScheduled = false
+        -- Re-checked, not assumed: the option can be switched off during the countdown, and
+        -- acting on a decision the user has since reversed is worse than never offering.
+        if not Valuate:GetOptions().autoLeaveBattleground then
+            Valuate:MarkAutomation("bgLeave", "cancelled - switched off during the countdown")
+            return
+        end
+        if not InBattleground() then
+            Valuate:MarkAutomation("bgLeave", "already left before the timer ran out")
+            return
+        end
+        pcall(LeaveBattlefield)
+        Valuate:MarkAutomation("bgLeave", "left the battleground")
+
+        -- Re-queue after leaving, never before: queueing while still inside would either be
+        -- refused or drop you into a second match you did not ask for.
+        if Valuate:GetOptions().autoQueuePvP then
+            ValuateAfter(3, function()
+                local ok, reason = Valuate:QueueForBattleground()
+                print((ok and "|cFF00FF00[Valuate]|r " or "|cFFFF8800[Valuate]|r ") .. tostring(reason))
+            end)
+        end
+    end)
+end
+
 -- The checks the addon can judge for itself.
 --
 -- /valuate verify holds 32 behavioural checks and every one costs a human: read the steps,
@@ -8098,6 +8295,9 @@ frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 -- Levelling can make gear you already carry wearable; nothing else triggers a rescan
 -- for it, since your bags did not change.
 frame:RegisterEvent("PLAYER_LEVEL_UP")
+frame:RegisterEvent("PLAYER_DEAD")
+frame:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
+frame:RegisterEvent("LFG_COMPLETION_REWARD")
 frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
 frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
 frame:RegisterEvent("BAG_UPDATE")
@@ -8358,6 +8558,10 @@ function Valuate:PrintReport()
         { key = "questReward",   label = "Quest reward taken" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
         { key = "wardrobe",      label = "Wardrobe collecting" },
+        { key = "autoRelease",   label = "Auto-release" },
+        { key = "bgLeave",       label = "Battleground leave" },
+        { key = "queuePvP",      label = "PvP queue" },
+        { key = "queueDungeon",  label = "Dungeon queue" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -9564,6 +9768,14 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
         print("  /valuate sockets - Empty gem sockets on gear you are wearing")
         print("  /valuate enchants - Gear you are wearing with no enchant")
+        print("|cFFFFFF00Queue, release and leave|r |cFFAAAAAA(all off by default)|r")
+        print("  /valuate autorelease - Toggle releasing your spirit automatically on death")
+        print("  /valuate autoleavebg - Toggle leaving a battleground once it has finished")
+        print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
+        print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
+        print("  /valuate queuepvp - Queue for a random battleground now")
+        print("  /valuate queuedungeon - Queue for a random dungeon now")
+        print("  /valuate queuecheck - What is armed, and which of these APIs your client has")
         print("  /valuate selfverify - Run every check the addon can judge on its own")
         print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
         print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
@@ -10137,6 +10349,73 @@ SlashCmdList["VALUATE"] = function(msg)
                 print("    " .. tostring(e.message))
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
+        end
+    elseif command == "autorelease" or command == "autoleavebg"
+        or command == "autoqueuepvp" or command == "autoqueuedungeon" then
+        local options = Valuate:GetOptions()
+        local key, label = ({
+            autorelease       = { "autoRelease", "Auto-release on death" },
+            autoleavebg       = { "autoLeaveBattleground", "Auto-leave a finished battleground" },
+            autoqueuepvp      = { "autoQueuePvP", "Auto-queue for PvP after leaving a battleground" },
+            autoqueuedungeon  = { "autoQueueDungeon", "Auto-queue for a random dungeon after one finishes" },
+        })[command][1], ({
+            autorelease       = "Auto-release on death",
+            autoleavebg       = "Auto-leave a finished battleground",
+            autoqueuepvp      = "Auto-queue for PvP after leaving a battleground",
+            autoqueuedungeon  = "Auto-queue for a random dungeon after one finishes",
+        })[command]
+        options[key] = not options[key]
+        print(string.format("|cFF00FF00Valuate|r: %s is %s.", label,
+            options[key] and "|cFF00FF00ON|r" or "|cFFFF8800OFF|r"))
+        if options[key] then
+            print("  |cFFAAAAAA/valuate queuecheck says whether this client can actually do it.|r")
+        end
+    elseif command == "queuepvp" then
+        local ok, reason = Valuate:QueueForBattleground()
+        print((ok and "|cFF00FF00[Valuate]|r " or "|cFFFF8800[Valuate]|r ") .. tostring(reason))
+    elseif command == "queuedungeon" then
+        local ok, reason = Valuate:QueueForDungeon()
+        print((ok and "|cFF00FF00[Valuate]|r " or "|cFFFF8800[Valuate]|r ") .. tostring(reason))
+    elseif command == "queuecheck" then
+        -- Touches nothing. Says what is armed and, more usefully, which APIs this client
+        -- actually has - because "nothing happened" has two very different causes and they
+        -- look identical from outside.
+        local options = Valuate:GetOptions()
+        print("|cFF00FF00[Valuate]|r Queue, release and leave")
+        local function line(label, on)
+            print(string.format("  %s %s", on and "|cFF00FF00ON |r" or "|cFFFF8800OFF|r", label))
+        end
+        line("Auto-release on death", options.autoRelease)
+        line("Auto-leave a finished battleground", options.autoLeaveBattleground)
+        line("Auto-queue PvP after leaving", options.autoQueuePvP)
+        line("Auto-queue a dungeon after one finishes", options.autoQueueDungeon)
+
+        print("  |cFFAAAAAAWhat this client provides:|r")
+        local apis = {
+            { "RepopMe", "release" },
+            { "LeaveBattlefield", "leave a battleground" },
+            { "GetBattlefieldWinner", "notice a match ended" },
+            { "GetBattlegroundInfo", "read the battleground list" },
+            { "JoinBattlefield", "queue for a battleground" },
+            { "GetRandomDungeonBestChoice", "pick a random dungeon" },
+            { "SetLFGDungeon", "select a dungeon" },
+            { "JoinLFG", "queue for a dungeon" },
+        }
+        local missing = 0
+        for _, a in ipairs(apis) do
+            local present = type(_G[a[1]]) == "function"
+            if not present then missing = missing + 1 end
+            print(string.format("    %s %s |cFFAAAAAA(%s)|r",
+                present and "|cFF00FF00yes|r" or "|cFFFF0000no |r", a[1], a[2]))
+        end
+        if missing > 0 then
+            print(string.format("  |cFFFF8800%d missing.|r |cFFAAAAAAAscension is a modified client; " ..
+                "anything listed 'no' cannot be automated here, whatever the toggle says.|r", missing))
+        end
+        if InBattleground() then
+            local winner = type(GetBattlefieldWinner) == "function" and GetBattlefieldWinner()
+            print("  |cFFAAAAAAYou are in a battleground; it has " ..
+                  (winner and "ENDED." or "not ended yet.") .. "|r")
         end
     elseif command == "enchants" then
         local list, n = Valuate:FindMissingEnchants()
