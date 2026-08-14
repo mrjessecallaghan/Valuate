@@ -74,6 +74,18 @@ local function setScales(list)
     end
 end
 
+-- Find a button the panel built, by the words on it. ScaleList.lua localises
+-- ns.CreateStyledButton at load, so wrapping the factory here would capture nothing -
+-- the file is already holding its own reference. The frame registry sees them all.
+local function findButton(text)
+    for _, f in ipairs(__frames) do
+        if type(f.label) == "table" and f.label.GetText and f.label:GetText() == text then
+            return f
+        end
+    end
+    return nil
+end
+
 local parent = CreateFrame("Frame")
 ns.CreateScaleList(parent)
 
@@ -278,6 +290,38 @@ for highlighted in string.gmatch(tostring(emptyText), "|c%x%x%x%x%x%x%x%x(.-)|r"
         "the empty state points at a real button: " .. highlighted)
 end
 ok(named > 0, "the empty state actually names a button to click")
+
+-- ---- the wizard button offers what it would actually DO ---------------------
+--
+-- One button, two jobs. "Make me a scale" is the wrong words once it has already made you
+-- one and that one has gone stale, and a button whose words are wrong is how a feature
+-- ends up undiscoverable. The label is the ONLY place staleness surfaces - there is no
+-- chat nudge and no popup - so if it stops swapping, the update path becomes unreachable
+-- for anyone who does not already know to re-run the wizard on a hunch.
+local wizBtn = findButton("Make me a scale")
+ok(wizBtn ~= nil, "the panel builds a wizard button")
+
+setScales({ "Alpha" })
+Valuate.GetAutoScaleDrift = function() return nil end
+ns.UpdateScaleList()
+eq(wizBtn.label:GetText(), "Make me a scale", "nothing stale: it offers to make one")
+eq(wizBtn.drifted, nil, "and names no scale")
+
+Valuate.GetAutoScaleDrift = function() return "Auto - Str/Crit/Hit" end
+ns.UpdateScaleList()
+eq(wizBtn.label:GetText(), "Refresh my scale", "something stale: it offers to refresh instead")
+eq(wizBtn.drifted, "Auto - Str/Crit/Hit", "and remembers WHICH, so the tooltip can name it")
+
+-- Back again. A one-way swap would leave "Refresh my scale" on a button that would create.
+Valuate.GetAutoScaleDrift = function() return nil end
+ns.UpdateScaleList()
+eq(wizBtn.label:GetText(), "Make me a scale", "and reverts once nothing is stale any more")
+eq(wizBtn.drifted, nil, "clearing the name too")
+
+-- An older core with no drift detector at all must not break the panel.
+Valuate.GetAutoScaleDrift = nil
+ns.UpdateScaleList()
+eq(wizBtn.label:GetText(), "Make me a scale", "a core without the detector still draws the button")
 
 return failures, checks
 `,

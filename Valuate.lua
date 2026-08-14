@@ -1316,6 +1316,60 @@ function Valuate:CommitAutoScale(plan, scales)
     return scale, plan.updates and "updated" or nil
 end
 
+-- Has the scale the wizard made for you fallen behind the gear you are actually wearing?
+--
+-- v0.88.0a gave the wizard the ability to UPDATE its own scale, and immediately created a
+-- discovery problem: the only way to find out a scale had drifted was to re-run the wizard
+-- on a hunch. A stale scale is not a preference, it is quietly wrong - it ranks your gear
+-- against weights you outgrew - so leaving that behind a hunch is not good enough.
+--
+-- This is the read-only half of PlanAutoScale. It writes nothing, creates nothing, and is
+-- deliberately NOT an automation: it changes no state and takes no action, it only answers
+-- a question the UI asks so it can offer the wizard by the right name. Nothing here needs
+-- an opt-in because nothing here happens to you.
+--
+-- No `role` is passed. "Whatever your gear most resembles" is the only honest question to
+-- ask unprompted; supplying a role would be inventing an intent you never expressed. And
+-- because FindUpdatableAutoScale matches on AutoSource, a Tank scale is never reported as
+-- drifted just because you are standing in DPS gear - that is a different build, not a
+-- stale one, which is the same distinction the update itself rests on.
+local DRIFT_TTL = 20
+local driftCache, driftAt = nil, -1
+function Valuate:GetAutoScaleDrift()
+    if not Valuate.PlanAutoScale or not Valuate.GetScales then return nil end
+
+    local now = (GetTime and GetTime()) or 0
+    -- `now < driftAt` catches a clock that went backwards (a /reload resets GetTime).
+    if driftAt >= 0 and now - driftAt <= DRIFT_TTL and now >= driftAt then
+        return driftCache or nil
+    end
+
+    -- Cheap pre-check first: no wizard-made scale means nothing can be stale, so everyone
+    -- who has never run the wizard skips the template match entirely.
+    local anyAuto = false
+    for _, scale in pairs(Valuate:GetScales()) do
+        if type(scale) == "table" and scale.Color == AUTO_SCALE_COLOR and scale.AutoSource then
+            anyAuto = true
+            break
+        end
+    end
+
+    local drifted = nil
+    if anyAuto then
+        local totals = Valuate.GetCachedEquippedStatTotals
+            and Valuate:GetCachedEquippedStatTotals()
+        local plan = Valuate:PlanAutoScale({
+            templates = (Valuate.GetTemplateSet and Valuate:GetTemplateSet())
+                or ns.CLASS_SPEC_TEMPLATES,
+            totals = totals,
+        })
+        drifted = plan and plan.updates or nil
+    end
+
+    driftCache, driftAt = drifted or false, now
+    return drifted
+end
+
 -- Get character-specific best equipment table
 function Valuate:GetBestEquipment()
     if not ValuateBestEquipment then
@@ -7650,7 +7704,7 @@ function Valuate:RunSelfTest()
         -- the subsystem a new user meets first.
         "MatchTemplateToStats", "NormalizeWeights", "BuildAutoScaleName",
         "BuildUniqueAutoScaleName", "FindMatchingAutoScale",
-        "PlanAutoScale", "CommitAutoScale",
+        "PlanAutoScale", "CommitAutoScale", "GetAutoScaleDrift",
         -- These two live in ui/Wizard.lua and MinimapButton.lua rather than here, which is
         -- exactly why they are worth checking: a module that failed to load leaves the rest
         -- of the addon working and only these missing.

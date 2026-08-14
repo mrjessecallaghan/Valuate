@@ -33,6 +33,46 @@ source each fail a different assertion.
 Hand-built scales are still never touched — no colour, no source, no match. Asking for a build
 you already have exactly still says *Use it* and writes nothing at all.
 
+## [0.89.0a] - 2026-08-14 — the scale list tells you when your Auto scale has gone stale
+
+### Added
+- **The wizard button now says what it would actually *do*.** v0.88.0a taught the wizard to
+  update the scale it made, and immediately created a discovery problem: the only way to find
+  out a scale had drifted was to re-run the wizard on a hunch. When an update is available the
+  button at the top of the scale list reads **Refresh my scale** instead of *Make me a scale*,
+  and its tooltip names the scale: *"Your gear has moved on from Auto - Str/Crit/Hit, which I
+  made for you earlier."*
+
+A stale scale is not a preference, it is quietly wrong — it ranks your gear against weights you
+outgrew. But it is not urgent either, so this gets **no chat nudge and no popup**. It waits in
+the one place you already look at your scales, and it names what it means rather than asserting
+"your scale is out of date", which is an accusation you cannot check.
+
+### Not an automation, and not an option
+`Valuate:GetAutoScaleDrift` is the read-only half of `PlanAutoScale`. It writes nothing, creates
+nothing and takes no action — it answers a question the UI asks so it can pick its own label.
+There is nothing here to opt into because nothing here happens to you.
+
+It passes **no role**, deliberately: "whatever your gear most resembles" is the only honest
+question to ask unprompted. And because it inherits v0.88.0a's `AutoSource` matching, standing in
+caster gear never reports your **tank** scale as stale — that is a different build, not a drifted
+one.
+
+### Cost
+Two guards keep this off the repaint path: a **pre-check** that skips the template match entirely
+for anyone with no wizard-made scale, and a **20-second TTL** on the answer. Both are gate-tested
+by proving the opposite fails.
+
+### Gates
+`tools/autowizard.js` (84 checks, was 72) covers the detector; `tools/scalelisttest.js` (45, was
+37) covers the button. Eight mutations, each caught by the assertion meant for it: pre-check
+dead, TTL dead, backwards-clock guard removed, drift never reported, label never swaps, label
+never reverts, name not carried to the tooltip, refresh never called.
+
+Writing the button test surfaced a second thing worth recording: wrapping `ns.CreateStyledButton`
+from the harness captures **nothing**, because `ui/ScaleList.lua` localises it at load and is
+already holding its own reference. The test finds the button in the frame registry instead.
+
 ## [0.87.0a] - 2026-08-09 — you can actually ask the wizard for a Support build
 
 ### Fixed

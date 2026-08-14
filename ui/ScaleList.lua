@@ -38,6 +38,25 @@ local ScaleListFrame = nil
 -- declared below its reader) has cost this project three separate bugs.
 local UpdateScaleList
 
+-- The wizard button, declared here for the same reason UpdateScaleList is: it is CREATED
+-- in CreateScaleList, far below, but READ by UpdateScaleList just above that. A `local`
+-- next to its creation would make this reader a nil global.
+local wizardButton = nil
+
+-- The wizard button says what it would DO right now, rather than one fixed thing.
+--
+-- "Make me a scale" is wrong once it already made you one - and the scale it made is
+-- exactly the one that goes stale as you level. So when the wizard would offer an update,
+-- the button offers it by name, in the place you already look at your scales, instead of
+-- leaving you to re-run the wizard on a hunch. This is the only surface the staleness gets:
+-- no chat nudge, no popup, nothing that interrupts you mid-pull.
+local function RefreshWizardButton()
+    if not wizardButton then return end
+    local drifted = Valuate.GetAutoScaleDrift and Valuate:GetAutoScaleDrift()
+    wizardButton.drifted = drifted
+    wizardButton.label:SetText(drifted and "Refresh my scale" or "Make me a scale")
+end
+
 -- The row pool.
 --
 -- WoW never frees a frame. SetParent(nil) does not free one; nothing does. This panel
@@ -602,6 +621,10 @@ UpdateScaleList = function()
         ScaleListFrame.emptyLabel:Hide()
     end
 
+    -- Re-read drift every time the list is drawn, so equipping something and coming back
+    -- shows the right offer. Cached behind a TTL in the core, so this is not a per-frame cost.
+    RefreshWizardButton()
+
     -- Update scroll frame content height (account for spacing between entries)
     if ScaleListFrame then
         local contentHeight = #scales * (ENTRY_HEIGHT + 2)
@@ -704,7 +727,7 @@ local function CreateScaleList(parent)
     -- because that still assumes they know which one they are. The wizard is the only
     -- entry point here that answers that question for them, so it gets the top row and a
     -- slash command is not the only way to find it.
-    local wizardButton = CreateStyledButton(buttonContainer, "Make me a scale", 200, BUTTON_HEIGHT)
+    wizardButton = CreateStyledButton(buttonContainer, "Make me a scale", 200, BUTTON_HEIGHT)
     wizardButton:SetPoint("TOPLEFT", buttonContainer, "TOPLEFT", 0, 0)
     wizardButton.label:SetTextColor(ns.HexToRGB("3FE0C8"))
     wizardButton:SetScript("OnClick", function()
@@ -714,12 +737,24 @@ local function CreateScaleList(parent)
     -- replacing them kills the animation on this button alone.
     wizardButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-            GameTooltip:AddLine("Make me a scale", 0.25, 0.88, 0.78)
-            GameTooltip:AddLine("Reads the gear you are wearing, works out which build you " ..
-                "most resemble, and creates an optimized scale from it.", 0.8, 0.8, 0.8, true)
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("Shows you what it would make first. Never overwrites a " ..
-                "scale you already have.", 0.7, 0.7, 0.7, true)
+            if self.drifted then
+                -- Names the scale. "Your scale is out of date" with no name is an accusation
+                -- you cannot check; with the name you can go and look at it first.
+                GameTooltip:AddLine("Refresh my scale", 0.25, 0.88, 0.78)
+                GameTooltip:AddLine("Your gear has moved on from |cFF3FE0C8" ..
+                    tostring(self.drifted) .. "|r, which I made for you earlier.",
+                    0.8, 0.8, 0.8, true)
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Opens the wizard with the new weights ready to look at. " ..
+                    "Nothing changes until you say so.", 0.7, 0.7, 0.7, true)
+            else
+                GameTooltip:AddLine("Make me a scale", 0.25, 0.88, 0.78)
+                GameTooltip:AddLine("Reads the gear you are wearing, works out which build you " ..
+                    "most resemble, and creates an optimized scale from it.", 0.8, 0.8, 0.8, true)
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine("Shows you what it would make first. Never touches a " ..
+                    "scale you built yourself.", 0.7, 0.7, 0.7, true)
+            end
             GameTooltip:Show()
         end
     end)

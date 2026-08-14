@@ -51,6 +51,9 @@ const pieces = [
   /^local MATCH_CLOSE_MARGIN = [\d.]+/m,
   /^function Valuate:PlanAutoScale\([\s\S]*?\r?\nend/m,
   /^function Valuate:CommitAutoScale\([\s\S]*?\r?\nend/m,
+  /^local DRIFT_TTL = \d+/m,
+  /^local driftCache, driftAt = [^\r\n]*/m,
+  /^function Valuate:GetAutoScaleDrift\([\s\S]*?\r?\nend/m,
 ];
 const sliced = [];
 for (const re of pieces) {
@@ -272,6 +275,77 @@ local freePlan = Valuate:PlanAutoScale({ templates = free, totals = plateMelee }
 local freeScale = Valuate:CommitAutoScale(freePlan)
 ok(type(freeScale.Unusable) == "table", "a template with no bans still gets an Unusable table")
 eq(next(freeScale.Unusable), nil, "and it is empty rather than invented")
+
+-- ---------------------------------------------------------------------------
+-- Staleness: does the addon know its OWN scale has fallen behind your gear?
+--
+-- The update path is only reachable if something tells you an update is available. This
+-- is the read-only question the scale list asks to decide what its wizard button says.
+-- ---------------------------------------------------------------------------
+for k in pairs(SCALES) do SCALES[k] = nil end
+
+local clock = 100
+function GetTime() return clock end
+local EQUIPPED = plateMelee
+function Valuate:GetCachedEquippedStatTotals() return EQUIPPED end
+function Valuate:GetTemplateSet() return TEMPLATES end
+
+eq(Valuate:GetAutoScaleDrift(), nil, "with no scales at all, nothing has drifted")
+
+-- The cheap pre-check: someone who has never run the wizard must not pay for a template
+-- match on every repaint of the scale list.
+SCALES["Mine"] = { DisplayName = "Mine", Color = "FF0000", Values = { Strength = 1.0 } }
+local realPlan = Valuate.PlanAutoScale
+local planCalls = 0
+Valuate.PlanAutoScale = function(self, o) planCalls = planCalls + 1 return realPlan(self, o) end
+clock = clock + 100
+eq(Valuate:GetAutoScaleDrift(), nil, "a scale you built yourself is never called stale")
+eq(planCalls, 0, "and with no wizard scale present the template match is skipped entirely")
+
+for k in pairs(SCALES) do SCALES[k] = nil end
+clock = clock + 100
+local made = Valuate:CommitAutoScale(
+    Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee }))
+ok(made ~= nil, "the wizard makes one to go stale")
+clock = clock + 100
+eq(Valuate:GetAutoScaleDrift(), nil, "the scale it just made is not stale")
+ok(planCalls > 0, "but a wizard scale DOES cost the template match")
+
+-- Hand-edit it into disagreeing with what the gear implies. This is the levelling case in
+-- miniature: same spec, weights that no longer match.
+local savedStr = made.Values.Strength
+made.Values.Strength = 0.11
+clock = clock + 100
+local drifted = Valuate:GetAutoScaleDrift()
+eq(drifted, made.DisplayName, "an out-of-date scale is reported BY NAME, not as a boolean")
+
+-- The TTL is what stops this being a per-repaint cost. Proven by changing the answer and
+-- requiring the OLD one back until the window passes.
+made.Values.Strength = savedStr
+eq(Valuate:GetAutoScaleDrift(), drifted, "the answer is cached inside the TTL")
+clock = clock + 100
+eq(Valuate:GetAutoScaleDrift(), nil, "and recomputed once the TTL has passed")
+
+-- The distinction the whole feature rests on: a DIFFERENT build is not a stale one.
+for k in pairs(SCALES) do SCALES[k] = nil end
+clock = clock + 100
+local tankScale = Valuate:CommitAutoScale(
+    Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee, role = "TANK" }))
+ok(tankScale ~= nil, "a tank scale exists to be left alone")
+EQUIPPED = casterGear
+clock = clock + 100
+eq(Valuate:GetAutoScaleDrift(), nil,
+   "standing in caster gear does NOT report your tank scale as stale")
+
+-- A clock that went backwards (a /reload resets GetTime) must not pin the cache.
+EQUIPPED = plateMelee
+for k in pairs(SCALES) do SCALES[k] = nil end
+clock = 5
+local reloaded = Valuate:CommitAutoScale(
+    Valuate:PlanAutoScale({ templates = TEMPLATES, totals = plateMelee }))
+reloaded.Values.Strength = 0.11
+eq(Valuate:GetAutoScaleDrift(), reloaded.DisplayName,
+   "a backwards clock recomputes rather than serving a stale cached answer")
 
 return failures, checks
 `,

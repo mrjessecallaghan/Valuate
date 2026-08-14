@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.88.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.89.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -34,7 +34,9 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
   you" — it works that out from what you wear. Run it again after levelling and it offers to
   **update** the scale it made rather than adding a second one — naming what it would replace,
   and only ever a scale derived from the *same* spec, so asking for a tank build never
-  disturbs your DPS one.
+  disturbs your DPS one. You don't have to guess when that's worth doing: the button itself
+  reads **Refresh my scale** once your gear has moved on. No chat nudge, no popup — it waits
+  where you already look.
 - **Conquest of Azeroth is supported** — all **21 CoA classes and 70 specialisations**, on top
   of the 31 classic ones. The wizard picks the right set from your character's class, so a
   Necromancer is matched against CoA builds and a Warrior against classic ones; neither is
