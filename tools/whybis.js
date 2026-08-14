@@ -41,6 +41,7 @@ const PIECES = [
   /^function Valuate:GetStatsForTooltipSetter\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetScaledStatsForItem\([\s\S]*?\r?\nend/m,
   /^function Valuate:ExplainBestInSlot\([\s\S]*?\r?\nend/m,
+  /^function Valuate:BuildDetailLines\([\s\S]*?\r?\nend/m,
   /^local NEAR_MISS_RATIO = [\d.]+/m,
   /^function Valuate:BuildNearMissLine\([\s\S]*?\r?\nend/m,
 ];
@@ -264,6 +265,48 @@ BEST.Dps[5] = nil
 local intoEmpty = verdictFor(Valuate:ExplainBestInSlot(CANDIDATE, { Strength = 5 }), "Dps")
 eq(intoEmpty.verdict, "unscanned", "an item for an empty slot is not 'beaten' by nothing")
 ok(intoEmpty.bestLink == nil, "and no phantom winner is named")
+
+-- ---- the Alt-hover breakdown ------------------------------------------------
+-- Same verdicts as /valuate why, without shift-clicking an item into chat and typing a
+-- command around the link. One line per scale, so the risk is a line that reads the same
+-- for two different situations - which is the failure the verdicts exist to prevent.
+BEST.Dps[5]  = { itemLink = INCUMBENT, score = 100 }
+-- CANDIDATE is genuinely Tank's best, so the "best" branch is actually exercised. A first
+-- draft pointed both scales at INCUMBENT, which meant no line in this whole block ever took
+-- that branch - and a mutation deleting it passed.
+BEST.Tank[5] = { itemLink = CANDIDATE, score = 100 }
+BEST.Dps[11], BEST.Dps[12] = nil, nil
+
+local det = Valuate:BuildDetailLines(CANDIDATE, { Strength = 60, Stamina = 100 })
+ok(det ~= nil, "an equippable item gets a breakdown")
+eq(#det, 3, "one line per active scale, no more")
+
+local function lineFor(lines, name)
+    for _, l in ipairs(lines or {}) do if l:find(name, 1, true) then return l end end
+end
+
+local dpsLine = lineFor(det, "Dps")
+ok(dpsLine:find("-40", 1, true) ~= nil, "a beaten scale shows how far short it is")
+-- Matched on the MARKER, not the word: the beaten line ends "vs your best", so searching
+-- for "best" passes on a line that means the opposite. It did, until a mutation said so.
+ok(lineFor(det, "Tank"):find("|cFF00FF00best|r", 1, true) ~= nil, "a scale it wins is marked best")
+ok(lineFor(det, "Empty"):find("no weights", 1, true) ~= nil, "a scale with no weights says so")
+
+-- The four verdicts must not collapse into each other. "+40, rescan" and "-40 vs your best"
+-- are opposite instructions, and this is the one place they sit side by side.
+local wins = Valuate:BuildDetailLines(CANDIDATE, { Strength = 140 })
+local winLine = lineFor(wins, "Dps")
+ok(winLine:find("+40", 1, true) ~= nil, "an item that would win shows a POSITIVE delta")
+ok(winLine:find("rescan", 1, true) ~= nil, "and says what to do about it")
+-- Specifically a negative DELTA, not any hyphen: the line legitimately contains one in
+-- "- rescan to pick it up", and a check that crude fails on correct output.
+ok(winLine:find("-40", 1, true) == nil, "and never shows the gap as a loss")
+
+ok(lineFor(Valuate:BuildDetailLines(CANDIDATE, { Spirit = 9 }), "Dps"):find("nothing this scale wants", 1, true) ~= nil,
+   "an unscoreable item is distinguished from one that merely lost")
+
+ok(Valuate:BuildDetailLines("|Hitem:9:0:0:0:0:0:0:0:80|h[nongear]|h", { Strength = 1 }) == nil,
+   "something that goes in no slot gets no breakdown at all")
 
 -- ---- the near-miss tooltip line ---------------------------------------------
 -- "Best for" is binary; the decision at a vendor is not. An item 2% short is worth keeping

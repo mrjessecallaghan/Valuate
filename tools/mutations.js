@@ -39,6 +39,10 @@ const EXPLAIN = {
   start: "function Valuate:ExplainBestInSlot",
   end: "\n-- How much this item would improve each scale",
 };
+const DETAIL = {
+  start: "function Valuate:BuildDetailLines",
+  end: "\n-- How much this item would improve each scale",
+};
 const NEARMISS = {
   start: "function Valuate:BuildNearMissLine",
   end: "\n-- How much this item would improve each scale",
@@ -90,7 +94,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.97.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.98.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -131,6 +135,19 @@ module.exports = [
   { gate: "whybis", file: "Valuate.lua", scope: EXPLAIN,
     label: "scales you have hidden are explained anyway",
     from: "ipairs(Valuate:GetActiveScales())", to: "pairs(Valuate:GetScales())" },
+
+  // ---- the Alt-hover breakdown (v0.98.0a) ----------------------------------
+  { gate: "whybis", file: "Valuate.lua", scope: DETAIL,
+    label: "gear you should go and equip reads as a loss instead of a gain",
+    from: '"%s  %.1f  |cFF00FF00+%.1f|r - rescan to pick it up"',
+    to: '"%s  %.1f  |cFFFF8800-%.1f|r vs your best"' },
+  { gate: "whybis", file: "Valuate.lua", scope: DETAIL,
+    label: "an item the scale wants nothing of looks like a narrow loss",
+    from: '"%s  |cFFAAAAAAnothing this scale wants|r"', to: '"%s  |cFFAAAAAAno weights set|r"' },
+  { gate: "whybis", file: "Valuate.lua", scope: DETAIL,
+    label: "scales are silently dropped from the breakdown",
+    from: "lines[#lines + 1] = string.format(\"%s  |cFF00FF00best|r  %.1f\", named, e.score)",
+    to: "local _ = named" },
 
   // ---- the near-miss tooltip line (v0.96.0a) -------------------------------
   { gate: "whybis", file: "Valuate.lua", scope: NEARMISS,

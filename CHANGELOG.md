@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.98.0a] - 2026-08-14 — hold Alt over an item for the whole answer
+
+### Added
+- **Alt-hover breakdown on tooltips.** Hold **Alt** while hovering any item for the full
+  best-in-slot picture, one line per scale — the same answer `/valuate why` gives, without
+  shift-clicking the item into chat and typing a command around the link.
+
+```
+Best-in-slot, every scale
+  Dps    412.0  -38.0 vs your best
+  Tank   180.0  +22.0 - rescan to pick it up
+  Healer nothing this scale wants
+```
+
+The summary lines answer *should I care*. This answers *why*, which is a question you ask about
+one item in fifty — so it costs a keypress rather than permanent tooltip space.
+
+**Alt, not Shift.** Shift is the client's own compare-tooltip modifier and is how you link an
+item into chat; taking it over would break two things people already use.
+
+`/valuate detail` toggles it off.
+
+### One honest limitation
+3.3.5 does not redraw a tooltip when a modifier changes. The options were an `OnUpdate` polling
+for a keypress on every frame — for a line most hovers do not want — or nothing. It is nothing:
+**hold Alt before you hover**, or move off and back. The command says so when you enable it.
+
+### A bad assertion, found by the tool from the last release
+`node tools/mutate.js` reported a survivor immediately: deleting the "this is your best" line
+entirely changed nothing.
+
+Two faults, one hiding the other. The fixture pointed both scales at the *incumbent* item, so no
+line in the whole block ever took the `best` branch. And the assertion meant to check it searched
+for the word **"best"** — which also appears in `"-38.0 vs your best"`, the line for a scale the
+item **lost**. It passed on output meaning the exact opposite of what it claimed to verify.
+
+Now matched on the colour marker rather than the word, against a fixture where the item genuinely
+is one scale's best. Fifth fixture problem this session, and the first one found by a committed
+tool rather than a script I happened to write that day — which is the entire argument for
+committing it.
+
+### Gates
+`tools/whybis.js` 48 → 58 checks; `tools/mutations.js` 29 → 32. All 43 gates, all 32 mutations.
+
 ## [0.97.0a] - 2026-08-14 — the thing that actually finds the bugs is now a tool
 
 ### Added

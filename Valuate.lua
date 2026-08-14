@@ -749,6 +749,9 @@ local DEFAULT_OPTIONS = {
     rightAlign = false,
     showScaleValue = "all",              -- "all" or "current"
     showBestFor = true,
+    -- Alt-hover expands the tooltip into a per-scale best-in-slot breakdown. On by
+    -- default because it costs nothing until you hold the key.
+    showAltDetail = true,
     chatMessages = true,                  -- verbose chat messages
     scanVerbose = false,                  -- scan completion messages
     showStartupMessage = true,            -- "Valuate loaded" message
@@ -2255,6 +2258,22 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 if nearLine then
                     tooltip:AddLine(" ")
                     tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. nearLine, nil, nil, nil, true)
+                    hasScores = true
+                end
+            end
+
+            -- Hold Alt for everything at once. The summary lines above answer "should I care";
+            -- this answers "why", which is a question you ask about one item in fifty - so it
+            -- costs a keypress rather than permanent tooltip space.
+            if options.showAltDetail ~= false and IsAltKeyDown and IsAltKeyDown() then
+                local detail = Valuate:BuildDetailLines(itemLink, stats)
+                if detail then
+                    tooltip:AddLine(" ")
+                    tooltip:AddLine(VALUATE_MARKER_FULL .. " |cFFAAAAAABest-in-slot, every scale|r",
+                        nil, nil, nil, true)
+                    for _, line in ipairs(detail) do
+                        tooltip:AddLine("  " .. line, nil, nil, nil, true)
+                    end
                     hasScores = true
                 end
             end
@@ -6207,6 +6226,48 @@ function Valuate:BuildNearMissLine(itemLink, stats)
         shown < 1 and "under 1%" or string.format("%.0f%%", shown))
 end
 
+-- The full best-in-slot breakdown, on demand, without typing anything.
+--
+-- /valuate why gives the richest answer in the addon and has the worst friction attached to
+-- it: shift-click the item into chat, then type a command around the link. Meanwhile the
+-- tooltip already knows exactly what you are pointing at.
+--
+-- ALT, not shift. Shift is the client's own compare-tooltip modifier and is also how you
+-- link an item into chat; taking it over would break two things people already use.
+--
+-- 3.3.5 does not redraw a tooltip when a modifier changes, and the honest options are an
+-- OnUpdate watching the key or nothing at all. Nothing at all: hold Alt and hover, or move
+-- off and back. An OnUpdate polling for a key on every frame, for a line most hovers do not
+-- want, is a poor trade - and this codebase has a lint rule about raw OnUpdate for a reason.
+function Valuate:BuildDetailLines(itemLink, stats)
+    local info = Valuate:ExplainBestInSlot(itemLink, stats)
+    if not info then return nil end
+
+    local scales = Valuate:GetScales()
+    local lines = {}
+    for _, e in ipairs(info) do
+        local scale = scales[e.scaleName]
+        local named = string.format("|cFF%s%s|r",
+            (scale and scale.Color) or "FFFFFF",
+            (scale and scale.DisplayName) or e.scaleName)
+
+        if e.verdict == "best" then
+            lines[#lines + 1] = string.format("%s  |cFF00FF00best|r  %.1f", named, e.score)
+        elseif e.verdict == "beaten" then
+            lines[#lines + 1] = string.format("%s  %.1f  |cFFFF8800-%.1f|r vs your best", named, e.score, e.gap)
+        elseif e.verdict == "unscanned" then
+            -- Worth saying loudly: this is gear you should go and put on.
+            lines[#lines + 1] = string.format("%s  %.1f  |cFF00FF00+%.1f|r - rescan to pick it up", named, e.score, e.gap)
+        elseif e.verdict == "unscored" then
+            lines[#lines + 1] = string.format("%s  |cFFAAAAAAnothing this scale wants|r", named)
+        else
+            lines[#lines + 1] = string.format("%s  |cFFAAAAAAno weights set|r", named)
+        end
+    end
+
+    return #lines > 0 and lines or nil
+end
+
 -- How much this item would improve each scale, given already-parsed stats.
 -- Returns an array of { scaleName, scale, score, baseline, delta }, or nil.
 -- opts.includeInactive = true considers every configured scale, not just active ones
@@ -9049,6 +9110,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
         print("  /valuate check - Is Valuate actually working? Start here")
         print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
         print("  /valuate errors - Anything that errored this session (empty is expected)")
@@ -9619,6 +9681,15 @@ SlashCmdList["VALUATE"] = function(msg)
                 print("    " .. tostring(e.message))
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
+        end
+    elseif command == "detail" then
+        local options = Valuate:GetOptions()
+        options.showAltDetail = not (options.showAltDetail ~= false)
+        if options.showAltDetail then
+            print("|cFF00FF00Valuate|r: Alt-hover breakdown |cFF00FF00ON|r - hold Alt while hovering an item.")
+            print("  |cFFAAAAAA3.3.5 cannot redraw a tooltip when a key is pressed, so hold Alt BEFORE you hover, or move off and back.|r")
+        else
+            print("|cFFFF8800Valuate|r: Alt-hover breakdown |cFFFF8800OFF|r.")
         end
     elseif command == "junkmarks" then
         -- Diagnostic for the AdiBags "mark surplus gear as junk" option. Lives here
