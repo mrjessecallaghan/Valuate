@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.110.0a] - 2026-08-14 — `/valuate pvpscale make` builds the scale the last release asked for
+
+### Added
+- **`/valuate pvpscale make`** — derives a PvP scale from the one you're using now, and
+  nominates it.
+
+v0.109.0a let you nominate a scale for battlegrounds, and shipped a question most people had no
+answer to: **you had to already own a PvP scale.** A slot with nothing to put in it.
+
+### The convention is stated, not hidden
+Resilience and PvP Power get the same weight as the source scale's **highest-weighted stat** —
+the claim being *"surviving is worth as much as your best offensive stat"*. That is a defensible
+starting point and definitely **not a fact**. I don't know the right number and neither does any
+table I could have copied, so the command prints the convention and the weight it used, and
+expects you to tune it:
+
+```
+Made Raid (PvP) from Raid, and it will be active in battlegrounds.
+  Added ResilienceRating and PVPPower at weight 1.00 - the same as Raid's highest stat.
+  That is a convention, not a fact: tune it in the scale editor.
+```
+
+Same treatment as the six CoA specs marked *inferred* rather than filled in with plausible
+weights.
+
+### The mechanics are what had to be right
+- **Copied, never shared.** Editing the derived scale must not silently edit its source.
+- **Never overwrites.** Run it twice and you get `Raid (PvP 2)`, not a destroyed scale you'd
+  already tuned. This command has no business deleting anything.
+- **A weight you set yourself wins.** If the source already weights Resilience, that's a
+  deliberate choice worth more than my convention, and it's left alone.
+- **The source's real top weight**, not an assumed 1.0 — a scale topping out at 0.5 gets PvP
+  stats at 0.5.
+- **Refusals name themselves**: unknown scale, no weights, or all-zero weights, rather than
+  producing a scale that scores nothing.
+
+### The ambiguity check earned its keep again
+`if top <= 0 then` exists twice in `Valuate.lua`, so the mutation was refused as ambiguous
+rather than silently breaking the other one and reporting SURVIVED. That guard is three
+releases old and has now caught two real cases.
+
+### Gates
+`tools/queuetest.js` 80 → 102 checks; 80 mutations, all caught.
+
 ## [0.109.0a] - 2026-08-14 — one scale in battlegrounds, yours everywhere else
 
 ### Added

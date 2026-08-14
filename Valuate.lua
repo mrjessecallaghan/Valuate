@@ -6431,6 +6431,71 @@ function Valuate:HandleBattlefieldEnd()
     end)
 end
 
+-- Making the PvP scale, rather than leaving you an empty slot to fill.
+--
+-- /valuate pvpscale nominates a scale for battlegrounds and most people do not have one, so
+-- the feature arrived as a question with no answer available. This derives one from a scale
+-- you already use.
+--
+-- THE CONVENTION IS STATED, NOT HIDDEN. Resilience and PvP Power are given the same weight as
+-- the source scale's highest-weighted stat - the claim being "surviving is worth as much as
+-- your best offensive stat", which is a defensible starting point and definitely not a fact.
+-- I do not know the right number and neither does any table I could have copied. So the scale
+-- is created, the convention is printed, and tuning it is expected rather than exceptional -
+-- the same treatment as the six CoA specs whose weights are marked inferred.
+local PVP_SCALE_COLOR = "FF6B6B"
+local PVP_STATS = { "ResilienceRating", "PVPPower" }
+
+function Valuate:BuildPvPScaleFrom(baseName)
+    local scales = Valuate:GetScales() or {}
+    local base = scales[baseName]
+    if not base or type(base.Values) ~= "table" or next(base.Values) == nil then
+        return nil, "There is no scale called '" .. tostring(baseName) .. "' with any weights in it."
+    end
+
+    local top = 0
+    for _, weight in pairs(base.Values) do
+        if type(weight) == "number" and weight > top then top = weight end
+    end
+    if top <= 0 then
+        return nil, "'" .. tostring(baseName) .. "' has no positive weights to build from."
+    end
+
+    -- Unique by construction: overwriting a scale you already have would be a silent
+    -- destruction, and this command is not one you would expect to delete anything.
+    local name = baseName .. " (PvP)"
+    local n = 2
+    while scales[name] do
+        name = baseName .. " (PvP " .. n .. ")"
+        n = n + 1
+    end
+
+    local scale = {
+        DisplayName = name,
+        Color = PVP_SCALE_COLOR,
+        Icon = base.Icon,
+        Values = {},
+        Unusable = {},
+        Visible = true,
+    }
+    -- Copied, not shared. The source scale must stay independently editable.
+    for stat, weight in pairs(base.Values) do scale.Values[stat] = weight end
+    for stat in pairs(base.Unusable or {}) do scale.Unusable[stat] = true end
+
+    -- Only ADD the PvP stats. If the source already weights them, that is a deliberate choice
+    -- someone made and worth more than this convention.
+    local added = {}
+    for _, stat in ipairs(PVP_STATS) do
+        if not scale.Values[stat] then
+            scale.Values[stat] = top
+            table.insert(added, stat)
+        end
+    end
+
+    scales[name] = scale
+    return name, added, top
+end
+
 -- Your PvP answer and your PvE answer are not the same answer.
 --
 -- Resilience, PvP Power and a chunk of stamina are worth a great deal in a battleground and
@@ -9980,6 +10045,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
         print("  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere")
+        print("  /valuate pvpscale make - Build a PvP scale from the one you use now")
         print("  /valuate queuepvp - Queue for a random battleground now")
         print("  /valuate queuedungeon - Queue for a random dungeon now")
         print("  /valuate queuecheck - What is armed, and which of these APIs your client has")
@@ -10589,8 +10655,34 @@ SlashCmdList["VALUATE"] = function(msg)
                 print("|cFF00FF00[Valuate]|r No PvP scale set - the same scale is used everywhere.")
                 print("  |cFFAAAAAAResilience and PvP Power are worth a lot in a battleground and " ..
                       "almost nothing in a dungeon, so one scale cannot be right in both.|r")
+                print("  |cFFFFFFFF/valuate pvpscale make|r builds one from the scale you use now.")
             end
-            print("  |cFFAAAAAA/valuate pvpscale <name>  ·  /valuate pvpscale off|r")
+            print("  |cFFAAAAAA/valuate pvpscale <name>  ·  make  ·  off|r")
+        elseif arg == "make" then
+            local _, from = Valuate:GetPrimaryScale()
+            if not from then
+                print("|cFFFF0000Valuate|r: No active scale to build from - /valuate wizard makes one.")
+            else
+                local name, added, top = Valuate:BuildPvPScaleFrom(from)
+                if not name then
+                    print("|cFFFF0000Valuate|r: " .. tostring(added))
+                else
+                    options.pvpScale = name
+                    print("|cFF00FF00Valuate|r: Made |cFFFFFFFF" .. name ..
+                          "|r from " .. from .. ", and it will be active in battlegrounds.")
+                    if #added > 0 then
+                        -- The convention, said out loud. It is a starting point, not a finding.
+                        print(string.format(
+                            "  |cFFAAAAAAAdded %s at weight %.2f - the same as %s's highest stat. " ..
+                            "That is a convention, not a fact: tune it in the scale editor.|r",
+                            table.concat(added, " and "), top, from))
+                    else
+                        print("  |cFFAAAAAA" .. from .. " already weights Resilience and PvP Power, " ..
+                              "so those were left exactly as you had them.|r")
+                    end
+                    if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+                end
+            end
         elseif arg == "off" then
             options.pvpScale = nil
             -- Any pending restore is honoured first, or switching this off inside a

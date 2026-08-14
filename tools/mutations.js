@@ -51,6 +51,10 @@ const FIND_SOCKETS = {
   start: "function Valuate:FindEmptySockets",
   end: "\n-- What is my biggest upgrade right now?",
 };
+const BUILD_PVP = {
+  start: "function Valuate:BuildPvPScaleFrom",
+  end: "\n-- Your PvP answer and your PvE answer are not the same answer.",
+};
 const RANK_UPGRADES = {
   start: "function Valuate:RankAvailableUpgrades",
   end: "\n-- The full best-in-slot breakdown",
@@ -109,7 +113,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.109.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.110.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -196,6 +200,24 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- deriving the PvP scale (v0.110.0a) ----------------------------------
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "running it twice overwrites the PvP scale you already tuned",
+    from: "while scales[name] do", to: "while false do" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "the derived scale SHARES the source's weights - editing one edits both",
+    from: "for stat, weight in pairs(base.Values) do scale.Values[stat] = weight end",
+    to: "scale.Values = base.Values" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "a deliberate Resilience weight is overwritten by the convention",
+    from: "if not scale.Values[stat] then", to: "if true then" },
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "PvP stats are assumed to be worth 1.0 rather than the source's real top weight",
+    from: "scale.Values[stat] = top", to: "scale.Values[stat] = 1.0" },
+  { gate: "queuetest", file: "Valuate.lua", scope: BUILD_PVP,
+    label: "a source with no positive weights produces a scale that scores nothing",
+    from: "if top <= 0 then", to: "if false then" },
 
   // ---- the PvP scale swap (v0.109.0a) --------------------------------------
   { gate: "queuetest", file: "Valuate.lua",

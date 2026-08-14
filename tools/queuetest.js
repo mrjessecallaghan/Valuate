@@ -37,6 +37,9 @@ const PIECES = [
   /^function Valuate:HandleBattlefieldEnd\([\s\S]*?\r?\nend/m,
   /^local bfStatusWas = \{\}/m,
   /^function Valuate:HandleBattlefieldQueues\([\s\S]*?\r?\nend/m,
+  /^local PVP_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
+  /^local PVP_STATS = \{[^\r\n]*\}/m,
+  /^function Valuate:BuildPvPScaleFrom\([\s\S]*?\r?\nend/m,
   /^function Valuate:ApplyContextScale\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
@@ -442,6 +445,62 @@ INSIDE, KIND = false, nil
 eq(Valuate:ApplyContextScale(), false, "restoring to a deleted scale is refused")
 eq(OPTIONS.characterWindowScale, "Arena", "leaving the PvP one active rather than nothing")
 eq(OPTIONS.pvpScaleRestore, nil, "and the marker is cleared so it does not retry forever")
+
+-- ---- deriving the PvP scale --------------------------------------------------
+-- /valuate pvpscale hands you a slot to fill, and most people have nothing to put in it.
+-- The convention here (PvP stats get the source's top weight) is a stated starting point,
+-- so what has to be right is the MECHANICS: copy, never share; add, never overwrite; and
+-- never clobber a scale that already exists.
+SCALES = {
+    Raid = { DisplayName = "Raid", Values = { Strength = 1.0, CritRating = 0.6 },
+             Unusable = { IsWand = true }, Icon = "someicon" },
+}
+
+local made, added, top = Valuate:BuildPvPScaleFrom("Raid")
+eq(made, "Raid (PvP)", "the derived scale is named after its source")
+eq(top, 1.0, "and reports the weight it used")
+eq(#added, 2, "adding both PvP stats")
+ok(SCALES["Raid (PvP)"] ~= nil, "the scale now exists")
+eq(SCALES["Raid (PvP)"].Values.ResilienceRating, 1.0, "Resilience at the source's top weight")
+eq(SCALES["Raid (PvP)"].Values.PVPPower, 1.0, "and PvP Power the same")
+eq(SCALES["Raid (PvP)"].Values.Strength, 1.0, "the source's own weights are carried over")
+eq(SCALES["Raid (PvP)"].Values.CritRating, 0.6, "all of them, not just the top one")
+eq(SCALES["Raid (PvP)"].Unusable.IsWand, true, "and its banned stats come too")
+eq(SCALES["Raid (PvP)"].Color, PVP_SCALE_COLOR, "with its own colour, so it is identifiable")
+
+-- COPIED, not shared. Editing one afterwards must not silently edit the other.
+SCALES["Raid (PvP)"].Values.Strength = 0.1
+eq(SCALES.Raid.Values.Strength, 1.0, "editing the derived scale does not touch its source")
+
+-- Never overwrite. This command would not be expected to delete a scale, so it must not.
+local second = Valuate:BuildPvPScaleFrom("Raid")
+eq(second, "Raid (PvP 2)", "running it again makes a NEW scale rather than replacing one")
+eq(SCALES["Raid (PvP)"].Values.Strength, 0.1, "and the first one is left exactly as it was")
+
+-- The top weight is the source's actual maximum, not an assumed 1.0.
+SCALES.Half = { DisplayName = "Half", Values = { Agility = 0.5, HitRating = 0.25 } }
+local halfName, _, halfTop = Valuate:BuildPvPScaleFrom("Half")
+eq(halfTop, 0.5, "the convention uses the source's real highest weight")
+eq(SCALES[halfName].Values.ResilienceRating, 0.5, "so a modest scale gets modest PvP weights")
+
+-- A source that already weights these made a deliberate choice worth more than a convention.
+SCALES.Already = { DisplayName = "Already",
+                   Values = { Agility = 1.0, ResilienceRating = 0.3, PVPPower = 0.2 } }
+local keptName, keptAdded = Valuate:BuildPvPScaleFrom("Already")
+eq(#keptAdded, 0, "nothing is added when the source already weights both")
+eq(SCALES[keptName].Values.ResilienceRating, 0.3, "and the existing weight is not overwritten")
+eq(SCALES[keptName].Values.PVPPower, 0.2, "either of them")
+
+-- Refusals name themselves rather than producing an empty scale.
+eq(Valuate:BuildPvPScaleFrom("NoSuchScale"), nil, "an unknown source is refused")
+saysAbout(select(2, Valuate:BuildPvPScaleFrom("NoSuchScale")), "NoSuchScale", "by name")
+
+SCALES.Empty = { DisplayName = "Empty", Values = {} }
+eq(Valuate:BuildPvPScaleFrom("Empty"), nil, "a source with no weights is refused")
+
+SCALES.Zeroed = { DisplayName = "Zeroed", Values = { Agility = 0 } }
+eq(Valuate:BuildPvPScaleFrom("Zeroed"), nil,
+   "and so is one whose weights are all zero - there is no top weight to copy")
 
 return failures, checks
 `,

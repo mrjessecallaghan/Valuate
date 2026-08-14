@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.109.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.110.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -178,7 +178,7 @@ Then, in-game, for anything the gates structurally cannot see:
 ```
 
 **A passing gate does not mean the gate would notice.** `node tools/mutate.js` breaks the code
-in 75 specific ways and requires the matching gate to fail for each. A `SURVIVED` line means an
+in 80 specific ways and requires the matching gate to fail for each. A `SURVIVED` line means an
 assertion is decorative — it reads like a test and protects nothing. Four of those 29 exist
 because a survivor exposed the **fixture**, not the code: a bag of nothing but chest pieces, a
 bag of nothing but gear, a tooltip parse that was never empty, and a best-score that was always
