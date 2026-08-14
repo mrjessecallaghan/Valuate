@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.97.0a] - 2026-08-14 — the thing that actually finds the bugs is now a tool
+
+### Added
+- **`node tools/mutate.js`** — breaks the code on purpose in 29 specific ways and requires the
+  matching gate to fail for each. `node tools/mutate.js whybis` for one gate's worth.
+
+A passing gate tells you the code does something. It does not tell you the gate would **notice**
+if the code stopped — and an assertion that notices nothing reads exactly like one that works.
+
+This session shipped twelve releases, and mutation testing found more real problems than every
+static gate combined. It was also a throwaway script in a temp folder, rewritten from scratch
+each time and deleted after. The record of *which assertions are load-bearing* existed only in
+one conversation.
+
+### What the 29 encode
+Each names the user-facing consequence rather than the line it edits — *"a good second ring is
+called beaten while you wear junk in the other hand"*, *"an item you should go and equip is
+reported as beaten"*, *"a hidden scale keeps marking gear as best, and surplus feeds
+auto-delete"*.
+
+**Four exist because a survivor exposed the fixture, not the code:** a bag of nothing but chest
+pieces, a bag of nothing but gear, a tooltip parse that was never empty, and a best-score that
+was always exactly 100 — against which `gap / bestScore` and `gap / 100` are the same
+arithmetic, so the percentage was never tested at all. Those are the four most valuable entries
+in the file, because each marks a place my test world was tidier than the game.
+
+### It has to be trustworthy before it is useful
+It edits real source files, so: originals held in memory, restored after every mutation,
+verified **byte-for-byte** at the end, and restored on interrupt. A failed restore is reported
+loudly and exits non-zero. Deliberately **not** part of `gates.js` — a tool that rewrites your
+working tree should be something you choose to run.
+
+An **UNAPPLIED** result is a failure too, not a skip: a mutation whose anchor has moved is
+testing nothing, and silently passing it is exactly how a manifest rots into decoration.
+
+### Both failure modes verified
+Not assumed — exercised. An inert mutation (a comment word) is correctly reported as
+**SURVIVED**; a stale anchor as **UNAPPLIED**; both exit non-zero; the manifest restores clean.
+
+The first attempt at that self-check was itself wrong: I used a whitespace change as the "inert"
+case, and it broke a gate's slice regex, so the gate failed for the right-looking wrong reason
+and the tool appeared to work. A no-op has to actually be a no-op.
+
 ## [0.96.0a] - 2026-08-14 — the tooltip tells you when something is *close*
 
 ### Added
