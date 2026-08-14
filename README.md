@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.95.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.96.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -50,7 +50,9 @@ Optional integrations: `Valuate-AdiBags` (tags best-in-slot items in your bags) 
 - **Custom stat-weight scales** — unlimited, per character, with per-stat "ban" flags for
   stats you never want.
 - **Tooltip scores** — live item score, comparison against what you're wearing, and a
-  "★ Best for" marker naming the scales an item wins for.
+  "★ Best for" marker naming the scales an item wins for — plus a **near-miss** line when it
+  isn't best but is close: *"Just short for Tank — 4% behind your best."* One line, closest
+  scale only, and only inside 10%, because a line on every item is noise.
 - **Best Equipment panel** — best-in-slot per scale, upgrade deltas, an equipped-vs-best
   summary, and one-click **Equip All**. Slots you're wearing *nothing* in are called out
   as **New** and counted, but only when you actually own something to fill them — an empty

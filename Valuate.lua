@@ -2242,6 +2242,22 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                 tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. futureLine, nil, nil, nil, true)
                 hasScores = true
             end
+
+            -- Only when the other two had nothing to say. An item that is already your best,
+            -- or is waiting on a level, is not "just short" of anything.
+            --
+            -- `stats` here came from the tooltip being DISPLAYED, so these are Ascension's
+            -- scaled values - the same source the best-equipment scores were built from.
+            -- That is the whole of why this comparison is sound; see lint rule
+            -- base-stats-need-scaled-comparison for what it looks like when it is not.
+            if not bestForLine and not futureLine then
+                local nearLine = Valuate:BuildNearMissLine(itemLink, stats)
+                if nearLine then
+                    tooltip:AddLine(" ")
+                    tooltip:AddLine(VALUATE_MARKER_FULL .. " " .. nearLine, nil, nil, nil, true)
+                    hasScores = true
+                end
+            end
         end
     end
     
@@ -6149,6 +6165,46 @@ function Valuate:ExplainBestInSlot(itemLink, stats)
     end
 
     return #results > 0 and results or nil
+end
+
+-- "★ Best for: X" is binary, and the decision you actually make at a vendor is not.
+--
+-- An item that misses by 2% is worth keeping; one that misses by 60% is vendor fodder, and
+-- the tooltip said exactly the same thing about both: nothing. This is the one line that
+-- separates them.
+--
+-- ONE line, for the CLOSEST scale only, and only inside the threshold. A line per scale
+-- would be tooltip bloat, and a line on every item would be noise that trains you to stop
+-- reading - which is worse than silence, because the "Best for" line lives right above it.
+--
+-- Percentages, not points. Raw score gaps are meaningless without knowing the scale's
+-- magnitude, and that magnitude changes every time you re-weight anything.
+local NEAR_MISS_RATIO = 0.10
+function Valuate:BuildNearMissLine(itemLink, stats)
+    local info = Valuate:ExplainBestInSlot(itemLink, stats)
+    if not info then return nil end
+
+    local closest, closestPct
+    for _, e in ipairs(info) do
+        -- "beaten" only. An item that would WIN is the arrow's job, and one that scores
+        -- nothing is not a near miss by any reading.
+        if e.verdict == "beaten" and e.bestScore and e.bestScore > 0 then
+            local pct = e.gap / e.bestScore
+            if pct <= NEAR_MISS_RATIO and (not closestPct or pct < closestPct) then
+                closest, closestPct = e, pct
+            end
+        end
+    end
+    if not closest then return nil end
+
+    local scale = Valuate:GetScales()[closest.scaleName]
+    local shown = closestPct * 100
+    return string.format("|cFFFFD700Just short|r for |cFF%s%s|r - %s behind your best.",
+        (scale and scale.Color) or "FFFFFF",
+        (scale and scale.DisplayName) or closest.scaleName,
+        -- "0% behind" reads as a tie and invites you to keep something that lost. Anything
+        -- that rounds to nothing is reported as under a percent instead.
+        shown < 1 and "under 1%" or string.format("%.0f%%", shown))
 end
 
 -- How much this item would improve each scale, given already-parsed stats.

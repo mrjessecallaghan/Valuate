@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.96.0a] - 2026-08-14 — the tooltip tells you when something is *close*
+
+### Added
+- **A near-miss line on item tooltips.** *"Just short for Tank — 4% behind your best."*
+
+`★ Best for` is binary, and the decision you actually make at a vendor is not. An item that
+misses by 2% is worth keeping; one that misses by 60% is fodder — and the tooltip said exactly
+the same thing about both: nothing. This is the line that separates them, and it's the whole
+question you're asking when you hover something you already know isn't your best.
+
+**One line, closest scale only, only inside 10%.** A line per scale is bloat; a line on every
+item is noise that trains you to stop reading — which is worse than silence, because it sits
+directly under the line that matters most. It appears only when *Best for* and the future-upgrade
+line both had nothing to say: an item that's already your best, or is waiting on a level, is not
+"just short" of anything.
+
+Percentages, not points. A raw gap of 20 means nothing without knowing the scale's magnitude,
+and that magnitude changes every time you re-weight anything. A sub-1% gap reads **"under 1%"**
+rather than rounding to *"0% behind"*, which would look like a tie and invite you to keep
+something that lost.
+
+### Why this one is sound
+It scores from the stats already parsed off the **displayed** tooltip — Ascension's scaled
+values, the same source the best-equipment scores were built from. That is the entire reason the
+comparison means anything; see v0.95.0a's `base-stats-need-scaled-comparison` for what it looks
+like when it isn't.
+
+### Gates
+`tools/whybis.js` 33 → 48 checks. Five mutations, each caught: threshold ignored, furthest scale
+reported instead of closest, "would win" items treated as near misses, a sub-1% gap rounded to a
+tie, and the gap reported as raw points.
+
+That last one **survived the first run**. Every baseline in the fixture was exactly 100, and
+against 100 `gap / bestScore` and `gap / 100` are the same arithmetic — a percentage has to be a
+percentage *of* something, and the test could not tell. Fourth time this session that mutation
+testing has caught the fixture, not the code: all-chest bags, all-gear bags, never-empty parses,
+and now one convenient number.
+
 ## [0.95.0a] - 2026-08-14 — a lint rule for the bug that got past 43 gates, and it found two more
 
 ### Added

@@ -41,6 +41,8 @@ const PIECES = [
   /^function Valuate:GetStatsForTooltipSetter\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetScaledStatsForItem\([\s\S]*?\r?\nend/m,
   /^function Valuate:ExplainBestInSlot\([\s\S]*?\r?\nend/m,
+  /^local NEAR_MISS_RATIO = [\d.]+/m,
+  /^function Valuate:BuildNearMissLine\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -262,6 +264,65 @@ BEST.Dps[5] = nil
 local intoEmpty = verdictFor(Valuate:ExplainBestInSlot(CANDIDATE, { Strength = 5 }), "Dps")
 eq(intoEmpty.verdict, "unscanned", "an item for an empty slot is not 'beaten' by nothing")
 ok(intoEmpty.bestLink == nil, "and no phantom winner is named")
+
+-- ---- the near-miss tooltip line ---------------------------------------------
+-- "Best for" is binary; the decision at a vendor is not. An item 2% short is worth keeping
+-- and one 60% short is fodder, and the tooltip used to say the same thing about both.
+-- The risk here is the opposite of silence: a line on every item is noise that trains you
+-- to stop reading, and it sits directly under the line that matters most.
+BEST.Dps[5]  = { itemLink = INCUMBENT, score = 100 }
+BEST.Tank[5] = { itemLink = INCUMBENT, score = 100 }
+BEST.Dps[11], BEST.Dps[12] = nil, nil
+
+local near = Valuate:BuildNearMissLine(CANDIDATE, { Strength = 96 })
+ok(near ~= nil, "an item 4% short gets a line")
+ok(near:find("4%%") ~= nil, "which reports the gap as a PERCENTAGE, not raw points")
+ok(near:find("Dps", 1, true) ~= nil, "and names the scale it is close to")
+
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 50 }) == nil,
+   "an item 50% short says nothing - a line on everything is noise, not information")
+
+-- Exactly at the threshold is inside it; a hair past is not. Stated because an off-by-one
+-- here is invisible: both answers look reasonable.
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 90 }) ~= nil, "exactly 10% short still counts")
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 89 }) == nil, "11% short does not")
+
+-- A rounded-down gap must never read as a tie: "0% behind your best" invites you to keep
+-- something that actually lost.
+local hair = Valuate:BuildNearMissLine(CANDIDATE, { Strength = 99.7 })
+ok(hair ~= nil and hair:find("under 1%", 1, true) ~= nil,
+   "a sub-1% gap says 'under 1%' rather than rounding to '0%'")
+
+-- The CLOSEST scale, and only one line. Tank is 1% short, Dps is 9%.
+BEST.Tank[5] = { itemLink = INCUMBENT, score = 10 }
+local twoWay = Valuate:BuildNearMissLine(CANDIDATE, { Strength = 91, Stamina = 9.9 })
+ok(twoWay:find("Tank", 1, true) ~= nil, "the CLOSEST scale is the one reported")
+ok(twoWay:find("Dps", 1, true) == nil, "and the other is not, so the line stays one line")
+BEST.Tank[5] = { itemLink = INCUMBENT, score = 100 }
+
+-- An item that would WIN is the upgrade arrow's job, not this line's.
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 500 }) == nil,
+   "an item that would beat your best is not 'just short' of it")
+
+-- And one the scale weights nothing of is not a near miss by any reading.
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Spirit = 999 }) == nil,
+   "an item the scale scores at zero is not a near miss")
+
+-- A baseline that is NOT 100, because every check above used one that was - and against
+-- that, "gap / bestScore" and "gap / 100" are the same arithmetic. A percentage has to be
+-- a percentage OF something.
+BEST.Dps[5]  = { itemLink = INCUMBENT, score = 400 }
+BEST.Tank[5] = { itemLink = INCUMBENT, score = 400 }
+local scaled = Valuate:BuildNearMissLine(CANDIDATE, { Strength = 380 })
+ok(scaled ~= nil, "20 points short of 400 is a 5% miss, so it still gets a line")
+ok(scaled:find("5%%") ~= nil, "and the percentage is computed against the BEST score, not a constant")
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 340 }) == nil,
+   "60 points short of 400 is 15%, which is outside the threshold")
+
+-- Nothing to be near: an empty slot has no incumbent to be short of.
+BEST.Dps[5], BEST.Tank[5] = nil, nil
+ok(Valuate:BuildNearMissLine(CANDIDATE, { Strength = 5 }) == nil,
+   "an empty slot produces no near-miss line - there is nothing to be short of")
 
 return failures, checks
 `,
