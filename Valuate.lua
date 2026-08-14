@@ -6435,6 +6435,88 @@ function Valuate:RunSelfVerify()
     return results
 end
 
+-- Empty gem sockets: stats you have already earned and are not wearing.
+--
+-- An unfilled socket is invisible unless you go looking for it, and it stays that way for
+-- entire levelling stretches. This is the cheapest gain in the game and the easiest to
+-- forget, which makes it exactly the kind of thing an addon should be remembering for you.
+--
+-- Counted, never VALUED. Working out what a socket is worth means guessing which gem you
+-- would put in it, and an invented number would flow straight into item scores and out
+-- again as confident nonsense. The honest form is "this many, here" - the same call made
+-- for CoA's missing stat priorities, where six specs are marked inferred rather than filled
+-- in with plausible weights.
+--
+-- Read from the GLOBAL strings with English fallbacks, the way TooltipUniqueLimit reads
+-- ITEM_UNIQUE_EQUIPPABLE. Built per call rather than at file scope, because a global the
+-- client has not defined yet would be captured as nil and never recover.
+local function EmptySocketStrings()
+    return {
+        EMPTY_SOCKET_RED or "Red Socket",
+        EMPTY_SOCKET_YELLOW or "Yellow Socket",
+        EMPTY_SOCKET_BLUE or "Blue Socket",
+        EMPTY_SOCKET_META or "Meta Socket",
+        EMPTY_SOCKET_PRISMATIC or "Prismatic Socket",
+    }
+end
+
+local function CountEmptySockets(tooltipName)
+    local tooltip = _G[tooltipName]
+    if not tooltip or not tooltip.NumLines then return 0 end
+
+    local wanted = EmptySocketStrings()
+    local found = 0
+    for i = 2, tooltip:NumLines() do
+        local fs = getglobal(tooltipName .. "TextLeft" .. i)
+        local text = fs and fs.GetText and fs:GetText()
+        if text and text ~= "" then
+            for _, s in ipairs(wanted) do
+                -- Anchored at the START of the line. A FILLED socket shows the gem's own
+                -- text, and a gem called "Runed Scarlet Ruby" that happens to mention a
+                -- colour would otherwise be counted as the empty socket it just filled.
+                if text:find(s, 1, true) == 1 then
+                    found = found + 1
+                    break
+                end
+            end
+        end
+    end
+    return found
+end
+
+-- Returns { { slotId, slotName, itemLink, sockets }, ... } and the total, or nil.
+function Valuate:FindEmptySockets()
+    if equipmentSwapPending then return nil, 0 end
+    local tooltip = Valuate.GetPrivateTooltip and Valuate:GetPrivateTooltip()
+    if not tooltip then return nil, 0 end
+
+    local out, total = {}, 0
+    for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
+        local link = GetInventoryItemLink("player", def.slotId)
+        if link then
+            tooltip:ClearLines()
+            if pcall(function() tooltip:SetInventoryItem("player", def.slotId) end) then
+                local n = CountEmptySockets("ValuatePrivateTooltip")
+                if n > 0 then
+                    total = total + n
+                    table.insert(out, {
+                        slotId = def.slotId, slotName = def.name, itemLink = link, sockets = n,
+                    })
+                end
+            end
+        end
+    end
+
+    -- Most sockets first, slot id to break ties - the same unique-second-key rule the
+    -- ranked upgrade list uses, so neither list reorders itself between runs.
+    table.sort(out, function(a, b)
+        if a.sockets ~= b.sockets then return a.sockets > b.sockets end
+        return a.slotId < b.slotId
+    end)
+
+    return #out > 0 and out or nil, total
+end
+
 -- What is my biggest upgrade right now?
 --
 -- The Best Equipment panel answers this per slot, which means reading seventeen rows and
@@ -9435,6 +9517,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate weights [scale] - Which of your stat weights actually matter")
         print("  /valuate future - Gear waiting on a level, and which level")
         print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
+        print("  /valuate sockets - Empty gem sockets on gear you are wearing")
         print("  /valuate selfverify - Run every check the addon can judge on its own")
         print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
         print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
@@ -10009,6 +10092,21 @@ SlashCmdList["VALUATE"] = function(msg)
             end
             print("  |cFFAAAAAAEach is reported once. A code path is broken, not just switched off.|r")
         end
+    elseif command == "sockets" then
+        local list, total = Valuate:FindEmptySockets()
+        if not list then
+            print("|cFF00FF00[Valuate]|r No empty sockets on your gear.")
+            print("  |cFFAAAAAAOnly what you are WEARING is checked - a socket in your bags is not costing you anything yet.|r")
+        else
+            print(string.format("|cFF00FF00[Valuate]|r |cFFFFFFFF%d|r empty socket%s across %d item%s",
+                total, total == 1 and "" or "s", #list, #list == 1 and "" or "s"))
+            for _, e in ipairs(list) do
+                print(string.format("  %dx  %s  %s", e.sockets, e.slotName, e.itemLink))
+            end
+            -- No score is offered on purpose: what a socket is worth depends on the gem you
+            -- would put in it, and inventing that number would feed straight into item scores.
+            print("  |cFFAAAAAACounted, not scored - what a socket is worth depends on the gem you choose.|r")
+        end
     elseif command == "selfverify" then
         print("|cFF00FF00[Valuate]|r Self-verify |cFFAAAAAA(the checks the addon can judge on its own)|r")
         local pass, fail, skip = 0, 0, 0
@@ -10052,6 +10150,15 @@ SlashCmdList["VALUATE"] = function(msg)
                     print(string.format("  |cFFAAAAAA...and %d more. /valuate equip puts the whole set on.|r",
                         #list - shown))
                 end
+            end
+
+            -- Sockets belong here rather than in their own corner: this is the moment you
+            -- are thinking about gear, and an empty socket is a gain you already own.
+            local _, sockets = Valuate:FindEmptySockets()
+            if sockets > 0 then
+                print(string.format(
+                    "  |cFFAAAAAAAlso %d empty socket%s on gear you are wearing - /valuate sockets|r",
+                    sockets, sockets == 1 and "" or "s"))
             end
         end
     elseif command == "detail" then

@@ -43,6 +43,18 @@ const DETAIL = {
   start: "function Valuate:BuildDetailLines",
   end: "\n-- How much this item would improve each scale",
 };
+const COUNT_SOCKETS = {
+  start: "local function CountEmptySockets",
+  end: "\n-- Returns { { slotId, slotName",
+};
+const FIND_SOCKETS = {
+  start: "function Valuate:FindEmptySockets",
+  end: "\n-- What is my biggest upgrade right now?",
+};
+const RANK_UPGRADES = {
+  start: "function Valuate:RankAvailableUpgrades",
+  end: "\n-- The full best-in-slot breakdown",
+};
 const NEARMISS = {
   start: "function Valuate:BuildNearMissLine",
   end: "\n-- How much this item would improve each scale",
@@ -94,7 +106,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.102.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.103.0a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -157,6 +169,23 @@ module.exports = [
     label: "a check that returns nothing is recorded as a pass rather than a failure",
     from: 'status = status or "fail",', to: 'status = status or "pass",' },
 
+  // ---- empty sockets (v0.103.0a) -------------------------------------------
+  { gate: "sockets", file: "Valuate.lua",
+    label: "sockets you have already gemmed are counted, so the number never reaches zero",
+    from: "if text:find(s, 1, true) == 1 then", to: "if text:find(s, 1, true) then" },
+  // Scoped: "for i = 2, tooltip:NumLines()" also appears in TooltipUniqueLimit, and an
+  // unscoped mutation lands there instead - breaking a function this gate never runs, which
+  // is how a mutation "survives" while testing nothing.
+  { gate: "sockets", file: "Valuate.lua", scope: COUNT_SOCKETS,
+    label: "the item's NAME line is read, so an item called after a socket counts itself",
+    from: "for i = 2, tooltip:NumLines() do", to: "for i = 1, tooltip:NumLines() do" },
+  { gate: "sockets", file: "Valuate.lua", scope: FIND_SOCKETS,
+    label: "items reorder between runs, so the socket list is never the same twice",
+    from: "return a.slotId < b.slotId", to: "return false" },
+  { gate: "sockets", file: "Valuate.lua",
+    label: "the in-transit guard is relaxed - tooltips read mid equipment swap",
+    from: "    if equipmentSwapPending then return nil, 0 end", to: "    if false then return nil, 0 end" },
+
   // ---- the cross-path agreement check (v0.101.0a) --------------------------
   { gate: "selfverify", file: "Valuate.lua",
     label: "two paths disagreeing about your gear is reported as agreement",
@@ -172,7 +201,9 @@ module.exports = [
   { gate: "upgraderank", file: "Valuate.lua",
     label: "bank gear is offered as your next upgrade - advice you cannot act on",
     from: 'best.source ~= "bank"', to: "true" },
-  { gate: "upgraderank", file: "Valuate.lua",
+  // Scoped, because FindEmptySockets uses the same tiebreak line and sits EARLIER in the
+  // file - an unscoped mutation lands there and breaks a function this gate never runs.
+  { gate: "upgraderank", file: "Valuate.lua", scope: RANK_UPGRADES,
     label: "tied slots reorder between runs, so 'your biggest upgrade' changes identity",
     from: "return a.slotId < b.slotId", to: "return false" },
   { gate: "upgraderank", file: "Valuate.lua",

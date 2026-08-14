@@ -143,15 +143,20 @@ BEST.Dps[2] = nil
 -- ---- ties break on slot id, every time ---------------------------------------
 -- Rings and trinkets tie constantly. table.sort is not stable, so a tie without a unique
 -- second key gives a different "biggest upgrade" on consecutive runs of the same data.
-BEST.Dps[11] = { itemLink = link(111), score = 130 }
-BEST.Dps[12] = { itemLink = link(112), score = 130 }
-EQUIPPED[11], EQUIPPED_SCORE[11] = link(11), 100
-EQUIPPED[12], EQUIPPED_SCORE[12] = link(12), 100
+-- Back (slot 15) and Chest (slot 5). ns.EQUIP_SLOTS reads like a character sheet, so Back
+-- is VISITED FIRST while Chest sorts first - the only pair that separates "sorted by slot"
+-- from "left in the order we happened to find them". Ring 1 and Ring 2, which the first
+-- draft used, are already in slot order either way and proved nothing.
+BEST.Dps[15] = { itemLink = link(115), score = 130 }
+BEST.Dps[5]  = { itemLink = link(105), score = 130 }
+EQUIPPED[15], EQUIPPED_SCORE[15] = link(15), 100
+EQUIPPED[5],  EQUIPPED_SCORE[5]  = link(5), 100
+BEST.Dps[1], BEST.Dps[7] = nil, nil
 local first = names(Valuate:RankAvailableUpgrades("Dps"))
 for _ = 1, 20 do
     eq(names(Valuate:RankAvailableUpgrades("Dps")), first, "the same data ranks the same way every time")
 end
-ok(first:find("Ring 1,Ring 2", 1, true) ~= nil, "and tied slots come out in slot order")
+eq(first, "Chest,Back", "tied slots come out in SLOT order, not the order they were found")
 
 -- ---- refusals ----------------------------------------------------------------
 ok(Valuate:RankAvailableUpgrades("NoSuchScale") == nil, "an unknown scale is nil, not a crash")

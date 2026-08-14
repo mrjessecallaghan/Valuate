@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.103.0a] - 2026-08-14 — empty gem sockets: stats you already earned and aren't wearing
+
+### Added
+- **`/valuate sockets`** — every empty socket on gear you're wearing, most first.
+- The count also appears at the foot of **`/valuate upgrades`**, because that's the moment
+  you're already thinking about gear and an empty socket is a gain you *already own*.
+
+An unfilled socket is invisible unless you go looking, and stays that way for whole levelling
+stretches. Cheapest gain in the game, easiest to forget.
+
+### Counted, never valued
+Working out what a socket is *worth* means guessing which gem you'd put in it, and an invented
+number would flow straight into item scores and back out as confident nonsense. So it reports
+"this many, here" and says so. Same call as CoA's six missing stat priorities, which are marked
+inferred rather than filled in with plausible weights.
+
+### The whole feature is one distinction
+An **empty** socket draws a line beginning with the socket's name; a **filled** one draws the
+gem's own text. Matching is anchored at the start of the line — a search-anywhere match would
+count sockets you'd already gemmed, the number would never reach zero, and you'd stop believing
+it. Read from the client's own `EMPTY_SOCKET_*` globals with English fallbacks, the way
+`TooltipUniqueLimit` already reads `ITEM_UNIQUE_EQUIPPABLE`.
+
+### Two fixture faults, one of them retroactive
+`tools/sockets.js`, 34 checks. Four mutations; **two survived** the first run and both were mine:
+
+- The name-line mutation landed in **`TooltipUniqueLimit`**, which shares the line
+  `for i = 2, tooltip:NumLines() do` and sits earlier in the file — so it broke a function this
+  gate never runs. Now scoped.
+- The tiebreak test used **Head and Legs**, which are already in slot order, so the tiebreak was
+  never doing any work. `ns.EQUIP_SLOTS` reads like a character sheet, so **Back (15) is visited
+  before Chest (5)** — that pair is the only thing that separates *sorted by slot* from *left in
+  the order we found them*.
+
+The second fault turned out to exist in **`upgraderank.js` too**: its tie test used Ring 1 and
+Ring 2, equally in-order, and adding `FindEmptySockets` earlier in the file silently redirected
+its unscoped mutation into the wrong function. Both fixed. A mutation that has been passing for
+four releases was proving nothing.
+
+51 mutations, 46 gates.
+
 ## [0.102.0a] - 2026-08-14 — the checklist catches up with what shipped
 
 ### Added
