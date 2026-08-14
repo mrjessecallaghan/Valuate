@@ -121,7 +121,7 @@ module.exports = [
   // ---- the in-game checklist (v0.90.0a) ------------------------------------
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.113.0a", to: "## Version: 0.130.0a" },
+    from: "## Version: 0.113.1a", to: "## Version: 0.130.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -208,6 +208,15 @@ module.exports = [
     label: "a missing client API is not named, so 'nothing happened' has no cause",
     from: 'return false, "No GetBattlegroundInfo() on this client - the battleground list cannot be read."',
     to: 'return false, "no"' },
+
+  // ---- /valuate help really is the source of truth (v0.114.0a) -------------
+  // Removing a real help line must fail. Before v0.114.0a it did not: "documented" was
+  // checked against every print in the file, so a command printing its own usage counted
+  // as documenting itself. `trivial` is the case that exposed it.
+  { gate: "commands", file: "Valuate.lua",
+    label: "a command drops out of /valuate help and nothing notices",
+    from: '        print("  /valuate trivial <levels> - How far below you a quest must be to be skipped")',
+    to: "" },
 
   // ---- the login summary (v0.113.0a) ---------------------------------------
   { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,

@@ -60,8 +60,28 @@ if (commands.size < 15) {
  * it as undocumented for having been emphasised. A gate that punishes the thing it exists to
  * encourage gets the emphasis removed rather than the gate fixed.
  */
+/*
+ * Scoped to the HELP BRANCH, not the whole file.
+ *
+ * This used to scan every print in Valuate.lua, which meant any command that printed its own
+ * usage - `/valuate trivial <levels> - 0 accepts everything`, printed by /valuate trivial
+ * itself - documented itself. The claim on the tin is "documented in /valuate help"; what was
+ * actually checked was "mentioned in a print somewhere". Deleting a real help line did not
+ * fail this gate.
+ *
+ * Same shape as the options gate accepting a READ as proof an option was reachable: a check
+ * that quietly tests something adjacent to its claim.
+ */
+const helpBranch = core.match(/\n\s*if command == "help" then\r?\n([\s\S]*?)\r?\n\s*elseif command == /);
+if (!helpBranch) {
+  console.error(
+    "Could not find the /valuate help branch in Valuate.lua.\n" +
+      "Without it this gate cannot tell documented commands from undocumented ones."
+  );
+  process.exit(1);
+}
 const helped = new Set();
-for (const m of core.matchAll(/print\("[^"]*?\/valuate ([a-z]+)/g)) helped.add(m[1]);
+for (const m of helpBranch[1].matchAll(/print\("[^"]*?\/valuate ([a-z]+)/g)) helped.add(m[1]);
 
 /*
  * Deliberately undocumented, each with a reason. Not a convenience list - anything here is a

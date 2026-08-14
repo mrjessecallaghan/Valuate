@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.113.1a] - 2026-08-14 — "documented in /valuate help" now means that
+
+No addon changes. Third gate in a row whose check turned out to be weaker than its claim.
+
+### Fixed
+- **`commands.js` scanned every `print` in `Valuate.lua`** looking for `/valuate <name>`, then
+  reported *"all 62 slash commands are documented in /valuate help"*.
+
+Those aren't the same thing. A command that prints its own usage — `/valuate trivial <levels> ·
+0 accepts everything`, printed by `/valuate trivial` itself — **documented itself**. Deleting a
+real help line did not fail the gate.
+
+`documented` is now read from the **help branch only**.
+
+### Verified, both directions
+Deleting the `/valuate trivial` help line now fails with *"Commands with no line in /valuate
+help"*. The real source still passes, so this weakness was **latent** rather than already hiding
+an omission — all 62 commands genuinely are in the help text. The mutation makes it permanent.
+
+### The pattern, three for three
+- **v0.111.0a** — the settings-snapshot exclusion list had no gate at all. Found `pvpScale`
+  travelling to alts.
+- **v0.113.0a** — the options gate accepted a *read* as proof an option was *reachable*. Found
+  three options nobody could change.
+- **v0.113.1a** — the commands gate accepted *any print* as proof a command was *in the help*.
+
+Each check tested something **adjacent to** what it claimed, and each passed cleanly for months.
+The tell is the same every time: the claim on the tin is narrow, the implementation is broad,
+and broad always passes. Worth re-reading the remaining gates against their own headline
+sentences rather than trusting the green.
+
 ## [0.113.0a] - 2026-08-14 — the to-do list speaks once, and three options become reachable
 
 ### Added
