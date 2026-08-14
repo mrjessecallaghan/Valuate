@@ -9227,6 +9227,30 @@ end
 -- than merely wrong: entries far behind the current version are ones nobody got to.
 local VERIFY_CHECKS = {
     {
+        id = "bgaccept", since = "0.108.0a",
+        gate = "tools/queuetest.js",
+        title = "A queue pop is taken automatically - but never mid-fight",
+        steps = "Turn on /valuate autoqueuepvp and /valuate autoacceptbg, queue, and go do something. When it pops, you should be pulled in. Then queue again and be IN COMBAT when it pops.",
+        expect = "Out of combat: you are ported into the battleground with no click. In combat: nothing happens, the invite window stays up for you to take, and /valuate report says it was left because you were fighting.",
+        broke = "New in v0.106.0a and the single most consequential thing this addon does - it moves your character. The decision logic is gate-tested, but whether AcceptBattlefieldPort EXISTS and works on Ascension is not, and cannot be. Run /valuate queuecheck first: if it says 'no' next to AcceptBattlefieldPort, this check will fail no matter what the toggle says, and that is the answer rather than a bug.",
+    },
+    {
+        id = "bgleave", since = "0.108.0a",
+        gate = "tools/queuetest.js",
+        title = "A finished battleground leaves after a readable pause, and cancelling works",
+        steps = "With /valuate autoleavebg on, play a battleground to the end. Read the countdown message. In a LATER match, switch it off with /valuate autoleavebg during those 8 seconds.",
+        expect = "First: a message saying it will leave in 8 seconds, the scoreboard readable that whole time, then out. Second: it stays put, and /valuate report says the leave was cancelled - not that it left.",
+        broke = "The 8 seconds exist because the scoreboard is the only record of the match, and ripping it away instantly would be worse than the clicking this replaces. The cancel path matters more: the option is re-read when the timer fires, so switching it off mid-countdown must actually stop it. Acting on a decision you have since reversed is the worst thing an automation can do.",
+    },
+    {
+        id = "autorelease", since = "0.108.0a",
+        gate = "tools/queuetest.js",
+        title = "Auto-release fires in the world, and refuses in a group instance",
+        steps = "With /valuate autorelease on: die somewhere in the open world. Then die in a dungeon WHILE IN A PARTY.",
+        expect = "Open world: released immediately, no popup. In a party inside an instance: it does NOT release - the popup stays and someone can resurrect you. /valuate report says why.",
+        broke = "The refusal is the whole design. Releasing while a healer is casting on you throws the resurrection away, and it is not configurable because nobody wants that on purpose. Worth confirming Ascension reports party/raid instances the way IsInInstance() is expected to - if it does not, the guard cannot fire and this becomes an automation that quietly costs you battle rezzes.",
+    },
+    {
         id = "altdetail", since = "0.102.0a",
         gate = "tools/whybis.js",
         title = "Alt-hover expands an item tooltip, and letting go collapses it",

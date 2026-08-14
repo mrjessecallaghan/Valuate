@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.108.0a] - 2026-08-14 — the three automations that move your character get checks
+
+### Added
+Three `/valuate verify` entries, 35 → 38, for v0.105–0.106's queue work. These are the only
+features here that **act in the world** rather than reporting on it, and they're the least
+verified code in the addon.
+
+- **`bgaccept`** — the pop is taken out of combat, and pointedly *not* taken in combat.
+- **`bgleave`** — the 8-second pause is readable, and switching the option off *during* the
+  countdown actually cancels it.
+- **`autorelease`** — releases in the open world, refuses in a party instance.
+
+Each one's decision logic is gate-tested. What no gate can reach is whether
+`AcceptBattlefieldPort`, `LeaveBattlefield` and `IsInInstance` **exist and behave** the way I've
+assumed on a modified client — and if they don't, the check fails for that reason, which is the
+answer rather than a bug. `bgaccept` says so explicitly and points at `/valuate queuecheck` first.
+
+### The one that matters most
+`autorelease`'s refusal *is* its design. Releasing while a healer is casting on you throws the
+resurrection away, and it's deliberately not configurable. But the guard depends on
+`IsInInstance()` reporting party and raid instances the way I expect — and if Ascension doesn't,
+the guard can't fire and this becomes an automation that quietly costs you battle rezzes. That's
+worth one death in a dungeon to find out.
+
+### On the gate that prompted this
+Same as v0.102.0a: `verifytest` was five releases from failing, and I'd shipped three features
+that move your character without adding a single check for any of them. Lag is 0 again.
+
 ## [0.107.0a] - 2026-08-14 — self-verify catches a toggle your client can't honour
 
 ### Added
