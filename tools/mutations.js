@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.149.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.150.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1105,4 +1105,14 @@ module.exports = [
   { gate: "tocsync", file: "tools/tocsync.js",
     label: "the count sweeps up every historical section, so it fires on prose nobody is changing",
     from: "newsBlock[1].match", to: "panel.match" },
+
+  // ---- the login nudge for a guessed scale (v0.150.0a) ---------------------
+  // Three surfaces already mark it, and all three need you to go and look. This is the one
+  // that speaks when you are looking at none of them.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "a scale built on guessed weights never says so at login",
+    from: "    if primaryScale and primaryScale.Inferred then", to: "    if false then" },
+  { gate: "todotest", file: "Valuate.lua",
+    label: "every scale is flagged as a guess, so the flag stops meaning anything",
+    from: "    if primaryScale and primaryScale.Inferred then", to: "    if true then" },
 ];

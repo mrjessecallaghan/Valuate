@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.150.0a] - 2026-08-15 - the login summary raises a guessed scale
+
+### Added
+Three surfaces now mark a scale whose weights were guessed: the template picker while you
+hover, the scale list, and the editor. All three need you to go and LOOK.
+
+The moment you would most want telling is the one where you are looking at none of them - the
+scale is quietly scoring every item you see, on numbers nobody ever published. So the login
+to-do list raises it, names the scale, and says what to do: edit them as you learn what
+actually works.
+
+Placed ABOVE the upgrade entries, for the same reason a drifted scale is - everything below
+is ranked BY that scale, so if it is wrong the rest of the list is wrong too. A researched
+scale raises nothing; a caveat on every login is one nobody reads.
+
+### Technical
+The gate mocked GetPrimaryScale as a fixed empty table, so my assertions were setting a
+PRIMARY variable and measuring something else entirely. That is the third fixture this week
+where the test and the thing under test were quietly disconnected, and the same species as
+the scale table borrowed from another gate two releases ago.
+
+2 mutations, both caught - including flagging EVERY scale, because a warning on everything
+is a warning on nothing.
+
 ## [0.149.0a] - 2026-08-15 — the what's-new panel is a summary again
 
 ### Changed

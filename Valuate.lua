@@ -7481,6 +7481,28 @@ function Valuate:BuildTodoList()
         })
     end
 
+    -- The scale doing all the scoring is built on numbers nobody ever published.
+    --
+    -- Six specs have no stat priority anywhere, so theirs were read off their descriptions.
+    -- The picker says so while you hover, the list marks it and the editor repeats it - but
+    -- all three need you to go and LOOK, and the moment you would most want telling is the
+    -- one where you are not looking at any of them: the scale is quietly scoring every item
+    -- you see, on a guess.
+    --
+    -- Placed ABOVE the upgrade entries deliberately, for the same reason a drifted scale is:
+    -- everything below is ranked by this, so if it is wrong the rest of the list is too.
+    local primaryScale, primaryName = Valuate:GetPrimaryScale()
+    if primaryScale and primaryScale.Inferred then
+        table.insert(items, {
+            kind = "guess",
+            text = "The weights in " .. tostring(primaryName) .. " are a guess",
+            detail = "No stat priority was ever published for that spec, so they were read " ..
+                "off its description. Everything below is ranked by them. Edit them as you " ..
+                "learn what actually works for you.",
+            command = "/valuate scales",
+        })
+    end
+
     local _, scaleName = Valuate:GetPrimaryScale()
     local upgrades = scaleName and Valuate.RankAvailableUpgrades
         and Valuate:RankAvailableUpgrades(scaleName)

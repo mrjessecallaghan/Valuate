@@ -66,7 +66,10 @@ Valuate = {}
 
 DRIFT, UPGRADES, SOCKETS, ENCHANTS = nil, nil, 0, 0
 function Valuate:GetAutoScaleDrift() return DRIFT end
-function Valuate:GetPrimaryScale() return {}, "Dps" end
+PRIMARY = nil
+function Valuate:GetPrimaryScale()
+    return PRIMARY or {}, (PRIMARY and PRIMARY.DisplayName) or "Dps"
+end
 function Valuate:RankAvailableUpgrades() return UPGRADES end
 function Valuate:FindEmptySockets() return nil, SOCKETS end
 function Valuate:FindMissingEnchants() return nil, ENCHANTS end
@@ -195,6 +198,42 @@ OPTIONS.todoOnLogin = false
 eq(Valuate:AnnounceTodo(), false, "switched off, it says nothing")
 saysAbout(select(2, Valuate:AnnounceTodo()), "off", "and says that is why")
 OPTIONS.todoOnLogin = nil
+
+-- ---- a scale built on guessed weights ---------------------------------------------------
+-- Six specs have no published stat priority, so theirs were read off their descriptions. The
+-- picker says so while you hover, the list marks it and the editor repeats it - but all three
+-- need you to go and LOOK, and the moment you would most want telling is the one where you
+-- are looking at none of them: the scale is quietly scoring every item you see, on a guess.
+local function kinds(list)
+    local out = {}
+    for _, item in ipairs(list or {}) do out[#out + 1] = item.kind end
+    return out
+end
+local function indexOfKind(list, want)
+    for i, item in ipairs(list or {}) do if item.kind == want then return i end end
+end
+
+PRIMARY = { DisplayName = "Guessy", Inferred = true, Values = { Agility = 1.0 } }
+local list = Valuate:BuildTodoList()
+ok(indexOfKind(list, "guess") ~= nil, "a guessed scale is raised in the to-do list")
+
+local entry = list[indexOfKind(list, "guess")]
+ok(entry.text:find("Guessy", 1, true) ~= nil, "naming the scale rather than saying 'a scale'")
+ok(entry.detail:find("published", 1, true) ~= nil,
+   "and explaining that nothing was ever published for it, rather than implying it is broken")
+ok(entry.command ~= nil, "with somewhere to go about it")
+
+-- Ordered ABOVE the upgrade entries, for the same reason a drifted scale is: everything
+-- below is ranked BY this scale, so if it is wrong the rest of the list is wrong too.
+local gi, ui = indexOfKind(list, "guess"), indexOfKind(list, "upgrade")
+if gi and ui then
+    ok(gi < ui, "and it comes before the upgrades it would be ranking")
+end
+
+-- A researched scale says nothing. A caveat on every login is one nobody reads.
+PRIMARY = { DisplayName = "Solid", Values = { Agility = 1.0 } }
+eq(indexOfKind(Valuate:BuildTodoList(), "guess"), nil,
+   "a scale with researched weights raises nothing")
 
 return failures, checks
 `,
