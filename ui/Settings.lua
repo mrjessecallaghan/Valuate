@@ -1437,6 +1437,76 @@ local function CreateSettingsPanel(parent)
     bgHint:SetTextColor(unpack(COLORS.textDim))
     columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
 
+    -- ---- Messages & Convenience -----------------------------------------------
+    --
+    -- The last options with no control anywhere. Every one of them was reachable ONLY by
+    -- typing a slash command you would have to already know exists - which the options gate
+    -- counts as reachable, correctly, because it is asking whether a control exists at all.
+    -- Discoverability is a different question, and it is the one that matters here: two of
+    -- these move your gear without being asked twice.
+    --
+    -- Same table-driven loop as the battleground block, for the same reason: five near
+    -- identical checkbox blocks written by hand drift apart, and these arrived one release
+    -- at a time.
+    local miscHeader = CreateSectionHeader(col2, 2, "Messages & Convenience", bgHint)
+
+    local MISC_TOGGLES = {
+        { key = "autoEquipOnLevelUp", label = "Equip upgrades when you level",
+          tip = "On level-up, equips anything you are carrying that just became wearable and beats what you have on. Waits a few seconds first, so the rescan that levelling triggers has finished - equipping before that would put your current gear back on and announce it as a success." },
+        { key = "autoLearnAppearances", label = "Learn appearances automatically",
+          tip = "Adds looted items to your wardrobe without asking." },
+        { key = "todoOnLogin", label = "Summarise what needs doing at login",
+          tip = "One line at login: empty sockets, missing enchants, upgrades sitting in your bags. Informational only, so this one is ON by default - it never acts, it only counts." },
+        { key = "showAltDetail", label = "Show extra tooltip detail on Alt",
+          tip = "Holding Alt over an item expands the tooltip with the per-scale breakdown. Costs nothing until you hold the key, so it is on by default." },
+        { key = "chatMessages", label = "Talk in chat",
+          tip = "The running commentary - what was scanned, sold, equipped. Switching this off keeps the automations running and stops them narrating." },
+        { key = "showStartupMessage", label = "Say hello at login",
+          tip = "The one-line greeting when the addon loads." },
+    }
+
+    local miscPrevious = miscHeader
+    for _, toggle in ipairs(MISC_TOGGLES) do
+        local cb = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
+        cb:SetSize(24, 24)
+        cb:SetPoint("TOPLEFT", miscPrevious, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+        local lbl = cb:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        lbl:SetPoint("LEFT", cb, "RIGHT", 5, 0)
+        lbl:SetText(toggle.label)
+        lbl:SetTextColor(unpack(COLORS.textBody))
+
+        cb:SetChecked(Valuate:GetOptions()[toggle.key] == true)
+        cb:SetScript("OnClick", function(self)
+            Valuate:GetOptions()[toggle.key] =
+                (self:GetChecked() == 1) or (self:GetChecked() == true)
+        end)
+        cb:SetScript("OnEnter", function(self)
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                GameTooltip:AddLine(toggle.label, 1, 1, 1)
+                GameTooltip:AddLine(toggle.tip, 0.8, 0.8, 0.8, true)
+                GameTooltip:Show()
+            end
+        end)
+        cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
+        miscPrevious = cb
+    end
+
+    -- Named apart from the loop cursor, exactly as lastBgToggle is: one is loop state, the
+    -- other is one specific control, and anchoring twice to the latter IS the overlap bug.
+    local lastMiscToggle = miscPrevious
+
+    local miscHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    miscHint:SetPoint("TOPLEFT", lastMiscToggle, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    miscHint:SetWidth(settingsColumnWidth)
+    miscHint:SetJustifyH("LEFT")
+    miscHint:SetText("Trivial quests are skipped below a level gap set with\n" ..
+                     "/valuate trivial <n>.")
+    miscHint:SetTextColor(unpack(COLORS.textDim))
+    columnHeights[2] = columnHeights[2] + 28 + ELEMENT_SPACING
+
     -- ========================================
     -- COLUMN 3: Character Window, Keybindings, Advanced
     -- ========================================

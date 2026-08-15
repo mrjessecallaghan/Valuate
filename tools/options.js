@@ -264,8 +264,63 @@ if (excludedBlock) {
   }
 }
 
+/*
+ * FINDABLE, not merely reachable.
+ *
+ * The check above asks whether an option can be changed at all. It counts a slash command,
+ * correctly - an option with a command is not dead weight. But a command you would have to
+ * already know exists is not something anyone finds, and this addon has repeatedly shipped
+ * features that were complete, documented, and invisible: the battleground automations were
+ * command-only for four releases, and `autoEquipOnLevelUp` - which puts gear on your
+ * character without asking twice - was command-only from the day it landed.
+ *
+ * "A feature nobody can find is a feature that does not exist" is the argument that added the
+ * Battlegrounds & Dungeons section. This makes it a rule instead of a thing I remember.
+ *
+ * So: every option a USER holds an opinion about needs a Settings control. Persisted state
+ * does not - a window position is not a preference, and putting it on a settings page would
+ * be worse than leaving it out.
+ */
+const NOT_A_PREFERENCE = {
+  uiPosition: "where you dragged the window to - state, not an opinion",
+  minimapButtonAngle: "where you dragged the minimap button to",
+  verifiedChecks: "which /valuate verify items you have ticked off",
+  pvpScale: "nominated BY NAME, so a checkbox cannot express it - /valuate pvpscale",
+  pvpScaleRestore: "internal bookkeeping for restoring the scale after a battleground",
+  characterWindowScale: "which scale the character window shows - chosen in that window",
+  autoAcceptTrivialBelow: "a level threshold, set with /valuate trivial <n>",
+};
+
+const settingsPanel = read("ui/Settings.lua");
+const unfindable = keys.concat(Object.keys(LAZY_OK)).filter(
+  (k) => !NOT_A_PREFERENCE[k] && !settingsPanel.includes(k)
+);
+if (unfindable.length) {
+  console.error(
+    "Options with no control in the Settings panel:\n  " + unfindable.join("\n  ") +
+      "\n\nA slash command counts as REACHABLE but not as findable. Add a checkbox, or add the\n" +
+      "key to NOT_A_PREFERENCE with a reason someone would accept - persisted state and\n" +
+      "things chosen next to what they affect both qualify."
+  );
+  process.exit(1);
+}
+
+// A NOT_A_PREFERENCE entry for an option that no longer exists is the same small lie as a
+// stale SNAPSHOT_EXCLUDED entry: it reads as a considered decision about a live option.
+const staleExempt = Object.keys(NOT_A_PREFERENCE).filter(
+  (k) => !keys.includes(k) && !LAZY_OK[k]
+);
+if (staleExempt.length) {
+  console.error(
+    "NOT_A_PREFERENCE names options that do not exist: " + staleExempt.join(", ") +
+      " - remove them, or the exemption looks like a decision about something real."
+  );
+  process.exit(1);
+}
+
 console.log(
   `OK  all ${keys.length} options are reachable from the UI or a command; ` +
   `every automation defaults to off; none declared twice; ` +
-  `every persisted option is declared (${Object.keys(LAZY_OK).length} deliberately lazy).`
+  `every persisted option is declared (${Object.keys(LAZY_OK).length} deliberately lazy); ` +
+  `every preference has a Settings control (${Object.keys(NOT_A_PREFERENCE).length} are state, not preferences).`
 );

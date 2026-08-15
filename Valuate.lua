@@ -9939,6 +9939,14 @@ local VERIFY_CHECKS = {
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
     },
     {
+        id = "miscsettings", since = "0.124.0a",
+        gate = "tools/options.js",
+        title = "The six command-only options have controls, and the controls work",
+        steps = "Open Settings and find 'Messages & Convenience' at the foot of the middle column. Toggle 'Talk in chat' off, do something that normally reports (loot an upgrade, or /valuate scan). Then /reload and check the boxes kept their state. Search the Settings box for 'chat' and for 'level'.",
+        expect = "Six checkboxes. Turning off 'Talk in chat' silences the running commentary while the automations keep working. All six survive a reload. The search finds them, because the index is built from what is on screen.",
+        broke = "Two things a gate cannot settle. FIRST, the middle column now carries two sections that grew this month - Battlegrounds & Dungeons and this one - so check the last checkbox and the hint under it are not running off the bottom of the panel on a shorter screen. SECOND, three of these default to ON (todoOnLogin, showAltDetail, chatMessages) unlike almost every other toggle here, so confirm the boxes render CHECKED on a fresh character rather than reading as off while the behaviour is on.",
+    },
+    {
         id = "inferredscale", since = "0.123.0a",
         gate = "tools/inferred.js",
         title = "A scale built on guessed weights keeps saying so",

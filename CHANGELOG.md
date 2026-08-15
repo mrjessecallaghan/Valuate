@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.124.0a] - 2026-08-15 — the last invisible options
+
+### Added
+**Settings → Messages & Convenience**, holding the six options that had no control anywhere:
+
+| | |
+|---|---|
+| Equip upgrades when you level | an automation that puts gear on your character |
+| Learn appearances automatically | an automation that touches your wardrobe |
+| Summarise what needs doing at login | on by default; it counts, it never acts |
+| Show extra tooltip detail on Alt | on by default; costs nothing until you hold the key |
+| Talk in chat | switching it off keeps the automations, stops the narration |
+| Say hello at login | |
+
+Every one of them was reachable **only** by typing a slash command you would have to already
+know exists. `autoEquipOnLevelUp` was command-only from the day it landed, and it equips gear
+without asking twice.
+
+### Added — the rule behind it
+The options gate has always asked whether an option can be *changed at all*, and it counts a
+slash command, correctly: an option with a command is not dead weight. But **reachable and
+findable are different questions**, and this addon keeps shipping features that are complete,
+documented, and invisible — the battleground automations were command-only for four releases
+before getting a panel.
+
+So `tools/options.js` now also requires that **every option a user holds an opinion about has
+a Settings control**. Persisted state is exempt by name with a reason attached — a window
+position is not a preference, and `pvpScale` is nominated *by name*, which no checkbox can
+express. Seven exemptions, each one a sentence someone can disagree with.
+
+"A feature nobody can find is a feature that does not exist" was the argument that added the
+Battlegrounds section. It is now a rule rather than something I remember.
+
+### Technical
+Three things the gates caught while this was being written, all of them mine:
+
+- I invented a slash command. The hint text said `/valuate trivialbelow`; the real command is
+  `/valuate trivial`. `commands.js` refuses to let the addon print instructions that do not
+  work — *"they will type exactly what they were told, get 'unknown command', and conclude
+  something worse is wrong."*
+- I invented two helper functions (`AttachTooltip`, `RegisterSettingsControl`) that do not
+  exist in this file. `globals.js` caught both. The real idiom is `ShowTooltipSafe`, and the
+  search index needs no registration at all — it derives itself from the built UI.
+- I invented four exemptions for options that do not exist, and the new rule's own
+  stale-exemption check caught them on its first run.
+
+A fourth was subtler: removing those exemptions with a regex matched an identically-shaped
+entry in `LAZY_OK` higher up the file and silently deleted a real one. The gate immediately
+reported the option it protected as undeclared, which is the only reason it did not ship.
+
 ## [0.123.0a] - 2026-08-15 — the guess outlives the click
 
 ### Fixed
