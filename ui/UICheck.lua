@@ -86,8 +86,15 @@ local function Walk(frame, visit, depth, seen)
     end
 end
 
-function ns.RunUICheck()
+-- quiet: measure and return, printing nothing.
+--
+-- For /valuate selfverify, which runs everything the addon can judge on its own and wants a
+-- verdict rather than a report. It also must NOT open the window as the command form does -
+-- a diagnostic that changes what is on your screen in order to inspect it is measuring
+-- something you did not have.
+function ns.RunUICheck(quiet)
     if not ns.ValuateUIFrame or not ns.ValuateUIFrame:IsShown() then
+        if quiet then return nil, 0 end
         if Valuate.ShowUI then Valuate:ShowUI() end
     end
     local root = ns.ValuateUIFrame
@@ -194,6 +201,7 @@ function ns.RunUICheck()
     end)
 
     -- ---- the report ----------------------------------------------------------------------
+    if quiet then return #problems, examined end
     if #problems == 0 then
         print(string.format(
             "|cFF00FF00[Valuate]|r UI check: |cFF00FF00clean|r - %d things measured against the real client.",

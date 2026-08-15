@@ -8305,7 +8305,59 @@ local function SelfCheckDungeonKeys()
         "and the two are indistinguishable from outside.", name)
 end
 
+-- Two diagnostics shipped this session and neither was in the list below, so /valuate
+-- selfverify - billed as "every check the addon can judge on its own" - was quietly
+-- incomplete. That is the same failure this addon keeps finding in its own hand-kept lists:
+-- the report toggles, the verify checklist, the automation labels, the in-game manual.
+
+-- On ns rather than as file locals: Valuate.lua sits at the top-level-local budget, and
+-- these two would have been 181 and 182 of Lua-s 200.
+function ns.SelfCheckEnhanceSources()
+    if not ns.ProbeEnhanceSources then return "skip", "ui/Enhance.lua did not load." end
+    local available, missing = ns.ProbeEnhanceSources()
+    if #available == 0 then
+        return "fail", "This client exposes no enchant data at all - the Enhance tab cannot work."
+    end
+
+    -- The two that decide how much of the feature is possible. Named rather than counted,
+    -- because "4 of 5 sources" tells you nothing you can act on.
+    local byKey = {}
+    for _, a in ipairs(available) do byKey[a.key] = a end
+    if not byKey.craft then
+        return "fail", "No Craft api, which is where Enchanting lives on 3.3.5 - enchants " ..
+            "will never appear however many professions you open."
+    end
+
+    -- Zero open recipes is not a failure. It is the normal state with no window open, and
+    -- calling it one would teach people to ignore this.
+    local open = (byKey.craft.count or 0) + ((byKey.tradeskill and byKey.tradeskill.count) or 0)
+    if open == 0 then
+        return "skip", string.format(
+            "%d source(s) available, but no profession window is open so there is nothing " ..
+            "to read yet.", #available)
+    end
+    return "pass", string.format("%d source(s), %d recipe(s) readable right now.",
+        #available, open)
+end
+
+function ns.SelfCheckUILayout()
+    if not ns.RunUICheck then return "skip", "ui/UICheck.lua did not load." end
+    -- QUIET, and it will not open the window to inspect it: a diagnostic that changes what
+    -- is on your screen in order to measure it is measuring something you did not have.
+    local problems, examined = ns.RunUICheck(true)
+    if problems == nil then
+        return "skip", "The window is not open - /valuate ui, then run this again."
+    end
+    if problems > 0 then
+        return "fail", string.format(
+            "%d thing(s) drawn where they do not belong. /valuate uicheck names them.", problems)
+    end
+    return "pass", string.format("%d measured against the real client, all inside their frames.",
+        examined)
+end
 local SELF_CHECKS = {
+    { id = "enhancesrc", title = "This client can tell me about enchants", run = ns.SelfCheckEnhanceSources },
+    { id = "uilayout",   title = "Nothing is drawn outside the frame that owns it", run = ns.SelfCheckUILayout },
     { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
     { id = "dungeonids", title = "The harvested dungeon item ids exist on this server", run = SelfCheckDungeonItems },
     { id = "dungeonkey", title = "This dungeon's name matches the loot table", run = SelfCheckDungeonKeys },

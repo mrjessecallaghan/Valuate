@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.172.0a] - 2026-08-15 — the command that runs everything wasn't running everything
+
+### Fixed
+**`/valuate selfverify` is billed as "every check the addon can judge on its own", and neither
+diagnostic added this session was in it.** `/valuate uicheck` and `/valuate enhancecheck` are
+exactly that kind of check — the addon judging its own layout, and judging what its client
+exposes — and both sat outside the command meant to gather them.
+
+Someone running selfverify got a clean report and a false sense of completeness.
+
+This is the same failure this project keeps finding in its own hand-kept lists: the report's
+automation toggles, the verify checklist, the automation labels, the in-game manual. Each was
+a list somebody had to remember to add to, and each drifted.
+
+Both are now checks in their own right, with the three-way verdict the command already
+enforces:
+
+- **enchant sources** — fails when the client exposes nothing, fails specifically when there
+  is no Craft API (which is where Enchanting lives on 3.3.5, so enchants would never appear
+  however many professions you opened), and **skips** when no profession window is open,
+  because that is the normal state and calling it a failure would teach people to ignore the
+  check.
+- **UI layout** — runs the geometry walk quietly and fails if anything is drawn outside the
+  frame that owns it, pointing at `/valuate uicheck` to name them.
+
+### Technical
+`RunUICheck` gained a quiet mode that **will not open the window**. The command form opens it,
+because a person asking for it wants an answer; the self-check must not, because a diagnostic
+that changes what is on your screen in order to measure it is measuring something you did not
+have — and would do so inside a command that is supposed to be passive.
+
+Three mutations survived their first run, all the same way: the gate's fixture did not exercise
+the new checks at all, so it asserted the report's *shape* while both new entries always
+returned "skip". The fixture drives them now.
+
+`selfverify.js` pins the number of checks, which is why adding two failed it immediately —
+a check silently dropped from the list is precisely what that gate exists to catch, and
+"every result has a status" is true of a list with one entry in it.
+
+
 ## [0.171.0a] - 2026-08-15 — no scale, no ranking
 
 ### Fixed

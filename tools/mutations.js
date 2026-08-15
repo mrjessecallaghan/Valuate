@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.171.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.172.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1623,4 +1623,23 @@ module.exports = [
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "badging a tab that does not exist takes the window down with it",
     from: "        if not btn or not btn.label then return end", to: "" },
+  // ---- selfverify covers what shipped this session (v0.172.0a) -------------
+  // Two diagnostics shipped and neither was in SELF_CHECKS, so "every check the addon can
+  // judge on its own" was quietly incomplete. Same failure as the report toggles, the verify
+  // checklist, the automation labels and the in-game manual before it.
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a client with no Craft api passes, though enchants can never appear",
+    from: "    if not byKey.craft then", to: "    if false then" },
+
+  // Zero open recipes is the NORMAL state with no window open. Calling it a failure would
+  // teach people to ignore this check, which is worse than not having it.
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "no profession window open is reported as a failure rather than untested",
+    from: "    if open == 0 then", to: "    if false then" },
+
+  // The UI check must not OPEN the window to inspect it: a diagnostic that changes what is
+  // on your screen in order to measure it is measuring something you did not have.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "the quiet check opens the window it was asked to inspect",
+    from: "        if quiet then return nil, 0 end", to: "" },
 ];

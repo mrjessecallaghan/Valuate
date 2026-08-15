@@ -144,6 +144,25 @@ floating:Show()
 floating.GetTop = function() return nil end
 eq(ns.RunUICheck(), 0, "a frame the client cannot place yet is skipped rather than blamed")
 
+-- ---- quiet mode does not OPEN the window it was asked to inspect ------------------------------
+-- /valuate selfverify runs everything the addon can judge on its own, and wants a verdict
+-- rather than a report. A diagnostic that opens the window in order to measure it is measuring
+-- something you did not have - and it would do that in the middle of a command that is
+-- supposed to be passive.
+root = newWindow()
+root:Hide()
+local opened = 0
+Valuate.ShowUI = function() opened = opened + 1 end
+
+local quietProblems = ns.RunUICheck(true)
+eq(quietProblems, nil, "with the window closed, quiet mode returns no verdict at all")
+eq(opened, 0, "and does not open the window to manufacture one")
+
+-- The command form still does, because a person asking for it wants an answer.
+ns.RunUICheck()
+eq(opened, 1, "the command form opens it, because you asked")
+Valuate.ShowUI = nil
+
 -- ---- exactly one tab is marked ---------------------------------------------------------------
 root = newWindow()
 local function tab(lit)

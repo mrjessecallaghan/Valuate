@@ -40,6 +40,10 @@ const PIECES = [
   /^local function SelfCheckAutomationsCanRun\([\s\S]*?\r?\nend/m,
   /^local function SelfCheckDungeonItems\([\s\S]*?\r?\nend/m,
   /^local function SelfCheckDungeonKeys\([\s\S]*?\r?\nend/m,
+  // These two live on `ns` rather than as file locals: Valuate.lua sits at the
+  // top-level-local budget, so the newest checks had to go somewhere costing no slot.
+  /^function ns\.SelfCheckEnhanceSources\([\s\S]*?\r?\nend/m,
+  /^function ns\.SelfCheckUILayout\([\s\S]*?\r?\nend/m,
   /^local SELF_CHECKS = \{[\s\S]*?\r?\n\}/m,
   /^function Valuate:RunSelfVerify\([\s\S]*?\r?\nend/m,
 ];
@@ -284,9 +288,59 @@ ok(resultFor("canrun").detail:find("LeaveBattlefield", 1, true) ~= nil,
 LeaveBattlefield = function() end
 OPTIONS.autoLeaveBattleground = nil
 
+-- ---- can this client tell me about enchants at all? --------------------------
+-- The Enhance tab reads live data, so what it can show depends entirely on which apis this
+-- client answers - and one of them is custom to Ascension and undocumented.
+local SOURCES = {}
+ns.ProbeEnhanceSources = function() return SOURCES, {} end
+
+SOURCES = {}
+eq(resultFor("enhancesrc").status, "fail",
+   "a client exposing nothing at all is a failure - the tab cannot work")
+
+-- 3.3.5 puts Enchanting behind the CRAFT api. Without it, enchants never appear however many
+-- professions you open, and every other source being present does not make up for it.
+SOURCES = { { key = "tradeskill", count = 40 }, { key = "spellinfo", count = 1 } }
+local noCraft = resultFor("enhancesrc")
+eq(noCraft.status, "fail", "no Craft api is a failure even with everything else present")
+ok(noCraft.detail:find("Enchanting", 1, true) ~= nil, "and says what that costs you")
+
+-- Zero open recipes is the NORMAL state with no window open. Calling it a failure would teach
+-- people to ignore this check, which is worse than not having it at all.
+SOURCES = { { key = "craft", count = 0 }, { key = "tradeskill", count = 0 } }
+eq(resultFor("enhancesrc").status, "skip",
+   "no profession window open is UNTESTED, not broken")
+
+SOURCES = { { key = "craft", count = 12 }, { key = "tradeskill", count = 30 } }
+local live = resultFor("enhancesrc")
+eq(live.status, "pass", "an open window with readable recipes passes")
+ok(live.detail:find("42", 1, true) ~= nil, "reporting how many it can actually read")
+
+-- ---- and is anything drawn where it does not belong? -------------------------
+local UI_PROBLEMS, UI_EXAMINED = nil, 0
+ns.RunUICheck = function() return UI_PROBLEMS, UI_EXAMINED end
+
+-- The window not being open is not a verdict. Crucially the check must not OPEN it either:
+-- a diagnostic that changes what is on your screen in order to measure it is measuring
+-- something you did not have.
+UI_PROBLEMS = nil
+eq(resultFor("uilayout").status, "skip", "a closed window is untested, not clean")
+
+UI_PROBLEMS, UI_EXAMINED = 0, 340
+eq(resultFor("uilayout").status, "pass", "nothing out of place passes")
+
+UI_PROBLEMS = 3
+local broken = resultFor("uilayout")
+eq(broken.status, "fail", "things drawn outside their frames is a failure")
+ok(broken.detail:find("uicheck", 1, true) ~= nil, "and points at the command that names them")
+
+UI_PROBLEMS, UI_EXAMINED = 0, 340
+
 -- ---- the shape of the report -------------------------------------------------
 local all = Valuate:RunSelfVerify()
-eq(#all, 7, "every check reports, none silently dropped")
+-- Counted, not merely iterated. A check dropped from the list is exactly the failure this
+-- gate exists for, and "every result has a status" is true of a list with one entry in it.
+eq(#all, 9, "every check reports, none silently dropped")
 for _, r in ipairs(all) do
     ok(r.status == "pass" or r.status == "fail" or r.status == "skip",
        "every status is one of the three, never nil: " .. tostring(r.id))
@@ -302,7 +356,7 @@ table.insert(SELF_CHECKS, { id = "silent", title = "a check that returns nothing
 local silent = resultFor("silent")
 eq(silent.status, "fail", "a check that returns nothing is a FAILURE, not a pass")
 ok(type(silent.detail) == "string" and silent.detail ~= "", "and still says something")
-eq(#Valuate:RunSelfVerify(), 8, "and it is reported, not dropped")
+eq(#Valuate:RunSelfVerify(), 10, "and it is reported, not dropped")
 
 -- ---- the harvested dungeon item ids -------------------------------------------
 -- This check is the only thing that will ever settle whether 2,918 ids taken out of
