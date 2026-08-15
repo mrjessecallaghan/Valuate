@@ -84,6 +84,72 @@ local function GetRoleName(role)
     return roleNames[role] or "Damage"
 end
 
+-- What a spec button says when you hover it.
+--
+-- It used to repeat the two things already printed on the button - the name and the role -
+-- which is the tooltip equivalent of saying nothing. Everything worth knowing before you
+-- commit to a template was sitting unread in the data: what the spec actually does, which
+-- stats it will chase, and whether anyone ever published those numbers.
+--
+-- THE LAST LINE IS THE POINT. Six of the 101 specs carry weights that were INFERRED from
+-- prose rather than transcribed from a published priority, and until now they looked exactly
+-- like the ninety-five that were not. Picking one got you a guess delivered with the same
+-- confidence as a fact. A template that is honest about being a starting point is useful; one
+-- that is quietly a guess is the thing this addon keeps having to apologise for.
+local SPEC_TOOLTIP_STATS = 5
+
+local function BuildSpecTooltip(template)
+    GameTooltip:SetText(template.name, 1, 1, 1)
+    GameTooltip:AddLine(GetRoleName(template.role), 0.7, 0.7, 0.7)
+
+    if type(template.description) == "string" and template.description ~= "" then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine(template.description, 0.9, 0.9, 0.9, true)
+    end
+
+    -- The stat priority IS the template. Showing the top few turns "Arms" from a name you
+    -- have to trust into a claim you can check against what you already believe.
+    local weights = template.weights
+    if type(weights) == "table" then
+        local ranked = {}
+        for stat, weight in pairs(weights) do
+            if type(weight) == "number" and weight > 0 then
+                ranked[#ranked + 1] = { stat = stat, weight = weight }
+            end
+        end
+        -- Sorted by weight, then by NAME - pairs() order is not an order, and a tooltip that
+        -- reshuffles its own rows between two hovers of the same button reads as a bug.
+        table.sort(ranked, function(a, b)
+            if a.weight ~= b.weight then return a.weight > b.weight end
+            return a.stat < b.stat
+        end)
+
+        if ranked[1] then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Values most:", 0.6, 0.6, 0.6)
+            local names = ValuateStatNames or {}
+            for i = 1, math.min(SPEC_TOOLTIP_STATS, #ranked) do
+                local e = ranked[i]
+                GameTooltip:AddDoubleLine(
+                    "  " .. (names[e.stat] or e.stat), string.format("%.2f", e.weight),
+                    0.85, 0.85, 0.85, 0.6, 0.8, 1.0)
+            end
+            local rest = #ranked - SPEC_TOOLTIP_STATS
+            if rest > 0 then
+                GameTooltip:AddLine("  and " .. rest .. " more", 0.5, 0.5, 0.5)
+            end
+        end
+    end
+
+    if template.inferred then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("These weights are a GUESS.", 1.0, 0.5, 0.2)
+        GameTooltip:AddLine("No stat priority has ever been published for this spec, so " ..
+            "they were read off its description. Treat it as a starting point and edit it.",
+            1.0, 0.7, 0.4, true)
+    end
+end
+
 -- ========================================
 -- Icon Picker Frame
 -- ========================================
@@ -837,8 +903,7 @@ local function CreateTemplatePickerFrame()
             -- being dragged. This was the last hover handler still calling SetOwner
             -- directly; every other one in the addon already went through it.
             if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
-                GameTooltip:SetText(template.name, 1, 1, 1)
-                GameTooltip:AddLine(GetRoleName(template.role), 0.7, 0.7, 0.7)
+                BuildSpecTooltip(template)
                 GameTooltip:Show()
             end
         end)

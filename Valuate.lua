@@ -9927,6 +9927,14 @@ local VERIFY_CHECKS = {
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
     },
     {
+        id = "spectip", since = "0.122.0a",
+        gate = "tools/spectip.js",
+        title = "A spec tooltip says what it will chase, and admits when it is guessing",
+        steps = "Open the scale list, choose From Template, and hover a few specs - one of your own class, then a Son of Arugal spec (Ferocity, Blood, Packleader or Fleshweaver).",
+        expect = "Each shows the spec's description and a 'Values most' list: five stats with weights, then 'and N more'. The Son of Arugal specs additionally say their weights are a GUESS, in orange, with what to do about it. Ordinary specs carry no such warning.",
+        broke = "Two things need eyes rather than a gate. FIRST, length: the description plus five stats plus a warning is a tall tooltip, and on a spec near the bottom of a tall picker it may run off the screen or flip to an awkward anchor - the gate records the lines, it cannot see them. SECOND, whether the numbers read as useful or as clutter. If the stat list feels like noise rather than the thing that lets you judge a template, SPEC_TOOLTIP_STATS in ui/Pickers.lua is the dial; five was chosen because most specs weight far more than that and a shorter list stops looking like a summary and starts looking like the whole priority.",
+    },
+    {
         id = "dungeondata", since = "0.120.0a",
         gate = "tools/dungeonloot.js",
         title = "The dungeon panel is honest about what it does not know",

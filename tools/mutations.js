@@ -92,6 +92,13 @@ const D_TRACK = { start: "function Valuate:UpdateDungeonTracking(", end: "\nend"
 const D_NOTE = { start: "function Valuate:NoteDungeonUnitDeath(", end: "\nend" };
 const D_RESET = { start: "function Valuate:ResetDungeonProgress(", end: "\nend" };
 
+// The spec tooltip. Ends at the next function rather than at "\nend", which would stop at
+// the first nested block close inside it.
+const SPEC_TIP = {
+  start: "local function BuildSpecTooltip(",
+  end: "\n-- ========================================",
+};
+
 
 module.exports = [
   // ---- the repaint caches (v0.91.0a, v0.92.0a) -----------------------------
@@ -142,7 +149,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.121.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.122.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -637,4 +644,36 @@ module.exports = [
   { gate: "dungeonloot", file: "ui/DungeonLoot.lua",
     label: "the harvested table collapses to a handful of dungeons",
     from: 'ns.DUNGEON_LOOT = {', to: 'ns.DUNGEON_LOOT = {} ns.UNUSED_LOOT = {' },
+
+  // ---- the spec tooltip (v0.122.0a) ----------------------------------------
+  // The tooltip is the last thing between a user and committing to a template. Every
+  // mutation here is a way for it to look fine while telling you less than it knows.
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "a spec whose weights were GUESSED is offered as confidently as a researched one",
+    from: "if template.inferred then", to: "if false then" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "every spec is stamped with the guess warning, so the warning means nothing",
+    from: "if template.inferred then", to: "if true then" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the stat list reshuffles between two hovers of the same button",
+    from: "        table.sort(ranked, function(a, b)", to: "        local _ = function(a, b)" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the priority is listed lightest-first, so the top line is the least important stat",
+    from: "if a.weight ~= b.weight then return a.weight > b.weight end",
+    to: "if a.weight ~= b.weight then return a.weight < b.weight end" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the list stops at five and looks complete, hiding everything else the spec wants",
+    from: 'GameTooltip:AddLine("  and " .. rest .. " more", 0.5, 0.5, 0.5)',
+    to: "local _ = rest" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the weights are named but never shown, so there is nothing to check",
+    from: '"  " .. (names[e.stat] or e.stat), string.format("%.2f", e.weight),',
+    to: '"  " .. (names[e.stat] or e.stat), "",' },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the description is dropped and the tooltip repeats the button again",
+    from: "GameTooltip:AddLine(template.description, 0.9, 0.9, 0.9, true)",
+    to: "local _ = template.description" },
+  { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
+    label: "the numbers appear with no heading saying what they are",
+    from: 'GameTooltip:AddLine("Values most:", 0.6, 0.6, 0.6)', to: "local _ = 1" },
 ];

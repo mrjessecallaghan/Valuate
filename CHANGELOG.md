@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.122.0a] - 2026-08-15 — spec tooltips say what they will chase
+
+### Added
+Hovering a spec in the template picker used to show its **name and its role** — the two
+things already printed on the button. Everything worth knowing before committing to a
+template was sitting unread in the data.
+
+It now shows what the spec actually does, and **the stat priority itself**: the top five
+stats with their weights, and a count of how many it did not list. That last part matters —
+a list that stops at five *looks* complete. The priority is what a template **is**, so
+showing it turns "Arms" from a name you have to trust into a claim you can check against
+what you already believe.
+
+Ordered by weight, then by name. `pairs()` order is undefined, and a tooltip built straight
+off the weights table reshuffles its own rows between two hovers of the same button — which
+reads as the addon being broken rather than the tooltip being sloppy.
+
+### Fixed — a guess that looked like a fact
+**Six of the 101 specs carry weights that were inferred from prose**, because no stat
+priority has ever been published for them anywhere. Until now they looked *exactly* like the
+ninety-five that were transcribed from real sources. Picking one got you a guess delivered
+with the confidence of a fact.
+
+Their tooltips now say so outright — that the numbers are a guess, that nothing was ever
+published, and that it is a starting point to edit rather than a verdict. The specs with
+researched weights carry no such warning, deliberately: a caveat on everything is a caveat
+on nothing.
+
+The data has carried an `inferred` flag since those specs were added and
+`tools/speccoverage.js` has been counting them all along. Nothing surfaced it where the
+choice is actually made.
+
+### Technical
+New gate `tools/spectip.js` (20 checks) fires the real `OnEnter` handler on a real spec
+button against a tooltip that **records** what it was told — the shared harness stub
+discards every line, which is why this whole surface could have been rewritten without a
+gate noticing. It picks its fixtures out of the data rather than naming a spec, so it does
+not quietly stop testing anything the day one is renamed or its priority gets published.
+8 mutations, all caught.
+
 ## [0.121.0a] - 2026-08-15 — the loot table, harvested rather than invented
 
 ### Added
