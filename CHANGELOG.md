@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.141.0a] - 2026-08-15 — the checks nothing else proves now say so
+
+### Added
+`/valuate verify` has always handed out **ungated** checks first — the ones no automated test
+can reach, where your eyes are the only evidence the behaviour has ever had. It never said why.
+
+A gated check has printed *"Already proven: tools/x.js runs this logic — you are checking it
+LOOKS right"* for a long time. An ungated one printed **nothing extra**. So the checks carrying
+the most weight were distinguishable from the ones carrying least only by an **absence** —
+which is the exact failure this checklist exists to catch, built into the checklist.
+
+They now say it outright:
+
+> **Nothing else proves this.** No gate can reach it, so your eyes are the only evidence it has
+> ever had.
+
+And the summary counts them, because a total alone does not tell you which half of the list is
+load-bearing — *"12 left to check (5 of them have no gate behind them at all)"*. Five ungated
+among fifty-one is a different afternoon from twenty-five.
+
+### Added — two checks for what only a client can settle
+The list had drifted five releases behind. Added: whether the upgrade popup really is reachable
+mid-combat (if the prompt is suppressed in combat entirely, v0.138.0a's fix protects nothing —
+worth finding out either way), and whether the wizard's weak-match sentence fits the screen on
+a genuinely low-level character.
+
+### Investigated, nothing to fix
+Two sweeps came back clean and are recorded so they are not repeated: every `SetText(x or "")`
+call site was checked for the boolean bug fixed yesterday — only `plan.caution` had it — and
+`plan.alternative`, which looked identical and is rendered through `tostring()`, resolves to
+`runnerUp.name or nil` and is correctly a string.
+
+### Technical
+`verifytest.js` had a `slice()` helper that was defined and never called. It is used now, so
+the printer is tested against shipped source rather than described in a comment. One mutation
+needed scoping — three places test `c.gate`, and only the printer is what this claims to
+protect.
+
 ## [0.140.0a] - 2026-08-15 — the wizard's weak-match warning was a boolean
 
 ### Fixed

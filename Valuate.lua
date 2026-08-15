@@ -10480,6 +10480,22 @@ local VERIFY_CHECKS = {
         broke = "This is the one number in the feature that is not taken from a table, and everything else rests on it. It is GetCombatRating divided by GetCombatRatingBonus, which is exact on a stock client - but Ascension is modified, and if either returns something unexpected the conversion is silently wrong and every hit item gets mis-ranked in a direction nothing displays. If /valuate hit says 'not calibrated' while you are visibly wearing hit, the rating index is wrong for this client. Check both a caster and a melee scale: they read different indices.",
     },
     {
+        id = "popupcombat", since = "0.138.0a",
+        gate = "tools/popuptest.js",
+        title = "The upgrade popup waits for combat rather than throwing the upgrade away",
+        steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
+        expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
+        broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "weakmatch", since = "0.140.0a",
+        gate = "tools/autowizard.js",
+        title = "The wizard explains a weak match instead of showing nothing",
+        steps = "On a low-level character wearing two or three stats' worth of gear, run /valuate wizard and press Build it for me.",
+        expect = "The preview names the closest spec and, underneath, a sentence saying it is only an N% match, that this is normal while levelling, and to run it again with more gear. Not a blank line, and not the word 'true'.",
+        broke = "This field was a boolean until v0.140.0a, so the label received SetText(true). What the gate cannot answer is what the client DOES with that - whether it errored, printed 'true', or silently rendered nothing - and therefore whether anyone ever saw a broken screen or merely an empty one. Also worth confirming the sentence fits: it is longer than anything else on that screen.",
+    },
+    {
         id = "hitcapstar", since = "0.135.0a",
         -- No gate field, deliberately: nothing headless can reach this tooltip path, and
         -- naming one that cannot would make the check look safe to skip. tocsync.js checks
@@ -10972,6 +10988,16 @@ local function PrintVerifyCheck(c, index)
         -- is look at the screen.
         print("   |cFF66CCFFAlready proven:|r " .. c.gate ..
               " runs this logic. |cFFAAAAAAYou are checking it LOOKS right.|r")
+    else
+        -- The counterpart, and the reason it is worth printing rather than leaving to
+        -- inference: a gated check says what is already covered, and an ungated one used to
+        -- say nothing at all - so the checks that matter MOST looked exactly like the ones
+        -- that matter least, distinguishable only by an absence.
+        --
+        -- That is the same failure this checklist exists to catch, built into the checklist.
+        -- NextPendingCheck has always handed these out first; now it says why.
+        print("   |cFFFF8833Nothing else proves this.|r |cFFAAAAAANo gate can reach it, so " ..
+              "your eyes are the only evidence it has ever had.|r")
     end
 end
 
@@ -11097,7 +11123,17 @@ function Valuate:RunVerify(which)
             return true
         end
         local at, stale = VerifiedState(c)
-        print(string.format("|cFF00FF00[Valuate]|r %d left to check.", pending))
+        local ungated = 0
+        for _, check in ipairs(VERIFY_CHECKS) do
+            local seenAt, isStale = VerifiedState(check)
+            if ((not seenAt) or isStale) and not check.gate then ungated = ungated + 1 end
+        end
+        if ungated > 0 then
+            print(string.format("|cFF00FF00[Valuate]|r %d left to check |cFFFF8833(%d of them " ..
+                "have no gate behind them at all)|r.", pending, ungated))
+        else
+            print(string.format("|cFF00FF00[Valuate]|r %d left to check.", pending))
+        end
         if stale then
             print(string.format("|cFFFF8800Re-check:|r you ticked this at v%s, but it changed in v%s.", at, c.since))
         end

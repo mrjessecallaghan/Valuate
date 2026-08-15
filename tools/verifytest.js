@@ -40,7 +40,9 @@ function slice(name) {
   return m[0];
 }
 
-const REAL = ["VersionOlder", "VerifiedState", "NextPendingCheck"].map(slice).join("\n");
+const REAL = ["VersionOlder", "VerifiedState", "NextPendingCheck", "PrintVerifyCheck"]
+  .map(slice)
+  .join("\n");
 
 /* ---------------------------------------------------------------------------
  * The REAL list, checked statically: does it still describe the addon that ships?
@@ -215,6 +217,43 @@ OPTS.verifiedChecks = { gated1 = "0.10.0a" }
 VERIFY_CHECKS[1].since = "0.30.0a"
 c = NextPendingCheck()
 ok(c and c.id == "ungated1", "a stale gated check does not jump the queue")
+
+-- ---- an ungated check says it is ungated --------------------------------------------
+-- NextPendingCheck has always handed these out first, which the assertions above cover. What
+-- it did not do is say WHY: a gated check prints "Already proven: tools/x.js runs this logic -
+-- you are checking it LOOKS right", and an ungated one printed nothing extra. So the checks
+-- carrying the most weight were distinguishable from the ones carrying least only by an
+-- absence.
+--
+-- That is the failure this entire checklist exists to catch, built into the checklist.
+local printed = {}
+local realPrint = print
+print = function(...)
+    local parts = {}
+    for i = 1, select("#", ...) do parts[#parts + 1] = tostring(select(i, ...)) end
+    printed[#printed + 1] = table.concat(parts, " ")
+end
+local function say(check)
+    printed = {}
+    PrintVerifyCheck(check, 1)
+    return table.concat(printed, " | ")
+end
+
+local gatedText = say({ id = "g", since = "0.1.0a", title = "T", steps = "S", expect = "E",
+                        broke = "B", gate = "tools/example.js" })
+local ungatedText = say({ id = "u", since = "0.1.0a", title = "T", steps = "S", expect = "E",
+                          broke = "B" })
+print = realPrint
+
+ok(gatedText:find("Already proven", 1, true) ~= nil, "a gated check says what already covers it")
+ok(gatedText:find("tools/example.js", 1, true) ~= nil, "and names the gate")
+ok(ungatedText:find("Nothing else proves this", 1, true) ~= nil,
+   "an ungated check says so outright rather than leaving it to an absence")
+ok(ungatedText:find("Already proven", 1, true) == nil,
+   "and does not claim a gate it does not have")
+-- The distinction is the point, not the wording: a rewrite may change either sentence and may
+-- not make the two states read the same.
+ok(gatedText ~= ungatedText, "the two states produce different text")
 
 return failures, checks
 `,

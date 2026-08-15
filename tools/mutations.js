@@ -174,7 +174,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.140.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.141.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -982,4 +982,19 @@ module.exports = [
   { gate: "autowizard", file: "Valuate.lua", scope: PLAN_AUTO,
     label: "a weak match says nothing at all, which is where this started",
     from: "caution = (score < MATCH_UNSURE) and string.format(", to: "caution = false and string.format(" },
+
+  // ---- an ungated check announces itself (v0.141.0a) -----------------------
+  // The checks carrying the most weight were distinguishable from the ones carrying least
+  // only by an absence - which is the failure the checklist exists to catch, built into the
+  // checklist.
+  { gate: "verifytest", file: "Valuate.lua",
+    label: "an ungated check says nothing, so the ones that matter most look ordinary",
+    from: '        print("   |cFFFF8833Nothing else proves this.|r', to: '        local _ = ("' },
+  { gate: "verifytest", file: "Valuate.lua",
+    scope: {
+      start: "local function PrintVerifyCheck(",
+      end: "\n-- Marks a check done",
+    },
+    label: "every check claims a gate, including the ones that have none",
+    from: "    if c.gate then", to: "    if true then" },
 ];

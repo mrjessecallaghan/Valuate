@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.140.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.141.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.140.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.141.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,7 +474,10 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-            "• FIXED: the wizard's 'this is only a weak match' warning was a boolean, so\n" ..
+        "• /valuate verify now marks the checks that NOTHING automated can prove, and\n" ..
+        "   counts them in the summary - those are the ones where your eyes are the\n" ..
+        "   only evidence the behaviour has ever had.\n" ..
+        "• FIXED: the wizard's 'this is only a weak match' warning was a boolean, so\n" ..
         "   it showed nothing - on low-level characters, which are exactly the ones\n" ..
         "   that get weak matches. It now explains itself and says why.\n" ..
         "• Every Lua file is now COMPILED by a real Lua 5.1 before release, not just\n" ..
