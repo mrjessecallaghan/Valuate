@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.139.0a] - 2026-08-15 — compiling the files nothing compiled
+
+### Added
+Yesterday's release ended on an uncomfortable sentence: *a file no gate loads would have
+shipped as a silently dead addon.* This is that sentence closed.
+
+`tools/compileall.js` compiles **every** `.lua` file in the addon and its three companions
+through fengari's Lua 5.1 — the same implementation the client uses — and it compiles rather
+than runs, because every limit worth catching is enforced before a line executes.
+
+What that was leaving uncovered, once I went looking:
+
+| | |
+|---|---|
+| `ui/*.lua` | already safe, by accident — `loadtime.js` loads them for its own reasons |
+| **`Valuate.lua`** | eight thousand lines, and only ever **sliced**. Gates compile fragments of it and never the whole file |
+| `ValuateUI.lua`, `MinimapButton.lua`, `StatDefinitions.lua`, `ImportExport.lua` | nothing |
+| all three companion addons | nothing |
+
+Any of them could have crossed a compile limit and shipped silent. Demonstrated rather than
+asserted: a 210-deep concat chain pasted into `Valuate.lua` leaves `check.js` reporting *"31
+Lua files parsed cleanly"* while `compileall.js` names the file, the limit, and why the two
+disagree.
+
+### Technical — the gate checks itself first
+Everything here rests on `luaL_loadbuffer` refusing what the client refuses. If that ever
+stopped being true, this file would report every source clean forever, and the failure would be
+indistinguishable from the good news it exists to deliver. So it compiles three samples before
+touching a real file: a 210-deep chain and a plain syntax error that must **fail**, and valid
+Lua that must **pass** — because a self-check proving only the first would be satisfied by a
+gate that rejects everything.
+
+That is the same argument `check.js` already makes about its regex rules, now applied to the
+tool that outranks it.
+
+Two mutations, both caught, and one was retargeted twice on the way. Aiming at the failure
+path itself could not work: with every source compiling, the failure branch never runs, so the
+mutation was testing the tree rather than the gate. Flipping a **self-check sample's** expected
+result fires on a clean tree, which is the thing actually worth proving.
+
+`check.js` also now counts `concat-chain-under-limit` in its summary — it is a whole-file check
+and lives outside both rule arrays, so it had been doing work without being counted, and the
+docs said 20 while the tool said 19.
+
 ## [0.138.0a] - 2026-08-15 — the upgrade popup stops throwing your upgrade away
 
 ### Fixed

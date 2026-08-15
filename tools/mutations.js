@@ -174,7 +174,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.138.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.139.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -957,4 +957,16 @@ module.exports = [
     // Single-line anchor: this file is CRLF, so a `\n` in a multi-line anchor matches
     // nothing and the guard reports UNAPPLIED rather than letting it pass silently.
     from: "        Valuate:HideUpgradePopup()", to: "        local _ = 1" },
+
+  // ---- compiling every file, not just the parsed ones (v0.139.0a) ---------
+  // The gate exists because luaparse is more permissive than the game. If it ever stops
+  // covering everything, or stops failing on a real compile error, it is worse than absent:
+  // it is a green line saying the client can load files nobody compiled.
+  { gate: "compileall", file: "tools/compileall.js",
+    label: "the self-check is inert, so a broken compile check would report all clear",
+    from: '["local x = 1 + 1 return x", true, "ordinary valid Lua"],',
+    to: '["local x = 1 + 1 return x", false, "ordinary valid Lua"],' },
+  { gate: "compileall", file: "tools/compileall.js",
+    label: "the scan silently covers nothing, so every file passes by not being looked at",
+    from: "    } else if (entry.name.endsWith(\".lua\")) {", to: "    } else if (false) {" },
 ];

@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.138.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.139.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.138.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.139.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,7 +474,10 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-            "• FIXED: the upgrade popup's Equip button closed the popup BEFORE finding",
+            "• Every Lua file is now COMPILED by a real Lua 5.1 before release, not just\n" ..
+        "   parsed. The parser used until now accepts things the game refuses, and an\n" ..
+        "   addon that fails to compile does not report an error - it is just absent.\n" ..
+        "• FIXED: the upgrade popup's Equip button closed the popup BEFORE finding",
             "   out it could not equip in combat, so a click that could never work took",
             "   the upgrade off your screen. It now waits, like the icon always has.",
             "• Settings > Scoring shows your live hit state next to the switch that acts",

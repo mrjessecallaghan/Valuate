@@ -872,5 +872,5 @@ if (parseFailures || lintFailures) {
   process.exit(1);
 }
 console.log(
-  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + STRUCTURAL_RULES.length} lint rules passed.`
+  `OK  ${files.length} Lua file(s) parsed cleanly; ${RULES.length + STRUCTURAL_RULES.length + 1} lint rules passed.`
 );
