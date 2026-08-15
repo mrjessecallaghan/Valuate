@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.145.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.146.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1048,4 +1048,21 @@ module.exports = [
   { gate: "options", file: "Valuate.lua",
     label: "the automation that changes your gear without asking defaults to ON",
     from: "    autoEquipUpgrades = false,", to: "    autoEquipUpgrades = true," },
+
+  // ---- automations that never met each other (v0.146.0a) -------------------
+  // Auto-equip creates an item in your bags; auto-delete runs on the bag update that
+  // follows; every other protection has just stopped applying to it by design. Deletion has
+  // no undo, so each guard here gets broken on purpose.
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "gear auto-equip just took off you is deletable - deletion has no undo",
+    from: '        return true, "just replaced by auto-equip"', to: '        return false, "x"' },
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "the grace period never expires, so old gear becomes immortal",
+    from: "if now - at > Valuate.displaced.grace or now < at then", to: "if false then" },
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "a clock that ran backwards pins the protection forever",
+    from: "or now < at then", to: "then" },
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "marking one item protects everything in your bags",
+    from: "    if not at then return false end", to: "    if not at then return true end" },
 ];

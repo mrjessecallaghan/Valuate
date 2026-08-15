@@ -30,6 +30,16 @@ const path = require("path");
 const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
+const extra = ["MarkDisplaced", "WasDisplacedByUs"].map(function (name) {
+  const hit = lua.match(
+    new RegExp("^function Valuate:" + name + "\\([\\s\\S]*?\\r?\\nend", "m")
+  );
+  if (!hit) {
+    console.error("  SLICE  could not find Valuate:" + name + " - this gate tests nothing");
+    process.exit(1);
+  }
+  return hit[0];
+}).join("\n");
 const m = lua.match(/^local function IsProtectedFromDelete\(([\s\S]*?)\nend\n/m);
 if (!m) {
   console.error(
@@ -71,7 +81,7 @@ local function clear()
     }
 end
 
-` + m[0] + `
+` + extra + "\n" + m[0] + `
 
 local LINK = "|cff0070dd|Hitem:1234::::::::80:::::|h[Test Item]|h|r"
 
@@ -191,9 +201,57 @@ clear()
 GetContainerItemQuestInfo = nil
 GetContainerItemEquipmentSetInfo = nil
 Valuate = {}
+` + extra + `
 safe, res = pcall(IsProtectedFromDelete, 1, 1, LINK)
 eq(safe, true, "missing APIs do not error")
 eq(res, false, "with no APIs at all, nothing claims protection")
+
+-- ---- gear one of our own automations just took off you ---------------------------------
+-- The automations were written one at a time and never introduced to each other. Auto-equip
+-- puts the piece it replaced into your bags; auto-delete runs on the bag update that follows.
+-- The displaced item is protected by NONE of the other rules here - it is no longer
+-- best-in-slot, because the thing that replaced it is, and no longer an upgrade, because you
+-- are wearing something better. It is simply deletable.
+--
+-- At level ten that item can be grey, which is exactly what auto-delete looks for. Nobody
+-- asked for "delete the gear I was wearing four seconds ago", and deletion has no undo.
+Valuate.displaced = { grace = 300, at = {} }
+local NOW = 1000
+function GetTime() return NOW end
+
+local DISPLACED_LINK = "|Hitem:4242|h[Old Chest]|h"
+function GetItemIdFromLink(link) return tonumber(link and link:match("|Hitem:(%d+)")) end
+
+-- Not marked: nothing here protects it, which is the whole problem.
+local prot2, reason2 = IsProtectedFromDelete(1, 1, DISPLACED_LINK)
+eq(prot2, false, "an ordinary replaced item is not protected by any other rule")
+
+-- Marked by our own equip.
+Valuate:MarkDisplaced(4242)
+prot2, reason2 = IsProtectedFromDelete(1, 1, DISPLACED_LINK)
+eq(prot2, true, "gear auto-equip just replaced is protected from deletion")
+ok(reason2 and reason2:find("auto-equip", 1, true) ~= nil,
+   "and the reason names WHY, so the tooltip verdict can explain a keep nobody asked for")
+
+-- A grace period, not an amnesty. The protection covers the window where one automation is
+-- still reacting to another; it is not there to make old gear immortal.
+NOW = 1000 + 301
+prot2 = IsProtectedFromDelete(1, 1, DISPLACED_LINK)
+eq(prot2, false, "once the window passes it is deletable again - this is a grace period, not " ..
+   "a permanent exemption")
+
+-- A clock that goes backwards (a /reload resets GetTime) must expire it rather than protect
+-- it forever, which is the same trap the active-scale cache had.
+NOW = 10
+Valuate.displaced.at[4242] = 1000
+prot2 = IsProtectedFromDelete(1, 1, DISPLACED_LINK)
+eq(prot2, false, "a clock that ran backwards expires the mark rather than pinning it")
+
+-- And a different item is unaffected.
+NOW = 1000
+Valuate:MarkDisplaced(4242)
+eq(IsProtectedFromDelete(1, 1, "|Hitem:9999|h[Other]|h"), false,
+   "marking one item does not protect everything in your bags")
 
 return failures, checks
 `,

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.146.0a] - 2026-08-15 — two automations that had never met
+
+### Fixed
+Auto-equip, shipped yesterday, puts the piece it replaced into your bags. Auto-delete runs
+on the bag update that follows. **The displaced item is protected by none of the delete
+rules** — it is no longer best-in-slot, because the thing that replaced it is, and no longer
+an upgrade, because you are wearing something better. It is simply deletable.
+
+At level ten that item can be grey, which is exactly what auto-delete looks for. Nobody
+asked for *delete the gear I was wearing four seconds ago*, and **deletion has no undo**.
+
+Anything one of our own automations takes off you is now protected for five minutes. A
+grace period rather than an amnesty: it covers the window where one automation is still
+reacting to another, not the rest of the item's life.
+
+This is the gap I named two sessions ago — the automations were written one at a time and
+never introduced to each other. It is worth saying that the interaction was created by the
+feature I shipped in the release immediately before this one.
+
+### Technical
+Three things the gates caught while fixing it, in order:
+
+- **The local budget.** Two new top-level locals took `Valuate.lua` to 181 of Lua's 200 per
+  scope, and the rule warns at 180. Grouping them into one table got it to 180 — still on
+  the line — so the state moved onto `Valuate` itself, where its accessors already live. It
+  never needed a top-level slot.
+- **A robustness bug of my own.** The new guard called `GetItemIdFromLink` unguarded inside
+  an otherwise-guarded expression, so `deletetest`'s deliberate strip-every-API case errored.
+  Every other branch in that function survives a bare client; the one guarding an
+  irreversible action should not be the exception.
+- **Slice ordering.** The fixture creates `Valuate = {}` long after the slice was injected,
+  wiping the two methods it had just defined. Moved below it.
+
+4 mutations, all caught, including a clock that runs backwards — a `/reload` resets
+`GetTime`, and an unguarded comparison would pin the protection on forever.
 ## [0.145.0a] - 2026-08-15 — it just puts the upgrade on
 
 ### Added

@@ -6075,6 +6075,40 @@ end
 -- saving/updating a set named after the scale once the swaps settle, so it can be
 -- re-equipped from the character panel or a /equipset macro later.
 -- Returns the number of items it began equipping, or false if it couldn't run.
+-- What our own automations just took OFF you.
+--
+-- The automations were written one at a time and never introduced to each other. Auto-equip
+-- puts the piece it replaced into your bags; auto-delete runs on the bag update that follows.
+-- The displaced item is protected by none of the delete rules - it is no longer best-in-slot,
+-- because the thing that replaced it is, and it is no longer an upgrade, because you are
+-- wearing something better. It is simply deletable.
+--
+-- At level ten that item can be grey, which is exactly what auto-delete looks for. Nobody
+-- asked for "delete the gear I was wearing four seconds ago", and deletion has no undo.
+--
+-- A short grace period rather than a permanent exemption: the protection exists to cover the
+-- window where one automation is still reacting to another, not to make old gear immortal.
+Valuate.displaced = { grace = 300, at = {} }
+
+function Valuate:MarkDisplaced(itemId)
+    if not itemId then return end
+    Valuate.displaced.at[itemId] = (GetTime and GetTime()) or 0
+end
+
+-- True while an item is inside the grace window. Prunes as it goes, so the table cannot
+-- grow for a whole session on a character that changes gear often.
+function Valuate:WasDisplacedByUs(itemId)
+    if not itemId then return false end
+    local at = Valuate.displaced.at[itemId]
+    if not at then return false end
+    local now = (GetTime and GetTime()) or 0
+    if now - at > Valuate.displaced.grace or now < at then
+        Valuate.displaced.at[itemId] = nil
+        return false
+    end
+    return true
+end
+
 function Valuate:EquipBestSet(scaleName)
     if not scaleName then return false end
     local options = Valuate:GetOptions()
@@ -6115,6 +6149,9 @@ function Valuate:EquipBestSet(scaleName)
                 if curId ~= GetItemIdFromLink(item.itemLink) then
                     -- EquipItemByName targets the specific slot, so multi-slot items
                     -- (rings/trinkets/1H) go exactly where the scan assigned them.
+                    -- Recorded BEFORE the swap: once EquipItemByName has run, the slot
+                    -- holds the new item and what it replaced is only in your bags.
+                    if cur then Valuate:MarkDisplaced(GetItemIdFromLink(cur)) end
                     EquipItemByName(item.itemLink, slotId)
                     equipped = equipped + 1
                 end
@@ -8701,6 +8738,14 @@ end
 -- Returns true plus a reason when the item must be kept.
 local function IsProtectedFromDelete(bag, slot, link)
     if not link then return true, "no link" end
+
+    -- Something one of our own automations took off you moments ago. See MarkDisplaced:
+    -- auto-equip creates this item in your bags, and every other protection here has just
+    -- stopped applying to it by design.
+    if Valuate.WasDisplacedByUs and GetItemIdFromLink
+        and Valuate:WasDisplacedByUs(GetItemIdFromLink(link)) then
+        return true, "just replaced by auto-equip"
+    end
 
     -- Quest items
     if GetContainerItemQuestInfo then
