@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.143.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.144.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1036,4 +1036,9 @@ module.exports = [
     label: "non-gear counts as an upgrade, so a recipe sends you to a dungeon",
     from: 'elseif equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG"',
     to: "elseif true" },
+
+  // ---- naming the slot, not counting it (v0.144.0a) ------------------------
+  { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
+    label: "the slots are computed and thrown away, so a dungeon says nothing about WHY to go",
+    from: "if not slots[slotName] then slots[slotName] = true end", to: "local _ = slotName" },
 ];

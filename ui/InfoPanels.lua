@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.143.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.144.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.143.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.144.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -475,6 +475,7 @@ local function CreateChangelogPanel(parent)
         -- such limit, so the list can keep growing.
         table.concat({
         "• NEW: /valuate where - which dungeons hold an upgrade you could actually\n" ..
+        "   wear, and WHICH SLOTS each one would improve, best first.\n" ..
         "   wear, best first. Filtered by the item's real level requirement, so it\n" ..
         "   will not send a level 10 to a raid, and it says how many items it could\n" ..
         "   not read yet rather than pretending it checked them.\n" ..

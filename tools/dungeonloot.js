@@ -530,6 +530,12 @@ local named = {}
 for _, e in ipairs(list or {}) do named[e.dungeon] = true end
 
 ok(named["Reachable"] == true, "a dungeon with a wearable upgrade is named")
+
+local reach
+for _, e in ipairs(list or {}) do if e.dungeon == "Reachable" then reach = e end end
+ok(reach and reach.slots and #reach.slots > 0, "and it reports WHICH slot it would improve")
+ok(reach and reach.slots[1] == "INVTYPE_CHEST",
+   "carrying the raw equipLoc, which the command turns into the client name for that slot")
 eq(named["TooHigh"], nil,
    "one whose upgrade needs level 60 is NOT - the level filter comes from the client, " ..
    "because the generated table carries no level range and inventing one puts a level 10 in a raid")

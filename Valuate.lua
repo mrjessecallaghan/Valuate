@@ -6984,7 +6984,15 @@ function Valuate:FindUpgradeSources(scale)
                             local isUpgrade, delta = Valuate:IsUpgradeForAnyScale(link, stats,
                                 { scaleName = select(2, Valuate:GetPrimaryScale()) })
                             if isUpgrade then
-                                local slotName = ns.EQUIP_SLOTS and equipLoc or equipLoc
+                                -- The client's own name for the slot. _G["INVTYPE_CHEST"]
+                                -- is "Chest", localised, so nothing here has to keep a
+                                -- hand-written table of seventeen strings in step with it.
+                                --
+                                -- Replaces `ns.EQUIP_SLOTS and equipLoc or equipLoc`, which
+                                -- yields equipLoc whichever way it goes - it read like a
+                                -- fallback and was not one.
+                                local slotName = (getglobal and getglobal(equipLoc))
+                                    or (_G and _G[equipLoc]) or equipLoc
                                 if not slots[slotName] then slots[slotName] = true end
                                 if (delta or 0) > best then best = delta or 0 end
                             end
@@ -11798,8 +11806,19 @@ SlashCmdList["VALUATE"] = function(msg)
                     print(string.format("  |cFFAAAAAA...and %d more.|r", #found - 8))
                     break
                 end
-                print(string.format("  |cFFFFFFFF%s|r  |cFF00FF00+%.1f|r  |cFFAAAAAA%d slot(s)|r",
-                    entry.dungeon, entry.best, #entry.slots))
+                -- Named, not counted, up to a point. "3 slots" says a dungeon is worth
+                -- visiting; the names say WHY, which is the thing you would otherwise have
+                -- to go and find out for yourself. Long lists still get a count, because a
+                -- row that wraps three times is its own kind of unreadable.
+                local slotText
+                if #entry.slots <= 4 then
+                    slotText = table.concat(entry.slots, ", ")
+                else
+                    slotText = string.format("%s and %d more",
+                        table.concat(entry.slots, ", ", 1, 3), #entry.slots - 3)
+                end
+                print(string.format("  |cFFFFFFFF%s|r  |cFF00FF00+%.1f|r  |cFFAAAAAA%s|r",
+                    entry.dungeon, entry.best, slotText))
             end
         end
 

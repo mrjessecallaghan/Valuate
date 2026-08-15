@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.144.0a] - 2026-08-15 — naming the slot instead of counting it
+
+### Fixed
+`/valuate where` worked out **which slots** each dungeon would improve and then printed the
+number of them. *"Deadmines +12.4, 3 slots"* tells you a dungeon is worth visiting; the names
+tell you **why**, which is the thing you would otherwise have to go and find out.
+
+Stored and never shown — the same pattern I have found four times this week in older code,
+committed by me an hour ago in the feature that introduced it.
+
+Now: *"Deadmines +12.4, Chest, Legs, Two-Hand"*, capped at four names with a count after that,
+because a row that wraps three times is its own kind of unreadable.
+
+### Fixed
+The slot name was resolved by `ns.EQUIP_SLOTS and equipLoc or equipLoc`, which yields
+`equipLoc` whichever way it goes. It reads like a fallback and is not one — so the list would
+have shown `INVTYPE_2HWEAPON` rather than *Two-Hand*.
+
+It asks the client instead: `_G["INVTYPE_CHEST"]` **is** "Chest", localised, so nothing here
+has to keep a hand-written table of seventeen strings in step with the game.
+
+### Technical
+One mutation, caught: computing the slots and discarding them is exactly what the code did,
+so it needed to be something a gate would notice.
+
 ## [0.143.0a] - 2026-08-15 — where do I go to fix this slot?
 
 ### Added
