@@ -499,7 +499,21 @@ local function CreateTabSystem(mainFrame, contentFrame)
     local instructionsTab = CreateTab("instructions", "Instructions", instructionsPanel, nil, aboutTab)
     local bestEquipmentTab =
         CreateTab("bestEquipment", "Best Equipment", bestEquipmentPanel, nil, instructionsTab)
-    CreateTab("todo", "To Do", todoPanel, nil, bestEquipmentTab)
+    local todoTab = CreateTab("todo", "To Do", todoPanel, nil, bestEquipmentTab)
+
+    -- The count, on the tab.
+    --
+    -- The login line has always said "3 things worth doing"; the tab said "To Do" whether
+    -- there were three or none, so the one place the answer now LIVES was the one place it
+    -- was not shown. You had to open the tab to find out whether opening it was worth it.
+    --
+    -- Resizing is safe here specifically because this tab is the leftmost of the right-hand
+    -- group: the chain anchors each tab to the LEFT edge of its neighbour, so this one grows
+    -- away from the others rather than pushing them along.
+    function ns.SetTodoTabCount(n)
+        todoTab.label:SetText((n and n > 0) and ("To Do (" .. n .. ")") or "To Do")
+        todoTab:SetWidth(todoTab.label:GetStringWidth() + 40)
+    end
     
     -- Select default tab
     SelectTab("scales")
@@ -586,6 +600,12 @@ function Valuate:ShowUI()
         -- Show first, then refresh: the best-equipment panel skips rebuilding
         -- while the window is hidden, so it must be shown before we refresh it.
         ns.ValuateUIFrame:Show()
+
+        -- Every open, not only the first. The panel is built once and reused for the whole
+        -- session, so a count taken at construction would be however many things needed
+        -- doing when you first opened the window - and would then sit there being wrong for
+        -- hours. The tab is the one part of this you see without clicking anything.
+        if ns.RefreshTodoPanel then ns.RefreshTodoPanel() end
 
         -- Open animation: a quick fade-in plus a spring scale-pop. Under Reduce
         -- Motion popIn applies the final state instantly (no flash of 0).

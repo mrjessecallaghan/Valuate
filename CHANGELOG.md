@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.160.0a] - 2026-08-15 — the tab says how many
+
+### Added
+The To Do tab now reads **To Do (3)** when there are three things worth doing, and plain
+**To Do** when there are none.
+
+The login line has always said *"3 things worth doing"*. The tab said the same thing either
+way — so the one place that answer now lives was the one place it was not shown, and you had
+to open the tab to find out whether opening it was worth it.
+
+**Zero is not "(0)".** A badge announcing that nothing needs attention is a badge drawing
+attention to the absence of anything to attend to.
+
+The count refreshes on every window open, not only the first. The panel is built once and
+reused for the whole session, so a number taken at construction would be however many things
+needed doing when you first opened the window, and would then sit there being wrong for
+hours — on the one part of this you see without clicking anything.
+
+### Added
+`tabtest.js` now checks the row of tabs **fits across the window**. There are seven, added
+by hand one at a time, each sized from its own label; the right-hand group grows leftward
+from the window edge and the Scales tab sits at the left, so a long enough label would slide
+one under the other. Nothing had ever checked. There is currently 366 pixels of clearance.
+
+That check uses the harness's rough six-pixels-a-character width — which is also what
+`CreateTab` uses to size a button, so it compares like with like. It is not a claim about
+real font metrics, and its margin is deliberately generous: it is there to catch a tab row
+that has outgrown the window, not to police the last twenty pixels.
+
+### Fixed
+A comment in `MinimapButton.lua` justified a guard with *"Settings has a toggle, and so does
+/valuate minimap"*. There is no such command; the Settings toggle is the only way. A comment
+is not user-facing, which is exactly why nothing caught it — `commands.js` strips comments
+before checking that referenced commands exist, and it is right to, because a comment naming
+a removed command is history rather than a broken instruction.
+
+### Technical
+Went looking for a rule that every `/valuate x` string in the addon resolves to a real
+command, and found `commands.js` already has one — including notes on the same four false
+positives I had just rediscovered by hand: a comment, the changelog panel correctly recording
+removed commands, and `"/valuate or /val"` where *or* is English.
+
+
 ## [0.159.0a] - 2026-08-15 — two things wrong with yesterday's tab
 
 Both of these are defects in the To Do work that shipped an hour ago, found by going back

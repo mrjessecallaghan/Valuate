@@ -150,8 +150,9 @@ local function CreateMinimapButton()
     -- Hiding the button mid-drag must end the drag too.
     --
     -- OnDragStop is the only thing that cleared the cursor-follow handler, and it needs the
-    -- button to still be there to fire. Hide it while dragging - Settings has a toggle, and
-    -- so does /valuate minimap - and the handler stays installed. Hidden frames get no
+    -- button to still be there to fire. Hide it while dragging - the Settings toggle is the
+    -- only way to, there being no slash command for it - and the handler stays installed.
+    -- Hidden frames get no
     -- OnUpdate, so nothing happens until you show it again, at which point the button
     -- resumes following the cursor with no mouse button held.
     --

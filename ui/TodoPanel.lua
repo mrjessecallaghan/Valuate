@@ -213,6 +213,13 @@ function ns.CreateTodoPanel(parent)
             list:SetHeight(total)
         end
 
+        -- Tell the tab, so the count is on it rather than only inside it.
+        --
+        -- Guarded because this file loads before ValuateUI.lua, which is where the tab row is
+        -- built: the first Refresh runs during the panel's own construction, when there is no
+        -- tab to label yet.
+        if ns.SetTodoTabCount then ns.SetTodoTabCount(#items) end
+
         return #items
     end
 

@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.159.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.160.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1347,4 +1347,22 @@ module.exports = [
     label: "the list keeps its old fixed-height sum and clips the rows below",
     from: "                total = total + rowPool[i]:GetHeight() + (i > 1 and ROW_GAP or 0)",
     to: "                total = total + ROW_HEIGHT + (i > 1 and ROW_GAP or 0)" },
+  // ---- the To Do tab carries its count (v0.160.0a) -------------------------
+  // The login line has always said how many things need doing. The tab said "To Do"
+  // either way, so you had to open it to find out whether opening it was worth it.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "the tab hides the count, so you must open it to learn there is nothing in it",
+    from: "        todoTab.label:SetText((n and n > 0) and (\"To Do (\" .. n .. \")\") or \"To Do\")",
+    to: "        todoTab.label:SetText(\"To Do\")" },
+
+  // Zero is not "(0)". A badge announcing that nothing needs attention is a badge
+  // drawing attention to the absence of anything to attend to.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "an empty list still wears a badge, advertising that there is nothing to do",
+    from: "(n and n > 0) and", to: "(n and n >= 0) and" },
+
+  // And the label has to be re-measured, or a longer one is clipped by the old width.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "the tab keeps its old width, clipping the count it just added",
+    from: "        todoTab:SetWidth(todoTab.label:GetStringWidth() + 40)", to: "" },
 ];

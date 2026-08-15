@@ -367,6 +367,51 @@ eq(todoRefreshes, 2, "and re-clicking it rebuilds it again, rather than showing 
 
 ns.RefreshTodoPanel = realTodoRefresh
 
+-- ---- the To Do tab carries its own count ----------------------------------------
+-- The login line has always said "3 things worth doing". The tab said "To Do" whether there
+-- were three or none, so the one place that answer now lives was the one place it was not
+-- shown - you had to open the tab to find out whether opening it was worth it.
+if buttons and buttons.todo then
+    local label = buttons.todo.label
+    local wasWidth = buttons.todo:GetWidth()
+
+    ns.SetTodoTabCount(3)
+    ok(label:GetText():find("3", 1, true) ~= nil,
+       "the tab shows how many things are outstanding (" .. tostring(label:GetText()) .. ")")
+    ok(buttons.todo:GetWidth() > wasWidth, "and grows to fit the longer label")
+
+    -- Zero is NOT "(0)". A badge saying nothing is outstanding is a badge drawing attention
+    -- to the absence of anything to attend to.
+    ns.SetTodoTabCount(0)
+    eq(label:GetText(), "To Do", "with nothing outstanding it goes back to a plain label")
+    eq(buttons.todo:GetWidth(), wasWidth, "and back to its original width")
+end
+
+-- ---- the row of tabs still fits across the window --------------------------------
+-- Seven now, added by hand one at a time, each sized from its own label. Nothing has ever
+-- checked they fit: the right-hand group grows leftward from the window edge and the Scales
+-- tab sits at the left, so a long enough label would slide one under the other.
+--
+-- The width model here is the harness's rough six-pixels-a-character, which is also what
+-- CreateTab itself uses to size a button - so this compares like with like. It is not a
+-- claim about real font metrics, and the margin below is deliberately generous for that
+-- reason: this is here to catch a tab row that has grown past the window, not to police
+-- the last twenty pixels.
+if buttons then
+    local rightGroup, leftGroup = 0, 0
+    for name, btn in pairs(buttons) do
+        if name == "scales" then
+            leftGroup = leftGroup + btn:GetWidth()
+        else
+            rightGroup = rightGroup + btn:GetWidth() + 4
+        end
+    end
+    local used = leftGroup + rightGroup + 40
+    ok(used < ns.ValuateUIFrame:GetWidth(),
+       "the tabs fit across the window (" .. used .. " of " ..
+       tostring(ns.ValuateUIFrame:GetWidth()) .. ")")
+end
+
 -- ---- and the tab still changes ------------------------------------------------
 switchTo("instructions")
 switchTo("bestEquipment")
