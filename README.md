@@ -7,7 +7,7 @@ Score every item against your own stat weights, see what's best in each slot, an
 want it — let Valuate handle the tedium: picking quest rewards, rolling on loot, keeping
 bag space clear, and selling junk.
 
-> **This is a fork.** Branch `claude-fork`, currently **v0.147.0a**, substantially diverged
+> **This is a fork.** Branch `claude-fork`, currently **v0.148.0a**, substantially diverged
 > from upstream v0.8.1a. Most of the newer automation is **untested in-game** unless noted —
 > see *Status* below. Every automation feature is **opt-in and off by default**.
 
@@ -132,7 +132,7 @@ nothing", which is a different answer from "never ran".
 
 ## Status
 
-Developed without the game running. **51 subsystems execute real Lua** headlessly against a
+Developed without the game running. **52 subsystems execute real Lua** headlessly against a
 mocked WoW API and are genuinely behaviour-tested. They fall into three groups:
 
 - **Things that can destroy or spend something** — the deletion protections, surplus-gear
@@ -192,7 +192,7 @@ becoming a nil global, an unstable sort producing different "best" items between
 bank data reaching a delete path, an option with no way to switch it on, a destructive
 command missing from the in-game help.
 
-51 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
+52 of them **execute real Lua** under fengari against a mocked WoW API (listed under *Status*
 above). Those are where every substantive bug has been found, because the static gates can
 only see structure — they cannot see a correct-looking branch in the wrong order. The rest
 check wiring: that a file loads, a symbol resolves, a list stays in step.

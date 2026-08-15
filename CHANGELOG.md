@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.148.0a] - 2026-08-15 — help you can actually read
+
+### Changed
+`/valuate help` printed **74 commands as one flat list** — about seven screens of chat
+scrollback, which is the same as having no help at all, because the top is gone by the time
+the bottom arrives. Nine of those commands were added today, which is what made it obvious.
+
+It is grouped now. Bare `/valuate help` shows six topics and a line each:
+
+| | |
+|---|---|
+| `start` | getting started, sharing, import/export |
+| `gear` | scanning, scoring, hit cap, where to find upgrades |
+| `auto` | every automation, all off by default |
+| `clean` | junk, deletion, vendor |
+| `queue` | battlegrounds and dungeon queues |
+| `check` | diagnostics and verification |
+
+`/valuate help gear` shows that group; `/valuate help all` still prints the lot.
+
+**Every line is the one that was already there, moved rather than reworded.** `commands.js`
+reads this branch to prove no command goes undocumented, and rewriting the text would have
+been a chance to lose one quietly.
+
+### Technical — the gate had to follow the code, twice
+`commands.js` anchors on the help branch and then finds command names inside it. Both broke,
+and both are worth recording because the fix in each case was to keep the *claim* and move
+the *anchor*:
+
+- It matched `if command == "help" then` literally. The branch now tests a **prefix**, so
+  topics can be passed. Widened to accept either form.
+- It found commands via `print("…/valuate x")`. Those lines are table entries now, so it
+  found **none** and reported all 69 commands undocumented. It matches any string literal in
+  the branch instead — still anchored on a quote, deliberately, so a command name in a
+  *comment* cannot count as documentation.
+
+### Added
+`tools/helptest.js` (21 checks) runs the real branch. Grouping introduces a failure that
+static checking cannot see: **a group that is listed but cannot be selected**. Every command
+still appears in the source, so `commands.js` would go on passing while the commands
+themselves had become unreachable — and that is not hypothetical, it is the mutation that
+survived when this was written, because nothing anywhere ran the branch.
+
+It also pins bare help at twelve lines or fewer, which is the entire point of the change.
+3 mutations, all caught.
 ## [0.147.0a] - 2026-08-15 — rescuing gear from the junk pile
 
 ### Added

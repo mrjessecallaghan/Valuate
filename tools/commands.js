@@ -72,7 +72,12 @@ if (commands.size < 15) {
  * Same shape as the options gate accepting a READ as proof an option was reachable: a check
  * that quietly tests something adjacent to its claim.
  */
-const helpBranch = core.match(/\n\s*if command == "help" then\r?\n([\s\S]*?)\r?\n\s*elseif command == /);
+// Both forms accepted: the branch gained topic support (`/valuate help gear`) in v0.148.0a,
+// so it tests a PREFIX rather than equality. What this gate claims - every dispatched command
+// appears in the help branch - has not changed, only where that branch begins.
+const helpBranch = core.match(
+  /\n\s*if (?:command == "help"|strsub\(command, 1, 4\) == "help") then\r?\n([\s\S]*?)\r?\n\s*elseif command == /
+);
 if (!helpBranch) {
   console.error(
     "Could not find the /valuate help branch in Valuate.lua.\n" +
@@ -81,7 +86,14 @@ if (!helpBranch) {
   process.exit(1);
 }
 const helped = new Set();
-for (const m of helpBranch[1].matchAll(/print\("[^"]*?\/valuate ([a-z]+)/g)) helped.add(m[1]);
+// A STRING LITERAL in the help branch, whether it is printed directly or held in the grouped
+// table the branch prints from. Matching only `print(` stopped finding anything the moment
+// those lines moved into a table - the text a user reads was identical, and this gate
+// reported all 69 commands undocumented.
+//
+// Deliberately still anchored on a quote rather than searching the branch freely: a command
+// name in a COMMENT here must not count as documentation.
+for (const m of helpBranch[1].matchAll(/"[^"]*?\/valuate ([a-z]+)/g)) helped.add(m[1]);
 
 /*
  * Deliberately undocumented, each with a reason. Not a convenience list - anything here is a

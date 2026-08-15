@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.147.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.148.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -364,7 +364,9 @@ module.exports = [
   // as documenting itself. `trivial` is the case that exposed it.
   { gate: "commands", file: "Valuate.lua",
     label: "a command drops out of /valuate help and nothing notices",
-    from: '        print("  /valuate trivial <levels> - How far below you a quest must be to be skipped")',
+    // The print( prefix went away in v0.148.0a when the help lines moved into the grouped
+    // table. The line itself was moved, not reworded, so the anchor is the literal alone.
+    from: '                "  /valuate trivial <levels> - How far below you a quest must be to be skipped",',
     to: "" },
 
   // ---- the login summary (v0.113.0a) ---------------------------------------
@@ -1077,4 +1079,20 @@ module.exports = [
   { gate: "deletetest", file: "Valuate.lua",
     label: "a switched-off automation edits another addon anyway",
     from: "    if not verbose and not options.autoUnjunkProtected then return 0 end", to: "" },
+
+  // ---- grouped help (v0.148.0a) ---------------------------------------------
+  // 74 commands as one flat list is seven screens of scrollback. The risk in grouping them
+  // is a group that silently stops being reachable, which reads as the commands vanishing.
+  { gate: "helptest", file: "Valuate.lua",
+    label: "a help topic can never be selected, so a whole group becomes unreachable",
+    from: 'if topic == "all" or topic == group.key then', to: "if false then" },
+  { gate: "commands", file: "tools/commands.js",
+    label: "the gate stops reading help lines, so undocumented commands pass unnoticed",
+    from: "helped.add(m[1]);", to: ";" },
+  { gate: "helptest", file: "Valuate.lua",
+    label: "bare help dumps all 74 commands again, which is the wall this replaced",
+    from: 'if topic == "all" or topic == group.key then', to: "if true then" },
+  { gate: "helptest", file: "Valuate.lua",
+    label: "an unknown topic silently shows the overview instead of saying so",
+    from: "No help topic called ", to: "" },
 ];

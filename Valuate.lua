@@ -11495,93 +11495,124 @@ SlashCmdList["VALUATE"] = function(msg)
         return
     end
     
-    if command == "help" then
-        print("|cFF00FF00Valuate|r - Stat Weight Calculator")
-        print("Commands:")
-        print("  /valuate or /val - Open the configuration UI")
-        print("  /valuate help - Show this help")
-        print("  /valuate version - Show version info")
-        print("  /valuate scan - Scan bags/equipped now for best-in-slot items")
-        print("  /valuate report - Gear status: upgrades waiting, weapon sets, bag space, automation")
-        print("  /valuate selftest - Check the addon's own plumbing and integrations")
-        print("  /valuate quest - Toggle auto-choosing the best quest reward")
-        print("  /valuate turnin - Toggle auto-completing quests (takes best reward)")
-        print("  /valuate test [itemlink] - Test parsing an item (shift-click item to link)")
-        print("  /valuate debug - Toggle debug mode (shows tooltip text being parsed)")
-        print("  |cFF3FE0C8/valuate wizard|r - Build an optimized scale from the gear you are wearing")
-        print("  /valuate wardrobe - List bag appearances you have not collected yet")
-        print("  /valuate wardrobenow - Collect those appearances now (may bind the items)")
-        print("  /valuate autowardrobe - Toggle collecting new appearances automatically")
-        print("  /valuate scales - List all stat weight scales")
-        print("  /valuate bank - Show the bank snapshot used for best-in-slot")
-        print("  /valuate equip - Equip the best set for the active scale")
-        print("  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)")
-        print("  /valuate profile - Measure scan, scoring and tooltip-parse timings")
-        print("  /valuate weights [scale] - Which of your stat weights actually matter")
-        print("  /valuate future - Gear waiting on a level, and which level")
-        print("  /valuate junkmarks - Why surplus gear is (or is not) being marked junk")
-        print("  /valuate saveset <name> - Equip your best gear and save it as a WoW equipment set")
-        print("  /valuate todo - Everything worth doing about your gear, in one list")
-        print("  /valuate todonotify - Toggle the one-line summary at login")
-        print("  /valuate quiet - Toggle Valuate chat messages and the loaded message")
-        print("  /valuate trivial <levels> - How far below you a quest must be to be skipped")
-        print("  /valuate sockets - Empty gem sockets on gear you are wearing")
-        print("  /valuate enchants - Gear you are wearing with no enchant")
-        print("|cFFFFFF00Queue, release and leave|r |cFFAAAAAA(all off by default)|r")
-        print("  /valuate autorelease - Toggle releasing your spirit automatically on death")
-        print("  /valuate autoleavebg - Toggle leaving a battleground once it has finished")
-        print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
-        print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
-        print("  /valuate hit - What the scoring assumes about your hit, and how much cap is left")
-        print("  /valuate hitcap - Toggle scoring hit at zero once you are capped")
-        print("  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)")
-        print("  /valuate unjunk - Un-mark junk on gear your scale actually wants")
-        print("  /valuate autounjunk - Toggle doing that automatically")
-        print("  /valuate autoequip - Toggle putting upgrades on as they drop, without asking")
-        print("  /valuate where - Which dungeons hold an upgrade you could actually wear")
-        print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
-        print("  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade")
-        print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
-        print("  /valuate autoequiplevel - Toggle equipping your best gear when you level up")
-        print("  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere")
-        print("  /valuate pvpscale make - Build a PvP scale from the one you use now")
-        print("  /valuate queuepvp - Queue for a random battleground now")
-        print("  /valuate queuedungeon - Queue for a random dungeon now")
-        print("  /valuate queuecheck - What is armed, and which of these APIs your client has")
-        print("  /valuate selfverify - Run every check the addon can judge on its own")
-        print("  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now")
-        print("  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips")
-        print("  /valuate check - Is Valuate actually working? Start here")
-        print("  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at")
-        print("  /valuate errors - Anything that errored this session (empty is expected)")
-        print("  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)")
-        print("  /valuate library - Scales shared across all your characters (save/load/delete)")
-        print("  /valuate settings save|load - Copy your settings to your other characters")
-        print("  /valuate import - Import a scale from a scale tag")
-        print("  /valuate export [scalename] - Export a scale as a scale tag")
-        print("  /valuate ui - Open the configuration UI")
-        -- Automation and cleanup.
+    if strsub(command, 1, 4) == "help" then
+        -- Seventy-four commands printed as one flat list is seven screens of chat
+        -- scrollback, which is the same as having no help at all - you cannot read the
+        -- top of it by the time the bottom arrives. Grouped, and bare `help` shows only
+        -- the groups, so the common case is six lines rather than eighty.
         --
-        -- These were missing from this list entirely, which mattered more than the others:
-        -- every command that DELETES or SELLS lives here, and so does deletepreview, the one
-        -- the addon tells you to run before switching deletion on. Someone reading
-        -- /valuate help could not find out that any of it existed.
-        print(" ")
-        print("|cFFAAAAAAAutomation (all off by default):|r")
-        print("  /valuate roll - Toggle auto Need/Greed on group loot rolls")
-        print("  /valuate accept - Toggle auto-accepting quests")
-        print("  /valuate notify - Toggle the prompt when an upgrade lands in your bags")
-        print("  /valuate notifycheck - Explain why the upgrade prompt did or did not appear")
-        print(" ")
-        print("|cFFAAAAAABags and merchants:|r")
-        print("  |cFFFF8800/valuate deletepreview - What auto-delete WOULD remove. Run this first.|r")
-        print("  /valuate autodelete - Toggle junk auto-delete (|cFFFF5555irreversible|r)")
-        print("  /valuate deletenow - Delete junk now, honouring Keep Free Slots")
-        print("  /valuate keepfree <n> - Bag slots auto-delete tries to keep free")
-        print("  /valuate valuesource <src> - What \"least valuable\" means: vendor price, or a TSM source")
-        print("  /valuate sell - Toggle selling junk at merchants (safer: gold, plus Buyback)")
-        print("  /valuate sellnow - Sell junk now")
-        print("  /valuate repair - Toggle auto-repair on visiting a merchant")
+        -- Every line below is the one that was already there, moved rather than reworded:
+        -- commands.js reads this branch to prove no command goes undocumented, and a
+        -- rewrite would have been a chance to lose one quietly.
+        local HELP_GROUPS = {
+            { key = "start", title = "Getting started", lines = {
+                "  /valuate or /val - Open the configuration UI",
+                "  /valuate help - Show this help",
+                "  /valuate version - Show version info",
+                "  |cFF3FE0C8/valuate wizard|r - Build an optimized scale from the gear you are wearing",
+                "  /valuate scales - List all stat weight scales",
+                "  /valuate library - Scales shared across all your characters (save/load/delete)",
+                "  /valuate settings save|load - Copy your settings to your other characters",
+                "  /valuate import - Import a scale from a scale tag",
+                "  /valuate export [scalename] - Export a scale as a scale tag",
+                "  /valuate ui - Open the configuration UI",
+            } },
+            { key = "gear", title = "Gear and scoring", lines = {
+                "  /valuate scan - Scan bags/equipped now for best-in-slot items",
+                "  /valuate bank - Show the bank snapshot used for best-in-slot",
+                "  /valuate equip - Equip the best set for the active scale",
+                "  /valuate weights [scale] - Which of your stat weights actually matter",
+                "  /valuate future - Gear waiting on a level, and which level",
+                "  /valuate saveset <name> - Equip your best gear and save it as a WoW equipment set",
+                "  /valuate todo - Everything worth doing about your gear, in one list",
+                "  /valuate todonotify - Toggle the one-line summary at login",
+                "  /valuate sockets - Empty gem sockets on gear you are wearing",
+                "  /valuate enchants - Gear you are wearing with no enchant",
+                "  /valuate hit - What the scoring assumes about your hit, and how much cap is left",
+                "  /valuate hitcap - Toggle scoring hit at zero once you are capped",
+                "  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)",
+                "  /valuate where - Which dungeons hold an upgrade you could actually wear",
+                "  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss",
+                "  /valuate upgrades - Your biggest upgrades, ranked, that you can equip right now",
+                "  /valuate detail - Toggle the Alt-hover best-in-slot breakdown on tooltips",
+                "  /valuate why [itemlink] - Explain what Valuate thinks of an item (roll, arrow, junk)",
+                "  /valuate valuesource <src> - What \"least valuable\" means: vendor price, or a TSM source",
+            } },
+            { key = "auto", title = "Automation", lines = {
+                "  /valuate quest - Toggle auto-choosing the best quest reward",
+                "  /valuate turnin - Toggle auto-completing quests (takes best reward)",
+                "  /valuate autowardrobe - Toggle collecting new appearances automatically",
+                "  /valuate quiet - Toggle Valuate chat messages and the loaded message",
+                "  /valuate trivial <levels> - How far below you a quest must be to be skipped",
+                "  /valuate autorelease - Toggle releasing your spirit automatically on death",
+                "  /valuate autoleavebg - Toggle leaving a battleground once it has finished",
+                "  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground",
+                "  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes",
+                "  /valuate autounjunk - Toggle doing that automatically",
+                "  /valuate autoequip - Toggle putting upgrades on as they drop, without asking",
+                "  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade",
+                "  /valuate autoacceptbg - Toggle taking a battleground invite automatically",
+                "  /valuate autoequiplevel - Toggle equipping your best gear when you level up",
+                "  /valuate roll - Toggle auto Need/Greed on group loot rolls",
+                "  /valuate accept - Toggle auto-accepting quests",
+                "  /valuate notify - Toggle the prompt when an upgrade lands in your bags",
+                "  /valuate autodelete - Toggle junk auto-delete (|cFFFF5555irreversible|r)",
+                "  /valuate sell - Toggle selling junk at merchants (safer: gold, plus Buyback)",
+                "  /valuate repair - Toggle auto-repair on visiting a merchant",
+            } },
+            { key = "clean", title = "Cleanup and vendor", lines = {
+                "  /valuate wardrobe - List bag appearances you have not collected yet",
+                "  /valuate wardrobenow - Collect those appearances now (may bind the items)",
+                "  /valuate junkinterval <secs> - How often junk cleanup runs on its own (0 = off)",
+                "  /valuate junkmarks - Why surplus gear is (or is not) being marked junk",
+                "  /valuate unjunk - Un-mark junk on gear your scale actually wants",
+                "  |cFFFF8800/valuate deletepreview - What auto-delete WOULD remove. Run this first.|r",
+                "  /valuate deletenow - Delete junk now, honouring Keep Free Slots",
+                "  /valuate keepfree <n> - Bag slots auto-delete tries to keep free",
+                "  /valuate sellnow - Sell junk now",
+            } },
+            { key = "queue", title = "Battlegrounds and queues", lines = {
+                "  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere",
+                "  /valuate pvpscale make - Build a PvP scale from the one you use now",
+                "  /valuate queuepvp - Queue for a random battleground now",
+                "  /valuate queuedungeon - Queue for a random dungeon now",
+                "  /valuate queuecheck - What is armed, and which of these APIs your client has",
+            } },
+            { key = "check", title = "Diagnostics", lines = {
+                "  /valuate report - Gear status: upgrades waiting, weapon sets, bag space, automation",
+                "  /valuate selftest - Check the addon's own plumbing and integrations",
+                "  /valuate test [itemlink] - Test parsing an item (shift-click item to link)",
+                "  /valuate debug - Toggle debug mode (shows tooltip text being parsed)",
+                "  /valuate profile - Measure scan, scoring and tooltip-parse timings",
+                "  /valuate selfverify - Run every check the addon can judge on its own",
+                "  /valuate check - Is Valuate actually working? Start here",
+                "  /valuate verify [done|undo|reset] - Behavioural checks a human has to look at",
+                "  /valuate errors - Anything that errored this session (empty is expected)",
+                "  /valuate notifycheck - Explain why the upgrade prompt did or did not appear",
+            } },
+        }
+
+        local topic = strtrim(strsub(command, 5) or "")
+        print("|cFF00FF00Valuate|r - Stat Weight Calculator")
+        local shown = false
+        for _, group in ipairs(HELP_GROUPS) do
+            if topic == "all" or topic == group.key then
+                print("|cFFFFD100" .. group.title .. "|r")
+                for _, line in ipairs(group.lines) do print(line) end
+                shown = true
+            end
+        end
+
+        if not shown then
+            if topic ~= "" then
+                print("|cFFFF8800No help topic called '" .. topic .. "'.|r")
+            end
+            for _, group in ipairs(HELP_GROUPS) do
+                print(string.format("  |cFFFFD100%-28s|r |cFFAAAAAA%d command(s)|r  /valuate help %s",
+                    group.title, #group.lines, group.key))
+            end
+            print("  |cFFAAAAAA/valuate help all|r shows every command at once.")
+        end
     elseif command == "version" then
         print("|cFF00FF00Valuate|r version " .. Valuate.version .. " (Interface " .. Valuate.interface .. ")")
     elseif command == "report" then
