@@ -9939,6 +9939,14 @@ local VERIFY_CHECKS = {
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
     },
     {
+        id = "emptybest", since = "0.126.0a",
+        gate = "tools/firstrun.js",
+        title = "The empty Best Equipment screen tells you the right thing to do next",
+        steps = "On a character with no Valuate scales, open Best Equipment. Then make a scale, untick it in the Scales tab, and look again.",
+        expect = "With no scales: 'No scales yet' and a pointer to Make me a scale. With a scale that exists but is unticked: 'You have scales, but none are switched on.' Two different messages for two different situations.",
+        broke = "The gate reads the text; it cannot see it. Both messages are wider and taller than the single line they replaced, and they sit CENTRED in a panel whose height is driven by the rows that are not there - so check they are actually centred and not clipped against the scan row or the bottom edge. Worth doing on a genuinely fresh character rather than by deleting scales, because that is the state this is for and it is the one nobody ever revisits.",
+    },
+    {
         id = "miscsettings", since = "0.124.0a",
         gate = "tools/options.js",
         title = "The six command-only options have controls, and the controls work",

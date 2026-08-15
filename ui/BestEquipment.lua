@@ -714,8 +714,35 @@ local function CreateBestEquipmentPanel(parent)
             if not noScalesTextFrame then
                 noScalesTextFrame = contentFrame:CreateFontString(nil, "OVERLAY", FONT_BODY)
                 noScalesTextFrame:SetPoint("CENTER", contentFrame, "CENTER", 0, 0)
-                noScalesTextFrame:SetText("No active scales. Activate scales in the Scales tab to see best equipment.")
+                noScalesTextFrame:SetWidth(360)
+                noScalesTextFrame:SetJustifyH("CENTER")
                 noScalesTextFrame:SetTextColor(unpack(COLORS.textDim))
+            end
+
+            -- Two different situations, and this used to give them one message.
+            --
+            -- "No active scales. Activate scales in the Scales tab" is correct when you have
+            -- scales and none are switched on. It is WRONG for someone who has never made
+            -- one - which is everybody, once - because it sends them to look for a switch
+            -- that is not there, and the thing they actually need is a button on the same
+            -- screen it points at.
+            --
+            -- The first screen a new user reaches should not describe a state they are not
+            -- in. Wording matched to the scale list's own empty state, so the two screens
+            -- agree about what to do next rather than each inventing a phrasing.
+            local haveAny = false
+            for _ in pairs(scales) do haveAny = true break end
+
+            if haveAny then
+                noScalesTextFrame:SetText(
+                    "No |cFFFFFFFFactive|r scales.\n\n" ..
+                    "You have scales, but none are switched on. Tick one in the " ..
+                    "|cFF3FE0C8Scales|r tab and its best-in-slot appears here.")
+            else
+                noScalesTextFrame:SetText(
+                    "No scales yet.\n\n" ..
+                    "Open the |cFF3FE0C8Scales|r tab and click |cFF3FE0C8Make me a scale|r - " ..
+                    "it builds one from the gear you are already wearing.")
             end
             noScalesTextFrame:Show()
             return

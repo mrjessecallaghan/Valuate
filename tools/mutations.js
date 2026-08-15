@@ -102,6 +102,7 @@ const SPEC_TIP = {
 // The two doors from a template into a saved scale, plus the screen that has to keep saying
 // what the picker only said once.
 const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction Valuate:CommitAutoScale" };
+const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        if noScalesTextFrame then" };
 const COMMIT_AUTO = { start: "function Valuate:CommitAutoScale(", end: "\n-- Everything that can" };
 const FROM_TEMPLATE = { start: "function ValuateUI_CreateScaleFromTemplate(", end: "\nfunction ValuateUI_NewScale" };
 const EDITOR_SUMMARY = { start: "local function UpdateEditorSummary(", end: "\n    ns.UpdateScaleEditorSummary" };
@@ -156,7 +157,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.125.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.126.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -723,4 +724,20 @@ module.exports = [
     label: "a whole section lands back on a column that was already the longest",
     from: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton)',
     to: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton) columnHeights[1] = columnHeights[1] + 400' },
+
+  // ---- the empty Best Equipment screen (v0.126.0a) -------------------------
+  // The first screen a new user reaches. Its only job is to name the next action, and it
+  // named one that did not exist - "activate a scale" to someone who had never made one.
+  { gate: "firstrun", file: "ui/BestEquipment.lua", scope: BE_EMPTY,
+    label: "both empty states collapse back into one message, wrong for the more common half",
+    from: "if haveAny then", to: "if true then" },
+  { gate: "firstrun", file: "ui/BestEquipment.lua", scope: BE_EMPTY,
+    label: "someone with scales switched off is told to go and make one they already have",
+    from: "if haveAny then", to: "if false then" },
+  { gate: "firstrun", file: "ui/BestEquipment.lua", scope: BE_EMPTY,
+    label: "having any scale at all stops being detected, so first-run wording never appears",
+    from: "for _ in pairs(scales) do haveAny = true break end", to: "haveAny = true" },
+  { gate: "firstrun", file: "ui/BestEquipment.lua", scope: BE_EMPTY,
+    label: "the empty screen is blank - the panel just looks broken",
+    from: "noScalesTextFrame:Show()", to: "noScalesTextFrame:Hide()" },
 ];

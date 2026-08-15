@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.126.0a] - 2026-08-15 — the first screen you ever see
+
+### Fixed
+Best Equipment had **one message for two different situations**:
+
+> No active scales. Activate scales in the Scales tab to see best equipment.
+
+That is correct when you have scales and none are switched on. It is **wrong for someone who
+has never made one** — which is everybody, once. It sends them looking for a switch that is
+not there, and the thing they actually need is a button on the same screen it points at.
+
+The most common reason this panel is empty was the one case its only message did not describe.
+
+Now:
+
+- **No scales at all** → *"No scales yet. Open the Scales tab and click Make me a scale — it
+  builds one from the gear you are already wearing."* Wording matched to the scale list's own
+  empty state, so the two screens agree about what to do next instead of each inventing a
+  phrasing.
+- **Scales exist, none active** → *"You have scales, but none are switched on."* This is the
+  case where "active" is the right word, because there is something to activate.
+
+An empty screen is the first screen a new user reaches, and the only thing it has to do is
+name the next action correctly. Getting that wrong is not cosmetic — the panel looks broken
+and the fix it suggests cannot be carried out.
+
+### Checked, not changed
+The other two empty states were read before assuming they shared the flaw. They do not. The
+scale list already says the right thing — it is where the new wording came from — and the
+character window blanks itself rather than lecturing, which is correct for a small floating
+HUD. Neither was touched.
+
+### Technical
+New gate `tools/firstrun.js` (9 checks) builds the real panel and reads what is on screen in
+each state. It asserts the **distinction** rather than the wording: that the two states differ,
+and that each names something reachable from where the user is standing. A rewrite is free to
+change the phrasing and not free to collapse them back into one. 4 mutations, all caught.
+
 ## [0.125.0a] - 2026-08-15 — the Settings columns, measured
 
 ### Changed
