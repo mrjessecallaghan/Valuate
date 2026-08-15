@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.165.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.166.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1478,4 +1478,46 @@ module.exports = [
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "a source the client lacks is reported as present anyway",
     from: "        if ok and present then", to: "        if true then" },
+  // ---- the enhancement engine (v0.166.0a) ----------------------------------
+  // A header row is a category label, not something you can make - and its name is a slot
+  // word, so letting one through lists "Enchant Boots" as an enchant in its own right.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "category headers are collected as if they were enchants",
+    from: "            if ok and name and craftType ~= \"header\" then",
+    to: "            if ok and name then" },
+
+  // 3.3.5 splits the apis: Enchanting behind Craft, everything else behind TradeSkill.
+  // Reading one silently loses a whole profession and still looks like it works.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "only one of the two profession apis is read, losing the other entirely",
+    from: "    if type(GetNumCrafts) == \"function\" and type(GetCraftInfo) == \"function\" then",
+    to: "    if false then" },
+
+  // What could not be read has to be REPORTED. Dropping it makes the panel look complete.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "an enhancement whose slot cannot be read is silently discarded",
+    from: "            unreadable[#unreadable + 1] = { name = name, why = \"could not tell which slot\" }",
+    to: "            local _ = name" },
+
+  // An effect enchant that scores zero ranks below a +4 Spirit one for everybody.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "proc and movement enchants score zero, so they rank below trivial stat ones",
+    from: "            score = score + effect[column]", to: "            score = score + 0" },
+
+  // ...and the estimate has to be admitted. A number from someone’s judgement about
+  // movement speed should not sit unlabelled beside one from your own stat weights.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a judgement-derived score is presented as if it were measured",
+    from: "            estimated = true", to: "            estimated = false" },
+
+  // The role decides which column of effect values is read. This server is classless, so
+  // the scale is the only statement of intent there is.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "every scale is treated as a damage scale, so tanks are valued as damage",
+    from: "    if defensive > offensive * 0.6 then return \"tank\" end", to: "" },
+
+  // Ranking order is the feature. Unsorted, the panel reshuffles between openings.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "the list comes back in whatever order the profession window happened to use",
+    from: "        if a.score ~= b.score then return a.score > b.score end", to: "        if false then return false end" },
 ];

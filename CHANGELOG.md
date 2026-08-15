@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.166.0a] - 2026-08-15 — the enhancement engine
+
+The collecting, scoring and ranking behind the Enhancements tab. **Still not the tab** — but
+everything it will display now exists and is tested.
+
+### Added — collecting
+Reads **both** profession APIs, because 3.3.5 splits them: Enchanting lives behind `Craft`
+(`GetNumCrafts`), everything else behind `TradeSkill`. A build that read one would silently
+lose the profession this feature is mostly about, and would look like it was working the whole
+time.
+
+Stats come from **the addon's own parser**, against its own hidden tooltip. Writing a second
+parser for enchant descriptions was the obvious move and the wrong one: `ParseStatsFromTooltip`
+already handles this server's wording, and a second one would drift — showing up as enchants
+scored on a different basis from the gear they go on, which is the one comparison this panel
+exists to make.
+
+Category headers are excluded. A header's name is a slot word, so letting one through would
+list *"Enchant Boots"* as an enchant in its own right.
+
+### Added — ranking, and the second-best
+Best first, **and the rest still listed**. A +8 armour enchant beats an empty slot even when
+it is nowhere near the best available, and on a levelling character it is frequently the only
+one you can afford.
+
+### Added — effects that are not stats
+*"Tuskarr's Vitality"* grants movement speed. *"Berserking"* is a proc. Neither parses as a
+stat, and scoring them zero would rank them below a +4 Spirit enchant for every character on
+the server.
+
+They now carry values **per role** — a threat reduction is worth something real to a damage
+dealer and actively unwanted by a tank. The role comes from the **scale**, not from a class,
+because this server is classless and the scale is the only statement of intent the addon has:
+a scale weighting avoidance and armour is a tank's whether or not its owner says so.
+
+These numbers are **judgement, not measurement**, and anything scored with them is marked
+*estimated* wherever it reaches the screen. They exist so an effect enchant sorts sanely
+against a stat one — not to claim movement speed is worth exactly 35 of anything. The
+alternative was zero, which is also a judgement, just a worse one that pretends not to be.
+
+### Technical — three assertions that proved nothing
+All three were the fixture being tidier than the game, and all three were found by mutation
+rather than by reading:
+
+- **One boot enchant, so there was no order to get wrong.** The ranking assertions passed with
+  the score comparison deleted entirely — a slot with a single entry is sorted no matter what
+  you do to it. Three now.
+- **"Best first" was also true of an alphabetical sort** of those three, so it still passed.
+  The assertion names the expected winner instead.
+- **The header row was excluded because its stats would not parse**, not because it is a
+  header — so the header check could have been deleted with nothing noticing. It carries stats
+  in the fixture now, leaving only the header check to exclude it.
+
+
 ## [0.165.0a] - 2026-08-15 — groundwork for per-slot enhancements
 
 Foundation for an Enhancements tab. **The tab itself is not in this release** — this is the
