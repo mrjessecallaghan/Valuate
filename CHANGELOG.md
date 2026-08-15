@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.158.0a] - 2026-08-15 — the to-do list finally has somewhere to live
+
+### Added
+**A "To Do" tab.** Everything worth doing about your gear, one row each, with a button that
+runs it.
+
+`Valuate:BuildTodoList` has answered this question since it was written — a stale scale
+first, because everything below is scored *by* that scale; then upgrades already in your
+bags, which are free; then sockets and enchants, which need materials. Every item it
+produces carries its own `command`. **It was built to be clicked from the start.**
+
+The answer only ever reached a chat frame. Worse, the login line announced the list and then
+asked you to go and type something to read it:
+
+> `[Valuate] 3 things worth doing - /valuate todo`
+
+That line now names the tab too.
+
+The panel holds **no opinions about priority**. Order, wording, and what counts as worth
+doing are all decided in `BuildTodoList`, which explains its own reasoning at length and is
+tested by `todotest.js`. Duplicating any of that here would give the addon two answers to
+the same question, and the one on screen would be the one nobody was testing.
+
+An empty list **says it is empty**. That is a real answer — `BuildTodoList` returns nothing
+rather than a heading with nothing under it, on the principle that a to-do list which always
+has entries is one you stop opening — and a blank panel reads as one that failed to load.
+
+The list rebuilds every time you open the tab, including when you re-click the tab you are
+already on. That is deliberately outside the guard everything else obeys: a stale to-do list
+is worse than none, because it has you chasing an upgrade you already equipped.
+
+### Technical
+The tab took four lines to add, which is the whole point of last release's `CreateTab` work
+— it arrived with the accent bar, the hover, the sizing and the sweep already correct,
+because there is only one way to build a tab now.
+
+Rows are **pooled**. WoW frames cannot be destroyed, only hidden, so rebuilding the list per
+visit would leak one frame per item for the session. Pooling brings its own failure though,
+and `todopanel.js` exists mostly for it: a reused row whose handler closed over an item from
+an earlier refresh still fires, still looks right, and runs **the wrong command**.
+
+Writing that gate found a bug in the panel it was written for. The click and tooltip
+handlers were installed inside the refresh, and `HookScript` **chains** — so every visit to
+the tab added another tooltip handler to every row, forever, invisibly, since all the copies
+draw the same tooltip. The handlers are installed once now and read a field the refresh
+updates. The gate asks the question directly: hovering after five refreshes must draw the
+tooltip once, not six times.
+
+
 ## [0.157.0a] - 2026-08-15 — fourteen buttons that never lit up
 
 ### Fixed

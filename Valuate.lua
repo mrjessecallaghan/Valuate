@@ -7472,7 +7472,11 @@ function Valuate:AnnounceTodo()
     local items = Valuate:BuildTodoList()
     if #items == 0 then return false, "Nothing worth doing." end
 
-    print(string.format("|cFF00FF00[Valuate]|r %d thing%s worth doing - |cFFFFFFFF/valuate todo|r",
+    -- Names the tab as well as the command. This line used to announce that a list existed
+    -- and then ask you to type something to read it, which was the whole of the list's
+    -- interface. There is a panel now, and the announcement should say where it is.
+    print(string.format(
+        "|cFF00FF00[Valuate]|r %d thing%s worth doing - the |cFFFFFFFFTo Do|r tab, or |cFFFFFFFF/valuate todo|r",
         #items, #items == 1 and "" or "s"))
     return true, #items .. " announced"
 end
@@ -10894,6 +10898,30 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "todotab", since = "0.158.0a",
+        gate = "tools/todopanel.js",
+        title = "The To Do tab lists real work, and its buttons do it",
+        steps = "Open Valuate and pick the To Do tab. Read what it lists. Press Show me on a row, then come back to the tab and look again.",
+        expect = "Every row describes something actually outstanding for THIS character. Show me prints that item's own answer in chat. Returning to the tab re-reads the list, so anything you have since dealt with is gone.",
+        broke = "The gate drives this panel against a mocked BuildTodoList, so it proves the rendering, the pooling and that each row runs its own command. What it cannot prove is that the list is TRUE of a real character - BuildTodoList reads scale drift, bag upgrades, empty sockets and missing enchants from live API, and a wrong answer here is worse than no tab, because it sends you to do something you do not need to do. A row that never disappears after you have acted on it means the refresh is reading cached state.",
+    },
+    {
+        id = "tabaccent", since = "0.156.0a",
+        gate = "tools/tabtest.js",
+        title = "Every tab marks itself when you are on it",
+        steps = "Click through all seven tabs in turn. Watch the top edge of each tab button as it becomes active, and hover the tabs you are NOT on.",
+        expect = "The active tab shows an azure bar along its top edge, sweeping in rather than appearing. Hovering an inactive tab lightens it; hovering the active one changes nothing.",
+        broke = "Four of the six tabs were hand-built copies of the tab helper and none of them created the accent texture, so SelectTab skipped them in silence for as long as they existed. The gate now checks every tab has one and that it follows the selection, but a texture that exists and a texture that is VISIBLE are different claims - draw layers, anchor points and a parent with the wrong strata can all hide a thing the harness can see perfectly well.",
+    },
+    {
+        id = "buttonhover", since = "0.157.0a",
+        gate = "tools/tabtest.js",
+        title = "Buttons light up when you point at them",
+        steps = "Hover, without clicking: Scan Best Equipment; Equip All; Restore Default Settings; Save For Alts; Import and Export under the scale list; Scale Library.",
+        expect = "Every one of them brightens while the mouse is over it and settles back when it leaves - and the tooltip still appears.",
+        broke = "Twelve of these had their hover REPLACED by a tooltip handler, because CreateStyledButton installs on the same script slot and last writer wins. The fix was to hook rather than set, so the failure mode to watch for is the opposite of the original: a tooltip that stopped appearing means the hook order is wrong and the feedback is now eating the tooltip instead. Scan Best Equipment is the one to check first - it uses a HIGHLIGHT texture rather than a script, which is a different mechanism that no gate can distinguish from a working one.",
     },
     {
         id = "unjunkreal", since = "0.147.0a",

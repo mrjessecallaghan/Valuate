@@ -425,6 +425,7 @@ callback either reschedule or be genuinely final.
 | `ScaleEditor.lua` | Stat-weight grid, weapon-set group, import/export dialogs |
 | `BestEquipment.lua` | Best Equipment tab (**keeps the frame pool** — see below) |
 | `Settings.lua` | Settings tab + `CheckColumnAnchors` |
+| `TodoPanel.lua` | The To Do tab — renders `Valuate:BuildTodoList`, one clickable row per item |
 | `InfoPanels.lua` | Instructions / About / Changelog |
 | `CharacterWindow.lua` | Score on Blizzard's character sheet + breakdown tooltip |
 | `UpgradeArrows.lua` | Green upgrade arrow on merchant / loot / bag item icons |

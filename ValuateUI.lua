@@ -309,6 +309,16 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     -- Staggered column reveal, same flourish as Best Equipment.
                     if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
                 end
+            elseif tabName == "todo" then
+                -- OUTSIDE the isSwitch guard, like the Settings lines above and for the same
+                -- reason: a to-do list is only useful if it is current. Re-clicking the tab
+                -- you are on is a reasonable way to ask "is that still true?", and a stale
+                -- list is worse than none - it would have you chasing an upgrade you have
+                -- already equipped.
+                if ns.RefreshTodoPanel then ns.RefreshTodoPanel() end
+                if isSwitch then
+                    Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
+                end
             elseif isSwitch then
                 -- Instructions, About, Changelog: Use minimum height with proper spacing
                 Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
@@ -469,6 +479,11 @@ local function CreateTabSystem(mainFrame, contentFrame)
     bestEquipmentPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     bestEquipmentPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     bestEquipmentPanel:Hide()
+
+    local todoPanel = CreateFrame("Frame", nil, contentFrame)
+    todoPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    todoPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
+    todoPanel:Hide()
     
     -- Create tabs (Scales on left, Instructions/About/Changelog/Settings on right)
     CreateTab("scales", "Scales", scalesPanel, "left")
@@ -482,7 +497,9 @@ local function CreateTabSystem(mainFrame, contentFrame)
     local changelogTab = CreateTab("changelog", "Changelog", changelogPanel, nil, settingsTab)
     local aboutTab = CreateTab("about", "About", aboutPanel, nil, changelogTab)
     local instructionsTab = CreateTab("instructions", "Instructions", instructionsPanel, nil, aboutTab)
-    CreateTab("bestEquipment", "Best Equipment", bestEquipmentPanel, nil, instructionsTab)
+    local bestEquipmentTab =
+        CreateTab("bestEquipment", "Best Equipment", bestEquipmentPanel, nil, instructionsTab)
+    CreateTab("todo", "To Do", todoPanel, nil, bestEquipmentTab)
     
     -- Select default tab
     SelectTab("scales")
@@ -496,6 +513,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
         changelogPanel = changelogPanel,
         settingsPanel = settingsPanel,
         bestEquipmentPanel = bestEquipmentPanel,
+        todoPanel = todoPanel,
         selectTab = SelectTab,
         -- The buttons themselves, so a gate can check they were all built the same way.
         -- Four of the six used to be hand-copied and quietly lacked the accent bar that
@@ -560,6 +578,9 @@ function Valuate:ShowUI()
             
             -- Create best equipment panel
             CreateBestEquipmentPanel(tabs.bestEquipmentPanel)
+
+            -- Create to-do panel
+            ns.CreateTodoPanel(tabs.todoPanel)
         end
         
         -- Show first, then refresh: the best-equipment panel skips rebuilding

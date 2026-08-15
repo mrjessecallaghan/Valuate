@@ -42,6 +42,7 @@ const run = load([
   "ui/ScaleEditor.lua",
   "ui/BestEquipment.lua",
   "ui/Settings.lua",
+  "ui/TodoPanel.lua",
   "ui/InfoPanels.lua",
   "ui/CharacterWindow.lua",
   "ui/UpgradeArrows.lua",
@@ -188,7 +189,7 @@ eq(__reveals, 1, "returning to a tab you left DOES play its arrival again")
 --
 -- Written against the whole set rather than the four, because the next tab added by hand
 -- would be the fifth and this gate should not need editing to notice.
-local EXPECTED_TABS = { "scales", "settings", "changelog", "about", "instructions", "bestEquipment" }
+local EXPECTED_TABS = { "scales", "settings", "changelog", "about", "instructions", "bestEquipment", "todo" }
 local buttons = ns.ValuateUIFrame.tabs.buttons
 ok(buttons ~= nil, "the tab buttons are reachable from outside the builder")
 
@@ -347,6 +348,24 @@ for _, f in ipairs(__frames) do
 end
 eq(#mute, 0, "every button in the window shows something on hover (" ..
    table.concat(mute, ", ") .. ")")
+
+-- ---- the To Do tab is rebuilt every time you look at it -------------------------
+-- Deliberately OUTSIDE the isSwitch guard that everything else here is inside, and for a
+-- reason worth stating: a stale to-do list is worse than none. It would have you chasing an
+-- upgrade you have already equipped, and re-clicking the tab is a reasonable way to ask
+-- whether it is still true.
+local todoRefreshes = 0
+local realTodoRefresh = ns.RefreshTodoPanel
+ns.RefreshTodoPanel = function() todoRefreshes = todoRefreshes + 1 end
+
+tabs.selectTab("scales")
+todoRefreshes = 0
+tabs.selectTab("todo")
+eq(todoRefreshes, 1, "arriving at the To Do tab rebuilds the list")
+tabs.selectTab("todo")
+eq(todoRefreshes, 2, "and re-clicking it rebuilds it again, rather than showing a stale one")
+
+ns.RefreshTodoPanel = realTodoRefresh
 
 -- ---- and the tab still changes ------------------------------------------------
 switchTo("instructions")

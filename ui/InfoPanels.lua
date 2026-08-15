@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.157.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.158.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.157.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.158.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,9 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• NEW: a To Do tab. Everything worth doing about your gear, in the order that\n" ..
+        "   unblocks the rest, with a button on each row that runs it. The addon could\n" ..
+        "   already answer this - the answer only ever went to the chat frame.\n" ..
         "• FIXED: fourteen buttons never lit up when you pointed at them. Twelve had\n" ..
         "   their hover replaced by a tooltip; Scan Best Equipment never had one; and\n" ..
         "   the tabs answered nothing at all. All of them respond now.\n" ..

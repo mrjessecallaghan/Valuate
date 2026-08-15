@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.157.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.158.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1282,4 +1282,44 @@ module.exports = [
     label: "hover dims the ACTIVE tab, the one thing telling you where you are",
     from: "            if activeTab ~= name then\n                TweenBackdrop(self, COLORS.buttonHover",
     to: "            if true then\n                TweenBackdrop(self, COLORS.buttonHover" },
+  // ---- the To Do tab (v0.158.0a) --------------------------------------------
+  // BuildTodoList has answered 'what should I do next' since it was written, and the
+  // answer only ever reached a chat frame - the login line announced the list and then
+  // asked you to type a command to read it. Every item already carried a command.
+  //
+  // todotest.js owns WHAT belongs on the list. These are about what only exists once it
+  // is on screen, and every one of them is a failure you cannot see by looking.
+
+  // Rows are pooled, so a shrinking list must hide the tail rather than leave last
+  // visit's entries sitting under this visit's.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "a shorter list leaves the previous visit\u2019s entries on screen beneath it",
+    from: "        for i = #items + 1, #rowPool do\n            rowPool[i]:Hide()",
+    to: "        for i = #items + 1, 0 do\n            rowPool[i]:Hide()" },
+
+  // An empty list is an ANSWER. Silent emptiness reads as a panel that failed to load.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "nothing to do shows a blank panel instead of saying there is nothing to do",
+    from: "        if #items == 0 then\n            empty:Show()",
+    to: "        if false then\n            empty:Show()" },
+
+  // Reused rows must not carry the previous item's explanation under the new one's text.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "an item with no detail inherits the detail of whatever used that row before",
+    from: "                row.detail:SetText(\"\")\n                row.detail:Hide()",
+    to: "                row.detail:SetText(\"\")" },
+
+  // THE regression pooling makes possible: a row running the command it was BUILT with
+  // rather than the one it is currently showing. It fires, it looks right, it is wrong.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "a reused row runs the command it was first given, not the one it now shows",
+    from: "            row.command = item.command",
+    to: "            row.command = row.command or item.command" },
+
+  // And the tab has to actually refresh. A to-do list that is stale is worse than none:
+  // it has you chasing an upgrade you already equipped.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "the To Do tab shows whatever was true when the window was first opened",
+    from: "                if ns.RefreshTodoPanel then ns.RefreshTodoPanel() end",
+    to: "                if false then ns.RefreshTodoPanel() end" },
 ];
