@@ -170,7 +170,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.133.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.134.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -925,4 +925,17 @@ module.exports = [
   { gate: "hitcap", file: "Valuate.lua", scope: CMP_BREAKDOWN,
     label: "the adjusted row is not flagged, so the numbers move with nothing to explain them",
     from: "if hoverFactor < 1 or equippedFactor < 1 then cmpAdjusted = true end", to: "" },
+
+  // ---- the worn sweep (v0.134.0a) ------------------------------------------
+  // NOT mutation-tested, deliberately, and the reason is worth writing down.
+  //
+  // Two of the seven call sites the worn fix touched are guarded STRUCTURALLY by the
+  // equipped-scores-are-worn lint rule rather than behaviourally by a gate. Mutations for
+  // them were written and both SURVIVED - not because the assertions are weak, but because
+  // no gate can see those lines: selfverify mocks the very function whose argument changed,
+  // and ScanBestEquipment is five hundred lines of tooltip scraping that cannot be sliced.
+  //
+  // Contorting either fixture until the mutation died would have produced a test that
+  // passes rather than a test that checks. The lint rule is the real guard; recording that
+  // honestly beats a green line that means nothing.
 ];

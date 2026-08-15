@@ -976,7 +976,8 @@ local function CreateBestEquipmentPanel(parent)
                         end
                     end
                     local equippedStats = GetEquippedStatsForSlot(slotId)
-                    local equippedScore = equippedStats and Valuate:CalculateItemScore(equippedStats, scale) or nil
+                    -- What you are wearing, so its hit is already in your total.
+                    local equippedScore = equippedStats and Valuate:CalculateItemScore(equippedStats, scale, { worn = true }) or nil
 
                     -- Summary totals: best-achievable per slot is max(best, equipped);
                     -- upgrades are the positive best-over-equipped deltas.

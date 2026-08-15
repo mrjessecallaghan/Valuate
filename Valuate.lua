@@ -2207,7 +2207,8 @@ local function GetTooltipBorderColor(stats, itemLink)
             if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
                 local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
                 if equippedStats then
-                    equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
+                    -- The equipped side of a tooltip comparison.
+                    equippedScore = Valuate:CalculateItemScore(equippedStats, scale, { worn = true })
                 end
             end
         end
@@ -2928,7 +2929,8 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 if shoppingEquipLoc and AreWeaponTypesComparable(equipSlot, shoppingEquipLoc) then
                                     local equippedStats = Valuate:GetStatsFromDisplayedTooltip("ShoppingTooltip1")
                                     if equippedStats then
-                                        equippedScore = Valuate:CalculateItemScore(equippedStats, scale)
+                                        -- The equipped side of a tooltip comparison.
+                                        equippedScore = Valuate:CalculateItemScore(equippedStats, scale, { worn = true })
                                     end
                                 end
                             end
@@ -4076,7 +4078,8 @@ function Valuate:GetEquippedItemScores(equipSlot, scale)
                 tooltip:SetInventoryItem("player", slotId)
                 local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                 if stats then
-                    local score = Valuate:CalculateItemScore(stats, scale)
+                    -- GetEquippedItemScores: equipped, by name.
+                    local score = Valuate:CalculateItemScore(stats, scale, { worn = true })
                     if score then
                         scores[slotId] = score
                     end
@@ -4153,7 +4156,8 @@ function Valuate:GetEquippedItemScore(equipSlot, scale)
                 tooltip:SetInventoryItem("player", slotId)
                 local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                 if stats then
-                    local score = Valuate:CalculateItemScore(stats, scale)
+                    -- GetEquippedItemScore: equipped, by name.
+                    local score = Valuate:CalculateItemScore(stats, scale, { worn = true })
                     if score and (not lowestScore or score < lowestScore) then
                         lowestScore = score
                     end
@@ -4759,7 +4763,15 @@ function Valuate:ScanBestEquipment()
                 end
                 
                 if not hasUnusableStat then
-                    local score = Valuate:CalculateItemScore(data.stats, scale)
+                    -- worn matters here more than anywhere: this scan drives Best
+                    -- Equipment AND the upgrade baseline that auto-roll and delete
+                    -- protection read. Without it, a capped character has the hit on
+                    -- their own gear valued at zero while a bag item is judged against
+                    -- headroom that item is itself providing - so the scan recommends
+                    -- replacing the piece keeping them capped, and the automation acts
+                    -- on it. The scan has always known which it is; nothing asked.
+                    local score = Valuate:CalculateItemScore(data.stats, scale,
+                        { worn = data.source == "equipped" })
                     if score and score > 0 then
                         table.insert(itemsWithScores, {
                             itemId = itemId,
@@ -7640,7 +7652,11 @@ local function SelfCheckScoreAgreement()
             -- base-stat fallback would report the very mismatch this check exists to find,
             -- on an item where it is expected and harmless.
             if isScaled and stats and viaSlot > 0 then
-                local viaLink = Valuate:CalculateItemScore(stats, scale) or 0
+                -- MUST match what viaSlot did, or this check reports its own asymmetry as a
+                -- mismatch. It scores an item off your body; the other route now knows that,
+                -- and a self-check whose job is spotting two paths disagreeing must not be
+                -- the thing that makes them disagree.
+                local viaLink = Valuate:CalculateItemScore(stats, scale, { worn = true }) or 0
                 compared = compared + 1
                 local drift = math.abs(viaLink - viaSlot) / viaSlot
                 if drift > worst then
@@ -9688,7 +9704,8 @@ function Valuate:PrintReport()
                 for slotId = 1, 18 do
                     if slotId ~= 4 then
                         local eq = equippedStats[slotId]
-                            and Valuate:CalculateItemScore(equippedStats[slotId], scale) or 0
+                            -- Equipped, by the name of the table it came from.
+                            and Valuate:CalculateItemScore(equippedStats[slotId], scale, { worn = true }) or 0
                         local best = (not locks[slotId]) and be[slotId] and be[slotId].score or 0
                         equippedTotal = equippedTotal + eq
                         bestTotal = bestTotal + math.max(eq, best)

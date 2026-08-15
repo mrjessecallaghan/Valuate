@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.134.0a] - 2026-08-15 — the other seven places
+
+### Fixed
+The worn-item fix two releases ago updated **one** call site. There were **eight**, and the
+most important was the one I missed: `ScanBestEquipment`.
+
+That scan populates Best Equipment *and* the upgrade baseline that auto-roll and delete
+protection read. So the bug was still live in the place that **acts** rather than the place
+that displays — a capped character had the hit on their own gear valued at zero while a bag
+item was judged against headroom that item was itself providing.
+
+The scan has tagged items `source = "equipped"` since it was written. Nothing asked.
+
+The rest, found by listing all sixteen `CalculateItemScore` calls and classifying them:
+
+- two tooltip comparison paths
+- `GetEquippedItemScore` and `GetEquippedItemScores`
+- the Best Equipment panel's own comparison
+- an equipped-stats lookup in the report
+- **`SelfCheckScoreAgreement`** — a regression I had introduced myself. It compares two routes
+  scoring the *same equipped item*, and I had made one of them worn-aware. The self-check
+  whose entire job is noticing when two scoring paths disagree would have become the thing
+  making them disagree.
+
+### Added — so the ninth site cannot happen
+Seven fixes found by hand-classifying sixteen call sites is the hand-maintained list this
+project keeps being bitten by. New lint rule **`equipped-scores-are-worn`**: scoring a variable
+whose name starts with `equipped` without `{ worn = true }` now fails the build, with an
+escape hatch for the cases where it is genuinely right.
+
+### Technical — two mutations deliberately not written
+Mutations for the scan and the self-check were written and both **survived**. Not because the
+assertions are weak: because no gate can see those lines. `selfverify` mocks the very function
+whose argument changed, and `ScanBestEquipment` is five hundred lines of tooltip scraping that
+cannot be sliced.
+
+Contorting either fixture until the mutation died would have produced a test that passes
+rather than a test that checks. Those two sites are guarded **structurally** by the lint rule
+instead, and `mutations.js` now records why in place of the entries — an honest note beats a
+green line that means nothing.
+
 ## [0.133.0a] - 2026-08-15 — the third breakdown, and showing the flags
 
 ### Fixed — a third path that ignored the cap

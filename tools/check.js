@@ -363,6 +363,22 @@ const RULES = [
       !/^\s*function Valuate:GetStatsForItemLink\b/.test(l),
   },
   {
+    // v0.130.0a made the hit cap value an item by what it would ADD. That is right for
+    // something in your bags and wrong for something on your body, whose hit is already
+    // counted into your total - scored that way, the piece keeping you capped contributes
+    // nothing and the addon advises replacing it.
+    //
+    // The fix needed SEVEN call sites updated, found by reading all sixteen and classifying
+    // them by hand. That is the hand-maintained list this project keeps being bitten by, so
+    // it is a rule instead: if the stats you are scoring are called "equipped", say so.
+    name: "equipped-scores-are-worn",
+    why: "Scoring a variable whose name starts with 'equipped' without { worn = true } asks what the item would ADD rather than what you would LOSE by removing it. For a capped character that values your own gear's hit at zero, so Best Equipment recommends replacing the piece keeping you capped - and the upgrade baseline behind auto-roll reads the same numbers. Pass { worn = true }, or annotate with -- valuate-lint-ignore: equipped-scores-are-worn  <why these stats are not from something being worn>.",
+    test: (l, file) =>
+      path.basename(file) !== "check.js" &&
+      /\bCalculateItemScore\s*\(\s*equipped\w*/i.test(l) &&
+      !/worn\s*=\s*true/.test(l),
+  },
+  {
     name: "no-duplicate-junk-logic",
     why: "Junk classification must go through the single IsItemJunk() helper - duplicating it is how the '0 junk found' bug survived two fixes.",
     test: (l, file) =>
