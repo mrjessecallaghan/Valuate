@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.137.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.138.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,207 +460,221 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.137.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.138.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
-        "• Settings > Scoring shows your live hit state next to the switch that acts\n" ..
-        "   on it - how much you have, the cap, and how far to go - so you can tell\n" ..
-        "   whether the setting matters to you without leaving the panel.\n" ..
-        "• FIXED: the diminishing-returns threshold was 400 RATING, which is about 9%\n" ..
-        "   crit at level 80 and unreachable at level 10 - so it did nothing at all for\n" ..
-        "   a low-level character. It is a PERCENTAGE now, which means the same thing\n" ..
-        "   at every level.\n" ..
-        "• The * on a capped stat now has a key under the breakdown saying what it\n" ..
-        "   means, instead of being a second thing to wonder about.\n" ..
-        "• FIXED: the gear SCAN - which drives Best Equipment and the auto-roll\n" ..
-        "   baseline - still valued your own gear as if you were not wearing it.\n" ..
-        "   That was the same bug as before, in the place that acts rather than\n" ..
-        "   the place that displays.\n" ..
-        "• Stats cut by the hit cap are now MARKED - a * in the tooltip breakdown,\n" ..
-        "   and a note in /valuate weights. On those rows value x weight does not\n" ..
-        "   equal the total, and without a mark that reads as a bug.\n" ..
-        "• FIXED: the comparison tooltip - the one showing a candidate against what\n" ..
-        "   you are wearing - ignored the cap entirely.\n" ..
-        "• FIXED: with the hit cap on, the addon could advise replacing the very\n" ..
-        "   piece keeping you capped. Gear you are WEARING is now scored for what\n" ..
-        "   you would lose by taking it off.\n" ..
-        "• FIXED: the stat breakdown ignored the hit cap, so it disagreed with the\n" ..
-        "   score it was explaining.\n" ..
-        "• Hovering an item with hit says what the cap did to it - all of it counts,\n" ..
-        "   only part of it counts, or none of it does. A score that changed silently\n" ..
-        "   is worse than one that did not.\n" ..
-        "• HIT NOW STOPS COUNTING once you are capped - past the cap it does nothing,\n" ..
-        "   so it scores nothing, and only the part of an item's hit that fits under\n" ..
-        "   the cap counts. Set what you are fighting in Settings > Scoring; /valuate\n" ..
-        "   hit shows the whole assumption. The rating-per-percent is worked out from\n" ..
-        "   YOUR gear rather than a table, so it is right for your level and this\n" ..
-        "   server - and with no hit at all it does nothing rather than guess.\n" ..
-        "• Optional: value crit/haste less as you stack them. OFF by default, and it\n" ..
-        "   is a preference rather than a game mechanic - 3.3.5 has no diminishing\n" ..
-        "   returns on those ratings.\n" ..
-        "• FIXED: when the wizard could not build a scale it printed the reason to\n" ..
-        "   chat and left the window sitting there. It now says so on its own screen,\n" ..
-        "   confirms nothing was changed, and offers Try again.\n" ..
-        "• /valuate selfverify now checks the dungeon loot table against YOUR client -\n" ..
-        "   whether the harvested item ids actually exist on this server, and whether\n" ..
-        "   the dungeon you are standing in is named the way the table expects.\n" ..
-        "• The About tab's feature list is current again - it had been a year behind\n" ..
-        "   because the panel could not grow. It sizes itself now.\n" ..
-        "• FIXED: Best Equipment used to tell brand-new users to 'activate a scale'\n" ..
-        "   before they had made one. It now tells you to make one, and points at\n" ..
-        "   the button that does it.\n" ..
-        "• The Settings columns are balanced, and now stay that way - a gate measures\n" ..
-        "   them, so a new section cannot quietly pile onto the longest column again.\n" ..
-        "• Settings has a MESSAGES & CONVENIENCE section. Six options that could\n" ..
-        "   only be reached by typing a slash command now have checkboxes -\n" ..
-        "   including 'equip upgrades when you level', which puts gear on your\n" ..
-        "   character and was command-only from the day it shipped.\n" ..
-        "• Scales remember where they came from. The editor says 'from Warrior Arms'\n" ..
-        "   for anything the wizard built - and if the spec's weights were GUESSED,\n" ..
-        "   it keeps saying so every time you open it, not just while you hovered\n" ..
-        "   the template.\n" ..
-        "• Spec tooltips now show what a spec will CHASE - its description and the\n" ..
-        "   top stats it weights, with the numbers. And the six specs whose weights\n" ..
-        "   were GUESSED (no priority was ever published for them) now say so, so a\n" ..
-        "   guess no longer looks exactly like a researched one.\n" ..
-        "• Dungeons can say when they are DONE with you. While auto-queueing, the\n" ..
-        "   addon tracks which bosses are still alive and asks whether to leave once\n" ..
-        "   the last one that could drop an upgrade is dead and looted. Off by\n" ..
-        "   default; it asks rather than acting.\n" ..
-        "   The loot table is harvested from AtlasLoot - 36 dungeons, 264 bosses -\n" ..
-        "   so the ids are real, including Ascension's own. Where it has no data it\n" ..
-        "   stays SILENT rather than saying there is nothing for you: a boss it knows\n" ..
-        "   nothing about suppresses the prompt entirely. /valuate dungeon shows\n" ..
-        "   exactly what is known for the dungeon you are standing in.\n" ..
-        "• Settings has a SEARCH BOX. Type part of an option's name and everything\n" ..
-        "   else dims. Nothing moves while you filter.\n" ..
-        "• Item tooltips now tell you what cleanup would do. While auto-sell or\n" ..
-        "   auto-delete is on, junk items say whether anything protects them\n" ..
-        "   (best-in-slot, quest item, equipment set, future upgrade) or that\n" ..
-        "   nothing does. Hover before you trust it.\n" ..
-        "• Best Equipment marks the slots a scan CHANGED, so you can see what it did.\n" ..
-        "• Upgrade arrows pop in when they arrive - and only when they are new,\n" ..
-        "   never re-animating as you move things around your bags.\n" ..
-        "• The window resizes smoothly instead of snapping between tabs.\n" ..
-        "• FIXED: /valuate report now covers every automation. Auto-accept had been\n" ..
-        "   recording its outcome since it shipped and nothing ever showed it, and\n" ..
-        "   auto-roll, auto-repair and quest-reward selection recorded nothing at\n" ..
-        "   all. Each now reports WHAT it concluded, including 'could not afford it'.\n" ..
-        "• NEW: /valuate wizard builds a scale FOR you. It reads the gear you are\n" ..
-        "   wearing, works out which build you most resemble, and makes an optimized\n" ..
-        "   scale named after its top five stats - Auto - Str/Crit/Hit/AP/Haste.\n" ..
-        "   Three screens, one click each. It shows you what it would make before\n" ..
-        "   making anything, never touches a scale you built yourself, and leaves\n" ..
-        "   the new one selected and scanned. Generated scales share one colour so\n" ..
-        "   you can tell them from the ones you built yourself.\n" ..
-        "• The wizard can now UPDATE the scale it made for you. Gear drifts as you\n" ..
-        "   level, so re-running it offers 'Update it' instead of adding a second\n" ..
-        "   Auto scale - and names the one it would replace, right beside the new\n" ..
-        "   weights. Only ever a scale from the SAME spec: ask for a Tank build and\n" ..
-        "   your DPS Auto scale is left alone. You do not have to guess when that is\n" ..
-        "   worth doing - the button reads 'Refresh my scale' once your gear has moved\n" ..
-        "   on, and its tooltip names the scale. No chat spam, no popup.\n" ..
-        "• FIXED: your minimap button's position now travels with a settings\n" ..
-        "   snapshot. It was being saved and counted in the total, then thrown away\n" ..
-        "   on load, so an alt got the default spot while everything else came\n" ..
-        "   across. Changing it also takes effect immediately now, not after a\n" ..
-        "   /reload.\n" ..
-        "• FIXED: /valuate help was listing 19 of 30 commands, and the missing ones\n" ..
-        "   were the automation toggles and EVERY command that deletes or sells -\n" ..
-        "   including /valuate deletepreview, the one you are meant to run before\n" ..
-        "   turning deletion on. They are all listed now, in labelled groups.\n" ..
-        "• Everything that pulses - upgrade arrows, the minimap button, the upgrade\n" ..
-        "   popup's glow, the AdiBags marker - now breathes at the same rate. They\n" ..
-        "   were on three different rhythms, one of them for no reason anybody had\n" ..
-        "   written down.\n" ..
-        "• NEW: hovering Equip All lists the slots it would change, with a count -\n" ..
-        "   or says there is nothing to change. It is not behind a confirmation:\n" ..
-        "   equipping is reversible, so the useful thing is knowing what will happen,\n" ..
-        "   not an extra click.\n" ..
-        "• NEW: hovering a slot in Best Equipment tells you what is WAITING for that\n" ..
-        "   slot and at what level - even when you already have something usable\n" ..
-        "   there. The row can only draw one item; its tooltip can name both.\n" ..
-        "• NEW: gear you cannot use yet gets a STILL BLUE marker on its bag icon,\n" ..
-        "   next to the pulsing green arrow for things you can equip now. Only the\n" ..
-        "   one you can act on moves; if both did, you would stop reading either.\n" ..
-        "   Levelling into an item turns its marker green in place.\n" ..
-        "• NEW: gear you cannot use yet now says so on its tooltip - 'Upgrade at\n" ..
-        "   level 42 for: Melee'. Auto-delete has been sparing these items since the\n" ..
-        "   feature existed and never told you why; now the decision at a vendor is\n" ..
-        "   an informed one.\n" ..
-        "• NEW: /valuate future - everything waiting on a level, grouped by the level\n" ..
-        "   that unlocks it and how far away that is. Gear whose level you already\n" ..
-        "   meet but still cannot wear is listed separately, because that is usually\n" ..
-        "   a proficiency you have not trained rather than anything a level fixes.\n" ..
-        "• NEW: the icon picker has a search box. 577 icons in a scrolling grid meant\n" ..
-        "   scrolling past all of them; type sword, frost, potion and it filters as\n" ..
-        "   you go. Reopening always starts unfiltered.\n" ..
-        "• NEW: a search box in the Scale Editor. Sixty stat rows across five columns\n" ..
-        "   is a lot to read; type any part of a stat's name and the rest dim out.\n" ..
-        "   It dims rather than hides so nothing moves while you type, and it stays\n" ..
-        "   in force when you switch scales. Escape clears it.\n" ..
-        "• FIXED: Valuate left its handlers installed on the shared colour picker, so\n" ..
-        "   cancelling ANOTHER addon's colour picker could reset one of your scale\n" ..
-        "   colours. Ours now only answers while it still owns the picker.\n" ..
-        "• FIXED: hiding the minimap button while dragging it left the button still\n" ..
-        "   following your cursor, so it started moving again the moment you showed\n" ..
-        "   it. Letting go while hovering it also dropped the hover colour.\n" ..
-        "• FIXED: clicking the tab you were already on replayed its entrance - on\n" ..
-        "   Best Equipment that collapsed the window to its minimum height and grew\n" ..
-        "   it back, for a click that changed nothing. A re-click now just refreshes.\n" ..
-        "• FIXED: the Toggle UI keybind button could keep hold of your keyboard.\n" ..
-        "   Right-clicking to clear while it was waiting for a key, or closing the\n" ..
-        "   window mid-capture, left it armed - so it bound the next key you pressed\n" ..
-        "   and swallowed your typing until then.\n" ..
-        "• NEW: hover a stat's weight box in the Scale Editor and it tells you what\n" ..
-        "   that weight is doing - its share of your equipped score, or that you are\n" ..
-        "   carrying none of the stat. Type a new number and hover again; the share\n" ..
-        "   moves with it.\n" ..
-        "• NEW: /valuate weights - ranks your stat weights by how much they actually\n" ..
-        "   contribute to the gear you are wearing, and names the ones doing nothing\n" ..
-        "   because you carry none of that stat. A scale with fifteen weights looks\n" ..
-        "   carefully tuned; this tells you which three are doing the work.\n" ..
-        "• FIXED: 22 places drew their flat colours - accent bars, separators, row\n" ..
-        "   highlights, header backgrounds - with a call that only exists on much\n" ..
-        "   later game clients. They now use whichever one this client has. Run\n" ..
-        "   /valuate verify solidcolour and check the coloured lines are all there.\n" ..
-        "• FIXED: with Reduce Motion switched on, upgrade arrows were never released\n" ..
-        "   when you closed a bag, so the addon kept working on invisible arrows for\n" ..
-        "   the rest of the session. Only that setting was affected.\n" ..
-        "• FIXED: if a scale gives a stat a NEGATIVE weight, the tooltip's percentage\n" ..
-        "   came out backwards - an improvement over a negative score printed as\n" ..
-        "   '+-50.0%' in green. And a huge downgrade said 'HUGE!' with no minus,\n" ..
-        "   which reads as good news. Both now agree with the number beside them.\n" ..
-        "• FIXED: a slot you are wearing NOTHING in showed a grey '--', the same as\n" ..
-        "   'no comparison available'. It now says New, and the summary counts how\n" ..
-        "   many empty slots you own something for - not how many are empty, since an\n" ..
-        "   empty Off Hand is correct if you use a two-hander.\n" ..
-        "• The scale list no longer leaks. It used to rebuild every row whenever you\n" ..
-        "   added, deleted, renamed or recoloured a scale, and WoW never frees a frame -\n" ..
-        "   so each edit cost you about ten frames per scale for the rest of the\n" ..
-        "   session. Rows are now reused. A genuinely new scale fades in; rows that\n" ..
-        "   merely shifted up do not.\n" ..
-        "• The six things auto-delete promises never to touch - quest items, gear in\n" ..
-        "   an equipment set, weapon-set members, best-in-slot, future upgrades and\n" ..
-        "   anything that is an upgrade for any scale - are now executed by a build\n" ..
-        "   gate that proves each one still protects, one at a time. Deletion is\n" ..
-        "   irreversible, so it was the worst thing here to be taking on trust.\n" ..
-        "• /valuate verify - a short list of behaviours worth checking by hand,\n" ..
-        "   several of which set themselves up for you. /valuate verify next walks\n" ..
-        "   you through them one at a time, and a tick expires by itself once the\n" ..
-        "   behaviour it covered changes.\n" ..
-        "• FIXED: an upgrade found during combat is now actually offered when you\n" ..
-        "   leave combat. It never was - the flag was read from the wrong place.\n" ..
-        "• FIXED: weapon-set toggles could silently do nothing after importing or\n" ..
-        "   loading a scale over the one you were editing.\n" ..
-        "• FIXED: /valuate export could hand you the wrong scale when two names\n" ..
-        "   differed only by case. It now says which ones matched.\n" ..
-        "• FIXED: a scale colour with a bad character took down the whole panel.\n" ..
-        "• FIXED: buttons showed no pressed state on a fast click.\n" ..
-        "• FIXED: adjusting a scale's colour leaked thousands of UI frames, and\n" ..
-        "   clicking between scales leaked ~250 more each time.\n" ..
-        "• FIXED: auto-delete no longer touches a bag slot that is mid-move.",
+        -- A TABLE, not a chain of `..`.
+        --
+        -- Lua 5.1 caps expression nesting at 200 levels and this list gains a bullet most
+        -- releases. Today it hit the ceiling: luaparse still accepted the file, fengari did
+        -- not, and fengari is the one that matches the game - so check.js was green while
+        -- the addon would have failed to load.
+        --
+        -- Trimming entries would buy a few releases and break again. table.concat has no
+        -- such limit, so the list can keep growing.
+        table.concat({
+            "• FIXED: the upgrade popup's Equip button closed the popup BEFORE finding",
+            "   out it could not equip in combat, so a click that could never work took",
+            "   the upgrade off your screen. It now waits, like the icon always has.",
+            "• Settings > Scoring shows your live hit state next to the switch that acts",
+            "   on it - how much you have, the cap, and how far to go - so you can tell",
+            "   whether the setting matters to you without leaving the panel.",
+            "• FIXED: the diminishing-returns threshold was 400 RATING, which is about 9%",
+            "   crit at level 80 and unreachable at level 10 - so it did nothing at all for",
+            "   a low-level character. It is a PERCENTAGE now, which means the same thing",
+            "   at every level.",
+            "• The * on a capped stat now has a key under the breakdown saying what it",
+            "   means, instead of being a second thing to wonder about.",
+            "• FIXED: the gear SCAN - which drives Best Equipment and the auto-roll",
+            "   baseline - still valued your own gear as if you were not wearing it.",
+            "   That was the same bug as before, in the place that acts rather than",
+            "   the place that displays.",
+            "• Stats cut by the hit cap are now MARKED - a * in the tooltip breakdown,",
+            "   and a note in /valuate weights. On those rows value x weight does not",
+            "   equal the total, and without a mark that reads as a bug.",
+            "• FIXED: the comparison tooltip - the one showing a candidate against what",
+            "   you are wearing - ignored the cap entirely.",
+            "• FIXED: with the hit cap on, the addon could advise replacing the very",
+            "   piece keeping you capped. Gear you are WEARING is now scored for what",
+            "   you would lose by taking it off.",
+            "• FIXED: the stat breakdown ignored the hit cap, so it disagreed with the",
+            "   score it was explaining.",
+            "• Hovering an item with hit says what the cap did to it - all of it counts,",
+            "   only part of it counts, or none of it does. A score that changed silently",
+            "   is worse than one that did not.",
+            "• HIT NOW STOPS COUNTING once you are capped - past the cap it does nothing,",
+            "   so it scores nothing, and only the part of an item's hit that fits under",
+            "   the cap counts. Set what you are fighting in Settings > Scoring; /valuate",
+            "   hit shows the whole assumption. The rating-per-percent is worked out from",
+            "   YOUR gear rather than a table, so it is right for your level and this",
+            "   server - and with no hit at all it does nothing rather than guess.",
+            "• Optional: value crit/haste less as you stack them. OFF by default, and it",
+            "   is a preference rather than a game mechanic - 3.3.5 has no diminishing",
+            "   returns on those ratings.",
+            "• FIXED: when the wizard could not build a scale it printed the reason to",
+            "   chat and left the window sitting there. It now says so on its own screen,",
+            "   confirms nothing was changed, and offers Try again.",
+            "• /valuate selfverify now checks the dungeon loot table against YOUR client -",
+            "   whether the harvested item ids actually exist on this server, and whether",
+            "   the dungeon you are standing in is named the way the table expects.",
+            "• The About tab's feature list is current again - it had been a year behind",
+            "   because the panel could not grow. It sizes itself now.",
+            "• FIXED: Best Equipment used to tell brand-new users to 'activate a scale'",
+            "   before they had made one. It now tells you to make one, and points at",
+            "   the button that does it.",
+            "• The Settings columns are balanced, and now stay that way - a gate measures",
+            "   them, so a new section cannot quietly pile onto the longest column again.",
+            "• Settings has a MESSAGES & CONVENIENCE section. Six options that could",
+            "   only be reached by typing a slash command now have checkboxes -",
+            "   including 'equip upgrades when you level', which puts gear on your",
+            "   character and was command-only from the day it shipped.",
+            "• Scales remember where they came from. The editor says 'from Warrior Arms'",
+            "   for anything the wizard built - and if the spec's weights were GUESSED,",
+            "   it keeps saying so every time you open it, not just while you hovered",
+            "   the template.",
+            "• Spec tooltips now show what a spec will CHASE - its description and the",
+            "   top stats it weights, with the numbers. And the six specs whose weights",
+            "   were GUESSED (no priority was ever published for them) now say so, so a",
+            "   guess no longer looks exactly like a researched one.",
+            "• Dungeons can say when they are DONE with you. While auto-queueing, the",
+            "   addon tracks which bosses are still alive and asks whether to leave once",
+            "   the last one that could drop an upgrade is dead and looted. Off by",
+            "   default; it asks rather than acting.",
+            "   The loot table is harvested from AtlasLoot - 36 dungeons, 264 bosses -",
+            "   so the ids are real, including Ascension's own. Where it has no data it",
+            "   stays SILENT rather than saying there is nothing for you: a boss it knows",
+            "   nothing about suppresses the prompt entirely. /valuate dungeon shows",
+            "   exactly what is known for the dungeon you are standing in.",
+            "• Settings has a SEARCH BOX. Type part of an option's name and everything",
+            "   else dims. Nothing moves while you filter.",
+            "• Item tooltips now tell you what cleanup would do. While auto-sell or",
+            "   auto-delete is on, junk items say whether anything protects them",
+            "   (best-in-slot, quest item, equipment set, future upgrade) or that",
+            "   nothing does. Hover before you trust it.",
+            "• Best Equipment marks the slots a scan CHANGED, so you can see what it did.",
+            "• Upgrade arrows pop in when they arrive - and only when they are new,",
+            "   never re-animating as you move things around your bags.",
+            "• The window resizes smoothly instead of snapping between tabs.",
+            "• FIXED: /valuate report now covers every automation. Auto-accept had been",
+            "   recording its outcome since it shipped and nothing ever showed it, and",
+            "   auto-roll, auto-repair and quest-reward selection recorded nothing at",
+            "   all. Each now reports WHAT it concluded, including 'could not afford it'.",
+            "• NEW: /valuate wizard builds a scale FOR you. It reads the gear you are",
+            "   wearing, works out which build you most resemble, and makes an optimized",
+            "   scale named after its top five stats - Auto - Str/Crit/Hit/AP/Haste.",
+            "   Three screens, one click each. It shows you what it would make before",
+            "   making anything, never touches a scale you built yourself, and leaves",
+            "   the new one selected and scanned. Generated scales share one colour so",
+            "   you can tell them from the ones you built yourself.",
+            "• The wizard can now UPDATE the scale it made for you. Gear drifts as you",
+            "   level, so re-running it offers 'Update it' instead of adding a second",
+            "   Auto scale - and names the one it would replace, right beside the new",
+            "   weights. Only ever a scale from the SAME spec: ask for a Tank build and",
+            "   your DPS Auto scale is left alone. You do not have to guess when that is",
+            "   worth doing - the button reads 'Refresh my scale' once your gear has moved",
+            "   on, and its tooltip names the scale. No chat spam, no popup.",
+            "• FIXED: your minimap button's position now travels with a settings",
+            "   snapshot. It was being saved and counted in the total, then thrown away",
+            "   on load, so an alt got the default spot while everything else came",
+            "   across. Changing it also takes effect immediately now, not after a",
+            "   /reload.",
+            "• FIXED: /valuate help was listing 19 of 30 commands, and the missing ones",
+            "   were the automation toggles and EVERY command that deletes or sells -",
+            "   including /valuate deletepreview, the one you are meant to run before",
+            "   turning deletion on. They are all listed now, in labelled groups.",
+            "• Everything that pulses - upgrade arrows, the minimap button, the upgrade",
+            "   popup's glow, the AdiBags marker - now breathes at the same rate. They",
+            "   were on three different rhythms, one of them for no reason anybody had",
+            "   written down.",
+            "• NEW: hovering Equip All lists the slots it would change, with a count -",
+            "   or says there is nothing to change. It is not behind a confirmation:",
+            "   equipping is reversible, so the useful thing is knowing what will happen,",
+            "   not an extra click.",
+            "• NEW: hovering a slot in Best Equipment tells you what is WAITING for that",
+            "   slot and at what level - even when you already have something usable",
+            "   there. The row can only draw one item; its tooltip can name both.",
+            "• NEW: gear you cannot use yet gets a STILL BLUE marker on its bag icon,",
+            "   next to the pulsing green arrow for things you can equip now. Only the",
+            "   one you can act on moves; if both did, you would stop reading either.",
+            "   Levelling into an item turns its marker green in place.",
+            "• NEW: gear you cannot use yet now says so on its tooltip - 'Upgrade at",
+            "   level 42 for: Melee'. Auto-delete has been sparing these items since the",
+            "   feature existed and never told you why; now the decision at a vendor is",
+            "   an informed one.",
+            "• NEW: /valuate future - everything waiting on a level, grouped by the level",
+            "   that unlocks it and how far away that is. Gear whose level you already",
+            "   meet but still cannot wear is listed separately, because that is usually",
+            "   a proficiency you have not trained rather than anything a level fixes.",
+            "• NEW: the icon picker has a search box. 577 icons in a scrolling grid meant",
+            "   scrolling past all of them; type sword, frost, potion and it filters as",
+            "   you go. Reopening always starts unfiltered.",
+            "• NEW: a search box in the Scale Editor. Sixty stat rows across five columns",
+            "   is a lot to read; type any part of a stat's name and the rest dim out.",
+            "   It dims rather than hides so nothing moves while you type, and it stays",
+            "   in force when you switch scales. Escape clears it.",
+            "• FIXED: Valuate left its handlers installed on the shared colour picker, so",
+            "   cancelling ANOTHER addon's colour picker could reset one of your scale",
+            "   colours. Ours now only answers while it still owns the picker.",
+            "• FIXED: hiding the minimap button while dragging it left the button still",
+            "   following your cursor, so it started moving again the moment you showed",
+            "   it. Letting go while hovering it also dropped the hover colour.",
+            "• FIXED: clicking the tab you were already on replayed its entrance - on",
+            "   Best Equipment that collapsed the window to its minimum height and grew",
+            "   it back, for a click that changed nothing. A re-click now just refreshes.",
+            "• FIXED: the Toggle UI keybind button could keep hold of your keyboard.",
+            "   Right-clicking to clear while it was waiting for a key, or closing the",
+            "   window mid-capture, left it armed - so it bound the next key you pressed",
+            "   and swallowed your typing until then.",
+            "• NEW: hover a stat's weight box in the Scale Editor and it tells you what",
+            "   that weight is doing - its share of your equipped score, or that you are",
+            "   carrying none of the stat. Type a new number and hover again; the share",
+            "   moves with it.",
+            "• NEW: /valuate weights - ranks your stat weights by how much they actually",
+            "   contribute to the gear you are wearing, and names the ones doing nothing",
+            "   because you carry none of that stat. A scale with fifteen weights looks",
+            "   carefully tuned; this tells you which three are doing the work.",
+            "• FIXED: 22 places drew their flat colours - accent bars, separators, row",
+            "   highlights, header backgrounds - with a call that only exists on much",
+            "   later game clients. They now use whichever one this client has. Run",
+            "   /valuate verify solidcolour and check the coloured lines are all there.",
+            "• FIXED: with Reduce Motion switched on, upgrade arrows were never released",
+            "   when you closed a bag, so the addon kept working on invisible arrows for",
+            "   the rest of the session. Only that setting was affected.",
+            "• FIXED: if a scale gives a stat a NEGATIVE weight, the tooltip's percentage",
+            "   came out backwards - an improvement over a negative score printed as",
+            "   '+-50.0%' in green. And a huge downgrade said 'HUGE!' with no minus,",
+            "   which reads as good news. Both now agree with the number beside them.",
+            "• FIXED: a slot you are wearing NOTHING in showed a grey '--', the same as",
+            "   'no comparison available'. It now says New, and the summary counts how",
+            "   many empty slots you own something for - not how many are empty, since an",
+            "   empty Off Hand is correct if you use a two-hander.",
+            "• The scale list no longer leaks. It used to rebuild every row whenever you",
+            "   added, deleted, renamed or recoloured a scale, and WoW never frees a frame -",
+            "   so each edit cost you about ten frames per scale for the rest of the",
+            "   session. Rows are now reused. A genuinely new scale fades in; rows that",
+            "   merely shifted up do not.",
+            "• The six things auto-delete promises never to touch - quest items, gear in",
+            "   an equipment set, weapon-set members, best-in-slot, future upgrades and",
+            "   anything that is an upgrade for any scale - are now executed by a build",
+            "   gate that proves each one still protects, one at a time. Deletion is",
+            "   irreversible, so it was the worst thing here to be taking on trust.",
+            "• /valuate verify - a short list of behaviours worth checking by hand,",
+            "   several of which set themselves up for you. /valuate verify next walks",
+            "   you through them one at a time, and a tick expires by itself once the",
+            "   behaviour it covered changes.",
+            "• FIXED: an upgrade found during combat is now actually offered when you",
+            "   leave combat. It never was - the flag was read from the wrong place.",
+            "• FIXED: weapon-set toggles could silently do nothing after importing or",
+            "   loading a scale over the one you were editing.",
+            "• FIXED: /valuate export could hand you the wrong scale when two names",
+            "   differed only by case. It now says which ones matched.",
+            "• FIXED: a scale colour with a bad character took down the whole panel.",
+            "• FIXED: buttons showed no pressed state on a fast click.",
+            "• FIXED: adjusting a scale's colour leaked thousands of UI frames, and",
+            "   clicking between scales leaked ~250 more each time.",
+            "• FIXED: auto-delete no longer touches a bag slot that is mid-move.",
+        }, "\n"),
         currentY)
     currentY = currentY - vCurrentText:GetStringHeight() - versionSpacing
 

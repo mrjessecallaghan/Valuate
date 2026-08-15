@@ -695,6 +695,43 @@ for (const file of files) {
     });
   }
 
+  /*
+   * concat-chain-under-limit: a .. chain long enough that the game refuses to compile it.
+   *
+   * Lua 5.1 caps expression nesting at 200 levels, and the changelog panel gains a bullet
+   * most releases. v0.138.0a hit the ceiling exactly - 200 chained string literals - and the
+   * interesting part is what happened next: LUAPARSE, WHICH THIS FILE USES, ACCEPTED IT.
+   * fengari refused, and fengari is the one that matches the game. So check.js reported OK
+   * on a file the addon could not have loaded, and only a gate that happened to load that
+   * module caught it. A file no gate loads would have shipped.
+   *
+   * Counted per run of continuation lines rather than parsed. That is all it takes, and a
+   * rule needing a real expression tree would not be a lint rule.
+   *
+   * The threshold is 150, not 200: a rule that fires only ON the cliff gives no warning
+   * before the fall, and this list grows by one most releases.
+   */
+  {
+    let run = 0, worst = 0, worstLine = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/\.\.\s*$/.test(lines[i].replace(/--.*$/, ""))) {
+        run++;
+        if (run > worst) { worst = run; worstLine = i + 1; }
+      } else {
+        run = 0;
+      }
+    }
+    if (worst >= 150) {
+      console.error(
+        `LINT   ${rel}:${worstLine}  [concat-chain-under-limit] ${worst} string literals ` +
+          "chained with .. build one expression, and Lua 5.1 refuses to compile more than 200 " +
+          "levels of nesting. luaparse accepts it and the game does not, so this passes every " +
+          'static check and then fails to load. Use table.concat({ ... }, "\\n") instead.'
+      );
+      lintFailures++;
+    }
+  }
+
   lines.forEach((line, i) => {
     const lineNo = i + 1;
     const prevLine = i > 0 ? lines[i - 1] : "";

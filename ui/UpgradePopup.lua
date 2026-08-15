@@ -266,6 +266,18 @@ function Valuate:ShowUpgradePopup(opts)
 
     f.equipButton.label:SetText(count > 1 and "Equip All" or "Equip")
     f.equipButton:SetScript("OnClick", function()
+        -- Checked BEFORE hiding, and that is the whole point of the guard being here as
+        -- well as inside EquipBestSet.
+        --
+        -- EquipBestSet does refuse in combat and prints exactly this line, so the message
+        -- was never missing. What was missing is the popup: it dismissed itself first, so a
+        -- click that could not possibly work took the upgrade off your screen and left you
+        -- to remember what it was. The icon beside this button has always checked first and
+        -- stayed open - the more prominent control had the worse behaviour.
+        if InCombatLockdown() then
+            print("|cFFFF0000[Valuate]|r Can't change equipment in combat.")
+            return
+        end
         Valuate:HideUpgradePopup()
         if opts.onEquip then opts.onEquip() end
     end)

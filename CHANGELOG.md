@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.138.0a] - 2026-08-15 — the upgrade popup stops throwing your upgrade away
+
+### Fixed
+The popup has two ways to equip, and they did not behave alike:
+
+- **The icon** equips just that item. It checked `InCombatLockdown` first, said so, and left
+  the popup up so you could click again afterwards.
+- **The Equip button** takes the whole set. It hid the popup and *then* called through to
+  `EquipBestSet`, which refuses in combat and prints the same line.
+
+So the message was never missing — **the popup was**. A click that could not possibly succeed
+took the upgrade off your screen and left you to remember what it was. The more prominent
+control had the worse behaviour, and it is not a missing check: it is two paths to one outcome
+disagreeing about the *order*.
+
+The button now checks before hiding, exactly as the icon does. In combat it says so and stays
+up; the moment combat ends the same button works.
+
+### Added — a gate for 285 lines that had none
+`ui/UpgradePopup.lua` interrupts you and then changes your gear, and no gate ran a line of it.
+It was only ever **loaded**, by `tabtest.js`, so the window would build.
+
+That is precisely the blind spot `ui/Settings.lua` sat in — 2,232 lines with no runtime
+coverage — until `settingstest.js` was written and immediately turned up a keyboard capture
+that never let go. Same shape, same result: the first gate over the file found a real bug on
+the first read.
+
+`tools/popuptest.js` drives the real buttons. 3 mutations, all caught.
+
+### Fixed — the changelog panel had stopped compiling
+Adding this release's bullet pushed the in-game changelog past a hard limit: **Lua 5.1 refuses
+more than 200 levels of expression nesting**, and that list is built as one chain of `..`. It
+had reached exactly 200.
+
+What makes it worth writing down is which tool noticed. `luaparse` — the parser `check.js`
+uses — **accepted the file**. fengari refused, and fengari is the one that matches the game. So
+`check.js` reported *"31 Lua files parsed cleanly"* on a file the addon could not have loaded,
+and it was caught only because two gates happen to load that module. A file no gate loads would
+have shipped as a silently dead addon.
+
+The list is now a `table.concat`, which has no such limit, so it can keep growing. Trimming
+entries would have bought a few releases and broken again.
+
+New lint rule **`concat-chain-under-limit`**, counting runs of continuation lines and failing at
+**150** rather than 200 — a rule that fires only on the cliff gives no warning before the fall,
+and this list gains a bullet most releases.
+
+### Technical
+The mutation anchors needed two corrections, both worth naming because they are the same trap
+in different clothes: a multi-line anchor with `\n` matches nothing in a **CRLF** file, and the
+guard reported it UNAPPLIED rather than letting it pass against code it never touched. Single
+lines now, with the reason recorded next to them.
+
 ## [0.137.0a] - 2026-08-15 — where you actually stand, next to the switch
 
 ### Added

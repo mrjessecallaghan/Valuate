@@ -103,6 +103,10 @@ const SPEC_TIP = {
 // what the picker only said once.
 const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction Valuate:CommitAutoScale" };
 const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        if noScalesTextFrame then" };
+const POPUP_EQUIP = {
+  start: 'f.equipButton:SetScript("OnClick"',
+  end: "\n    -- Shared entrance",
+};
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
 const HIT_STATE = { start: "function Valuate:GetHitState(", end: "\n-- How much of THIS item" };
@@ -170,7 +174,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.137.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.138.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -938,4 +942,19 @@ module.exports = [
   // Contorting either fixture until the mutation died would have produced a test that
   // passes rather than a test that checks. The lint rule is the real guard; recording that
   // honestly beats a green line that means nothing.
+
+  // ---- the upgrade popup (v0.138.0a) ---------------------------------------
+  // 285 lines that interrupt you and then change your gear, with no gate on any of it until
+  // now. Its two equip paths disagreed about ORDER, and the more prominent one was worse.
+  { gate: "popuptest", file: "ui/UpgradePopup.lua", scope: POPUP_EQUIP,
+    label: "a click that cannot work in combat still takes the upgrade off your screen",
+    from: "if InCombatLockdown() then", to: "if false then" },
+  { gate: "popuptest", file: "ui/UpgradePopup.lua", scope: POPUP_EQUIP,
+    label: "the popup refuses out of combat too, so Equip never works at all",
+    from: "if InCombatLockdown() then", to: "if true then" },
+  { gate: "popuptest", file: "ui/UpgradePopup.lua", scope: POPUP_EQUIP,
+    label: "it equips but never closes, so a done deal keeps asking",
+    // Single-line anchor: this file is CRLF, so a `\n` in a multi-line anchor matches
+    // nothing and the guard reports UNAPPLIED rather than letting it pass silently.
+    from: "        Valuate:HideUpgradePopup()", to: "        local _ = 1" },
 ];
