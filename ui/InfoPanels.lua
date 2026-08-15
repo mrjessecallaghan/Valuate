@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.132.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.133.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,10 +460,15 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.132.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.133.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
+        "• Stats cut by the hit cap are now MARKED - a * in the tooltip breakdown,\n" ..
+        "   and a note in /valuate weights. On those rows value x weight does not\n" ..
+        "   equal the total, and without a mark that reads as a bug.\n" ..
+        "• FIXED: the comparison tooltip - the one showing a candidate against what\n" ..
+        "   you are wearing - ignored the cap entirely.\n" ..
         "• FIXED: with the hit cap on, the addon could advise replacing the very\n" ..
         "   piece keeping you capped. Gear you are WEARING is now scored for what\n" ..
         "   you would lose by taking it off.\n" ..

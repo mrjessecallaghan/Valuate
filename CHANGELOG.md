@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.133.0a] - 2026-08-15 — the third breakdown, and showing the flags
+
+### Fixed — a third path that ignored the cap
+Yesterday I fixed two breakdowns that disagreed with the score. There was a **third**:
+`CalculateStatBreakdownWithComparison`, which is the most-read tooltip in the addon — the one
+that shows a candidate against what you are wearing.
+
+It is also the only place where **both** questions are asked at once, and they are not the
+same question:
+
+- the **equipped** side is on your body, so your hit already includes it — it is worth what
+  you would **lose** by removing it
+- the **hovered** side is not — it is worth what it would **add** on top of what you have
+
+Treating them alike either tells you your own gear is worthless or that a candidate is better
+than it is. Identical hit on both sides now deliberately does **not** cancel to zero, because
+one of those items is doing work and the other would not be.
+
+### Fixed — I shipped the exact bug I spent the week removing
+Yesterday's release added `adjusted` and `capped` flags to breakdown rows, with a comment
+saying they existed *"so a display can say why this line is smaller"*. **No display read
+either of them.** Two flags, stored and never shown — the same pattern I found and fixed three
+times this week in other people's code, committed by me two hours after writing about it.
+
+They are shown now:
+
+- **Stat breakdown** — an adjusted stat gets a `*` after its name. One change at the single
+  place the display name is computed, so all four line variants pick it up.
+- **`/valuate weights`** — a capped stat gets a line underneath saying *"cut by the hit cap —
+  this weight is doing less than the numbers suggest"*.
+
+Both matter for the same reason: on those rows, value × weight visibly does not equal the
+number at the end of the line. Without a marker that reads as an arithmetic bug rather than as
+the cap doing its job.
+
+### Technical
+8 new mutations across the two releases' worth of fixes, all caught. The gate now runs 59
+checks and slices all three breakdown functions, so "everything agrees with the score" is
+tested against the real code rather than asserted in a comment.
+
+Worth noting what found this: not writing the feature carefully, but going back afterwards and
+asking what it touched. Three of the four bugs in the last two releases came from that pass,
+and none of them from the 61 gates that were green the whole time.
+
 ## [0.132.0a] - 2026-08-15 — what the hit cap missed
 
 ### Fixed — the addon would tell you to throw away your hit gear

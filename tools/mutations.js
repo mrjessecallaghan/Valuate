@@ -106,6 +106,7 @@ const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
 const HIT_STATE = { start: "function Valuate:GetHitState(", end: "\n-- How much of THIS item" };
+const CMP_BREAKDOWN = { start: "function Valuate:CalculateStatBreakdownWithComparison(", end: "\n    -- Sort by hover contribution" };
 const BREAKDOWN = { start: "function Valuate:CalculateStatBreakdown(", end: "\n    -- Sort by contribution" };
 const HIT_LINE = { start: "function Valuate:BuildHitCapLine(", end: "\nfunction Valuate:BuildDetailLines" };
 const HIT_FACTOR = { start: "local function HitValueFactor(", end: "\n-- Diminishing VALUE" };
@@ -169,7 +170,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.132.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.133.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -906,4 +907,22 @@ module.exports = [
   { gate: "hitcap", file: "Valuate.lua", scope: BREAKDOWN,
     label: "every line is marked adjusted, so the marker stops meaning anything",
     from: "                if factor < 1 then capped = true end", to: "                capped = true" },
+
+  // ---- the comparison tooltip (v0.133.0a) ----------------------------------
+  // The most-read tooltip in the addon, and the only place where both questions - what would
+  // this ADD, and what would I LOSE - are asked at once.
+  { gate: "hitcap", file: "Valuate.lua", scope: CMP_BREAKDOWN,
+    label: "the comparison ignores the cap entirely, disagreeing with the score beneath it",
+    from: 'if statName == "HitRating" and Valuate:GetOptions().hitCapAware then', to: "if false then" },
+  { gate: "hitcap", file: "Valuate.lua", scope: CMP_BREAKDOWN,
+    label: "your equipped hit is valued as if you were not wearing it, so your own gear reads as worthless",
+    from: "local equippedFactor = HitValueFactor(equippedValue, scale, true)",
+    to: "local equippedFactor = HitValueFactor(equippedValue, scale, false)" },
+  { gate: "hitcap", file: "Valuate.lua", scope: CMP_BREAKDOWN,
+    label: "the candidate is valued as if already worn, so capped hit looks like an upgrade",
+    from: "local hoverFactor = HitValueFactor(hoverValue, scale, false)",
+    to: "local hoverFactor = HitValueFactor(hoverValue, scale, true)" },
+  { gate: "hitcap", file: "Valuate.lua", scope: CMP_BREAKDOWN,
+    label: "the adjusted row is not flagged, so the numbers move with nothing to explain them",
+    from: "if hoverFactor < 1 or equippedFactor < 1 then cmpAdjusted = true end", to: "" },
 ];

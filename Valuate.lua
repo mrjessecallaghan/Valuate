@@ -2548,6 +2548,12 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             -- Display each stat contribution
                             for _, entry in ipairs(breakdown) do
                                 local statDisplayName = ValuateStatNames[entry.statName] or entry.statName
+                                -- Marked where the arithmetic on the line does not reach the
+                                -- number at the end of it. Value times weight visibly will not
+                                -- equal the contribution, and without a mark that reads as a
+                                -- bug rather than as the cap doing its job. One symbol, on the
+                                -- name, so all four line variants below get it from one place.
+                                if entry.adjusted then statDisplayName = statDisplayName .. "*" end
                                 
                                 if equippedStats and entry.equippedValue and compMode ~= "off" then
                                     -- With comparison (only if comparison mode is enabled)
@@ -3985,6 +3991,24 @@ function Valuate:CalculateStatBreakdownWithComparison(hoverStats, equippedStats,
                 local normalizedWeight = weight * normalizeFactor
                 local hoverContribution = hoverValue * normalizedWeight
                 local equippedContribution = equippedValue * normalizedWeight
+
+                -- The two sides of this comparison are NOT the same question, and this is the
+                -- one place both get asked at once.
+                --
+                -- The equipped side is on your body, so your current hit already includes it:
+                -- it is worth what you would LOSE by removing it. The hovered side is not, so
+                -- it is worth what it would ADD on top of what you have. Treating them alike
+                -- either tells you your own gear is worthless or that a candidate is better
+                -- than it is, and this is the most-read tooltip in the addon.
+                local cmpAdjusted = false
+                if statName == "HitRating" and Valuate:GetOptions().hitCapAware then
+                    local hoverFactor = HitValueFactor(hoverValue, scale, false)
+                    local equippedFactor = HitValueFactor(equippedValue, scale, true)
+                    if hoverFactor < 1 or equippedFactor < 1 then cmpAdjusted = true end
+                    hoverContribution = hoverContribution * hoverFactor
+                    equippedContribution = equippedContribution * equippedFactor
+                end
+
                 local diff = hoverContribution - equippedContribution
                 
                 local percentDiff = 0
@@ -4003,7 +4027,8 @@ function Valuate:CalculateStatBreakdownWithComparison(hoverStats, equippedStats,
                     equippedValue = equippedValue,
                     equippedContribution = equippedContribution,
                     diff = diff,
-                    percentDiff = percentDiff
+                    percentDiff = percentDiff,
+                    adjusted = cmpAdjusted or nil,
                 })
             end
         end
@@ -6304,6 +6329,13 @@ function Valuate:PrintStatShares(scaleName)
         print(string.format("  %2d. |cFFFFFFFF%-22s|r |cFF00FF00%s|r %5.1f%%   %s x %s = " .. fmt,
             i, name, string.rep("|", bars), e.share,
             string.format(fmt, e.value), string.format(fmt, e.weight), e.contribution))
+        -- The one case where the arithmetic on the line does not reach the number at the end
+        -- of it. Without this the row reads as a mistake: value times weight visibly does not
+        -- equal the total, and there is nothing on screen to say the cap took the difference.
+        if e.capped then
+            print("      |cFFFF8800^ cut by the hit cap|r - this weight is doing less than " ..
+                "the numbers suggest. |cFFAAAAAA/valuate hit|r")
+        end
     end
 
     print(string.format("|cFFAAAAAATotal: " .. fmt .. "|r", total))

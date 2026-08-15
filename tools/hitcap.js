@@ -45,6 +45,7 @@ const PIECES = [
   /^function Valuate:CalculateItemScore\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildHitCapLine\([\s\S]*?\r?\nend/m,
   /^function Valuate:CalculateStatBreakdown\([\s\S]*?\r?\nend/m,
+  /^function Valuate:CalculateStatBreakdownWithComparison\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -343,6 +344,48 @@ RATING, PERCENT = 5, 1.0
 tick()
 local roomy = rowFor({ HitRating = 5 }, CASTER, "HitRating")
 eq(roomy.adjusted, nil, "with headroom to spare, nothing is marked as adjusted")
+
+RATING, PERCENT = 10, 2.0
+tick()
+
+-- ---- the comparison tooltip, where BOTH questions are asked at once --------------------
+-- The most-read tooltip in the addon, and a third path with its own contribution arithmetic.
+-- Its two sides are not the same question: the equipped item is on your body and its hit is
+-- already in your total, so it is worth what you would LOSE by removing it; the hovered item
+-- is not, so it is worth what it would ADD. Treating them alike either tells you your own
+-- gear is worthless or that a candidate is better than it is.
+RATING, PERCENT = 20, 4.0   -- capped, entirely from the equipped piece below
+tick()
+
+local function cmpRow(hover, equipped, scale, want)
+    for _, r in ipairs(Valuate:CalculateStatBreakdownWithComparison(hover, equipped, scale) or {}) do
+        if r.statName == want then return r end
+    end
+end
+
+local row = cmpRow({ HitRating = 20 }, { HitRating = 20 }, CASTER, "HitRating")
+ok(row ~= nil, "hit appears in the comparison breakdown")
+near(row.hoverContribution, 0,
+     "the CANDIDATE's hit is worth nothing - you are capped, so adding more does nothing")
+near(row.equippedContribution, 20,
+     "but the EQUIPPED item's hit is worth all of it - take it off and you fall under the cap")
+ok(row.diff < 0,
+   "so swapping a hit piece for an identical one reads as a LOSS of nothing... " ..
+   "and swapping it for a no-hit item reads as the loss it really is")
+eq(row.adjusted, true, "and the row is flagged, so the display can say why the numbers moved")
+
+-- The asymmetry is the whole point: identical stats on both sides must NOT cancel to zero
+-- here, because one of them is doing work and the other would not be.
+ok(row.hoverContribution ~= row.equippedContribution,
+   "identical hit on both sides is valued differently, because the questions differ")
+
+-- Under the cap there is nothing to adjust and nothing to flag.
+RATING, PERCENT = 5, 1.0
+tick()
+local roomyRow = cmpRow({ HitRating = 5 }, { HitRating = 5 }, CASTER, "HitRating")
+near(roomyRow.hoverContribution, roomyRow.equippedContribution,
+     "with headroom to spare both sides are valued the same")
+eq(roomyRow.adjusted, nil, "and nothing is flagged")
 
 RATING, PERCENT = 10, 2.0
 tick()
