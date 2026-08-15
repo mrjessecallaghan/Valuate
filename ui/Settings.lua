@@ -1511,15 +1511,108 @@ local function CreateSettingsPanel(parent)
     -- still catches that, instead of being told to ignore a variable it cannot reason about.
     local lastBgToggle = bgPrevious
 
+    -- ---- a scale per place -----------------------------------------------------
+    --
+    -- ONE builder, used three times. Three near-identical dropdowns is the shape that has
+    -- cost this project four separate defects - the tab accent, the row heights, the
+    -- never-scanned message, the badge setter - each one a copy that lost something the
+    -- original had.
+    --
+    -- The scale list is read WHEN THE MENU OPENS, not when the panel is built. This panel is
+    -- constructed once and reused for the whole session, so a scale you create afterwards
+    -- would otherwise never appear in it.
+    local function ContextScaleDropdown(optionKey, label, tip, after)
+        local text = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+        text:SetPoint("TOPLEFT", after, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+        text:SetText(label)
+        text:SetTextColor(unpack(COLORS.textBody))
+
+        local drop = CreateFrame("Frame", "ValuateCtxScale" .. optionKey, col2,
+            "UIDropDownMenuTemplate")
+        drop:SetPoint("LEFT", text, "RIGHT", -5, -2)
+        UIDropDownMenu_SetWidth(drop, 150)
+
+        local NONE = "(leave it alone)"
+        local function Label(value)
+            if type(value) ~= "string" or value == "" then return NONE end
+            local scales = Valuate.GetScales and Valuate:GetScales()
+            local scale = scales and scales[value]
+            -- Named even when it no longer exists, so a nomination that broke shows here
+            -- rather than silently reading as "none".
+            if not scale then return value .. " (missing)" end
+            return scale.DisplayName or value
+        end
+
+        UIDropDownMenu_SetText(drop, Label(Valuate:GetOptions()[optionKey]))
+
+        UIDropDownMenu_Initialize(drop, function(self, level)
+            local info = UIDropDownMenu_CreateInfo()
+            local current = Valuate:GetOptions()[optionKey]
+
+            info.text, info.value = NONE, ""
+            info.checked = (current == nil or current == "")
+            info.func = function()
+                Valuate:GetOptions()[optionKey] = nil
+                UIDropDownMenu_SetText(drop, NONE)
+                if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+                if ns.RefreshSettingsActiveLine then ns.RefreshSettingsActiveLine() end
+            end
+            UIDropDownMenu_AddButton(info, level)
+
+            local scales = (Valuate.GetScales and Valuate:GetScales()) or {}
+            local names = {}
+            for name, scale in pairs(scales) do
+                if scale and scale.Values and next(scale.Values) then names[#names + 1] = name end
+            end
+            -- pairs() is not an order. Sorted, or the list reshuffles every time you open it.
+            table.sort(names)
+
+            for _, name in ipairs(names) do
+                info = UIDropDownMenu_CreateInfo()
+                info.text, info.value = Label(name), name
+                info.checked = (current == name)
+                info.func = function(button)
+                    Valuate:GetOptions()[optionKey] = button.value
+                    UIDropDownMenu_SetText(drop, Label(button.value))
+                    if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+                    if ns.RefreshSettingsActiveLine then ns.RefreshSettingsActiveLine() end
+                end
+                UIDropDownMenu_AddButton(info, level)
+            end
+        end)
+
+        text:SetScript("OnEnter", function(self)
+            if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+                GameTooltip:AddLine(label, 1, 1, 1)
+                GameTooltip:AddLine(tip, 0.8, 0.8, 0.8, true)
+                GameTooltip:Show()
+            end
+        end)
+        text:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        columnHeights[2] = columnHeights[2] + 32 + ELEMENT_SPACING
+        return text
+    end
+
+    local pvpScaleRow = ContextScaleDropdown("pvpScale", "PvP scale:",
+        "Used in battlegrounds and arenas. What you were using comes back when you leave. " ..
+        "/valuate pvpscale make builds one from your current scale.", lastBgToggle)
+    local dungeonScaleRow = ContextScaleDropdown("dungeonScale", "Dungeon scale:",
+        "Used in dungeons and raids - the same content wanting the same stats, so they " ..
+        "share one setting.", pvpScaleRow)
+    local normalScaleRow = ContextScaleDropdown("normalScale", "Outdoor scale:",
+        "Optional. Left alone, leaving an instance puts back whatever you were using - " ..
+        "which is usually what you want. Set it to pin a scale in the open world instead.",
+        dungeonScaleRow)
+
     local bgHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    bgHint:SetPoint("TOPLEFT", lastBgToggle, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    bgHint:SetPoint("TOPLEFT", normalScaleRow, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     bgHint:SetWidth(settingsColumnWidth)
     bgHint:SetJustifyH("LEFT")
     bgHint:SetText("These act in the world. /valuate queuecheck lists which of\n" ..
-                   "their APIs your client has.\n" ..
-                   "A different scale inside battlegrounds: /valuate pvpscale make")
+                   "their APIs your client has.")
     bgHint:SetTextColor(unpack(COLORS.textDim))
-    columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
+    columnHeights[2] = columnHeights[2] + 30 + ELEMENT_SPACING
 
     -- ---- Scoring ---------------------------------------------------------------
     --

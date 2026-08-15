@@ -618,6 +618,101 @@ if hover then
        "with everything off the hover says so plainly")
 end
 
+-- ---- a scale per place -------------------------------------------------------------------
+-- Three near-identical dropdowns built by ONE function, because three copies is the shape
+-- that has cost this project four separate defects - and each of these has to do the same
+-- three things.
+local function ctxDrop(name)
+    for _, f in ipairs(__frames) do
+        if f.__name == "ValuateCtxScale" .. name then return f end
+    end
+end
+
+local pvpDrop = ctxDrop("pvpScale")
+local dungeonDrop = ctxDrop("dungeonScale")
+local normalDrop = ctxDrop("normalScale")
+ok(pvpDrop ~= nil, "the PvP scale dropdown is built")
+ok(dungeonDrop ~= nil, "the dungeon one too")
+ok(normalDrop ~= nil, "and the outdoor one")
+
+if pvpDrop and pvpDrop.__ddInit then
+    -- THE thing that makes these read at open rather than at build. This panel is built once
+    -- and reused all session, so a scale you create afterwards would otherwise never appear.
+    Valuate.GetScales = function()
+        return { Fury = { Values = { Strength = 1 } }, Arms = { Values = { Strength = 1 } } }
+    end
+    __dropdownButtons = {}
+    pvpDrop.__ddInit(pvpDrop, 1)
+    local names = {}
+    for _, b in ipairs(__dropdownButtons) do names[#names + 1] = b.text end
+    ok(#names >= 3, "the menu lists the scales plus a way to choose none (" ..
+       table.concat(names, ", ") .. ")")
+
+    -- A scale created AFTER the panel was built must be offered.
+    Valuate.GetScales = function()
+        return { Fury = { Values = { Strength = 1 } }, Arms = { Values = { Strength = 1 } },
+                 Later = { Values = { Agility = 1 } } }
+    end
+    __dropdownButtons = {}
+    pvpDrop.__ddInit(pvpDrop, 1)
+    local sawLater = false
+    for _, b in ipairs(__dropdownButtons) do
+        if b.text == "Later" then sawLater = true end
+    end
+    ok(sawLater, "a scale made after the panel was built still appears - the list is read " ..
+       "when the menu opens, not when the panel was constructed")
+
+    -- Sorted. pairs() is not an order, and a list that reshuffles every time you open it is
+    -- one you cannot find anything in twice.
+    __dropdownButtons = {}
+    pvpDrop.__ddInit(pvpDrop, 1)
+    local scaleNames = {}
+    for _, b in ipairs(__dropdownButtons) do
+        if b.value and b.value ~= "" then scaleNames[#scaleNames + 1] = b.value end
+    end
+    local sorted = true
+    for i = 2, #scaleNames do
+        if scaleNames[i] < scaleNames[i - 1] then sorted = false end
+    end
+    ok(sorted, "and in a stable order (" .. table.concat(scaleNames, ", ") .. ")")
+
+    -- A scale with NO weights cannot score anything, so offering it is offering a mistake.
+    Valuate.GetScales = function()
+        return { Real = { Values = { Strength = 1 } }, Empty = { Values = {} } }
+    end
+    __dropdownButtons = {}
+    pvpDrop.__ddInit(pvpDrop, 1)
+    local sawEmpty = false
+    for _, b in ipairs(__dropdownButtons) do
+        if b.value == "Empty" then sawEmpty = true end
+    end
+    ok(not sawEmpty, "a scale with no weights is not offered - it could not score anything")
+
+    -- A nomination whose scale has since been deleted is NAMED, not silently shown as none.
+    --
+    -- Tested against a SECOND panel built with the option already set, because that is the
+    -- only way this branch is reached in life: the label is chosen when the panel is
+    -- constructed, and the real case is a scale you deleted in a previous session. Checking
+    -- the menu entries instead proves nothing - a deleted scale is not in the list to check.
+    STORE.pvpScale = "Vanished"
+    Valuate.GetScales = function() return { Fury = { Values = { Strength = 1 } } } end
+
+    local second = CreateFrame("Frame")
+    local rebuilt = pcall(ns.CreateSettingsPanel, second)
+    ok(rebuilt, "the panel can be built a second time")
+
+    local shown
+    for _, f in ipairs(__frames) do
+        if f.__name == "ValuateCtxScalepvpScale" and f.__ddText then shown = f.__ddText end
+    end
+    ok(shown and shown:find("Vanished", 1, true) ~= nil,
+       "a nomination pointing at a deleted scale is NAMED (" .. tostring(shown) .. ") - a " ..
+       "broken setting must not hide behind a plausible one")
+    ok(shown and shown:find("missing", 1, true) ~= nil, "and marked as missing")
+
+    STORE.pvpScale = nil
+end
+
 return failures, checks
 `,
   "settingstest",

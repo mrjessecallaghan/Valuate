@@ -1741,4 +1741,29 @@ module.exports = [
   { gate: "queuetest", file: "Valuate.lua",
     label: "a nomination deleted since you made it switches you to nothing",
     from: "        if not scales[wanted] then", to: "        if false then" },
+  // ---- the context scale dropdowns (v0.176.0a) -----------------------------
+  // One builder, three dropdowns. Three copies is the shape behind four separate defects
+  // in this project already, and each of these has to do the same three things right.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "the scale list is read when the panel is BUILT, so a scale made later never appears",
+    from: "            local scales = (Valuate.GetScales and Valuate:GetScales()) or {}",
+    to: "            local scales = {}" },
+
+  // pairs() is not an order. A menu that reshuffles is one you cannot find anything in twice.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "the scale menu reshuffles every time you open it",
+    from: "            table.sort(names)", to: "" },
+
+  // A scale with no weights cannot score anything, so offering it is offering a mistake.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "a scale with no weights is offered, and would score nothing if chosen",
+    from: "                if scale and scale.Values and next(scale.Values) then names[#names + 1] = name end",
+    to: "                if scale then names[#names + 1] = name end" },
+
+  // A nomination pointing at a deleted scale must not read as "none" - a broken setting
+  // hiding behind a plausible one is worse than one that looks broken.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "a nomination whose scale is gone reads as if nothing was ever chosen",
+    from: "            if not scale then return value .. \" (missing)\" end",
+    to: "            if not scale then return NONE end" },
 ];

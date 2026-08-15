@@ -474,9 +474,10 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-        "• NEW: a scale per place. /valuate pvpscale, /valuate dungeonscale and\n" ..
-        "   /valuate normalscale - the addon switches as you zone, and puts back what\n" ..
-        "   you were using when you leave. Raids count as dungeons, arenas as PvP.\n" ..
+        "• NEW: a scale per place. Pick one for PvP, one for dungeons and optionally one\n" ..
+        "   for outdoors, in Settings under Battlegrounds & Dungeons (or /valuate\n" ..
+        "   pvpscale / dungeonscale / normalscale). The addon switches as you zone and\n" ..
+        "   puts back what you were using. Raids count as dungeons, arenas as PvP.\n" ..
         "• Diagnostics worth reading: /valuate profile now reports what this addon cost\n" ..
         "   you WHILE YOU PLAYED, per event, worst call first - so 'the game hitches\n" ..
         "   when I loot' has an answer, and anything slow enough to feel says so once in\n" ..

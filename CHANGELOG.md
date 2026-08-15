@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.176.0a] - 2026-08-15 — the context scales get controls
+
+### Added
+The three context scales now have **dropdowns in Settings**, under *Battlegrounds & Dungeons*,
+where the hint pointing at `/valuate pvpscale` used to be. They were command-only, which makes
+a feature findable by people who already know it exists.
+
+**One builder, used three times.** Three near-identical dropdowns is the shape behind four
+separate defects in this project already — the tab accent, the row heights, the never-scanned
+message, the badge setter — each a copy that lost something the original had.
+
+Three things each one has to get right, and all three are now held by a mutation:
+
+- **The scale list is read when the menu opens**, not when the panel is built. This panel is
+  constructed once and reused all session, so a scale you create afterwards would otherwise
+  never appear in it.
+- **Sorted.** `pairs()` is not an order, and a menu that reshuffles is one you cannot find
+  anything in twice.
+- **A scale with no weights is not offered**, because choosing it would score nothing.
+
+A nomination pointing at a scale you deleted reads as *"Vanished (missing)"*, not as
+*"(leave it alone)"* — a broken setting hiding behind a plausible one is worse than one that
+looks broken.
+
+### Technical
+That last assertion needed a **second panel built with the option already set**, because the
+label is chosen at construction and the real case is a scale deleted in a previous session.
+Checking the menu entries proves nothing: a deleted scale is not in the list to check.
+
+`settings-anchor-chain` flagged the builder's parameter, because another builder in the file
+already had one by that name and the rule read the two as one variable anchored twice — which
+is exactly the bug it exists to catch. Renamed rather than exempted.
+
+### Also
+A scripted edit reported success and silently did nothing — its `throw` went to a discarded
+stderr, and the gates then ran green against an unchanged file. The edit was redone through a
+tool that cannot fail silently. Third time this session a scripted edit has missed its anchor
+without saying so.
+
+
 ## [0.175.0a] - 2026-08-15 — the scale follows where you are
 
 ### Added
