@@ -65,6 +65,9 @@ GetMerchantItemInfo GetSpellInfo
 -- feature that only read one of the two would silently miss an entire profession.
 GetNumTradeSkills GetTradeSkillInfo GetTradeSkillRecipeLink GetNumCrafts GetCraftInfo
 GetCraftItemLink GetTradeSkillItemLink
+-- Trainers, where most enchanting recipes actually come from.
+GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceCost GetRealZoneText GetSubZoneText
+ValuateVendorNotes
 MerchantFrame_UpdateMerchantInfo ContainerFrame_Update
 LootFrame LootFrame_Update GetLootSlotLink
 GetNumQuestChoices GetQuestItemLink GetQuestItemInfo GetQuestReward CompleteQuest

@@ -464,3 +464,186 @@ function ns.RankForSlot(bySlot, slotId, scale, scaleName)
     end)
     return out
 end
+
+-- ---------------------------------------------------------------------------------------
+-- Where a recipe was sold, and for how much - recorded as you meet it
+-- ---------------------------------------------------------------------------------------
+--
+-- Nothing on this machine knows where anything is sold. AtlasLoot's crafting tables are
+-- spellIDs and icons; there is no source, no cost, no coordinates. So the only honest way to
+-- answer "where do I learn this" is to write it down when you are standing in front of it.
+--
+-- ACCOUNT-WIDE, unlike everything else this addon saves. Where a vendor stands is a fact about
+-- the world, not about a character - a formula your enchanter found is still in the same shop
+-- when your alt goes looking, and making each character rediscover it would be busywork the
+-- addon exists to remove.
+--
+-- BOUNDED, because "record everything you ever see" is how a saved-variables file becomes a
+-- problem nobody notices until it is one. Two things keep it small: only recipe-shaped items
+-- are recorded at all, and the oldest entries are evicted past a cap.
+ns.VENDOR_NOTE_CAP = 400
+ns.VENDOR_NOTES_SCHEMA = 1
+
+-- The words a teachable recipe carries in its name on this client. Deliberately narrow: the
+-- alternative is a note on every grey shirt and stack of arrows in the game, which would blow
+-- the cap in a single trip to a city and evict the notes actually worth keeping.
+local RECIPE_WORDS = {
+    "formula", "pattern", "plans", "design", "recipe", "schematic", "technique", "manual",
+}
+
+local function LooksLikeRecipe(name)
+    if type(name) ~= "string" or name == "" then return false end
+    local lower = name:lower()
+    for _, word in ipairs(RECIPE_WORDS) do
+        if lower:find(word, 1, true) then return true end
+    end
+    -- An enhancement sold directly rather than as a recipe - leg armor, a scope, a spellthread
+    -- - is worth a note too, and those name their slot the same way a recipe does.
+    return ns.EnhancementSlots(name) ~= nil
+end
+
+function ns.GetVendorNotes()
+    if type(ValuateVendorNotes) ~= "table" then ValuateVendorNotes = {} end
+    if ValuateVendorNotes.__schema ~= ns.VENDOR_NOTES_SCHEMA then
+        for k in pairs(ValuateVendorNotes) do ValuateVendorNotes[k] = nil end
+        ValuateVendorNotes.__schema = ns.VENDOR_NOTES_SCHEMA
+    end
+    return ValuateVendorNotes
+end
+
+-- Evicts the oldest notes once the cap is passed.
+--
+-- Oldest-first rather than least-used, because the addon has no idea which of these you care
+-- about and inventing a usefulness score would be a guess dressed up as a policy. A note you
+-- wrote three months ago is the one most likely to be about a vendor you have moved on from.
+local function TrimVendorNotes(notes)
+    local count = 0
+    for k in pairs(notes) do
+        if k ~= "__schema" then count = count + 1 end
+    end
+    if count <= ns.VENDOR_NOTE_CAP then return 0 end
+
+    local ordered = {}
+    for k, v in pairs(notes) do
+        if k ~= "__schema" then ordered[#ordered + 1] = { key = k, at = v.at or 0 } end
+    end
+    -- Tie-broken on the key, because two notes written in the same second would otherwise
+    -- evict in pairs() order and a different one would go each time the game loaded.
+    table.sort(ordered, function(a, b)
+        if a.at ~= b.at then return a.at < b.at end
+        return a.key < b.key
+    end)
+
+    local removed = 0
+    for i = 1, count - ns.VENDOR_NOTE_CAP do
+        notes[ordered[i].key] = nil
+        removed = removed + 1
+    end
+    return removed
+end
+
+-- Returns how many notes were written or updated.
+function ns.RecordVendorNote(name, cost, seller, where, when)
+    if not LooksLikeRecipe(name) then return 0 end
+    local notes = ns.GetVendorNotes()
+
+    -- Updated rather than skipped when it already exists: prices differ by reputation and by
+    -- server, and the note that matters is the one describing what YOU would pay.
+    notes[name] = {
+        cost = tonumber(cost) or 0,
+        seller = seller,
+        where = where,
+        at = tonumber(when) or 0,
+    }
+    TrimVendorNotes(notes)
+    return 1
+end
+
+-- Everything the merchant in front of you is selling that is worth remembering.
+function ns.CaptureMerchant(now)
+    if type(GetMerchantNumItems) ~= "function" or type(GetMerchantItemInfo) ~= "function" then
+        return 0
+    end
+    local seller = (type(UnitName) == "function" and UnitName("npc")) or nil
+    local where = ns.CurrentPlace()
+    local written = 0
+    local ok, total = pcall(GetMerchantNumItems)
+    if not ok then return 0 end
+
+    for i = 1, (total or 0) do
+        local fine, name, _, price = pcall(GetMerchantItemInfo, i)
+        if fine and name then
+            written = written + ns.RecordVendorNote(name, price, seller, where, now)
+        end
+    end
+    return written
+end
+
+-- And the trainer, which is where most enchanting recipes actually come from.
+function ns.CaptureTrainer(now)
+    if type(GetNumTrainerServices) ~= "function" or type(GetTrainerServiceInfo) ~= "function" then
+        return 0
+    end
+    local seller = (type(UnitName) == "function" and UnitName("npc")) or nil
+    local where = ns.CurrentPlace()
+    local written = 0
+    local ok, total = pcall(GetNumTrainerServices)
+    if not ok then return 0 end
+
+    for i = 1, (total or 0) do
+        local fine, name = pcall(GetTrainerServiceInfo, i)
+        if fine and name then
+            local cost = 0
+            if type(GetTrainerServiceCost) == "function" then
+                local gotCost, value = pcall(GetTrainerServiceCost, i)
+                if gotCost then cost = value or 0 end
+            end
+            written = written + ns.RecordVendorNote(name, cost, seller, where, now)
+        end
+    end
+    return written
+end
+
+-- Zone plus subzone, which is as precise as this client will say without coordinates.
+function ns.CurrentPlace()
+    local zone = (type(GetRealZoneText) == "function" and GetRealZoneText()) or nil
+    local sub = (type(GetSubZoneText) == "function" and GetSubZoneText()) or nil
+    if sub and sub ~= "" and zone and zone ~= "" then return sub .. ", " .. zone end
+    return zone or sub or nil
+end
+
+-- Returns cost, seller, where - or nil when this has never been seen.
+function ns.LookupVendorNote(name)
+    local notes = type(ValuateVendorNotes) == "table" and ValuateVendorNotes or nil
+    local note = notes and name and notes[name]
+    if not note then return nil end
+    return note.cost, note.seller, note.where
+end
+
+-- The only thing in this file that does anything on its own.
+--
+-- Passive by design: it writes down what is already on screen in front of you and never
+-- opens, buys or trains anything. There is no toggle because there is nothing to opt out of -
+-- no gold moves, no item changes, and the cost of being wrong is a few hundred bytes.
+local capture = CreateFrame("Frame")
+capture:RegisterEvent("MERCHANT_SHOW")
+capture:RegisterEvent("TRAINER_SHOW")
+capture:SetScript("OnEvent", function(_, event)
+    -- Deferred by a tick. Both frames populate their lists AFTER the event fires, so reading
+    -- immediately gets zero items and writes nothing - which looks exactly like a vendor with
+    -- nothing worth noting.
+    local now = (type(time) == "function" and time()) or 0
+    local after = ns.ValuateAfter or (Valuate and Valuate.After)
+    local function run()
+        local written = 0
+        if event == "MERCHANT_SHOW" then
+            written = ns.CaptureMerchant(now)
+        else
+            written = ns.CaptureTrainer(now)
+        end
+        if written > 0 and Valuate.MarkAutomation then
+            Valuate:MarkAutomation("vendorNotes", written .. " recipe(s) noted")
+        end
+    end
+    if type(after) == "function" then after(0.2, run) else run() end
+end)

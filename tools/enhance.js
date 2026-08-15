@@ -270,6 +270,85 @@ end
 ok(threat ~= nil, "threat reduction is valued")
 ok(threat[2] > threat[3], "worth more to damage than to a tank, who does not want it at all")
 
+-- ---- vendor notes, taken while you stand in front of one ----------------------------------
+-- Nothing on this machine knows where a recipe is sold, so the only honest answer to "where
+-- do I learn this" is one written down at the time.
+ValuateVendorNotes = nil
+time = function() return 1000 end
+GetRealZoneText = function() return "Dalaran" end
+GetSubZoneText = function() return "The Threads of Fate" end
+UnitName = function() return "Alara" end
+
+eq(ns.RecordVendorNote("Formula: Enchant Boots - Assault", 12000, "Alara", "Dalaran", 1000), 1,
+   "a recipe is noted")
+local cost, seller, where = ns.LookupVendorNote("Formula: Enchant Boots - Assault")
+eq(cost, 12000, "with its price")
+eq(seller, "Alara", "who sold it")
+eq(where, "Dalaran", "and where they were standing")
+
+-- NARROW on purpose. The alternative is a note on every grey shirt and stack of arrows in
+-- the game, which would blow the cap on one trip to a city and evict what mattered.
+eq(ns.RecordVendorNote("Linen Cloth", 50, "Alara", "Dalaran", 1000), 0,
+   "an ordinary vendor item is not noted")
+eq(ns.RecordVendorNote("Icescale Leg Armor", 500, "Alara", "Dalaran", 1000), 1,
+   "but an enhancement sold directly is, because it names its slot like a recipe does")
+eq(ns.LookupVendorNote("Linen Cloth"), nil, "and the ordinary item was never written")
+
+-- Prices differ by reputation and by server, so a note that already exists is UPDATED. The
+-- one worth keeping is the one describing what you would pay.
+ns.RecordVendorNote("Formula: Enchant Boots - Assault", 9000, "Alara", "Dalaran", 1100)
+eq(select(1, ns.LookupVendorNote("Formula: Enchant Boots - Assault")), 9000,
+   "seeing it again at a different price updates the note rather than keeping the old one")
+
+-- ---- the cap, which is the part that can quietly go wrong -----------------------------------
+-- "Record everything you ever see" is how a saved-variables file becomes a problem nobody
+-- notices until it is one.
+ValuateVendorNotes = nil
+for i = 1, ns.VENDOR_NOTE_CAP + 50 do
+    -- Ascending timestamps, so the oldest are unambiguous.
+    ns.RecordVendorNote("Formula: Number " .. i, 100, "Alara", "Dalaran", i)
+end
+local kept = 0
+for k in pairs(ns.GetVendorNotes()) do
+    if k ~= "__schema" then kept = kept + 1 end
+end
+eq(kept, ns.VENDOR_NOTE_CAP, "the list is bounded at the cap")
+eq(ns.LookupVendorNote("Formula: Number 1"), nil, "the oldest note was evicted")
+ok(ns.LookupVendorNote("Formula: Number " .. (ns.VENDOR_NOTE_CAP + 50)) ~= nil,
+   "and the newest was kept")
+
+-- ---- capturing a whole merchant --------------------------------------------------------------
+ValuateVendorNotes = nil
+local STOCK = {
+    { "Formula: Enchant Cloak - Greater Speed", 45000 },
+    { "Roasted Quail", 25 },
+    { "Pattern: Icescale Leg Armor", 60000 },
+}
+GetMerchantNumItems = function() return #STOCK end
+GetMerchantItemInfo = function(i) return STOCK[i][1], nil, STOCK[i][2] end
+eq(ns.CaptureMerchant(1000), 2, "a merchant's recipes are noted and its food is not")
+ok(ns.LookupVendorNote("Formula: Enchant Cloak - Greater Speed") ~= nil, "the formula is there")
+eq(ns.LookupVendorNote("Roasted Quail"), nil, "the quail is not")
+
+-- Where, at subzone precision, because that is as close as this client will say.
+local _, _, place = ns.LookupVendorNote("Formula: Enchant Cloak - Greater Speed")
+ok(place and place:find("Threads of Fate", 1, true) ~= nil,
+   "the note carries the subzone, not just the zone (" .. tostring(place) .. ")")
+
+-- ---- and a trainer, which is where most enchants actually come from ----------------------------
+ValuateVendorNotes = nil
+local SERVICES = { { "Enchant Boots - Greater Assault" }, { "Journeyman Enchanting" } }
+GetNumTrainerServices = function() return #SERVICES end
+GetTrainerServiceInfo = function(i) return SERVICES[i][1] end
+GetTrainerServiceCost = function() return 3000 end
+eq(ns.CaptureTrainer(1000), 1, "a trainer's enchants are noted and its rank-ups are not")
+
+-- ---- a client that has neither api does not error ------------------------------------------------
+GetMerchantNumItems = nil
+GetNumTrainerServices = nil
+eq(ns.CaptureMerchant(1000), 0, "no merchant api means nothing written, not an error")
+eq(ns.CaptureTrainer(1000), 0, "and the same for trainers")
+
 return failures, checks
 `,
   "enhance",

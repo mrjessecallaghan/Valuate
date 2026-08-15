@@ -144,8 +144,26 @@ if (staleHidden.length) {
  *
  * Same family as the check above - two lists that have to agree, edited at different times.
  */
+/*
+ * Scanned across EVERY Lua file, not just the core.
+ *
+ * This read only Valuate.lua, on the reasonable-looking assumption that automations live
+ * there. They did, until one recorded a heartbeat from a ui/ module - and that one was
+ * invisible to this rule, captured and then discarded exactly as `questAccept` had been,
+ * with the rule written to catch that watching the wrong file.
+ */
+const everyLua = (function collect(dir, acc) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (/^(libs|tools|\.git)$/i.test(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) collect(full, acc);
+    else if (entry.name.endsWith(".lua")) acc.push(fs.readFileSync(full, "utf8"));
+  }
+  return acc;
+})(ADDON_ROOT, []).join("\n");
+
 const marked = new Set(
-  [...core.matchAll(/MarkAutomation\("(\w+)"/g)].map((m) => m[1])
+  [...everyLua.matchAll(/MarkAutomation\("(\w+)"/g)].map((m) => m[1])
 );
 const reportBlock = core.match(/local HEARTBEATS = \{[\s\S]*?\n    \}/);
 if (!reportBlock) {

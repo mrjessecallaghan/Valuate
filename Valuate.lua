@@ -10427,6 +10427,7 @@ function Valuate:PrintReport()
         -- case is the other branch, standing on a progress screen for a quest you cannot
         -- complete yet, where doing nothing is correct and looks like being broken.
         { key = "questTurnIn",   label = "Quest turn-in" },
+        { key = "vendorNotes",   label = "Vendor/trainer notes" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
         { key = "wardrobe",      label = "Wardrobe collecting" },
         { key = "autoRelease",   label = "Auto-release" },

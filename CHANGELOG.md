@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.168.0a] - 2026-08-15 — where you saw it, and what it cost
+
+### Added
+The Enhance tab now says **where a recipe was sold and for how much**, when you have stood in
+front of one selling it.
+
+Nothing on this machine knows where anything is sold — AtlasLoot's crafting tables are
+spellIDs and icons, with no source, no cost and no coordinates. So the only honest answer to
+*"where do I learn this"* is one written down at the time. Merchant and trainer windows are
+read when they open, at subzone precision, and the note carries the seller, the place and the
+price.
+
+Its **absence means "I have not seen this for sale"**, never "this is not sold anywhere".
+
+**Account-wide**, unlike everything else this addon saves. Where a vendor stands is a fact
+about the world, not about a character — a formula your enchanter found is still in the same
+shop when your alt goes looking.
+
+**Bounded at 400 notes**, oldest evicted first. Two things keep it small: only recipe-shaped
+items are recorded at all, and the cap. Recording every vendor item would blow that cap on a
+single trip to a city and evict everything worth keeping — so a stack of Linen Cloth is not a
+note, and a Formula is.
+
+Prices are **updated** rather than kept, because reputation and server both move them and the
+note worth having is the one describing what *you* would pay.
+
+Passive: it writes down what is already on your screen. It never opens, buys or trains
+anything, so there is nothing to opt out of.
+
+### Fixed
+`commands.js` enforces that every recorded heartbeat is displayed somewhere — the rule written
+after `questAccept` spent months being captured and thrown away. **It only scanned
+`Valuate.lua`**, on the reasonable-looking assumption that automations live there. They did,
+until this one recorded from a `ui/` module and was invisible to the rule watching for exactly
+that failure. It scans every Lua file now.
+
+### Technical
+The eviction sort is tie-broken on the note's key. Two notes written in the same second would
+otherwise evict in `pairs()` order, and a different one would go each time the game loaded.
+
+
 ## [0.167.0a] - 2026-08-15 — the Enhance tab
 
 ### Added

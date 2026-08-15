@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.167.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.168.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1551,4 +1551,27 @@ module.exports = [
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
     label: "enhancements nobody could classify are silently discarded",
     from: "        if unreadable and #unreadable > 0 then", to: "        if false then" },
+  // ---- vendor notes (v0.168.0a) ---------------------------------------------
+  // Nothing on this machine knows where a recipe is sold, so these are written down while
+  // you stand in front of one. "Record everything you ever see" is how a saved-variables
+  // file becomes a problem nobody notices until it is one.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "the note list grows without bound, one entry per vendor item ever seen",
+    from: "    if count <= ns.VENDOR_NOTE_CAP then return 0 end", to: "    if true then return 0 end" },
+
+  // Evicting the NEWEST would throw away the note you just took, which is the one you are
+  // most likely to be about to use.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "eviction discards the newest notes instead of the oldest",
+    from: "        if a.at ~= b.at then return a.at < b.at end", to: "        if a.at ~= b.at then return a.at > b.at end" },
+
+  // Narrow on purpose: everything-is-a-recipe blows the cap on one trip to a city.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "every vendor item is noted, so a city trip evicts everything that mattered",
+    from: "    if not LooksLikeRecipe(name) then return 0 end", to: "    if false then return 0 end" },
+
+  // A price that changed is the one worth keeping - reputation and server both move it.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a recipe seen again at a new price keeps the stale one",
+    from: "    notes[name] = {", to: "    notes[name] = notes[name] or {" },
 ];

@@ -212,6 +212,18 @@ function ns.CreateEnhancePanel(parent)
                 row.score:SetText(string.format("%s%.0f|r",
                     top.estimated and "|cFFFFCC66~" or "|cFFFFFFFF", top.score))
 
+                -- Where you met it, if you ever did. Nothing on this machine knows where
+                -- recipes are sold, so this is only ever a note taken while standing in
+                -- front of one - and its absence means "I have not seen this for sale",
+                -- never "this is not sold anywhere".
+                local cost, seller, where = nil, nil, nil
+                if ns.LookupVendorNote then cost, seller, where = ns.LookupVendorNote(top.entry.name) end
+                if seller or where then
+                    row.current:SetText(row.current:GetText() .. "  |cFF6688AA" ..
+                        (seller or "?") .. (where and (", " .. where) or "") ..
+                        (cost and cost > 0 and string.format(" (%.0fg)", cost / 10000) or "") .. "|r")
+                end
+
                 local rest = {}
                 for i = 2, math.min(#ranked, ALTERNATIVES + 1) do
                     rest[#rest + 1] = string.format("%s (%.0f)", ranked[i].entry.name, ranked[i].score)
