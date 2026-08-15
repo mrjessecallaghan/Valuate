@@ -1532,18 +1532,18 @@ local function CreateSettingsPanel(parent)
     drCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
 
-    CreateCol2NumberRow("Half weight at this much rating:", drCheckbox, ELEMENT_SPACING,
-        tostring(Valuate:GetOptions().diminishingHalfAt or 400),
-        function(box) box:SetNumeric(true) box:SetMaxLetters(5) end,
+    CreateCol2NumberRow("Half weight once you have this much (%):", drCheckbox, ELEMENT_SPACING,
+        tostring(Valuate:GetOptions().diminishingHalfAtPercent or 10),
+        function(box) box:SetNumeric(true) box:SetMaxLetters(3) end,
         function(box)
             local n = tonumber(box:GetText())
             if n and n > 0 then
-                Valuate:GetOptions().diminishingHalfAt = math.floor(n)
+                Valuate:GetOptions().diminishingHalfAtPercent = math.floor(n)
                 if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
             end
-            box:SetText(tostring(Valuate:GetOptions().diminishingHalfAt or 400))
+            box:SetText(tostring(Valuate:GetOptions().diminishingHalfAtPercent or 10))
         end,
-        tostring(Valuate:GetOptions().diminishingHalfAt or 400))
+        tostring(Valuate:GetOptions().diminishingHalfAtPercent or 10))
     columnHeights[2] = columnHeights[2] + 18 + ELEMENT_SPACING
 
 

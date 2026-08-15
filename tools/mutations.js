@@ -170,7 +170,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.135.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.136.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -866,8 +866,8 @@ module.exports = [
     from: "return 1 / (1 + (have / half))", to: "return math.max(0, 1 - (have / half))" },
   { gate: "hitcap", file: "Valuate.lua",
     label: "primary stats are tapered too, though they do not work that way",
-    from: "local DIMINISHING_STATS = {\n    CritRating = true,",
-    to: "local DIMINISHING_STATS = setmetatable({}, { __index = function() return true end })\nlocal _UNUSED = {\n    CritRating = true," },
+    from: "local DIMINISHING_RATINGS = {",
+    to: "local DIMINISHING_RATINGS = setmetatable({}, { __index = function() return { melee = 11, spell = 11 } end })\nlocal _UNUSED = {" },
 
   // ---- saying why the number moved (v0.131.0a) -----------------------------
   // A silent scoring adjustment is worse than none: you cannot tell a working addon from a

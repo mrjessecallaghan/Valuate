@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.136.0a] - 2026-08-15 — a threshold that means the same thing at every level
+
+### Fixed
+The diminishing-returns option shipped with a threshold of **400 rating**. That is about 9%
+crit at level 80 and an unreachable amount at level 10 — so the feature would have sat there
+doing nothing at all for **exactly the character who asked for it**.
+
+Same mistake as the one I was careful about a few releases ago, in the setting rather than the
+code. The hit cap derives its rating-to-percent conversion from the client precisely because
+a rating means a different amount of stat at every level; then I picked a magic rating for the
+other half of the same feature.
+
+The threshold is now a **percentage**: *"once I have 10% crit, the next point of crit is worth
+half"*. That means the same thing at level 10 and level 80, and the amount of rating behind it
+is the client's problem rather than a number I guessed. What you currently have is read
+straight from `GetCombatRatingBonus` — not computed from the rating you carry, which is how
+the 400 got there in the first place.
+
+**Renamed, not reinterpreted.** A saved `diminishingHalfAt = 400` silently becoming *400%*
+would be the same bug wearing a different number, so the option is `diminishingHalfAtPercent`
+and old values are simply not carried over.
+
+A stat the client cannot report a percentage for does not taper at all — the same "refuse to
+guess" rule the hit cap follows.
+
+### Technical
+The gate's diminishing section was rewritten rather than patched, and two mutations had to be
+retargeted. One of them, **"a preference that reorders your gear turns itself on"**, had been
+surviving: the fixture declared the option under its old name, so the threshold read as zero
+and the switched-off guard was never reached. The assertion had been passing for a reason
+unrelated to what it claimed.
+
+The mock also had to grow a per-index `GetCombatRatingBonus`. A single shared return would
+have had crit answering with the hit percentage — and passing.
+
 ## [0.135.0a] - 2026-08-15 — a key for the star
 
 ### Fixed

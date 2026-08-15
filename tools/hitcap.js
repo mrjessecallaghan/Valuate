@@ -40,7 +40,7 @@ const PIECES = [
   /^function Valuate:InvalidateHitState\([\s\S]*?\r?\nend/m,
   /^function Valuate:GetHitState\([\s\S]*?\r?\nend/m,
   /^local function HitValueFactor\([\s\S]*?\r?\nend/m,
-  /^local DIMINISHING_STATS = \{[\s\S]*?\r?\n\}/m,
+  /^local DIMINISHING_RATINGS = \{[\s\S]*?\r?\n\}/m,
   /^local function DiminishingFactor\([\s\S]*?\r?\nend/m,
   /^function Valuate:CalculateItemScore\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildHitCapLine\([\s\S]*?\r?\nend/m,
@@ -77,7 +77,7 @@ end
 
 Valuate = {}
 local OPTIONS = { hitCapAware = true, hitCapTargetGap = 0,
-                  diminishingReturns = false, diminishingHalfAt = 400 }
+                  diminishingReturns = false, diminishingHalfAtPercent = 10 }
 function Valuate:GetOptions() return OPTIONS end
 
 local OWNED = {}
@@ -87,8 +87,14 @@ function Valuate:GetCachedEquippedStatTotals() return OWNED end
 -- ratio is the conversion the whole feature turns on, and a mock that derived one from the
 -- other could not express a client that disagrees with our arithmetic.
 local RATING, PERCENT = 0, 0
+-- Per-index, because the taper reads a DIFFERENT rating than the hit cap does. A single
+-- shared return would have crit answering with the hit percentage and passing anyway.
+local BONUS_BY_INDEX = {}
 function GetCombatRating() return RATING end
-function GetCombatRatingBonus() return PERCENT end
+function GetCombatRatingBonus(index)
+    if BONUS_BY_INDEX[index] ~= nil then return BONUS_BY_INDEX[index] end
+    return PERCENT
+end
 
 local TIME = 1000
 function GetTime() return TIME end
@@ -202,28 +208,52 @@ tick()
 -- ---- diminishing returns are a PREFERENCE, and default to off --------------------------
 -- 3.3.5 has no diminishing returns on the crit or haste conversion. This is a claim about
 -- worth, and shipping it on by default would silently reorder everyone's gear.
-OWNED = { CritRating = 400 }
-local CRIT = { Values = { CritRating = 1.0 } }
+--
+-- The threshold is a PERCENTAGE, not a rating, and that is the whole point of this section.
+-- It shipped as "400 rating", which is about 9% crit at level 80 and an unreachable amount at
+-- level 10 - so the feature would have sat inert for exactly the character who asked for it.
+-- A percentage means the same thing at every level; a rating does not.
+local CRIT = { Values = { CritRating = 1.0, Intellect = 0.1 } }
+local CRIT_SPELL_INDEX = 11
+
 eq(OPTIONS.diminishingReturns, false, "it is off unless asked for")
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 10
 near(scoreOf({ CritRating = 10 }, CRIT), 10, "and off means untouched")
 
 OPTIONS.diminishingReturns = true
+OPTIONS.diminishingHalfAtPercent = 10
 near(scoreOf({ CritRating = 10 }, CRIT), 5,
-     "at exactly the half-value rating, crit is worth half - which is what the setting says")
+     "at exactly the half-value PERCENTAGE, crit is worth half - which is what the setting says")
 
-OWNED = { CritRating = 0 }
-near(scoreOf({ CritRating = 10 }, CRIT), 10, "with none stacked, the first points are worth full")
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 0
+near(scoreOf({ CritRating = 10 }, CRIT), 10, "with none of the stat yet, the first points are worth full")
 
-OWNED = { CritRating = 1200 }
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 30
 near(scoreOf({ CritRating = 10 }, CRIT), 2.5, "and it keeps falling smoothly rather than cliffing")
 
 -- Never reaches zero: a stat with no cap should always be worth something, and a curve that
 -- hit zero would make items containing it unrankable against each other.
-OWNED = { CritRating = 999999 }
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 100000
 ok(scoreOf({ CritRating = 10 }, CRIT) > 0, "the curve approaches zero without arriving")
 
--- Only the stats that actually stack without a cap.
-OWNED = { Strength = 99999 }
+-- The level problem, stated as a test. A character with 10% crit is half-valued whatever
+-- their level and whatever rating that percentage cost them - which a rating threshold could
+-- not express, because 400 rating is a different amount of crit at 10 than at 80.
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 10
+near(scoreOf({ CritRating = 1 }, CRIT), 0.5,
+     "a level 10 with 10% crit is tapered exactly like a level 80 with 10% crit")
+near(scoreOf({ CritRating = 400 }, CRIT), 200,
+     "and the RATING carried has no bearing on it, which is what a rating threshold got wrong")
+
+-- Cannot tell: change nothing, the same rule the hit cap follows.
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = nil
+PERCENT = 0
+near(scoreOf({ CritRating = 10 }, CRIT), 10,
+     "a client reporting no crit percentage leaves scoring alone rather than guessing")
+BONUS_BY_INDEX[CRIT_SPELL_INDEX] = 10
+PERCENT = 2.0
+
+-- Only the stats the client can report a percentage for.
 local STR = { Values = { Strength = 1.0 } }
 near(scoreOf({ Strength = 10 }, STR), 10, "primary stats are not tapered - they do not work like that")
 OPTIONS.diminishingReturns = false

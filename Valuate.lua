@@ -831,8 +831,15 @@ local DEFAULT_OPTIONS = {
     -- so: 3.3.5 applies no diminishing returns to those conversions, this is a claim about
     -- worth rather than mechanics, and it reorders your gear list.
     diminishingReturns = false,
-    -- The rating at which such a stat drops to half weight.
-    diminishingHalfAt = 400,
+    -- The PERCENTAGE at which such a stat drops to half weight - 10 means "once I have 10%
+    -- crit, the next point of crit is worth half".
+    --
+    -- A percentage rather than a rating, because rating means different things at different
+    -- levels. This shipped as "400 rating", which is about 9% crit at level 80 and an
+    -- unreachable amount at level 10 - so the feature would have sat there doing nothing for
+    -- exactly the character who asked for it. Renamed rather than reinterpreted: a saved 400
+    -- silently becoming 400% would be the same bug wearing a different number.
+    diminishingHalfAtPercent = 10,
     -- Offer to leave a dungeon whose remaining bosses hold nothing for you. Notify-only: it
     -- asks rather than acting, and only when nothing remaining is unknown.
     notifyDungeonNoUpgrades = false,
@@ -3730,21 +3737,38 @@ end
 -- should discover that by noticing their list reordered. HALF_VALUE_AT is where a stat drops
 -- to half weight; the curve is 1 / (1 + have/HALF_VALUE_AT), which is smooth, never reaches
 -- zero, and has no cliff for an item to sit either side of.
-local DIMINISHING_STATS = {
-    CritRating = true,
-    HasteRating = true,
-    ExpertiseRating = true,
-    ArmorPenetration = true,
+-- Which stats taper, and which combat rating the client reports each one's percentage under.
+--
+-- Two indices for the stats that have a caster and a melee form, chosen the same way the hit
+-- cap chooses: by what the scale weights. Expertise and armour penetration have one each.
+--
+-- A stat with no index here does not taper AT ALL, deliberately. Tapering by rating would
+-- reintroduce the level problem this table exists to fix - a rating means a different amount
+-- of stat at every level, and the percentage is the thing that is actually comparable.
+local DIMINISHING_RATINGS = {
+    CritRating      = { melee = 9,  spell = 11 },
+    HasteRating     = { melee = 17, spell = 19 },
+    ExpertiseRating = { melee = 24, spell = 24 },
+    ArmorPenetration = { melee = 25, spell = 25 },
 }
 
-local function DiminishingFactor(statName, scale, ownedRating)
-    if not DIMINISHING_STATS[statName] then return 1 end
+local function DiminishingFactor(statName, scale, _ownedRating)
+    local indices = DIMINISHING_RATINGS[statName]
+    if not indices then return 1 end
     local options = Valuate:GetOptions()
     if not options.diminishingReturns then return 1 end
-    local half = tonumber(options.diminishingHalfAt) or 0
+    local half = tonumber(options.diminishingHalfAtPercent) or 0
     if half <= 0 then return 1 end
-    local have = tonumber(ownedRating) or 0
-    if have <= 0 then return 1 end
+    if type(GetCombatRatingBonus) ~= "function" then return 1 end
+
+    -- What you actually have, as a percentage, from the client. Not derived from the rating
+    -- you carry: the client already knows the answer for your level and this server, and
+    -- working it out again from a table is how the 400 got there in the first place.
+    local index = ScaleIsCaster(scale) and indices.spell or indices.melee
+    local ok, have = pcall(GetCombatRatingBonus, index)
+    -- Cannot tell, or you have none: change nothing. Same rule as the hit cap.
+    if not ok or type(have) ~= "number" or have <= 0 then return 1 end
+
     return 1 / (1 + (have / half))
 end
 
