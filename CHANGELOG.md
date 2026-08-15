@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.162.0a] - 2026-08-15 — the To Do tab was lying to new characters
+
+### Fixed
+A character who had **never scanned** opened the To Do tab and read:
+
+> Nothing outstanding. Your gear, gems and enchants are all up to date for the scale you are
+> using.
+
+That is a confident statement about gear nothing has ever examined.
+
+`RankAvailableUpgrades` returns `nil` when there is no scan data for a scale, and
+`BuildTodoList` read that as *"no upgrades"*. Same for a character with no active scale at
+all — nothing to score against, so nothing found, so apparently nothing wrong.
+
+Both now produce an entry that says which it is and gives the command that fixes it. They sit
+above everything derived from a scan, on the same argument the drifted-scale entry makes: an
+empty list underneath a blocker means nothing until the blocker is cleared. And they clear —
+a blocker that outlives the thing blocking it is noise at the top of the list, which is how
+people stop reading the list.
+
+### Technical
+CLAUDE.md has stated this rule since the PassLoot Upgrade bug: **"we do not know" and "we know
+there is nothing" are different answers.** That one returned yes for both never-scanned and
+nothing-better-owned. This is the same mistake, made again, in a tab written four days later
+by someone who had read about the first one.
+
+The gate's fixture never mocked `GetBestEquipment` — so every case in it was built as if a
+scan had happened. That is the state most players are in and the easiest one to write tests
+from, and it is exactly why the never-scanned case shipped. The fixture models it now, and
+three mutations hold both the answer and its clearing.
+
+
 ## [0.161.0a] - 2026-08-15 — asking the client the questions no gate can
 
 ### Added

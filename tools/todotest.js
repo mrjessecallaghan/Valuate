@@ -74,6 +74,18 @@ function Valuate:RankAvailableUpgrades() return UPGRADES end
 function Valuate:FindEmptySockets() return nil, SOCKETS end
 function Valuate:FindMissingEnchants() return nil, ENCHANTS end
 
+-- Whether this character has ever been SCANNED, which every case below assumed silently.
+--
+-- The fixture had no notion of it: GetBestEquipment was not mocked at all, so the list was
+-- always built as if a scan had happened. That is the state most players are in and the
+-- easiest one to write tests from, and it is exactly why the never-scanned case shipped
+-- claiming "your gear is all up to date" about gear nothing had looked at.
+SCANNED = true
+function Valuate:GetBestEquipment()
+    if not SCANNED then return {} end
+    return { Dps = { [5] = {} } }
+end
+
 ` + m[0] + `
 
 local function kinds(items)
@@ -116,6 +128,38 @@ eq(kinds(Valuate:BuildTodoList()), "scale,upgrade,sockets,enchants",
 local first = Valuate:BuildTodoList()[1]
 ok(first.detail and first.detail:find("scored by this scale", 1, true) ~= nil,
    "and the scale item says WHY it is first, rather than just being first")
+
+-- ---- "I have not looked" is not "there is nothing" ---------------------------
+-- RankAvailableUpgrades returns nil when there is no scan data, and the builder used to read
+-- that as "no upgrades". A character who had never scanned therefore got an EMPTY list, and
+-- both surfaces said so: the panel's words were "Nothing outstanding. Your gear, gems and
+-- enchants are all up to date." A confident statement about gear nothing had ever examined.
+--
+-- CLAUDE.md states this rule off the back of the PassLoot Upgrade bug, which gave the same
+-- answer for never-scanned and nothing-better-owned. The same mistake, made again, by someone
+-- who had read about the first one.
+DRIFT, UPGRADES, SOCKETS, ENCHANTS = nil, nil, 0, 0
+SCANNED = false
+local unscanned = Valuate:BuildTodoList()
+ok(#unscanned > 0, "a character who has never scanned does NOT get an empty list")
+eq(unscanned[1].kind, "scan", "it is told to scan")
+ok(unscanned[1].command == "/valuate scan", "and given the command that does it")
+ok(unscanned[1].detail and unscanned[1].detail:find("means nothing", 1, true) ~= nil,
+   "and told why an empty list before that would have meant nothing")
+
+-- The other way to know nothing: no scale to score against at all.
+PRIMARY_NAME_NIL = true
+local realPrimary = Valuate.GetPrimaryScale
+Valuate.GetPrimaryScale = function() return nil, nil end
+local noScale = Valuate:BuildTodoList()
+ok(#noScale > 0, "a character with no active scale does not get an empty list either")
+eq(noScale[1].kind, "scan", "the blocker comes first")
+ok(noScale[1].command == "/valuate wizard", "and points at the thing that creates one")
+Valuate.GetPrimaryScale = realPrimary
+
+-- ...and once scanned, it stops nagging. A blocker that never clears is noise.
+SCANNED = true
+eq(#Valuate:BuildTodoList(), 0, "a scanned character with nothing to do gets an empty list")
 
 -- ---- three upgrades, not seventeen -------------------------------------------
 DRIFT = nil

@@ -7611,6 +7611,45 @@ function Valuate:BuildTodoList()
     end
 
     local _, scaleName = Valuate:GetPrimaryScale()
+
+    -- "I have not looked" is not "there is nothing".
+    --
+    -- RankAvailableUpgrades returns nil when there is no scan data for this scale, and the
+    -- `if upgrades then` below reads that as "no upgrades" - so a character who has never
+    -- scanned got an EMPTY list, and both surfaces then said so out loud. The panel's words
+    -- were "Nothing outstanding. Your gear, gems and enchants are all up to date." That is a
+    -- confident statement about gear nothing has ever examined.
+    --
+    -- CLAUDE.md states this rule off the back of the PassLoot Upgrade bug, which returned
+    -- the same answer for never-scanned and nothing-better-owned. Same mistake, three years
+    -- of code apart, and the second one was written by someone who had read the first.
+    --
+    -- Placed after the two SCALE entries above and before everything derived from one,
+    -- which is the same ordering argument the drifted-scale item makes: a wrong scale makes
+    -- the list below it wrong, and no scan makes it empty. Both have to be dealt with before
+    -- anything under them means anything.
+    --
+    -- Two ways to have nothing to say, and they are different from each other as well as
+    -- from having nothing to do: no scale to score against, or a scale nothing has scanned.
+    local best = Valuate.GetBestEquipment and Valuate:GetBestEquipment()
+    if not scaleName then
+        table.insert(items, {
+            kind = "scan",
+            text = "Set up a scale - nothing can be scored without one",
+            detail = "Every answer this addon gives is ranked by a scale, and this character " ..
+                "has none active. Until then there is nothing to be right or wrong about.",
+            command = "/valuate wizard",
+        })
+    elseif not (best and best[scaleName]) then
+        table.insert(items, {
+            kind = "scan",
+            text = "Scan your gear - nothing here has been looked at yet",
+            detail = "Upgrades are read from a scan, and this character has not had one. " ..
+                "An empty list before that means nothing.",
+            command = "/valuate scan",
+        })
+    end
+
     local upgrades = scaleName and Valuate.RankAvailableUpgrades
         and Valuate:RankAvailableUpgrades(scaleName)
     if upgrades then

@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.161.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.162.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1397,4 +1397,24 @@ module.exports = [
   { gate: "uicheck", file: "ui/UICheck.lua",
     label: "every tab lit at once passes, though a bar on all of them marks none",
     from: "        elseif lit > 1 then", to: "        elseif false then" },
+  // ---- not looked yet vs nothing to find (v0.162.0a) -----------------------
+  // RankAvailableUpgrades returns nil when there is no scan data, and the builder read it
+  // as "no upgrades" - so a character who had never scanned got an empty list, and the
+  // panel said "your gear, gems and enchants are all up to date" about gear nothing had
+  // ever looked at. CLAUDE.md states this rule off the back of the same bug in PassLoot.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "never having looked is reported as having found nothing",
+    from: "    elseif not (best and best[scaleName]) then", to: "    elseif false then" },
+
+  // The other unknown: no scale to score against at all.
+  { gate: "todotest", file: "Valuate.lua",
+    scope: { start: "function Valuate:BuildTodoList(", end: "    local upgrades = scaleName" },
+    label: "a character with no scale is told everything is fine",
+    from: "    if not scaleName then", to: "    if false then" },
+
+  // And it must CLEAR. A blocker that outlives the thing blocking it is noise, and noise
+  // at the top of the list is how people stop reading the list.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the scan blocker never clears, so it sits at the top of every list forever",
+    from: "    elseif not (best and best[scaleName]) then", to: "    elseif true then" },
 ];

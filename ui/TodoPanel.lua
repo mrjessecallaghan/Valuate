@@ -152,6 +152,7 @@ function ns.CreateTodoPanel(parent)
     -- new kind appearing there shows up here in the neutral colour rather than erroring -
     -- an unfamiliar entry should still be readable, just not colour-coded yet.
     local KIND_COLOR = {
+        scan     = { 1.00, 0.35, 0.35 },  -- nothing below this is known yet; it is not a task, it is a blocker
         scale    = { 1.00, 0.82, 0.00 },  -- your weights are wrong; everything below depends on it
         guess    = { 1.00, 0.55, 0.10 },  -- your weights were never published, only inferred
         upgrade  = { 0.35, 0.90, 0.35 },  -- free, immediate, already in your bags
