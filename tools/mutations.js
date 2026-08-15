@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.148.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.149.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1095,4 +1095,14 @@ module.exports = [
   { gate: "helptest", file: "Valuate.lua",
     label: "an unknown topic silently shows the overview instead of saying so",
     from: "No help topic called ", to: "" },
+
+  // ---- the what-is-new panel stays a summary (v0.149.0a) -------------------
+  // Its own comment has said "a SUMMARY, not one entry per patch" since it was written, and
+  // nothing enforced it: one day of releases took it to 68 bullets.
+  { gate: "tocsync", file: "tools/tocsync.js",
+    label: "the bullet count is never actually compared against the limit",
+    from: "      const NEWS_BULLET_LIMIT = 60;", to: "      const NEWS_BULLET_LIMIT = 10;" },
+  { gate: "tocsync", file: "tools/tocsync.js",
+    label: "the count sweeps up every historical section, so it fires on prose nobody is changing",
+    from: "newsBlock[1].match", to: "panel.match" },
 ];

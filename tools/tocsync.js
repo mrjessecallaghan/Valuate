@@ -294,7 +294,41 @@ try {
       );
       ok = false;
     } else {
-      console.log("OK  in-game changelog is current at v" + tocVersion + ".");
+      /*
+       * And it is still a SUMMARY.
+       *
+       * The panel's own comment says "deliberately a SUMMARY, not one entry per patch - the
+       * full history lives in CHANGELOG.md; what belongs here is what a user would notice".
+       * Nothing enforced that, and in one day of releases it grew to 68 bullets - several of
+       * them "FIXED: X" describing states that lasted a couple of hours and never reached
+       * anybody's game. Telling a user about a bug they never had is not news.
+       *
+       * A generous ceiling, because this covers well over a hundred releases and pruning
+       * older entries is a judgement nobody should be forced into by a build failure. It
+       * catches the drift that actually happened: a bullet appended per release, forever.
+       */
+      const NEWS_BULLET_LIMIT = 60;
+      // Scoped to the CURRENT-version block. Counting bullets across the whole file swept up
+      // every historical section too and reported 221 against a limit of 60 - a rule firing
+      // on prose nobody is being asked to change is a rule that gets switched off.
+      const newsBlock = panel.match(
+        /Version[^\n]*\(Current\)[\s\S]*?table\.concat\(\{([\s\S]*?)\n\s*\}, "\\n"\)/
+      );
+      const bullets = newsBlock ? (newsBlock[1].match(/^\s*"•/gm) || []).length : 0;
+      if (bullets > NEWS_BULLET_LIMIT) {
+        console.error(
+          "  CHANGELOG  the in-game 'what is new' list has " + bullets + " bullets, over the " +
+            NEWS_BULLET_LIMIT + " this panel is meant to hold. It is a summary of what a user " +
+            "would NOTICE, not one entry per release - the full history is CHANGELOG.md. " +
+            "Fold the recent ones together, or make the case for raising the limit."
+        );
+        ok = false;
+      } else {
+        console.log(
+          "OK  in-game changelog is current at v" + tocVersion +
+            " (" + bullets + " bullets, still a summary)."
+        );
+      }
     }
   }
 } catch (e) {

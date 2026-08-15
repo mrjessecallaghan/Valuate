@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.148.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.149.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.148.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.149.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,104 +474,37 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-        "• /valuate help is GROUPED. 74 commands as one flat list was seven screens of\n" ..
-        "   chat; bare help now shows six topics, and /valuate help gear (or auto,\n" ..
-        "   clean, queue, check, start) shows just that group. /valuate help all still\n" ..
-        "   prints everything.\n" ..
-        "• NEW: RESCUE GEAR FROM THE JUNK PILE. AdiBags decides junk by quality; this\n" ..
-        "   addon decides by what your scale is worth, and at low level a white or\n" ..
-        "   even grey item really can be your best-in-slot. This clears the junk\n" ..
-        "   marking on anything the delete protections keep. Off by default, and it\n" ..
-        "   NEVER marks anything as junk - only rescues. /valuate unjunk lists them.\n" ..
-        "• FIXED: gear that auto-equip took OFF you was protected by none of the\n" ..
-        "   delete rules - not best-in-slot any more, not an upgrade any more - so\n" ..
-        "   auto-delete could remove the item you were wearing seconds earlier. It is\n" ..
-        "   now protected for five minutes. Deletion has no undo.\n" ..
-        "• NEW: AUTO-EQUIP UPGRADES. Off by default. Puts an upgrade on the moment it\n" ..
-        "   lands in your bags instead of asking - it refuses in combat, respects\n" ..
-        "   locked slots, and says what it did. It can BIND a BoE you loot, which\n" ..
-        "   cannot be undone, so it stays opt-in.\n" ..
-        "• NEW: /valuate where - which dungeons hold an upgrade you could actually\n" ..
-        "   wear, and WHICH SLOTS each one would improve, best first.\n" ..
-        "   wear, best first. Filtered by the item's real level requirement, so it\n" ..
-        "   will not send a level 10 to a raid, and it says how many items it could\n" ..
-        "   not read yet rather than pretending it checked them.\n" ..
-        "• The scale LIST now marks a scale whose weights were guessed, with an orange ?\n" ..
-        "   and an explanation on hover. The editor has said so for a while; the list is\n" ..
-        "   where you actually choose between them.\n" ..
-        "• /valuate verify now marks the checks that NOTHING automated can prove, and\n" ..
-        "   counts them in the summary - those are the ones where your eyes are the\n" ..
-        "   only evidence the behaviour has ever had.\n" ..
-        "• FIXED: the wizard's 'this is only a weak match' warning was a boolean, so\n" ..
-        "   it showed nothing - on low-level characters, which are exactly the ones\n" ..
-        "   that get weak matches. It now explains itself and says why.\n" ..
-        "• Every Lua file is now COMPILED by a real Lua 5.1 before release, not just\n" ..
-        "   parsed. The parser used until now accepts things the game refuses, and an\n" ..
-        "   addon that fails to compile does not report an error - it is just absent.\n" ..
-        "• FIXED: the upgrade popup's Equip button closed the popup BEFORE finding",
-            "   out it could not equip in combat, so a click that could never work took",
-            "   the upgrade off your screen. It now waits, like the icon always has.",
-            "• Settings > Scoring shows your live hit state next to the switch that acts",
-            "   on it - how much you have, the cap, and how far to go - so you can tell",
-            "   whether the setting matters to you without leaving the panel.",
-            "• FIXED: the diminishing-returns threshold was 400 RATING, which is about 9%",
-            "   crit at level 80 and unreachable at level 10 - so it did nothing at all for",
-            "   a low-level character. It is a PERCENTAGE now, which means the same thing",
-            "   at every level.",
-            "• The * on a capped stat now has a key under the breakdown saying what it",
-            "   means, instead of being a second thing to wonder about.",
-            "• FIXED: the gear SCAN - which drives Best Equipment and the auto-roll",
-            "   baseline - still valued your own gear as if you were not wearing it.",
-            "   That was the same bug as before, in the place that acts rather than",
-            "   the place that displays.",
-            "• Stats cut by the hit cap are now MARKED - a * in the tooltip breakdown,",
-            "   and a note in /valuate weights. On those rows value x weight does not",
-            "   equal the total, and without a mark that reads as a bug.",
-            "• FIXED: the comparison tooltip - the one showing a candidate against what",
-            "   you are wearing - ignored the cap entirely.",
-            "• FIXED: with the hit cap on, the addon could advise replacing the very",
-            "   piece keeping you capped. Gear you are WEARING is now scored for what",
-            "   you would lose by taking it off.",
-            "• FIXED: the stat breakdown ignored the hit cap, so it disagreed with the",
-            "   score it was explaining.",
-            "• Hovering an item with hit says what the cap did to it - all of it counts,",
-            "   only part of it counts, or none of it does. A score that changed silently",
-            "   is worse than one that did not.",
-            "• HIT NOW STOPS COUNTING once you are capped - past the cap it does nothing,",
-            "   so it scores nothing, and only the part of an item's hit that fits under",
-            "   the cap counts. Set what you are fighting in Settings > Scoring; /valuate",
-            "   hit shows the whole assumption. The rating-per-percent is worked out from",
-            "   YOUR gear rather than a table, so it is right for your level and this",
-            "   server - and with no hit at all it does nothing rather than guess.",
-            "• Optional: value crit/haste less as you stack them. OFF by default, and it",
-            "   is a preference rather than a game mechanic - 3.3.5 has no diminishing",
-            "   returns on those ratings.",
-            "• FIXED: when the wizard could not build a scale it printed the reason to",
-            "   chat and left the window sitting there. It now says so on its own screen,",
-            "   confirms nothing was changed, and offers Try again.",
-            "• /valuate selfverify now checks the dungeon loot table against YOUR client -",
-            "   whether the harvested item ids actually exist on this server, and whether",
-            "   the dungeon you are standing in is named the way the table expects.",
-            "• The About tab's feature list is current again - it had been a year behind",
-            "   because the panel could not grow. It sizes itself now.",
-            "• FIXED: Best Equipment used to tell brand-new users to 'activate a scale'",
-            "   before they had made one. It now tells you to make one, and points at",
-            "   the button that does it.",
-            "• The Settings columns are balanced, and now stay that way - a gate measures",
-            "   them, so a new section cannot quietly pile onto the longest column again.",
-            "• Settings has a MESSAGES & CONVENIENCE section. Six options that could",
-            "   only be reached by typing a slash command now have checkboxes -",
-            "   including 'equip upgrades when you level', which puts gear on your",
-            "   character and was command-only from the day it shipped.",
-            "• Scales remember where they came from. The editor says 'from Warrior Arms'",
-            "   for anything the wizard built - and if the spec's weights were GUESSED,",
-            "   it keeps saying so every time you open it, not just while you hovered",
-            "   the template.",
-            "• Spec tooltips now show what a spec will CHASE - its description and the",
-            "   top stats it weights, with the numbers. And the six specs whose weights",
-            "   were GUESSED (no priority was ever published for them) now say so, so a",
-            "   guess no longer looks exactly like a researched one.",
-            "• Dungeons can say when they are DONE with you. While auto-queueing, the",
+        "• HIT NOW STOPS COUNTING once you are capped. Past the cap it does nothing,\n" ..
+        "   so it scores nothing, and only the part of an item's hit that fits under\n" ..
+        "   the cap counts. The rating-per-percent is worked out from YOUR gear, so it\n" ..
+        "   is right for your level and this server - and with no hit at all it does\n" ..
+        "   nothing rather than guess. Settings > Scoring shows where you stand.\n" ..
+        "• Optional: value crit/haste less as you stack them. OFF by default, and a\n" ..
+        "   preference rather than a game mechanic - 3.3.5 has no such diminishing\n" ..
+        "   returns on those ratings.\n" ..
+        "• DUNGEON LOOT, harvested from AtlasLoot: 36 dungeons, 264 bosses. Valuate can\n" ..
+        "   offer to leave once nothing left in a dungeon is an upgrade, and /valuate\n" ..
+        "   where names the dungeons holding gear you could actually wear, and which\n" ..
+        "   slots. Where it has no data it stays silent rather than saying there is\n" ..
+        "   nothing for you.\n" ..
+        "• Optional automation: put upgrades on as they drop, and rescue gear from the\n" ..
+        "   junk pile when your scale wants it. Both OFF by default. Neither will bin\n" ..
+        "   or sell something it just took off you.\n" ..
+        "• GUESSED WEIGHTS ARE MARKED. Six specs have no published stat priority, so\n" ..
+        "   theirs were read off their descriptions. The template picker, the scale\n" ..
+        "   list and the editor all say so now, rather than offering a guess with the\n" ..
+        "   same confidence as a fact.\n" ..
+        "• Spec tooltips show what a spec will CHASE - its description and the top\n" ..
+        "   stats it weights, with the numbers.\n" ..
+        "• /valuate help is GROUPED into six topics; /valuate help gear (or auto,\n" ..
+        "   clean, queue, check, start) shows one group instead of 74 lines.\n" ..
+        "• The wizard explains itself when it cannot build a scale, and says when a\n" ..
+        "   match is weak - which is normal while levelling - instead of showing a\n" ..
+        "   blank line.\n" ..
+        "• Best Equipment tells a brand-new character to MAKE a scale, rather than to\n" ..
+        "   activate one they do not have yet.\n" ..
+        "• /valuate selfverify checks the dungeon loot table against YOUR client -\n" ..
+        "   whether the harvested item ids exist on this server at all.\n" ..
             "   addon tracks which bosses are still alive and asks whether to leave once",
             "   the last one that could drop an upgrade is dead and looted. Off by",
             "   default; it asks rather than acting.",

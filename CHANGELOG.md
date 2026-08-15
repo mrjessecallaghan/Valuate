@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.149.0a] - 2026-08-15 — the what's-new panel is a summary again
+
+### Changed
+The in-game changelog panel carries this comment, and has since it was written:
+
+> Deliberately a SUMMARY, not one entry per patch. The full history lives in CHANGELOG.md;
+> what belongs here is what a user would notice.
+
+Nothing enforced it, and I spent a day appending a bullet per release until it held **68**.
+Thirty of those were today's, and several read *"FIXED: X"* — describing states that existed
+for a couple of hours and never reached anybody's game. **Telling a user about a bug they
+never had is not news**; it is narrating my own afternoon in a panel they opened to find out
+what the addon does.
+
+Today's thirty are now eleven, written as capabilities rather than a diary: the hit cap, the
+optional crit/haste taper, the dungeon loot table and `/valuate where`, the two new opt-in
+automations, guessed weights being marked, spec tooltips, grouped help, the wizard
+explaining itself, the first-run message, and `selfverify` checking the loot table.
+
+234 lines down to 167. Older sections were left alone — pruning entries that predate this
+session is a judgement I have no standing to make.
+
+### Added
+`tocsync.js` now holds the panel to **60 bullets**, scoped to the current-version block. The
+ceiling is generous on purpose: this covers well over a hundred releases, and a rule that
+forces someone to prune history to get a green build is a rule that gets switched off. It
+catches the drift that actually happened — a bullet appended per release, forever.
+
+### Technical — the same wrong turn, twice in two days
+Both mutations for this rule were written backwards on the first attempt. **Disabling a
+check makes the gate pass, and mutation testing reads a passing gate as survival.** A check
+can only be proven live by making it FAIL — so the limit mutation *tightens* to 10, and the
+scoping mutation drops the scope so the count sweeps 221 bullets and blows past the ceiling.
+
+The first scoping attempt also fired on 221 against a limit of 60 for real, because the
+count swept every historical section. A rule that fires on prose nobody is being asked to
+change is a rule that gets ignored.
 ## [0.148.0a] - 2026-08-15 — help you can actually read
 
 ### Changed
