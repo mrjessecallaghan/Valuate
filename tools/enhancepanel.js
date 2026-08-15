@@ -190,6 +190,69 @@ ns.RefreshEnhancePanel()
 eq(texts():find("could not read", 1, true), nil,
    "and the section is gone when there is nothing in it")
 
+-- ---- rows grow to fit BOTH their columns --------------------------------------------------------
+-- Shipped as a flat 46px, which is the same defect fixed in the To Do panel three releases
+-- earlier and then written again in a file created after that fix.
+--
+-- Both columns here wrap, independently: the left one carries the slot and where you saw the
+-- recipe (a seller, a subzone, a zone and a price), the right one the recommendation and its
+-- runners-up with scores. Sizing to one of them puts the other through the bottom of the row.
+UNREADABLE = {}
+COLLECTED = {
+    [8] = { { name = "Enchant Boots - Assault", slots = { 8 }, stats = { Agility = 20 }, source = "craft" } },
+}
+ns.RefreshEnhancePanel()
+local plain
+for _, f in ipairs(__frames) do
+    if f.__enhanceRow and f:IsShown() then plain = plain or f:GetHeight() end
+end
+ok(plain ~= nil, "a plain row has a height")
+
+-- Now the LEFT column runs long: a vendor note with a seller, a subzone and a zone.
+ns.LookupVendorNote = function()
+    return 120000, "Alara the Enchantress", "The Threads of Fate, Dalaran"
+end
+ns.RefreshEnhancePanel()
+local withNote
+for _, f in ipairs(__frames) do
+    if f.__enhanceRow and f:IsShown() then withNote = withNote or f:GetHeight() end
+end
+ok(withNote > plain,
+   "a row whose vendor note wraps is taller than one without (" .. tostring(plain) ..
+   " vs " .. tostring(withNote) .. ")")
+ns.LookupVendorNote = function() return nil end
+
+-- And now the RIGHT column: three alternatives with scores, on one line.
+COLLECTED = {
+    [8] = {
+        { name = "Enchant Boots - Greater Assault", slots = { 8 }, stats = { Agility = 32 }, source = "craft" },
+        { name = "Enchant Boots - Tuskarr's Vitality", slots = { 8 }, stats = { Agility = 20 }, source = "craft" },
+        { name = "Enchant Boots - Greater Vitality", slots = { 8 }, stats = { Agility = 12 }, source = "craft" },
+        { name = "Enchant Boots - Superior Agility", slots = { 8 }, stats = { Agility = 4 }, source = "craft" },
+    },
+}
+ns.RefreshEnhancePanel()
+local withAlts
+for _, f in ipairs(__frames) do
+    if f.__enhanceRow and f:IsShown() then withAlts = withAlts or f:GetHeight() end
+end
+ok(withAlts > plain,
+   "a row whose alternatives wrap is taller too (" .. tostring(plain) ..
+   " vs " .. tostring(withAlts) .. ")")
+
+-- The list has to account for it, or the rows below run off the panel.
+local listFrame
+for _, f in ipairs(__frames) do
+    if f.__enhanceRow then listFrame = listFrame or f:GetParent() end
+end
+ok(listFrame and listFrame:GetHeight() >= withAlts,
+   "the list is at least as tall as the row it holds")
+
+COLLECTED = {
+    [8] = { { name = "Enchant Boots - Assault", slots = { 8 }, stats = { Agility = 20 }, source = "craft" } },
+}
+ns.RefreshEnhancePanel()
+
 -- ---- rows are pooled, not recreated ----------------------------------------------------------------
 local before = #__frames
 for _ = 1, 5 do ns.RefreshEnhancePanel() end

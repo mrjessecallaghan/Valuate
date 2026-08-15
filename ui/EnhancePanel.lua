@@ -24,8 +24,18 @@ local COLORS = ns.COLORS
 local BACKDROP_PANEL = ns.BACKDROP_PANEL
 local FONT_H2, FONT_BODY, FONT_SMALL = ns.FONT_H2, ns.FONT_BODY, ns.FONT_SMALL
 
+-- A FLOOR, not the height. Rows are measured against their own text; see Refresh.
+--
+-- This was the height, flat, and it is the same defect fixed in the To Do panel three
+-- releases ago (v0.159.0a) - written again, by me, in a file created after that fix. Both
+-- columns here wrap: the left one gained a vendor note (a seller, a subzone, a zone and a
+-- price) and the right one lists three alternatives with their scores. At these widths either
+-- runs to two or three lines, and a fixed row draws the rest of them over whatever is below.
 local ROW_HEIGHT = 46
 local ROW_GAP = 4
+local TEXT_TOP_PAD = 8
+local TEXT_BOTTOM_PAD = 8
+local LINE_GAP = 3
 local ALTERNATIVES = 3
 
 -- Session-scoped, not saved.
@@ -60,20 +70,20 @@ local function BuildRow(parent, index)
     row.accent = accent
 
     local slotName = row:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    slotName:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -8)
+    slotName:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -TEXT_TOP_PAD)
     slotName:SetWidth(90)
     slotName:SetJustifyH("LEFT")
     slotName:SetTextColor(unpack(COLORS.textTitle))
     row.slotName = slotName
 
     local current = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    current:SetPoint("TOPLEFT", slotName, "BOTTOMLEFT", 0, -3)
+    current:SetPoint("TOPLEFT", slotName, "BOTTOMLEFT", 0, -LINE_GAP)
     current:SetWidth(200)
     current:SetJustifyH("LEFT")
     row.current = current
 
     local best = row:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    best:SetPoint("TOPLEFT", row, "TOPLEFT", 110, -8)
+    best:SetPoint("TOPLEFT", row, "TOPLEFT", 110, -TEXT_TOP_PAD)
     best:SetPoint("RIGHT", row, "RIGHT", -80, 0)
     best:SetJustifyH("LEFT")
     row.best = best
@@ -81,7 +91,7 @@ local function BuildRow(parent, index)
     -- The runners-up, on the row rather than behind a click. Hiding them would undo the
     -- ordering this panel is for: the point is that second best is still worth having.
     local alts = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    alts:SetPoint("TOPLEFT", best, "BOTTOMLEFT", 0, -3)
+    alts:SetPoint("TOPLEFT", best, "BOTTOMLEFT", 0, -LINE_GAP)
     alts:SetPoint("RIGHT", row, "RIGHT", -80, 0)
     alts:SetJustifyH("LEFT")
     alts:SetTextColor(unpack(COLORS.textDim))
@@ -235,6 +245,21 @@ function ns.CreateEnhancePanel(parent)
 
                 ns.SetSolidColor(row.accent, hasOne and 0.45 or 1.0, hasOne and 0.7 or 0.55,
                     hasOne and 1.0 or 0.1)
+
+                -- Measured against BOTH columns, taking the taller.
+                --
+                -- They are independent: the left one is the slot and where you saw the
+                -- recipe, the right one is the recommendation and its runners-up. Either can
+                -- be the one that wraps, and sizing to only one of them puts the other
+                -- through the bottom of the row - which is how this shipped.
+                ns.FitRowHeight(row, {
+                    floor = ROW_HEIGHT, top = TEXT_TOP_PAD, gap = LINE_GAP,
+                    bottom = TEXT_BOTTOM_PAD,
+                    columns = {
+                        { row.slotName, row.current },
+                        { row.best, row.alts },
+                    },
+                })
                 row:Show()
             end
         end

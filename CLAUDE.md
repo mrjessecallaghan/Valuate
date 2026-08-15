@@ -112,6 +112,20 @@ end?
   all, so every case in it was built as though a scan had happened - the state most players
   are in, and the easiest to write tests from. The bug shipped through a gate that could not
   express it.
+- **A fixed row height under text that wraps is a defect, and it has shipped twice.** The To
+  Do panel (v0.158.0a) and then the Enhance panel (v0.167.0a) — the second written in a file
+  created *after* the first was fixed, by someone who had fixed it. Nothing errors: the second
+  and third lines are drawn over whatever is below, and every headless gate passes because
+  none of them measures.
+
+  Use `ns.FitRowHeight` (ui/Widgets.lua). It takes a **list of columns**, because a row can
+  have independent stacks side by side and either can be the one that wraps — sizing to one of
+  them is exactly how the Enhance panel put its vendor note through the bottom of its own row.
+
+  Test it **against the helper**, not through a panel. Through a panel the interesting cases
+  collapse: "no detail" and "empty detail" both arrive as a font string with no text, so
+  comparing two panel rows cannot tell a stray gap from none. That assertion survived its
+  mutation twice before it moved to `widgettest.js`, where the arithmetic is exact.
 - **When the action cannot be undone, uncertainty declines to act.** Three decisions now
   share that rule and it is the one to copy: surplus-gear marking says no unless every guard
   clears, quest reward selection picks NOTHING when nothing scored and there is a real choice

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.169.0a] - 2026-08-15 — I shipped the same layout bug twice
+
+### Fixed
+**The Enhance tab's rows were a flat 46 pixels, and both of its columns wrap.**
+
+This is the identical defect fixed in the To Do panel in **v0.158.0a** — written again, by me,
+in a file created *after* that fix. And it is worse here, because there are two independent
+stacks: the left one gained a vendor note last release (a seller, a subzone, a zone and a
+price) and the right one lists three alternatives with their scores. Either can be the one
+that runs to three lines, and the rest of it was drawn over whatever sat below.
+
+Nothing errors when this is wrong, and every headless gate passes, because none of them
+measures unless told to.
+
+### Changed — one implementation instead of two
+Row fitting moved into **`ns.FitRowHeight`**, used by both panels. Two implementations were
+two chances to forget; there is one now, so the next panel that needs it has an obvious thing
+to call rather than a pattern to remember. It takes a **list of columns**, because sizing to
+one of two independent stacks is precisely what went wrong here.
+
+Same shape as the tab accent three weeks of releases ago: the duplication was not the defect,
+but it is what let the defect hide.
+
+### Technical — an assertion that survived its mutation twice
+"An omitted line reserves no space, not even its gap" could not be tested through a panel at
+all. Both *no detail* and *empty detail* reach the helper as a font string with no text, so
+comparing two panel rows cannot distinguish a stray gap from none — and the first attempt was
+also masked by the row's floor, below which every row is the same height regardless.
+
+It now lives in `widgettest.js` against the helper directly, where the heights are exact
+arithmetic rather than an inference from two rows. Three mutations hold it, and the old
+per-panel one was deleted rather than duplicated — keeping a copy per panel would have
+re-created the thing the shared helper exists to prevent.
+
+
 ## [0.168.0a] - 2026-08-15 — where you saw it, and what it cost
 
 ### Added

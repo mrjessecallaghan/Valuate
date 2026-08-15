@@ -188,11 +188,11 @@ function ns.CreateTodoPanel(parent)
             -- two hundred characters and wraps to three lines at this width. A fixed 40px
             -- row put the second and third of them outside their own backdrop, on top of
             -- whatever came next.
-            local h = TEXT_TOP_PAD + row.text:GetStringHeight()
-            if item.detail then
-                h = h + DETAIL_GAP + row.detail:GetStringHeight()
-            end
-            row:SetHeight(math.max(ROW_HEIGHT, h + TEXT_BOTTOM_PAD))
+            ns.FitRowHeight(row, {
+                floor = ROW_HEIGHT, top = TEXT_TOP_PAD, gap = DETAIL_GAP,
+                bottom = TEXT_BOTTOM_PAD,
+                columns = { { row.text, row.detail } },
+            })
             row:Show()
         end
 

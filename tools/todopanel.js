@@ -138,6 +138,7 @@ ok(sized[2]:GetHeight() > sized[1]:GetHeight(),
    "the row with a wrapping paragraph is taller than the one with a single line (" ..
    tostring(sized[1]:GetHeight()) .. " vs " .. tostring(sized[2]:GetHeight()) .. ")")
 
+
 -- The list frame has to account for it too, or the rows below run off the panel.
 local listFrame
 for _, f in ipairs(__frames) do
@@ -145,6 +146,7 @@ for _, f in ipairs(__frames) do
 end
 ok(listFrame and listFrame:GetHeight() >= sized[1]:GetHeight() + sized[2]:GetHeight(),
    "the list is at least as tall as the rows it holds")
+
 
 -- ---- clicking a row runs THAT row's command ----------------------------------------------
 ITEMS = {

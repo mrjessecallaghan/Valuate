@@ -328,3 +328,44 @@ ns.ShowTooltipSafe = ShowTooltipSafe
 ns.HexToRGB = HexToRGB
 ns.RGBToHex = RGBToHex
 ns.CreateStyledButton = CreateStyledButton
+
+-- Sizes a pooled row to the text actually in it.
+--
+-- WHY THIS IS SHARED. A fixed row height and a font string that wraps is a defect this
+-- project has now shipped twice: the To Do panel in v0.158.0a, and the Enhance panel in
+-- v0.167.0a - the second written in a file created after the first was fixed. Neither is
+-- visible to any headless gate unless somebody thinks to measure, because nothing errors;
+-- the second and third lines are simply drawn over whatever is below them.
+--
+-- Two implementations became two chances to forget. This is one, so the next panel that
+-- needs it has an obvious thing to call rather than a pattern to remember.
+--
+-- opts.columns is a LIST OF LISTS, because a row can have independent stacks side by side
+-- and either can be the one that wraps. Sizing to one of them is exactly how the Enhance
+-- panel put its vendor note through the bottom of its own row.
+function ns.FitRowHeight(row, opts)
+    if not row or type(opts) ~= "table" then return end
+    local top = opts.top or 8
+    local gap = opts.gap or 3
+    local bottom = opts.bottom or 8
+    local floor = opts.floor or 0
+
+    local tallest = 0
+    for _, column in ipairs(opts.columns or {}) do
+        local height, lines = 0, 0
+        for _, fs in ipairs(column) do
+            -- An empty or hidden string contributes nothing, not even its gap. Counting it
+            -- would leave a blank line's worth of space under every row that omits one.
+            local text = fs and fs.GetText and fs:GetText()
+            if fs and text and text ~= "" and (not fs.IsShown or fs:IsShown()) then
+                if lines > 0 then height = height + gap end
+                height = height + (fs.GetStringHeight and fs:GetStringHeight() or 0)
+                lines = lines + 1
+            end
+        end
+        if height > tallest then tallest = height end
+    end
+
+    row:SetHeight(math.max(floor, top + tallest + bottom))
+    return row:GetHeight()
+end

@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.168.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.169.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1335,12 +1335,9 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "it claims more upgrades are waiting when there are exactly three",
     from: "        if hidden > 0 and items[#items] then", to: "        if hidden >= 0 and items[#items] then" },
-  // Rows are sized to their own text. A fixed height put the second and third lines of a
-  // wrapping paragraph outside the row backdrop, over whatever came next.
-  { gate: "todopanel", file: "ui/TodoPanel.lua",
-    label: "rows go back to a fixed height, so long details overflow their own row",
-    from: "            row:SetHeight(math.max(ROW_HEIGHT, h + TEXT_BOTTOM_PAD))",
-    to: "            row:SetHeight(ROW_HEIGHT)" },
+  // The row-sizing mutations that used to live here moved to widgettest when both panels
+  // started sharing ns.FitRowHeight. Duplicating them per panel would have re-created the
+  // thing the shared helper exists to prevent: two copies to keep in step.
 
   // ...and the list has to grow with them, or the rows below run off the panel.
   { gate: "todopanel", file: "ui/TodoPanel.lua",
@@ -1574,4 +1571,28 @@ module.exports = [
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "a recipe seen again at a new price keeps the stale one",
     from: "    notes[name] = {", to: "    notes[name] = notes[name] or {" },
+  // ---- one row-fitting helper, shared (v0.169.0a) --------------------------
+  // A fixed row height under wrapping text shipped TWICE - the To Do panel in v0.158.0a and
+  // the Enhance panel in v0.167.0a, the second in a file created after the first was fixed.
+  // Two implementations were two chances to forget, so there is one now, and these break it
+  // in the ways both panels were broken.
+  { gate: "widgettest", file: "ui/Widgets.lua",
+    label: "rows go back to a fixed height, so wrapped text draws over the row below",
+    from: "    row:SetHeight(math.max(floor, top + tallest + bottom))",
+    to: "    row:SetHeight(floor)" },
+
+  // A row can have independent stacks side by side and either can be the one that wraps.
+  // Measuring only the first is exactly how the Enhance panel overflowed its own row.
+  { gate: "widgettest", file: "ui/Widgets.lua",
+    label: "only the first column is measured, so the other one overflows the row",
+    from: "        if height > tallest then tallest = height end",
+    to: "        if tallest == 0 then tallest = height end" },
+
+  // An empty string must contribute nothing, not even its gap, or every row that omits one
+  // carries a blank line of dead space.
+  { gate: "widgettest", file: "ui/Widgets.lua",
+    label: "an omitted line still reserves its space, padding every short row",
+    from: "            if fs and text and text ~= \"\" and (not fs.IsShown or fs:IsShown()) then",
+    to: "            if fs then" },
+
 ];

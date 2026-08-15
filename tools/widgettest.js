@@ -261,6 +261,62 @@ box.__scripts.OnEnterPressed(box)
 eq(box.__focused, false, "Enter releases focus")
 eq(box:GetText(), "keepme", "...and leaves the search in place")
 
+-- ---- FitRowHeight -------------------------------------------------------------------------
+-- A fixed row height under wrapping text shipped TWICE: the To Do panel in v0.158.0a, and the
+-- Enhance panel in v0.167.0a - the second written in a file created after the first was fixed.
+-- Nothing errors when it is wrong; the second and third lines are simply drawn over whatever
+-- is below them, which no headless gate sees unless it measures.
+--
+-- Tested HERE rather than through a panel. Through one, the interesting cases collapse: both
+-- "no detail" and "empty detail" reach the helper as a font string with no text, so an
+-- assertion comparing two panel rows cannot tell a stray gap from none. Exact heights can
+-- only be constructed against the helper itself.
+local function stringOf(height, text)
+    return {
+        GetText = function() return text end,
+        GetStringHeight = function() return height end,
+        IsShown = function() return true end,
+    }
+end
+
+local sized = CreateFrame("Frame")
+local OPTS = { top = 8, gap = 3, bottom = 8, floor = 0 }
+
+local function fit(columns)
+    return ns.FitRowHeight(sized, {
+        top = OPTS.top, gap = OPTS.gap, bottom = OPTS.bottom, floor = OPTS.floor,
+        columns = columns,
+    })
+end
+
+eq(fit({ { stringOf(14, "one line") } }), 8 + 14 + 8, "one line is padded top and bottom")
+eq(fit({ { stringOf(14, "a"), stringOf(28, "b") } }), 8 + 14 + 3 + 28 + 8,
+   "two lines add the gap between them, once")
+
+-- The one the panels get wrong. An omitted line contributes NOTHING, not even its gap.
+eq(fit({ { stringOf(14, "a"), stringOf(0, "") } }), 8 + 14 + 8,
+   "an EMPTY line takes no space at all, not even the gap that would precede it")
+eq(fit({ { stringOf(14, "a"), stringOf(0, nil) } }), 8 + 14 + 8,
+   "and neither does one that was never given any text")
+
+-- Independent columns, and either can be the taller. Measuring only the first is exactly how
+-- the Enhance panel put its vendor note through the bottom of its own row.
+eq(fit({ { stringOf(14, "a") }, { stringOf(50, "b") } }), 8 + 50 + 8,
+   "the TALLER column decides, when it is the second one")
+eq(fit({ { stringOf(50, "a") }, { stringOf(14, "b") } }), 8 + 50 + 8,
+   "and when it is the first")
+
+-- The floor is a floor, not the height.
+OPTS.floor = 100
+eq(fit({ { stringOf(14, "a") } }), 100, "a short row is held up to the floor")
+eq(fit({ { stringOf(200, "a") } }), 8 + 200 + 8, "and a tall one is not held down to it")
+OPTS.floor = 0
+
+-- Nothing at all is still a valid row, not an error.
+eq(fit({}), 16, "a row with no columns is just its padding")
+ok(pcall(ns.FitRowHeight, nil, {}), "a nil row does not error")
+ok(pcall(ns.FitRowHeight, sized, nil), "and neither does nil options")
+
 return failures, checks
 `;
 
