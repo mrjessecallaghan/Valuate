@@ -444,6 +444,53 @@ eq(best and best.stats and best.stats.Agility, 32,
 
 Valuate.ParseStatsFromTooltip = realParse
 
+-- ---- the item-level floor, read out of the same tooltip -------------------------------------
+-- Enchants carry one: "Requires a level 60 or higher item". The WORDING is not verified
+-- against Ascension, which is why an unrecognised line must yield nil - "no requirement I
+-- could read" - rather than zero. Zero would read as "no requirement", and the panel would
+-- then confidently offer enchants that cannot be applied.
+ns.ResetEnhanceCache()
+local REQ_LINES = {}
+ValuatePrivateTooltip = { NumLines = function() return #REQ_LINES end }
+_G.ValuatePrivateTooltip = ValuatePrivateTooltip
+getglobal = function(name)
+    local i = tonumber(name:match("TextLeft(%d+)$") or "")
+    local text = i and REQ_LINES[i]
+    if not text then return nil end
+    return { GetText = function() return text end }
+end
+
+Valuate.ParseStatsFromTooltip = function() return STATS_BY_NAME[CURRENT_NAME] end
+Valuate.GetPrivateTooltip = function()
+    return { ClearLines = function() end,
+             SetCraftSpell = function() end,
+             SetTradeSkillItem = function() end }
+end
+
+local function reqFor(...)
+    REQ_LINES = { ... }
+    ns.ResetEnhanceCache()
+    local bySlot = ns.CollectEnhancements()
+    for _, e in ipairs(bySlot[8] or {}) do
+        if e.name == "Enchant Boots - Greater Assault" then return e.reqLevel end
+    end
+end
+
+eq(reqFor("Enchant Boots", "Requires a level 60 or higher item"), 60,
+   "the common wording is read")
+eq(reqFor("Enchant Boots", "Requires item level 35 or higher"), 35,
+   "and the other shape this client might use")
+eq(reqFor("Enchant Boots", "+32 Agility"), nil,
+   "a tooltip with no requirement yields nil, not zero")
+eq(reqFor("Enchant Boots", "Requires Enchanting (375)"), nil,
+   "a SKILL requirement is not an item-level one")
+eq(reqFor(), nil, "an empty tooltip does not error")
+
+-- Line 1 is the name. A recipe called "Enchant Boots - level 60 or higher item" would
+-- otherwise supply its own requirement out of its title.
+eq(reqFor("Requires a level 99 or higher item", "+32 Agility"), nil,
+   "the name line is skipped, whatever it happens to say")
+
 -- ---- a client that has neither api does not error ------------------------------------------------
 GetMerchantNumItems = nil
 GetNumTrainerServices = nil

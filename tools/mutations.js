@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.172.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.173.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1601,7 +1601,7 @@ module.exports = [
   // few hundred. Correct, and needlessly expensive on a path a person clicks.
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "every tab click re-reads a tooltip for every recipe you know",
-    from: "    if name and statsCache[name] then return statsCache[name] end", to: "" },
+    from: "    if hit then return hit.stats, hit.reqLevel end", to: "" },
 
   // The far worse failure: a cache that never clears. A recipe you just learned stays
   // invisible until you log out, which reads as the feature not seeing it at all.
@@ -1614,8 +1614,8 @@ module.exports = [
   // and caching that makes one bad moment permanent for the session.
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "a failed read is cached, making one bad moment permanent",
-    from: "    if name and stats then statsCache[name] = stats end",
-    to: "    if name then statsCache[name] = stats or {} end" },
+    from: "    if name and stats then statsCache[name] = { stats = stats, reqLevel = reqLevel } end",
+    to: "    if name then statsCache[name] = { stats = stats or {}, reqLevel = reqLevel } end" },
 
   // ---- one badge setter for every tab (v0.171.0a) --------------------------
   // A panel can refresh before its tab exists. An unknown name must be ignored rather than
@@ -1642,4 +1642,34 @@ module.exports = [
   { gate: "uicheck", file: "ui/UICheck.lua",
     label: "the quiet check opens the window it was asked to inspect",
     from: "        if quiet then return nil, 0 end", to: "" },
+  // ---- an enchant you cannot apply (v0.173.0a) -----------------------------
+  // Enchants carry an item-level floor. Recommending a level-60 one for a level-20 chest is
+  // advice that cannot be acted on, which is the specific thing this panel exists to prevent.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "an enchant that cannot go on your gear outranks one that can",
+    from: "        if a.tooHigh ~= b.tooHigh then return b.tooHigh end", to: "" },
+
+  // The other direction: demoting on a parse this code has never seen on Ascension would
+  // bury usable options. A requirement it could not read counts as no requirement.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "an unreadable requirement is treated as unmet, burying usable enchants",
+    from: "        local tooHigh = (wornLevel and entry.reqLevel and entry.reqLevel > wornLevel) or false",
+    to: "        local tooHigh = (wornLevel and entry.reqLevel ~= wornLevel) or false" },
+
+  // ...and a demoted one has to say WHY, or the strongest enchant sitting third looks
+  // arbitrary and the panel looks broken.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "a demoted enchant reads as merely lower-scoring, with no reason given",
+    from: "                    rest[#rest + 1] = alt.tooHigh", to: "                    rest[#rest + 1] = false" },
+  // The requirement parser. Its wording is unverified against Ascension, so both directions
+  // matter: missing a real floor offers unusable enchants, and inventing one hides good ones.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "the item-level floor is never read, so unusable enchants are recommended",
+    from: "            local level = text:match(\"level (%d+) or higher item\")", to: "            local level = nil and text:match(\"x\")" },
+
+  // Line 1 is the recipe name. A recipe whose title mentions a level would supply its own.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    scope: { start: "local function RequiredItemLevel(", end: "    return nil" },
+    label: "the recipe's own name supplies a requirement, if it happens to mention a level",
+    from: "for i = 2, tip:NumLines() do", to: "for i = 1, tip:NumLines() do" },
 ];

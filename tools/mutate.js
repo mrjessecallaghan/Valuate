@@ -40,6 +40,32 @@ if (selected.length === 0) {
   process.exit(1);
 }
 
+/*
+ * Every mutation says what it breaks, in words.
+ *
+ * The label is the entire output of a mutation run: "caught" against a sentence is the only
+ * thing that tells you what was proven. One shipped without a label and the report read
+ *
+ *     caught     [enhance] undefined
+ *
+ * which is worse than useless - it is a green line that cannot be checked, in the one place
+ * this project uses to check that its green lines mean something.
+ *
+ * Same rule as everywhere else here: a hand-maintained list gets a check rather than trust.
+ */
+const unlabelled = selected.filter((m) => typeof m.label !== "string" || m.label.trim() === "");
+if (unlabelled.length) {
+  console.error(`${unlabelled.length} mutation(s) with no label:`);
+  for (const m of unlabelled) {
+    console.error(`  [${m.gate}] ${m.file} <- ${JSON.stringify(String(m.from).slice(0, 60))}`);
+  }
+  console.error(
+    "\nThe label IS the result. Without one the run prints 'caught  [gate] undefined', which " +
+      "proves something was caught but not what."
+  );
+  process.exit(2);
+}
+
 // Originals, read once. Every restore compares against these rather than re-reading, so a
 // partial write cannot become the new baseline.
 const originals = new Map();

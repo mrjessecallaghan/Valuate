@@ -59,6 +59,12 @@ local WORN = {
 }
 GetInventoryItemLink = function(_, slotId) return WORN[slotId] end
 
+-- Item level, index 4. Nil until the client has the item cached, which counts as "no
+-- constraint I could read" rather than "level 0" - the difference between demoting nothing
+-- and demoting everything.
+local WORN_LEVEL = 60
+GetItemInfo = function() return "Item", nil, nil, WORN_LEVEL end
+
 Valuate.GetPrimaryScale = function() return { Values = { Agility = 1 } }, "Dps" end
 Valuate.CalculateItemScore = function(_, stats) return (stats and stats.Agility or 0) end
 
@@ -161,6 +167,71 @@ eq(said:find("already has an enhancement", 1, true), nil,
 Valuate.GetPrimaryScale = realScale
 ns.RefreshEnhancePanel()
 ok(visibleRows() > 0, "and the rows come back once there is a scale again")
+
+-- ---- an enchant you cannot apply is not a better one -----------------------------------------
+-- Enchants carry an item-level floor. Offering a level-60 one for a level-20 chest is a
+-- recommendation that cannot be acted on at all, which is the specific thing this panel exists
+-- to save you from.
+--
+-- SORTED BELOW, not removed. The requirement is read from tooltip wording this code has never
+-- seen on Ascension, so a wrong parse would silently delete real options. Demoting a usable
+-- enchant is a visible annoyance; hiding one is invisible.
+WORN_LEVEL = 20
+COLLECTED = {
+    [8] = {
+        { name = "Enchant Boots - Greater Assault", slots = { 8 }, stats = { Agility = 32 },
+          source = "craft", reqLevel = 60 },
+        { name = "Enchant Boots - Minor Agility", slots = { 8 }, stats = { Agility = 4 },
+          source = "craft", reqLevel = 1 },
+    },
+}
+ns.RefreshEnhancePanel()
+said = texts()
+
+-- Which one is FIRST, not merely which appear. Both are on the row either way - one as the
+-- recommendation, the other among the alternatives - so "Minor Agility is shown" was true
+-- with the usable-first rule deleted entirely.
+local lowGear = ns.RankForSlot(COLLECTED, 8, { Values = { Agility = 1 } }, "Dps", 20)
+eq(lowGear[1].entry.name, "Enchant Boots - Minor Agility",
+   "the weaker but USABLE enchant is the recommendation")
+eq(lowGear[1].tooHigh, false, "and it is marked usable")
+eq(lowGear[2].entry.name, "Enchant Boots - Greater Assault",
+   "the stronger one you cannot apply sits below it")
+eq(lowGear[2].tooHigh, true, "marked as out of reach")
+ok(said:find("needs item level 60", 1, true) ~= nil,
+   "and the panel says what it needs, so its position is not arbitrary")
+
+-- Once the gear is good enough, the better one wins again.
+WORN_LEVEL = 80
+ns.RefreshEnhancePanel()
+local ranked80 = ns.RankForSlot(COLLECTED, 8, { Values = { Agility = 1 } }, "Dps", 80)
+eq(ranked80[1].entry.name, "Enchant Boots - Greater Assault",
+   "on gear that can take it, the strongest is first again")
+
+-- An UNREADABLE requirement counts as usable. The alternative is demoting everything the
+-- moment the tooltip wording differs from what this code expects.
+local ranked = ns.RankForSlot({
+    [8] = { { name = "Unknown Req", slots = { 8 }, stats = { Agility = 50 }, source = "craft" } },
+}, 8, { Values = { Agility = 1 } }, "Dps", 5)
+eq(ranked[1].tooHigh, false,
+   "an enhancement with no readable requirement is treated as usable, not demoted on a guess")
+
+-- And with no item level known - the client has not cached the item yet - nothing is demoted.
+local uncached = ns.RankForSlot(COLLECTED, 8, { Values = { Agility = 1 } }, "Dps", nil)
+eq(uncached[1].tooHigh, false, "an uncached item level demotes nothing")
+
+WORN_LEVEL = 60
+COLLECTED = {
+    [8] = {
+        { name = "Enchant Boots - Greater Assault", slots = { 8 }, stats = { Agility = 32 }, source = "craft" },
+        { name = "Enchant Boots - Assault",         slots = { 8 }, stats = { Agility = 20 }, source = "craft" },
+        { name = "Enchant Boots - Minor Agility",   slots = { 8 }, stats = { Agility = 4 },  source = "craft" },
+    },
+    [5] = {
+        { name = "Enchant Chest - Powerful Stats", slots = { 5 }, stats = { Agility = 10 }, source = "craft" },
+    },
+}
+ns.RefreshEnhancePanel()
 
 -- ---- the 'only missing' filter -------------------------------------------------------------
 ns.EnhanceFilters.onlyMissing = false

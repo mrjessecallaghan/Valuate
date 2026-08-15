@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.173.0a] - 2026-08-15 — an enchant you cannot apply is not a better one
+
+### Added
+**The Enhance tab now knows an enchant's item-level floor**, and stops recommending ones your
+gear cannot take.
+
+Enchants carry a requirement — *"Requires a level 60 or higher item"*. Offering one for a
+level 20 chest is advice that cannot be acted on at all, which is the specific thing this panel
+exists to save you from. This closes the *"can use at my level, are the right level for"* part
+of the original request.
+
+Read out of the **same tooltip pass as the stats**, because opening it twice per recipe is the
+cost the last release was spent removing.
+
+**Sorted below rather than removed.** The requirement is read from tooltip wording this code
+has never seen on Ascension, so a wrong parse would silently delete real options. Demoting a
+usable enchant is a visible annoyance; hiding one is invisible. A demoted entry says *"(needs
+item level 60)"* so its position is never arbitrary.
+
+An unreadable requirement counts as **usable**, not as unmet — the alternative is burying every
+option the moment the wording differs from what this code expects.
+
+### Added — the mutation list gets its own rule
+A mutation shipped without a label, and the report read:
+
+> `caught     [enhance] undefined`
+
+The label **is** the result of a mutation run — "caught" against a sentence is the only thing
+that says what was proven. A green line that cannot be checked, in the one place this project
+uses to check that its green lines mean something.
+
+`mutate.js` now refuses to run and names the offender. Same rule as everywhere else here: a
+hand-maintained list gets a check rather than trust. That makes **eight** lists in this project
+now guarded rather than remembered.
+
+### Technical
+Two assertions needed tightening. "The weaker but usable enchant is recommended" passed with
+the usable-first rule deleted entirely — both enchants are on the row either way, one as the
+recommendation and the other among the alternatives, so *appearing* proves nothing about
+*ordering*. And the demoted entry originally showed only its score in the alternatives line,
+which read as merely lower-scoring; the strongest enchant sitting third for no visible reason
+is worse than not showing it.
+
+
 ## [0.172.0a] - 2026-08-15 — the command that runs everything wasn't running everything
 
 ### Fixed

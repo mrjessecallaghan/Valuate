@@ -210,7 +210,12 @@ function ns.CreateEnhancePanel(parent)
         local shown, offered = 0, 0
         for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
             local worn = GetInventoryItemLink and GetInventoryItemLink("player", def.slotId)
-            local ranked = ns.RankForSlot(bySlot, def.slotId, scale, scaleName)
+            -- The worn item's level, so an enchant needing more than it sorts below the ones
+            -- you can actually apply. Index 4 of GetItemInfo; nil when the item is not cached
+            -- yet, which counts as "no constraint I could read" rather than "level 0".
+            local wornLevel = (worn and type(GetItemInfo) == "function")
+                and select(4, GetItemInfo(worn)) or nil
+            local ranked = ns.RankForSlot(bySlot, def.slotId, scale, scaleName, wornLevel)
 
             -- Filter by profession BEFORE deciding whether the row is worth showing, or a
             -- slot whose only options are all filtered out still takes up a line saying
@@ -240,8 +245,14 @@ function ns.CreateEnhancePanel(parent)
                     or "|cFFFF8800nothing on it|r")
 
                 local top = ranked[1]
-                row.best:SetText(top.entry.name)
-                row.best:SetTextColor(0.55, 0.95, 0.55, 1)
+                row.best:SetText(top.entry.name ..
+                    (top.tooHigh and string.format(" |cFFFF8800(needs item level %d)|r",
+                        top.entry.reqLevel or 0) or ""))
+                if top.tooHigh then
+                    row.best:SetTextColor(0.75, 0.6, 0.4, 1)
+                else
+                    row.best:SetTextColor(0.55, 0.95, 0.55, 1)
+                end
                 -- The estimate is admitted on the row, not buried in a tooltip. A number
                 -- partly derived from someone's judgement about movement speed should not sit
                 -- in the same column as one derived from your own stat weights in silence.
@@ -262,7 +273,14 @@ function ns.CreateEnhancePanel(parent)
 
                 local rest = {}
                 for i = 2, math.min(#ranked, ALTERNATIVES + 1) do
-                    rest[#rest + 1] = string.format("%s (%.0f)", ranked[i].entry.name, ranked[i].score)
+                    -- A demoted enchant says WHY it is down here. Without that it reads as a
+                    -- lower-scoring option, and the strongest enchant in the list sitting
+                    -- third for no visible reason is worse than not showing it at all.
+                    local alt = ranked[i]
+                    rest[#rest + 1] = alt.tooHigh
+                        and string.format("%s (needs item level %d)",
+                            alt.entry.name, alt.entry.reqLevel or 0)
+                        or string.format("%s (%.0f)", alt.entry.name, alt.score)
                 end
                 if #ranked > ALTERNATIVES + 1 then
                     rest[#rest + 1] = string.format("and %d more", #ranked - ALTERNATIVES - 1)

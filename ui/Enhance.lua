@@ -267,26 +267,58 @@ function ns.ResetEnhanceCache()
     statsCache = {}
 end
 
+-- What item level this enhancement needs.
+--
+-- Enchants carry a floor: "Requires a level 60 or higher item". Offering one for a level 20
+-- chest is a recommendation that cannot be acted on at all, which is the specific thing this
+-- panel exists to save you from.
+--
+-- THE WORDING IS NOT VERIFIED against Ascension. Two shapes are tried, and an unrecognised
+-- line yields NIL - meaning "no requirement I could read", never zero and never a guess. The
+-- panel shows a nil anyway, because hiding something real on an unverified parse is a worse
+-- failure than showing something you cannot use.
+local function RequiredItemLevel(tooltipName)
+    local tip = _G[tooltipName]
+    if not tip or not tip.NumLines then return nil end
+    for i = 2, tip:NumLines() do
+        local line = getglobal(tooltipName .. "TextLeft" .. i)
+        local text = line and line.GetText and line:GetText()
+        if text then
+            local level = text:match("level (%d+) or higher item")
+                or text:match("item level (%d+) or higher")
+            if level then return tonumber(level) end
+        end
+    end
+    return nil
+end
+
+-- Returns stats, requiredItemLevel.
+--
+-- Both out of ONE tooltip pass. Opening it twice per recipe is exactly the cost this file
+-- spent a release removing, and the requirement is sitting in the same lines as the stats.
 local function StatsFromTooltip(setter, index, name)
-    if name and statsCache[name] then return statsCache[name] end
+    local hit = name and statsCache[name]
+    if hit then return hit.stats, hit.reqLevel end
     if not Valuate.GetPrivateTooltip or not Valuate.ParseStatsFromTooltip then return nil end
     local tip = Valuate:GetPrivateTooltip()
     if not tip or type(tip[setter]) ~= "function" then return nil end
 
-    local ok, stats = pcall(function()
+    local ok, stats, reqLevel = pcall(function()
         tip:ClearLines()
         tip[setter](tip, index)
-        return Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
+        return Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip"),
+            RequiredItemLevel("ValuatePrivateTooltip")
     end)
     if not ok then return nil end
 
     -- Only a real read is remembered. A FAILED one is not cached, because the usual reason is
     -- that the tooltip was not ready yet - and caching that would make one bad moment
     -- permanent for the session.
-    if name and stats then statsCache[name] = stats end
+    if name and stats then statsCache[name] = { stats = stats, reqLevel = reqLevel } end
+
     -- An EMPTY table is not the same as a failure to read. The caller distinguishes them:
     -- one is "this enhancement grants no weighted stats", the other is "I could not tell".
-    return stats
+    return stats, reqLevel
 end
 
 -- The link is decoration - a hover target - never a fact the panel depends on. Some clients
@@ -326,7 +358,7 @@ function ns.CollectEnhancements()
             return
         end
 
-        local stats = StatsFromTooltip(
+        local stats, reqLevel = StatsFromTooltip(
             source == "craft" and "SetCraftSpell" or "SetTradeSkillItem", index, name)
         if not stats then
             unreadable[#unreadable + 1] = { name = name, why = "could not read its stats" }
@@ -334,7 +366,7 @@ function ns.CollectEnhancements()
         end
 
         local entry = {
-            name = name, slots = slots, stats = stats,
+            name = name, slots = slots, stats = stats, reqLevel = reqLevel,
             source = source, index = index, link = link,
         }
         for _, slotId in ipairs(slots) do
@@ -468,19 +500,35 @@ function ns.ScoreEnhancement(entry, scale, scaleName)
 end
 
 -- Ranks what can go in one slot. Returns an array, best first.
-function ns.RankForSlot(bySlot, slotId, scale, scaleName)
+--
+-- wornLevel, when given, is the item level of the thing in that slot. An enhancement needing
+-- more than that CANNOT be applied - it is not a weaker option, it is not an option - so it
+-- sorts below everything usable rather than competing on score.
+--
+-- Sorted below rather than REMOVED, deliberately. The requirement is read from tooltip wording
+-- this code has never seen on Ascension, so a parse that is wrong would silently delete real
+-- options. Demoting a usable enchant is a visible annoyance; hiding one is invisible.
+function ns.RankForSlot(bySlot, slotId, scale, scaleName, wornLevel)
     local list = bySlot and bySlot[slotId]
     if not list then return {} end
 
     local out = {}
     for _, entry in ipairs(list) do
         local score, estimated = ns.ScoreEnhancement(entry, scale, scaleName)
-        out[#out + 1] = { entry = entry, score = score, estimated = estimated }
+        -- nil requirement means "none I could read", which is not the same as "none". It
+        -- counts as usable, because the alternative is demoting everything on a parse failure.
+        local tooHigh = (wornLevel and entry.reqLevel and entry.reqLevel > wornLevel) or false
+        out[#out + 1] = {
+            entry = entry, score = score, estimated = estimated, tooHigh = tooHigh,
+        }
     end
 
     -- Tie-broken on NAME, which is unique per slot, because the source order is whatever the
     -- profession window happened to list and would reshuffle the panel between openings.
     table.sort(out, function(a, b)
+        -- Usable first, whatever it scores. An enchant you cannot apply is not a weaker
+        -- recommendation than one you can; it is not a recommendation.
+        if a.tooHigh ~= b.tooHigh then return b.tooHigh end
         if a.score ~= b.score then return a.score > b.score end
         return (a.entry.name or "") < (b.entry.name or "")
     end)
