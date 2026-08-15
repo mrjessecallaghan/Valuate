@@ -1501,6 +1501,46 @@ local function CreateSettingsPanel(parent)
     hitCapHint:SetTextColor(unpack(COLORS.textDim))
     columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
 
+    -- Where you actually stand, right now, next to the switch that acts on it.
+    --
+    -- Everything needed to decide whether this setting matters to you lived behind a command
+    -- you had to leave the panel to run. Someone reading "stop valuing hit once you are
+    -- capped" cannot answer the only question that follows - am I anywhere near it - and a
+    -- setting whose relevance you cannot judge from where it is presented is a setting that
+    -- gets left alone.
+    local hitStatus = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    hitStatus:SetPoint("TOPLEFT", col2, "TOPLEFT", 0, -columnHeights[2])
+    hitStatus:SetWidth(settingsColumnWidth)
+    hitStatus:SetJustifyH("LEFT")
+    hitStatus:SetTextColor(unpack(COLORS.textBody))
+    columnHeights[2] = columnHeights[2] + 28 + ELEMENT_SPACING
+
+    -- Refreshed rather than set once: your hit changes every time you swap a piece, and a
+    -- number that was true when the panel was BUILT is worse than no number - it looks live.
+    local function RefreshHitStatus()
+        local scale = Valuate.GetPrimaryScale and Valuate:GetPrimaryScale()
+        if not scale then
+            hitStatus:SetText("|cFFAAAAAANo active scale, so nothing is being scored yet.|r")
+            return
+        end
+        local state = Valuate.GetHitState and Valuate:GetHitState(scale)
+        if not state then
+            hitStatus:SetText("|cFFAAAAAAThis client cannot report your hit, so this setting " ..
+                "does nothing.|r")
+        elseif not state.calibrated then
+            hitStatus:SetText("|cFFFF8833You carry no hit rating|r, so the conversion cannot be " ..
+                "worked out yet and hit is scored in full.")
+        elseif state.headroom <= 0 then
+            hitStatus:SetText(string.format("|cFF00FF00You are capped|r - %.2f%% of a %.1f%% cap.",
+                state.percent, state.cap))
+        else
+            hitStatus:SetText(string.format("You have |cFFFFFFFF%.2f%%|r of a |cFFFFFFFF%.1f%%|r " ..
+                "cap - %.2f%% to go.", state.percent, state.cap, state.headroom))
+        end
+    end
+    RefreshHitStatus()
+    ns.RefreshSettingsHitStatus = RefreshHitStatus
+
     local drCheckbox = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
     drCheckbox:SetSize(24, 24)
     drCheckbox:SetPoint("TOPLEFT", hitCapHint, "BOTTOMLEFT", 0, -ELEMENT_SPACING)

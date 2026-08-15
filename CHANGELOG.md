@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.137.0a] - 2026-08-15 — where you actually stand, next to the switch
+
+### Added
+Settings → Scoring now shows your live hit state under the hit-cap controls:
+
+> You have **2.40%** of a **4.0%** cap — 1.60% to go.
+
+Everything needed to decide whether that setting matters to you lived behind a command you had
+to leave the panel to run. Someone reading *"stop valuing hit once you are capped"* cannot
+answer the only question that follows — **am I anywhere near it** — and a setting whose
+relevance you cannot judge from where it is presented is a setting that gets left alone.
+
+It states each case rather than always printing a number: no active scale, a client that
+cannot report hit, no hit rating worn yet (so the conversion cannot be derived and hit is
+scored in full), room to go, or capped.
+
+**Refreshed, not set once.** The panel is built once and reused for the session while your hit
+changes with every gear swap, so a number fixed at build time would be worse than none — it
+would look live. It re-reads whenever the Settings tab is shown, deliberately outside the
+"only on tab switch" guard: reopening the window on the tab you were already on still wants a
+current number.
+
+### Technical — four fixture bugs, one after another
+Every one of them made assertions pass or fail for reasons unrelated to what they claimed:
+
+1. `GetHitState` lives in `Valuate.lua` and this harness loads only `ui/`, so the line was
+   reporting "this client cannot tell" throughout. Mocked — and `hitcap.js` runs the real one
+   against 62 checks, so what is under test here is the **rendering**, not the state.
+2. The text matcher took the first region containing "cap" — which is the static hint,
+   *"the cap is far higher against a boss"*. All four assertions were measuring a line that was
+   never the subject.
+3. `Valuate.GetPrimaryScale = Valuate.GetPrimaryScale or ...` kept the harness's existing stub,
+   which returns nil, so every assertion measured the "no active scale" branch.
+4. The capped assertion matched `"capped"`, which also appears in the checkbox label directly
+   above it. Now matched case-sensitively on `"You are capped"`.
+
+Four in one small gate is worth recording plainly: the fixture is where these keep hiding, and
+each one looked like a working test until it was made to fail on purpose.
+
 ## [0.136.0a] - 2026-08-15 — a threshold that means the same thing at every level
 
 ### Fixed

@@ -174,6 +174,28 @@ end
 
 -- ---- build it ----------------------------------------------------------------
 local parent = CreateFrame("Frame")
+-- Hit state, for the Scoring section's live line. Rating and percent are independent so the
+-- derived conversion between them can be exercised.
+HIT_RATING, HIT_PERCENT = 0, 0
+function GetCombatRating() return HIT_RATING end
+function GetCombatRatingBonus() return HIT_PERCENT end
+-- GetHitState is MOCKED, not sliced. It lives in Valuate.lua, this harness loads only ui/,
+-- and tools/hitcap.js already runs the real one against 62 checks. What is under test here is
+-- whether the SETTINGS LINE renders each state correctly and re-reads when asked.
+function Valuate:GetHitState()
+    if HIT_RATING <= 0 then
+        return { percent = 0, cap = 4.0, headroom = 4.0, calibrated = false }
+    end
+    return { percent = HIT_PERCENT, cap = 4.0,
+             headroom = math.max(0, 4.0 - HIT_PERCENT),
+             perPercent = HIT_RATING / HIT_PERCENT, calibrated = true }
+end
+-- Set outright, not defaulted. The harness already stubs GetPrimaryScale to return nil, so
+-- an 'or' kept that and every assertion below measured the "no active scale" branch instead.
+Valuate.GetPrimaryScale = function()
+    return { Values = { Intellect = 1.0, SpellPower = 0.8, HitRating = 1.0 } }, "Test"
+end
+
 local built, err = pcall(ns.CreateSettingsPanel, parent)
 if not built then
     return { "the Settings panel failed to build: " .. tostring(err) }, 1
@@ -410,6 +432,58 @@ eq(#multi, 0, "no checkbox writes more than one option: " .. table.concat(multi,
 -- number is visible if it ever jumps.
 ok(#none <= #boxes / 2,
    "most checkboxes write an option (" .. #none .. " of " .. #boxes .. " wrote none)")
+
+-- ---- the live hit line, next to the switch that acts on it -----------------------------
+-- Everything needed to judge whether the hit-cap setting matters to you lived behind a
+-- command you had to leave the panel to run. A setting whose relevance you cannot assess from
+-- where it is presented is a setting that gets left alone.
+--
+-- The interesting half is that it REFRESHES. A number that was true when the panel was built
+-- is worse than no number, because it looks live - and this panel is built once and reused
+-- for the whole session while your hit changes with every gear swap.
+ok(ns.RefreshSettingsHitStatus ~= nil, "the panel publishes a way to refresh its hit line")
+
+-- Every region, joined. Matching the FIRST region containing "cap" found the static hint
+-- ("the cap is far higher against a boss") instead of the live line, so all four assertions
+-- failed against text that was never the subject.
+local function hitLineText()
+    local out = {}
+    for _, f in ipairs(__frames) do
+        for _, region in ipairs(f.__regions or {}) do
+            if region.GetText then
+                local t = region:GetText()
+                if t then out[#out + 1] = t end
+            end
+        end
+    end
+    return table.concat(out, " | ")
+end
+
+-- Uncalibrated: say so rather than showing a percentage of nothing.
+HIT_RATING, HIT_PERCENT = 0, 0
+ns.RefreshSettingsHitStatus()
+ok(hitLineText():find("no hit rating", 1, true) ~= nil,
+   "with no hit worn it says the conversion cannot be worked out yet")
+
+-- Room to spare: the number someone deciding about this setting actually wants.
+HIT_RATING, HIT_PERCENT = 10, 2.0
+ns.RefreshSettingsHitStatus()
+local roomy = hitLineText()
+ok(roomy:find("2.00", 1, true) ~= nil, "with hit worn it reports what you have")
+ok(roomy:find("4.0", 1, true) ~= nil, "against the cap it is measured on")
+
+-- Capped: the state the setting exists for.
+HIT_RATING, HIT_PERCENT = 20, 4.0
+ns.RefreshSettingsHitStatus()
+ok(hitLineText():find("You are capped", 1, true) ~= nil,
+   "and says plainly when you are capped - matched case-sensitively, because the checkbox " ..
+   "label above it also ends in the words 'you are capped'")
+
+-- It genuinely re-reads. A line set once at build time would still say "capped" here.
+HIT_RATING, HIT_PERCENT = 5, 1.0
+ns.RefreshSettingsHitStatus()
+eq(hitLineText():find("You are capped", 1, true), nil,
+   "taking hit off updates the line - it re-reads rather than remembering")
 
 return failures, checks
 `,

@@ -299,6 +299,10 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     Valuate:RevealBestEquipmentColumns()
                 end
             elseif tabName == "settings" then
+                -- Outside the isSwitch guard on purpose: re-opening Settings on the tab you
+                -- were already on still wants a current number, and this is the panel's only
+                -- line that goes stale on its own.
+                if ns.RefreshSettingsHitStatus then ns.RefreshSettingsHitStatus() end
                 if isSwitch then
                     Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
                     -- Staggered column reveal, same flourish as Best Equipment.
