@@ -323,6 +323,44 @@ Valuate.GetAutoScaleDrift = nil
 ns.UpdateScaleList()
 eq(wizBtn.label:GetText(), "Make me a scale", "a core without the detector still draws the button")
 
+-- ---- a guessed scale is marked in the LIST too -----------------------------------------
+-- The editor has said this since v0.123.0a, but the list is where you choose BETWEEN scales,
+-- and there a guess looked like every other row. Six templates have no published stat
+-- priority, so a scale built from one is a starting point rather than a researched build -
+-- worth knowing while picking, not only after.
+SCALES = {
+    ["Guessy"] = { DisplayName = "Guessy", Inferred = true, Values = { Agility = 1.0 } },
+    ["Solid"]  = { DisplayName = "Solid", Values = { Agility = 1.0 } },
+}
+ns.UpdateScaleList()
+
+local function rowTexts()
+    local out = {}
+    for _, f in ipairs(__frames) do
+        for _, region in ipairs(f.__regions or {}) do
+            if region.GetText and region.__shown ~= false then
+                local t = region:GetText()
+                if t and t ~= "" then out[#out + 1] = t end
+            end
+        end
+    end
+    return table.concat(out, " | ")
+end
+
+local shown = rowTexts()
+ok(shown:find("?", 1, true) ~= nil, "a guessed scale carries a mark in the list")
+
+-- A DIFFERENT glyph from the primary-spec star, which sits two pixels away. One symbol
+-- meaning two things in the same row is worse than no symbol.
+ok(shown:find("|cFFFF8833?|r", 1, true) ~= nil,
+   "and it is the orange ?, not the gold * that already means 'current spec'")
+
+-- Not on everything. A mark on every row marks nothing.
+SCALES = { ["Solid"] = { DisplayName = "Solid", Values = { Agility = 1.0 } } }
+ns.UpdateScaleList()
+eq(rowTexts():find("|cFFFF8833?|r", 1, true), nil,
+   "a researched scale carries no mark at all")
+
 return failures, checks
 `,
   "scalelisttest",

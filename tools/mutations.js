@@ -174,7 +174,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.141.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.142.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -997,4 +997,20 @@ module.exports = [
     },
     label: "every check claims a gate, including the ones that have none",
     from: "    if c.gate then", to: "    if true then" },
+
+  // ---- the guess mark in the scale list (v0.142.0a) ------------------------
+  // The list is where you choose BETWEEN scales, and a guessed one looked like every other
+  // row. The mark and its explanation shipped together on purpose: v0.133.0a shipped a
+  // symbol with no key and had to come back two releases later to explain it.
+  { gate: "scalelisttest", file: "ui/ScaleList.lua",
+    label: "a guessed scale is unmarked in the list, so you cannot tell while choosing",
+    from: "if scale.Inferred then guessMark:Show() else guessMark:Hide() end",
+    to: "guessMark:Hide()" },
+  { gate: "scalelisttest", file: "ui/ScaleList.lua",
+    label: "every scale is marked as a guess, so the mark marks nothing",
+    from: "if scale.Inferred then guessMark:Show() else guessMark:Hide() end",
+    to: "guessMark:Show()" },
+  { gate: "scalelisttest", file: "ui/ScaleList.lua",
+    label: "the guess reuses the gold star that already means current spec",
+    from: 'guessMark:SetText("|cFFFF8833?|r")', to: 'guessMark:SetText("|cFFFFD100*|r")' },
 ];

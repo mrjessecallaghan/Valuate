@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.142.0a] - 2026-08-15 — a guessed scale is marked where you choose
+
+### Added
+The scale editor has said *"these weights are a guess"* since v0.123.0a. The **list** — which
+is where you actually choose between scales — showed nothing. Six templates have no published
+stat priority anywhere, so a scale built from one is a starting point rather than a researched
+build, and that is worth knowing while picking rather than after.
+
+An orange **?** on the row, with the explanation on hover.
+
+Two details that are deliberate:
+
+- **Not another star.** A gold `*` two pixels away already means "current spec", and one glyph
+  meaning two things in the same row is worse than no glyph.
+- **The mark and its key shipped together.** v0.133.0a added a `*` to the tooltip breakdown
+  with nothing explaining it and had to come back two releases later — a mistake worth making
+  only once.
+
+### Technical
+3 mutations, all caught, including one that swaps the `?` for the gold star: the two marks
+must stay distinguishable, not merely present.
+
+The changelog panel edit was made with an editor rather than a generated patch. Three times
+today a scripted edit dropped the opening quote of a Lua string literal in that file and broke
+the parse — caught every time, but a hazard worth simply not creating.
+
 ## [0.141.0a] - 2026-08-15 — the checks nothing else proves now say so
 
 ### Added

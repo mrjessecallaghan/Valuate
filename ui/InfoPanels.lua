@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.141.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.142.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.141.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.142.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,9 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• The scale LIST now marks a scale whose weights were guessed, with an orange ?\n" ..
+        "   and an explanation on hover. The editor has said so for a while; the list is\n" ..
+        "   where you actually choose between them.\n" ..
         "• /valuate verify now marks the checks that NOTHING automated can prove, and\n" ..
         "   counts them in the summary - those are the ones where your eyes are the\n" ..
         "   only evidence the behaviour has ever had.\n" ..

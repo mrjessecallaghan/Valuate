@@ -363,6 +363,20 @@ local function BuildScaleRow(index)
         primaryMark:SetText("|cFFFFD100*|r")
         primaryMark:Hide()
 
+        -- Weights nobody ever published.
+        --
+        -- The editor has said this since v0.123.0a, but the LIST is where you choose between
+        -- scales, and there it looked like every other row. Six of the templates have no
+        -- published stat priority, so a scale built from one is a starting point rather than
+        -- a researched build - and that is worth knowing while picking, not only after.
+        --
+        -- A question mark, not another star: the star already means "current spec" two pixels
+        -- away, and one glyph meaning two things in the same row is worse than no glyph.
+        local guessMark = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+        guessMark:SetPoint("RIGHT", primaryMark, "LEFT", -3, 0)
+        guessMark:SetText("|cFFFF8833?|r")
+        guessMark:Hide()
+
         -- Scale name
         local nameLabel = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
         nameLabel:SetPoint("LEFT", iconBtn, "RIGHT", 4, 0)
@@ -465,6 +479,16 @@ local function BuildScaleRow(index)
                     GameTooltip:AddLine("Tick the box to include this scale in item tooltips.", 0.8, 0.8, 0.8, true)
                     GameTooltip:AddLine("Make it your current spec from Settings > Character Window Scale.", 0.7, 0.7, 0.7, true)
                 end
+                -- What the ? means. Added with the mark rather than after it: v0.133.0a
+                -- shipped a symbol with no key and had to come back two releases later to
+                -- explain it, which is a mistake worth making only once.
+                if scale and scale.Inferred then
+                    GameTooltip:AddLine(" ")
+                    GameTooltip:AddLine("|cFFFF8833? These weights are a guess|r", 1, 1, 1)
+                    GameTooltip:AddLine("No stat priority was ever published for this spec, so " ..
+                        "they were read off its description. Edit them as you learn what works.",
+                        0.8, 0.8, 0.8, true)
+                end
                 GameTooltip:Show()
             end
         end)
@@ -524,6 +548,7 @@ local function BuildScaleRow(index)
 
             local _, primaryName = Valuate:GetPrimaryScale()
             if primaryName == name then primaryMark:Show() else primaryMark:Hide() end
+            if scale.Inferred then guessMark:Show() else guessMark:Hide() end
 
             -- Reset the hover/selected tint. A pooled row can be handed back mid-hover
             -- - delete a scale while the cursor is over the row below it and OnLeave
