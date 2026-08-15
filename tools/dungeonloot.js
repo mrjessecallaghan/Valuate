@@ -43,6 +43,8 @@ const PIECES = [
   /^function Valuate:ResetDungeonProgress\([\s\S]*?\r?\nend/m,
   /^function Valuate:UpdateDungeonTracking\([\s\S]*?\r?\nend/m,
   /^function Valuate:NoteDungeonUnitDeath\([\s\S]*?\r?\nend/m,
+  /^local WHERE_ITEM_BUDGET = \d+/m,
+  /^function Valuate:FindUpgradeSources\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -477,6 +479,104 @@ Valuate:NoteDungeonUnitDeath("Second")
 firePending()
 eq(Valuate:GetDungeonUpgradeStatus().remaining, 4,
    "one kill into run two means four left, not three - 'First' died in the previous run")
+
+-- ---- where do I go to fix this slot? ---------------------------------------------------
+-- 36 dungeons and 2,918 item ids sat in the table while the only way to learn whether a
+-- dungeon had anything for you was to be standing in it. Three rules carry this, and all
+-- three are the same one: do not present a guess as a finding.
+
+local WHERE_SCALE = { Values = { Intellect = 1.0, SpellPower = 0.8 } }
+Valuate.GetPrimaryScale = function() return WHERE_SCALE, "Test" end
+local PLAYER_LEVEL = 10
+function UnitLevel() return PLAYER_LEVEL end
+ns.EQUIP_SLOTS = ns.EQUIP_SLOTS or {}
+
+-- itemId -> what the client knows. minLevel and equipLoc are what the filter reads.
+local WHERE_ITEMS = {}
+function GetItemInfo(id)
+    local e = WHERE_ITEMS[id]
+    if not e then return nil end
+    return e.name, e.link, nil, nil, e.minLevel or 1, nil, nil, nil, e.equipLoc or "INVTYPE_CHEST"
+end
+function Valuate:GetScaledStatsForItem(link) return ITEM_STATS[link] end
+function Valuate:IsUpgradeForAnyScale(link)
+    if UPGRADES[link] == true then return true, 10 end
+    return false, 0
+end
+
+local function seedWhere(id, opts)
+    local link = "|Hwhere:" .. id .. "|h"
+    WHERE_ITEMS[id] = { name = "W" .. id, link = link,
+                        minLevel = opts.minLevel, equipLoc = opts.equipLoc }
+    ITEM_STATS[link] = opts.noStats and nil or { Intellect = 5 }
+    UPGRADES[link] = opts.upgrade and true or false
+end
+
+ns.DUNGEON_LOOT = {
+    ["Reachable"] = { bosses = { { name = "A", items = { 7001 } } } },
+    ["TooHigh"]   = { bosses = { { name = "B", items = { 7002 } } } },
+    ["NotGear"]   = { bosses = { { name = "C", items = { 7003 } } } },
+    ["Worse"]     = { bosses = { { name = "D", items = { 7004 } } } },
+}
+seedWhere(7001, { minLevel = 8,  upgrade = true })                   -- wearable and better
+seedWhere(7002, { minLevel = 60, upgrade = true })                   -- better, unreachable
+seedWhere(7003, { minLevel = 1,  upgrade = true, equipLoc = "" })    -- not gear at all
+seedWhere(7004, { minLevel = 1,  upgrade = false })                  -- wearable, no better
+
+local list, whyNot, unknown, asked = Valuate:FindUpgradeSources()
+ok(list ~= nil, "it answers at all" .. (whyNot and (": " .. whyNot) or ""))
+
+local named = {}
+for _, e in ipairs(list or {}) do named[e.dungeon] = true end
+
+ok(named["Reachable"] == true, "a dungeon with a wearable upgrade is named")
+eq(named["TooHigh"], nil,
+   "one whose upgrade needs level 60 is NOT - the level filter comes from the client, " ..
+   "because the generated table carries no level range and inventing one puts a level 10 in a raid")
+eq(named["NotGear"], nil, "an item that is not equippable is not an upgrade")
+eq(named["Worse"], nil, "and neither is gear that loses to what you have")
+
+-- Levelling up changes the answer, which is the point of reading the level rather than a table.
+PLAYER_LEVEL = 70
+list = Valuate:FindUpgradeSources()
+named = {}
+for _, e in ipairs(list or {}) do named[e.dungeon] = true end
+ok(named["TooHigh"] == true, "at 70 the same dungeon becomes an answer")
+PLAYER_LEVEL = 10
+
+-- ---- an uncached item is counted, not silently dropped ---------------------------------
+ns.DUNGEON_LOOT = { ["Cold"] = { bosses = { { name = "A", items = { 7999 } } } } }
+list, whyNot, unknown, asked = Valuate:FindUpgradeSources()
+eq(#list, 0, "an item the client cannot read yields no recommendation")
+ok(unknown >= 1, "but it is COUNTED as unknown rather than dropped - a cold cache must read " ..
+   "as 'ask again', never as 'nothing here'")
+ok(asked >= 1, "and the number asked is reported, so coverage is visible")
+
+-- ---- ordering is the answer -------------------------------------------------------------
+ns.DUNGEON_LOOT = {
+    ["Small"] = { bosses = { { name = "A", items = { 8001 } } } },
+    ["Big"]   = { bosses = { { name = "B", items = { 8002 } } } },
+}
+seedWhere(8001, { minLevel = 1, upgrade = true })
+seedWhere(8002, { minLevel = 1, upgrade = true })
+function Valuate:IsUpgradeForAnyScale(link)
+    if link:find("8002", 1, true) then return true, 50 end
+    if link:find("8001", 1, true) then return true, 5 end
+    return false, 0
+end
+list = Valuate:FindUpgradeSources()
+ok(list[1] and list[1].dungeon == "Big",
+   "the biggest upgrade is listed first - the question is where to GO, so the order IS the answer")
+
+-- Stable between runs. pairs() order is not an order, and a list that reshuffles between two
+-- runs of the same command reads as the addon being unsure of itself.
+eq(#list, 2, "both dungeons are recognised before ordering is asserted")
+local first = (list[1] and list[1].dungeon or "?") .. "/" .. (list[2] and list[2].dungeon or "?")
+for _ = 1, 6 do
+    local again = Valuate:FindUpgradeSources()
+    eq((again[1] and again[1].dungeon or "?") .. "/" .. (again[2] and again[2].dungeon or "?"), first,
+       "the same question gives the same order every time")
+end
 
 return failures, checks
 `,

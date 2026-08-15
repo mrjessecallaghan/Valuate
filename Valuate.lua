@@ -6930,6 +6930,91 @@ local function DungeonItemIsUpgrade(itemId)
 end
 
 -- What is left in here, as numbers. Nil when there is nothing to say.
+-- Where do I go to fix this slot?
+--
+-- The loot table has been answering "is anything left in HERE" since it landed. It can answer
+-- the more useful question too, and nothing was asking it: 36 dungeons and 2,918 item ids sat
+-- there while the only way to find out whether a dungeon had anything for you was to be
+-- standing in it.
+--
+-- Three rules, and all three are the same rule this file keeps restating - do not present a
+-- guess as a finding:
+--
+--   ONLY ITEMS YOU COULD ACTUALLY WEAR. GetItemInfo's minimum level is the filter, read from
+--   the client rather than from a level range in the table, because the generated table has
+--   none and inventing one would put a level 10 in Naxxramas.
+--
+--   AN UNCACHED ITEM IS NOT A "NO". It is counted separately and reported, so a cold cache
+--   reads as "ask again" rather than "nothing here".
+--
+--   A BUDGET, AND IT SAYS SO. Asking about 2,918 items in one frame is a stutter nobody
+--   asked for. It stops at a cap and NAMES the cap, because a silent truncation is a lie
+--   about coverage - the same failure the dungeon-leave prompt was built to avoid.
+--
+-- Returns: list of { dungeon, slots = { slotName... }, best }, plus unknown, asked.
+local WHERE_ITEM_BUDGET = 900
+
+function Valuate:FindUpgradeSources(scale)
+    if not ns.DUNGEON_LOOT then return nil, "The dungeon loot table did not load." end
+    if type(GetItemInfo) ~= "function" then return nil, "This client has no GetItemInfo()." end
+    scale = scale or Valuate:GetPrimaryScale()
+    if not scale or not scale.Values or not next(scale.Values) then
+        return nil, "No active scale with weights - /valuate wizard builds one."
+    end
+
+    local myLevel = (UnitLevel and UnitLevel("player")) or 0
+    local found, unknown, asked = {}, 0, 0
+
+    for dungeonName, dungeon in pairs(ns.DUNGEON_LOOT) do
+        local slots, best = {}, 0
+        local sections = { dungeon.bosses, dungeon.extra }
+        for _, list in ipairs(sections) do
+            for _, boss in ipairs(list or {}) do
+                for _, itemId in ipairs(boss.items or {}) do
+                    if asked >= WHERE_ITEM_BUDGET then break end
+                    asked = asked + 1
+                    local _, link, _, _, minLevel, _, _, _, equipLoc = GetItemInfo(itemId)
+                    if not link then
+                        unknown = unknown + 1   -- never fetched
+                    elseif equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG"
+                        and (tonumber(minLevel) or 0) <= myLevel then
+                        local stats = Valuate.GetScaledStatsForItem
+                            and Valuate:GetScaledStatsForItem(link)
+                        if stats and next(stats) then
+                            local isUpgrade, delta = Valuate:IsUpgradeForAnyScale(link, stats,
+                                { scaleName = select(2, Valuate:GetPrimaryScale()) })
+                            if isUpgrade then
+                                local slotName = ns.EQUIP_SLOTS and equipLoc or equipLoc
+                                if not slots[slotName] then slots[slotName] = true end
+                                if (delta or 0) > best then best = delta or 0 end
+                            end
+                        else
+                            unknown = unknown + 1
+                        end
+                    end
+                end
+            end
+        end
+
+        local slotList = {}
+        for slotName in pairs(slots) do slotList[#slotList + 1] = slotName end
+        if #slotList > 0 then
+            -- Sorted, because pairs() order is not an order and a list that reshuffles
+            -- between two runs of the same command reads as the addon being unsure.
+            table.sort(slotList)
+            found[#found + 1] = { dungeon = dungeonName, slots = slotList, best = best }
+        end
+    end
+
+    -- Best first: the question is where to GO, so the ordering is the answer.
+    table.sort(found, function(a, b)
+        if a.best ~= b.best then return a.best > b.best end
+        return a.dungeon < b.dungeon
+    end)
+
+    return found, nil, unknown, asked, asked >= WHERE_ITEM_BUDGET
+end
+
 function Valuate:GetDungeonUpgradeStatus()
     local dungeon, name = Valuate:GetCurrentDungeon()
     if not dungeon then return nil, name end
@@ -11284,6 +11369,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate hit - What the scoring assumes about your hit, and how much cap is left")
         print("  /valuate hitcap - Toggle scoring hit at zero once you are capped")
         print("  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)")
+        print("  /valuate where - Which dungeons hold an upgrade you could actually wear")
         print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
         print("  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
@@ -11686,6 +11772,48 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "where" then
+        -- Which dungeons hold something you could wear and would want.
+        --
+        -- Prints what it could NOT answer as well as what it could. A list of dungeons with
+        -- no mention of the items it failed to look up reads as a complete answer, and on a
+        -- cold cache it would be mostly wrong.
+        local found, why, unknown, asked, hitBudget = Valuate:FindUpgradeSources()
+        if not found then
+            print("|cFFFF8800Valuate|r: " .. tostring(why))
+            return
+        end
+
+        local _, scaleName = Valuate:GetPrimaryScale()
+        if #found == 0 then
+            print(string.format("|cFF00FF00[Valuate]|r Nothing in the %d dungeon(s) I know " ..
+                "beats your gear for |cFFFFFFFF%s|r right now.",
+                (function() local n = 0 for _ in pairs(ns.DUNGEON_LOOT) do n = n + 1 end return n end)(),
+                tostring(scaleName)))
+        else
+            print(string.format("|cFF00FF00[Valuate]|r Dungeons with an upgrade for " ..
+                "|cFFFFFFFF%s|r, best first:", tostring(scaleName)))
+            for i, entry in ipairs(found) do
+                if i > 8 then
+                    print(string.format("  |cFFAAAAAA...and %d more.|r", #found - 8))
+                    break
+                end
+                print(string.format("  |cFFFFFFFF%s|r  |cFF00FF00+%.1f|r  |cFFAAAAAA%d slot(s)|r",
+                    entry.dungeon, entry.best, #entry.slots))
+            end
+        end
+
+        -- Said every time, not only when it looks bad. "I checked 900 of 2918" is the
+        -- difference between an answer and a sample presented as one.
+        print(string.format("  |cFFAAAAAAChecked %d item(s); %d could not be read yet.|r",
+            asked or 0, unknown or 0))
+        if hitBudget then
+            print("  |cFFFF8800Stopped at the budget|r - this is a sample, not the whole table. " ..
+                "Run it again for a fuller answer as the cache fills.")
+        end
+        if (unknown or 0) > 0 then
+            print("  |cFFAAAAAAAsking is what caches them, so a second run knows more.|r")
+        end
     elseif command == "hit" then
         -- What the scoring is actually assuming about your hit, in numbers you can check
         -- against your own character sheet. The whole point is that a wrong assumption here

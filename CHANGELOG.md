@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.143.0a] - 2026-08-15 — where do I go to fix this slot?
+
+### Added
+`/valuate where` — which dungeons hold an upgrade you could actually wear, best first.
+
+The loot table has been answering *"is anything left in HERE"* since it landed. It could
+answer the more useful question all along and nothing asked: **36 dungeons and 2,918 item ids**
+sat there while the only way to find out whether a dungeon had something for you was to be
+standing in it.
+
+Three rules, and all three are the same rule this addon keeps restating — **do not present a
+guess as a finding**:
+
+- **Only gear you could actually wear.** The filter is `GetItemInfo`'s minimum level, read from
+  the client rather than from a level range in the table — because the generated table has
+  none, and inventing one is how you put a level 10 in Naxxramas. Level up and the same
+  dungeon starts appearing, which is the point of reading it live.
+- **An uncached item is not a "no".** It is counted separately and reported, so a cold cache
+  reads as *"ask again"* rather than *"nothing here"*.
+- **A budget, and it says so.** Asking about 2,918 items in one frame is a stutter nobody
+  asked for, so it stops at 900 and **names the cap**. A silent truncation is a lie about
+  coverage — the same failure the dungeon-leave prompt was built to avoid.
+
+The ordering is the answer, so it is sorted by best upgrade and stably: `pairs()` order is not
+an order, and a list that reshuffles between two runs of the same command reads as the addon
+being unsure of itself.
+
+### Technical
+4 mutations, all caught, including one that reverses the sort — the biggest upgrade being
+first is the feature, not a nicety.
+
+Three fixture bugs on the way, all mine and all the same species: a scale table borrowed by
+name from a different gate (so the function measured `nil`), `list[2]` indexed blind (turning
+a missing entry into a crash instead of a message), and two mocks written as `function(link)`
+when the code calls them with a **colon** — so `link` received `self` and every item looked
+like the `Valuate` table. That last one made the feature appear completely broken while it was
+working.
+
 ## [0.142.0a] - 2026-08-15 — a guessed scale is marked where you choose
 
 ### Added

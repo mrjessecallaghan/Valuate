@@ -82,6 +82,10 @@ const NEARMISS = {
 // The dungeon-leave feature spans two files: the counting lives in ui/DungeonLoot.lua and
 // the decision to interrupt you lives in Valuate.lua. Scoped separately, because "does it
 // count right" and "does it know when to shut up" fail in different ways.
+const WHERE = {
+  start: "function Valuate:FindUpgradeSources(",
+  end: "\nfunction Valuate:GetDungeonUpgradeStatus",
+};
 const D_COUNT = { start: "function ns.CountRemainingUpgrades(", end: "\nend" };
 const D_KNOWN = { start: "function ns.BossLootKnown(", end: "\nend" };
 const D_GET = { start: "function ns.GetDungeonLoot(", end: "\nend" };
@@ -174,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.142.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.143.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1013,4 +1017,23 @@ module.exports = [
   { gate: "scalelisttest", file: "ui/ScaleList.lua",
     label: "the guess reuses the gold star that already means current spec",
     from: 'guessMark:SetText("|cFFFF8833?|r")', to: 'guessMark:SetText("|cFFFFD100*|r")' },
+
+  // ---- where to go for an upgrade (v0.143.0a) ------------------------------
+  // 2,918 item ids sat unused while the only way to learn whether a dungeon held anything
+  // for you was to be standing in it. Every rule here is the same one: do not present a
+  // guess as a finding.
+  { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
+    label: "it recommends gear you cannot wear yet, putting a level 10 in a raid",
+    from: "and (tonumber(minLevel) or 0) <= myLevel then", to: "then" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
+    label: "an item the client cannot read is silently dropped instead of counted",
+    from: "unknown = unknown + 1   -- never fetched", to: "unknown = unknown + 0   --" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
+    label: "the biggest upgrade is no longer the answer given first",
+    from: "if a.best ~= b.best then return a.best > b.best end",
+    to: "if a.best ~= b.best then return a.best < b.best end" },
+  { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
+    label: "non-gear counts as an upgrade, so a recipe sends you to a dungeon",
+    from: 'elseif equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG"',
+    to: "elseif true" },
 ];
