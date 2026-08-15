@@ -28,6 +28,12 @@ local ICON = 40
 
 local popup
 
+-- valuate-lint-ignore: acting-paths-wait-for-transit  one item, by link, on a button press
+--
+-- Same reasoning as the Best Equipment panel: EquipItemByName addresses the item by link,
+-- not by bag coordinate, and the click is a person acting on the item the popup is showing
+-- them. The popup also refuses in combat a few lines down, which is the refusal that matters
+-- for a button.
 local function EnsurePopup()
     if popup then return popup end
 

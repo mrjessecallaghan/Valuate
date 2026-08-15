@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /*
- * @gate Lua syntax + 14 lint rules
+ * @gate Every Lua file parses, and the lint rules encoding past bugs still hold
+ *
+ * (This line used to say "14 lint rules". There are 21. A count maintained by hand in a
+ *  comment drifts the first time somebody adds a rule and does not think to look up here -
+ *  and the real number is printed at the end of every run, so nothing needed the copy.)
  *
  * Valuate syntax + lint gate.
  *
@@ -403,9 +407,167 @@ const STRUCTURAL_RULES = [
   "settings-anchor-chain",
   "sort-needs-tiebreaker",
   "no-bank-in-destructive-path",
+  "acting-paths-wait-for-transit",
   "pairs-list-needs-sort",
 ];
 
+/*
+ * Reading Lua block structure without a Lua parser.
+ *
+ * Two rules here need a FUNCTION BODY rather than a line: one asks whether a destructive
+ * path touches the bank, the other whether an acting path waits for the bags to hold still.
+ * Both found their end by counting keywords forward from the declaration.
+ *
+ * Both were wrong, and silently. The scan ran over raw source, so every 'if', 'end' and
+ * 'function' written in ENGLISH inside a comment counted as structure. This file is heavily
+ * commented, so the depth never came back to zero, the extractor ran off the end of the file,
+ * and the rule skipped the function entirely - reporting nothing, which reads exactly like
+ * finding nothing.
+ *
+ * The one it skipped was AutoDeleteJunk. The rule written to stop the bank reaching the
+ * delete path had not looked at the delete path for as long as it has existed. It was found
+ * by a mutation, not by reading it.
+ *
+ * blankNonCode replaces every comment and string character with a space, preserving length
+ * and newlines so offsets and line numbers still line up with the original text.
+ */
+function blankNonCode(src) {
+  const out = src.split("");
+  const n = src.length;
+  const blank = (i) => {
+    if (out[i] !== "\n" && out[i] !== "\r") out[i] = " ";
+  };
+  const blankRange = (a, b) => {
+    for (let i = a; i < b; i++) blank(i);
+  };
+  // A long bracket is [[ or [=[ or [==[ ... at `i`; returns its level, or -1.
+  const longLevel = (i) => {
+    if (src[i] !== "[") return -1;
+    let k = i + 1;
+    let eq = 0;
+    while (src[k] === "=") {
+      eq++;
+      k++;
+    }
+    return src[k] === "[" ? eq : -1;
+  };
+  const skipLong = (start, open, level) => {
+    const close = "]" + "=".repeat(level) + "]";
+    const at = src.indexOf(close, open);
+    const stop = at < 0 ? n : at + close.length;
+    blankRange(start, stop);
+    return stop;
+  };
+
+  let i = 0;
+  while (i < n) {
+    const c = src[i];
+    if (c === "-" && src[i + 1] === "-") {
+      const level = longLevel(i + 2);
+      if (level >= 0) {
+        i = skipLong(i, i + 3 + level, level); //           --[[ long comment ]]
+      } else {
+        let end = src.indexOf("\n", i); //                  -- line comment
+        if (end < 0) end = n;
+        blankRange(i, end);
+        i = end;
+      }
+      continue;
+    }
+    const level = longLevel(i);
+    if (level >= 0) {
+      i = skipLong(i, i + 2 + level, level); //             [[ long string ]]
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      let k = i + 1;
+      while (k < n) {
+        if (src[k] === "\\") {
+          k += 2;
+          continue;
+        }
+        if (src[k] === c || src[k] === "\n") break;
+        k++;
+      }
+      const stop = Math.min(k + 1, n);
+      blankRange(i, stop);
+      i = stop;
+      continue;
+    }
+    i++;
+  }
+  return out.join("");
+}
+
+/*
+ * Which keywords actually open a block that `end` closes.
+ *
+ * function, if, do - and NOT for or while, because those are always followed by their own
+ * `do`, and counting both would close the body one `end` early. `elseif` is excluded for
+ * free: \b finds no boundary inside it. `repeat ... until` opens nothing.
+ */
+const BLOCK_KEYWORD = /\b(function|if|do|end)\b/g;
+
+// Body of the block opening at `from` (an index in `masked`), or null if it never closes.
+function blockBodyAt(masked, from) {
+  BLOCK_KEYWORD.lastIndex = from;
+  let depth = 1;
+  let m;
+  while ((m = BLOCK_KEYWORD.exec(masked))) {
+    if (m[1] === "end") {
+      if (--depth === 0) return { start: from, end: m.index };
+    } else depth++;
+  }
+  return null;
+}
+
+/*
+ * Self-check, in the same spirit as the two above: this helper's failure mode is silence,
+ * and it has already produced silence once. The comment sample is the exact shape that
+ * defeated the old scan - prose that reads as Lua.
+ *
+ * Each sample gives the characters that must SURVIVE, ignoring spaces. Writing the expected
+ * padding out by hand instead is how the first version of this check failed - on a miscount
+ * in the expectation, not in the helper. Length is asserted separately, which is the part
+ * the padding was there to protect.
+ */
+const BLANK_SAMPLES = [
+  ["x = 1 -- if you end a function here", "x=1"], //   prose that reads as Lua
+  ['s = "end end end"', "s="], //                      keywords inside a string
+  ["t = [[if end]] ..1", "t=..1"], //                  long string, code resumes after it
+  ["q = 'a\\'b' + 1", "q=+1"], //                      escaped quote does not end the string
+  ["--[[ if ]] x = 2", "x=2"], //                      long comment
+];
+for (const [input, want] of BLANK_SAMPLES) {
+  const got = blankNonCode(input);
+  const survived = got.replace(/ /g, "");
+  if (survived !== want || got.length !== input.length) {
+    console.error(
+      `ERROR  blankNonCode self-check failed.\n  in:       ${input}\n` +
+        `  survived: ${survived}\n  wanted:   ${want}\n` +
+        `  length:   ${got.length} (input ${input.length})\n` +
+        "  Every body-scoped rule reads through this, so a break here makes them all inert."
+    );
+    process.exit(2);
+  }
+}
+{
+  // A body whose comment is full of block keywords must still end in the right place.
+  const sample = [
+    'function f()',
+    '  -- if this ends a function, the end is wrong',
+    '  for i = 1, 2 do print(i) end',
+    '  if x then return end',
+    'end',
+    'local after = 1',
+  ].join('\n');
+  const masked = blankNonCode(sample);
+  const body = blockBodyAt(masked, sample.indexOf('()') + 2);
+  if (!body || sample.slice(body.start, body.end).includes('local after')) {
+    console.error('ERROR  blockBodyAt self-check failed: function body did not close correctly.');
+    process.exit(2);
+  }
+}
 // Rules that are allowed to match inside the shared helper / rule definitions
 // themselves. Keyed by rule name -> regex describing an exempt context line.
 // An ignore directive may sit on the offending line or on the line directly above it
@@ -791,33 +953,75 @@ for (const file of files) {
   //     towards it would silently stop the cleanup that promise depends on.
   // Bank containers are also unreadable unless the bank frame is open, so any
   // such code would misbehave differently depending on where the player stood.
+  //
+  // Read through blankNonCode. Counting keywords in raw source made this rule inert for
+  // AutoDeleteJunk - the one function it exists for - because the prose in its comments
+  // counted as block structure and the body never closed. See blankNonCode's own note.
+  const masked = blankNonCode(src);
   const GUARDED_FNS = /\b(?:function\s+Valuate:(AutoDeleteJunk|AutoSellJunk)|local\s+function\s+(CountFreeBagSlots))\s*\(/g;
   let gm;
-  while ((gm = GUARDED_FNS.exec(src))) {
+  while ((gm = GUARDED_FNS.exec(masked))) {
     const fnName = gm[1] || gm[2];
-    const kw = /\b(function|if|while|for|end)\b/g;
-    kw.lastIndex = gm.index + gm[0].length;
-    let depth = 1;
-    let body = null;
-    let km;
-    while ((km = kw.exec(src))) {
-      if (km[1] === "end") {
-        if (--depth === 0) {
-          body = src.slice(gm.index, km.index);
-          break;
-        }
-      } else depth++;
+    const span = blockBodyAt(masked, gm.index + gm[0].length);
+    if (!span) {
+      console.error(
+        `LINT   ${rel}  [no-bank-in-destructive-path] could not find the end of ${fnName}, so it was not checked. A rule that cannot read its own subject must say so rather than pass.`
+      );
+      lintFailures++;
+      continue;
     }
-    if (body === null) continue;
+    const body = masked.slice(gm.index, span.end);
 
-    const offender = body
-      .replace(/--.*$/gm, "")
-      .match(/\b(GetBankCache|ValuateBankCache|BANK_CONTAINER\w*|FIRST_BANK_BAG|LAST_BANK_BAG)\b/);
+    const offender = body.match(
+      /\b(GetBankCache|ValuateBankCache|BANK_CONTAINER\w*|FIRST_BANK_BAG|LAST_BANK_BAG)\b/
+    );
     if (!offender) continue;
 
     const lineNo = src.slice(0, gm.index + body.indexOf(offender[0])).split(/\r?\n/).length;
     console.error(
       `LINT   ${rel}:${lineNo}  [no-bank-in-destructive-path] ${fnName} references '${offender[0]}'. The bank snapshot must never reach a delete/sell/free-slot path - deletion is irreversible and "keep N slots free" is a promise about BAGS.`
+    );
+    lintFailures++;
+  }
+
+  // --- acting-paths-wait-for-transit -------------------------------------
+  // Four API calls move real items: equip, pick up, delete, use-at-merchant. Each of them
+  // targets a (bag, slot) or an inventory slot, and every one of those coordinates is only
+  // meaningful while the bags hold still.
+  //
+  // equipmentSwapPending is true from the moment a swap starts until the bag update that
+  // settles it. Acting inside that window aims at coordinates that have already moved: the
+  // item you meant to delete is one slot along, and the one now sitting there is not junk.
+  //
+  // AutoDeleteJunk and AutoSellJunk have had this guard since that bug. EquipBestSet did not,
+  // because for most of its life it was a button somebody pressed, and pressing Equip All
+  // mid-swap is rare - auto-equip firing on BAG_UPDATE is not. The gap was invisible until
+  // the feature around it changed, which is the argument for a rule rather than a memory.
+  const ACTS = /\b(EquipItemByName|PickupContainerItem|DeleteCursorItem|UseContainerItem)\s*\(/;
+  const TOP_FNS = /^(?:local\s+)?function\s+(?:Valuate[:.])?(\w+)\s*\(/gm;
+  let tm;
+  while ((tm = TOP_FNS.exec(masked))) {
+    const span = blockBodyAt(masked, tm.index + tm[0].length);
+    if (!span) continue; //   reported by the rule above, which shares this reader
+    const code = masked.slice(tm.index, span.end);
+
+    if (!ACTS.test(code)) continue;
+    if (/\bequipmentSwapPending\b/.test(code)) continue;
+    // The escape hatch reads the ORIGINAL text: the directive lives in a comment, which is
+    // exactly what the masked copy has thrown away. It also has to see the comment BLOCK
+    // above the declaration - these exemptions need a paragraph of reasoning, and demanding
+    // the directive share a line with `local function` would push that reasoning elsewhere.
+    // Only the unbroken run of comment lines touching the declaration counts, so a directive
+    // belonging to something further up the file cannot drift down onto this one.
+    const lines = src.slice(0, tm.index).split(/\r?\n/);
+    let from = lines.length - 1;
+    while (from > 0 && /^\s*--/.test(lines[from - 1])) from--;
+    const region = lines.slice(from).join("\n") + src.slice(tm.index, span.end);
+    if (isIgnored(region, "", "acting-paths-wait-for-transit")) continue;
+
+    const lineNo = src.slice(0, tm.index).split(/\r?\n/).length;
+    console.error(
+      `LINT   ${rel}:${lineNo}  [acting-paths-wait-for-transit] ${tm[1]} moves items (${code.match(ACTS)[1]}) without checking equipmentSwapPending. Bag and inventory slots are only meaningful while the bags hold still; mid-swap this acts on whatever has slid into the slot instead. Guard it, or annotate with -- valuate-lint-ignore: acting-paths-wait-for-transit  <why this cannot run mid-swap>.`
     );
     lintFailures++;
   }

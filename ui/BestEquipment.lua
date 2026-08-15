@@ -120,6 +120,13 @@ local function NoteBestItemAndDetectChange(scaleName, slotId, bestItem)
     return prevLink ~= nil and prevLink ~= newLink
 end
 
+-- valuate-lint-ignore: acting-paths-wait-for-transit  one item, by link, on a right-click
+--
+-- The rule is aimed at paths that act on a (bag, slot) pair, or on a cached scan, without
+-- anybody watching. Neither applies here: the equip inside is EquipItemByName(link, slotId),
+-- which finds the item by name wherever it has ended up rather than by coordinate, and it
+-- runs because somebody right-clicked that specific row. A person doing that mid-swap means
+-- it, and unlike an automation they have no next bag update to wait for.
 local function CreateBestEquipmentPanel(parent)
     -- Safety check
     if not Valuate or not Valuate.GetOptions or not Valuate.GetScales then

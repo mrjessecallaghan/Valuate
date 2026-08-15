@@ -4,6 +4,67 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.154.0a] - 2026-08-15 — nothing acts while the bags are moving
+
+### Fixed
+**Auto-equip could fire at the worst possible moment.** `equipmentSwapPending` is true from the
+start of a gear swap until the bag update that settles it, and every acting path here has
+refused inside that window since the transit bug — except `EquipBestSet`.
+
+That gap was invisible for as long as it existed, because for most of its life `EquipBestSet`
+was a button somebody pressed, and pressing **Equip All** mid-swap is rare. Auto-equip firing on
+a `BAG_UPDATE` is not: **that bag update *is* the swap settling**, which is precisely when the
+best-equipment scan behind the decision is most out of date. The feature moved; the guard did
+not follow it.
+
+The automatic caller additionally waits out `recentEquipmentChange` — a **button press means it
+and should be obeyed**, but an automation has no deadline and can simply take the next bag
+update, by which time the scan has caught up.
+
+The junk rescue now waits too. It writes an override per item id, so mid-swap it could rescue
+the wrong one.
+
+### Added — a rule, because the next one will not be remembered either
+`acting-paths-wait-for-transit` fails the build when a function calls `EquipItemByName`,
+`PickupContainerItem`, `DeleteCursorItem` or `UseContainerItem` without consulting the flag.
+
+Three existing sites turned out to be fine, each for a *different* reason, and all three now say
+so in the file rather than in someone's memory: the batched seller **re-verifies every slot in
+the instant before acting**, which is the stronger guarantee; the two equip buttons address the
+item **by link rather than by bag coordinate**, and run because a person clicked that specific
+item.
+
+### Fixed — the rule that had never read the function it exists for
+Adding the rule above meant writing a second function-body scanner, which is when the first one
+was worth checking. `no-bank-in-destructive-path` finds a body by counting `function` / `if` /
+`end` forward from the declaration — over **raw source**. Every one of those words written in
+*English*, in a comment, counted as structure.
+
+`AutoDeleteJunk` is heavily commented. Its depth never returned to zero, the scan ran off the end
+of the file, and the rule skipped the function **entirely** — reporting nothing, which reads
+exactly like finding nothing.
+
+`AutoDeleteJunk` is the delete path. It is the reason that rule was written. It had never once
+been examined by it.
+
+Both rules now read through `blankNonCode`, which replaces comment and string characters with
+spaces while preserving offsets, so line numbers still point at the right place. A body that
+cannot be found is now **reported as a failure** rather than skipped — a rule that cannot read
+its own subject must say so rather than pass.
+
+Found by a mutation, not by reading it. The three that now stand watch ask the standing question
+*"can you still see the delete path?"* of the rules rather than of me.
+
+### Technical
+The `@gate` header on `check.js` said "14 lint rules". There are 21. That count was maintained by
+hand in a comment, and the real number is printed at the end of every run — so nothing needed the
+copy, and it had been wrong for seven rules.
+
+The `blankNonCode` self-check's first version failed on a **miscount in its own expectation**,
+not in the helper. It now asserts which characters survive and the length separately, so nobody
+has to count spaces by hand to keep it honest.
+
+
 ## [0.153.0a] - 2026-08-15 — which automations are actually running
 
 ### Added

@@ -5972,7 +5972,15 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
     -- indistinguishable from a bug the first time it surprises you, and the whole argument
     -- of this addon is that a confident action with no explanation is not evidence.
     if options.autoEquipUpgrades and pendingEquipScale and Valuate.EquipBestSet then
-        if InCombatLockdown and InCombatLockdown() then
+        -- The automation waits for the gear to settle; a button press does not.
+        --
+        -- recentEquipmentChange stays true for four seconds after any swap, which is the
+        -- window where the scan behind this decision is stale. A user pressing Equip All in
+        -- that window means it and should be obeyed; an automation has no deadline and can
+        -- simply take the next bag update, by which time the scan has caught up.
+        if recentEquipmentChange then
+            Valuate:MarkAutomation("autoEquip", "gear still settling; will look again")
+        elseif InCombatLockdown and InCombatLockdown() then
             -- Not deferred to the end of combat on purpose: your bags will have changed by
             -- then, and acting on a decision made several fights ago is its own surprise.
             Valuate:MarkAutomation("autoEquip", "in combat; left it for you")
@@ -6118,6 +6126,20 @@ function Valuate:EquipBestSet(scaleName)
 
     if InCombatLockdown() then
         print("|cFFFF0000[Valuate]|r Can't change equipment in combat.")
+        return false
+    end
+
+    -- Items are already moving.
+    --
+    -- Every other acting path here has had this guard since the transit bug - AutoDeleteJunk
+    -- and AutoSellJunk both refuse while a swap is in flight - and this one did not, because
+    -- for most of its life it was a button somebody pressed. Pressing Equip All in the middle
+    -- of a swap is rare. Auto-equip firing on a BAG_UPDATE is not: the bag update IS the swap
+    -- settling, which is the moment the best-equipment data is most out of date.
+    --
+    -- Acting on it would equip against slots that have already changed underneath us.
+    if equipmentSwapPending then
+        Valuate:MarkAutomation("autoEquip", "items were still in transit; left it")
         return false
     end
 
@@ -9198,6 +9220,13 @@ end
 -- sells, so we go in small batches with a short gap rather than one tight loop.
 local sellQueue, sellTotal = nil, 0
 
+-- valuate-lint-ignore: acting-paths-wait-for-transit  re-verifies each slot instead, below
+--
+-- The transit flag says "the bags moved recently". This asks the stronger question directly,
+-- per slot, in the instant before acting: is this still the item I vetted, and is it unlocked?
+-- That holds whether or not the movement came from a swap Valuate knows about, and this loop
+-- needs it either way - it reschedules itself every 0.3s, so a queue built before the guard
+-- was checked is still being drained long after.
 local function SellNextBatch()
     if not MerchantFrame or not MerchantFrame:IsShown() then
         sellQueue = nil
@@ -9399,6 +9428,16 @@ end
 function Valuate:AutoUnjunkProtected(verbose)
     local options = Valuate:GetOptions()
     if not verbose and not options.autoUnjunkProtected then return 0 end
+
+    -- Reads bag slots and writes an override per item id, so acting mid-swap would target
+    -- slots that have already moved. Not destructive - the worst case is rescuing the wrong
+    -- id - but wrong is wrong, and the guard costs one comparison.
+    if equipmentSwapPending then
+        if verbose then
+            print("|cFFFF8800Valuate|r: Items are still moving - try again in a moment.")
+        end
+        return 0
+    end
 
     local AdiBags, junkModule = ResolveAdiBagsJunk()
     if not AdiBags or not AdiBags.SendMessage then

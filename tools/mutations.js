@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.153.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.154.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1145,4 +1145,47 @@ module.exports = [
   { gate: "options", file: "Valuate.lua",
     label: "an automation drops out of the running list and nothing notices",
     from: '    autoRollLoot = "roll on loot",', to: "" },
+
+  // ---- nothing acts while items are in transit (v0.154.0a) -----------------
+  // The delete and sell paths have refused mid-swap since the transit bug. EquipBestSet did
+  // not, because for most of its life it was a button somebody pressed - making it automatic
+  // is what turned that into a real gap. Scoped anchors, because four functions now test the
+  // same flag and a bare one would land on whichever came first.
+  { gate: "deletetest", file: "Valuate.lua",
+    scope: { start: "function Valuate:EquipBestSet(", end: "\n    local equipped" },
+    label: "gear is equipped against slots that have already moved underneath it",
+    from: "if equipmentSwapPending then", to: "if false then" },
+  { gate: "deletetest", file: "Valuate.lua",
+    scope: { start: "function Valuate:AutoUnjunkProtected(", end: "\n    local freed" },
+    label: "the junk rescue writes overrides for item ids that have already moved",
+    from: "if equipmentSwapPending then", to: "if false then" },
+
+  // ---- and the two body-scoped rules can actually READ their subjects ------
+  // Both of these count block keywords to find a function's body, and both were silently
+  // inert for AutoDeleteJunk until a mutation asked. Prose in its comments read as Lua
+  // structure, the body never closed, and the rule skipped it - which looks exactly like
+  // finding nothing. These three mutations are the standing question 'can you still see
+  // the delete path', asked of the rules rather than of me.
+
+  // The delete path is the reason no-bank-in-destructive-path exists, and the function it
+  // had never once examined. Bank slots hold the gear people care most about.
+  { gate: "check", file: "Valuate.lua",
+    label: "the bank snapshot reaches the delete path and no rule sees it",
+    from: "    local force = opts.force == true  -- on-demand: ignore the enable toggle + free-slot gate",
+    to: "    local force = opts.force == true or ValuateBankCache" },
+
+  { gate: "check", file: "Valuate.lua",
+    label: "the delete path loses its transit guard and no rule notices",
+    from: "    if equipmentSwapPending or recentEquipmentChange then\n        if preview then print",
+    to: "    if recentEquipmentChange then\n        if preview then print" },
+
+  // SellNextBatch is exempted on purpose - it re-verifies each slot instead, which is the
+  // stronger guarantee. Removing the exemption must turn the rule red, or that reasoning is
+  // sitting on a rule which cannot see the function it is reasoning about. This is the only
+  // acting path here that no runtime harness drives: a merchant is not mockable in a way
+  // that would prove anything, so the lint rule is the whole of its coverage.
+  { gate: "check", file: "Valuate.lua",
+    label: "an unreachable-by-test acting path drops out of the rule entirely",
+    from: "-- valuate-lint-ignore: acting-paths-wait-for-transit  re-verifies each slot instead, below",
+    to: "-- (exemption removed)" },
 ];

@@ -30,7 +30,8 @@ const path = require("path");
 const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
-const extra = ["MarkDisplaced", "WasDisplacedByUs", "AutoUnjunkProtected"].map(function (name) {
+const extra = ["MarkDisplaced", "WasDisplacedByUs", "AutoUnjunkProtected", "EquipBestSet"]
+  .map(function (name) {
   const hit = lua.match(
     new RegExp("^function Valuate:" + name + "\\([\\s\\S]*?\\r?\\nend", "m")
   );
@@ -328,6 +329,55 @@ Valuate.IsUpgradeForAnyScale = function() return false end
 Valuate.displaced.at = {}
 eq(Valuate:AutoUnjunkProtected(), 0, "genuine junk is left exactly where it is")
 eq(#sent, 0, "and nothing is written")
+
+-- ---- nothing acts while items are in transit --------------------------------------------
+-- AutoDeleteJunk and AutoSellJunk have refused mid-swap since the transit bug. EquipBestSet
+-- did not, because for most of its life it was a button somebody pressed - and pressing Equip
+-- All during a swap is rare. Auto-equip firing on a BAG_UPDATE is not: that bag update IS the
+-- swap settling, which is exactly when the best-equipment data behind the decision is stale.
+equipmentSwapPending = false
+local equipCalls = 0
+EquipItemByName = function() equipCalls = equipCalls + 1 end
+GetInventoryItemLink = function() return nil end
+Valuate.GetOptions = function() return { keepEquipLocks = nil } end
+Valuate.MarkAutomation = function() end
+Valuate.MarkEquipIntent = function() end
+Valuate.GetScales = function() return { Test = { DisplayName = "Test" } } end
+Valuate.GetBestEquipment = function()
+    return { Test = { [5] = { itemLink = "|Hitem:1|h[Chest]|h" } } }
+end
+InCombatLockdown = function() return false end
+
+equipmentSwapPending = true
+equipCalls = 0
+local acted = Valuate:EquipBestSet("Test")
+eq(acted, false, "EquipBestSet refuses while a swap is in flight")
+eq(equipCalls, 0, "and equips nothing - acting here would target slots that have already moved")
+
+equipmentSwapPending = false
+equipCalls = 0
+Valuate:EquipBestSet("Test")
+ok(equipCalls > 0, "and it works normally once the gear has settled")
+
+-- The junk rescue reads bag slots and writes an override per item id, so mid-swap it would
+-- target ids that have moved. Not destructive, but wrong is wrong.
+--
+-- Put a genuinely rescuable item back in the bags first. The block above left GetBestForInfo
+-- returning nil for everything, so without this the rescue would find nothing to do and the
+-- test would pass whether the guard existed or not - which is exactly how it first read.
+sent = {}
+Valuate.GetOptions = function() return { autoUnjunkProtected = true, chatMessages = false } end
+Valuate.GetBestForInfo = function(_, link)
+    if link and link:find("4242", 1, true) then return { { scale = "Melee" } } end
+    return nil
+end
+
+equipmentSwapPending = true
+eq(Valuate:AutoUnjunkProtected(), 0, "the junk rescue also waits for the gear to settle")
+eq(#sent, 0, "and writes nothing to AdiBags while items are moving")
+
+equipmentSwapPending = false
+eq(Valuate:AutoUnjunkProtected(), 1, "and rescues that same item once the bags hold still")
 
 return failures, checks
 `,
