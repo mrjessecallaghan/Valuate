@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.170.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.171.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1349,8 +1349,8 @@ module.exports = [
   // either way, so you had to open it to find out whether opening it was worth it.
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "the tab hides the count, so you must open it to learn there is nothing in it",
-    from: "        todoTab.label:SetText((n and n > 0) and (\"To Do (\" .. n .. \")\") or \"To Do\")",
-    to: "        todoTab.label:SetText(\"To Do\")" },
+    from: "        btn.label:SetText((n and n > 0) and (base .. \" (\" .. n .. \")\") or base)",
+    to: "        btn.label:SetText(base)" },
 
   // Zero is not "(0)". A badge announcing that nothing needs attention is a badge
   // drawing attention to the absence of anything to attend to.
@@ -1361,7 +1361,7 @@ module.exports = [
   // And the label has to be re-measured, or a longer one is clipped by the old width.
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "the tab keeps its old width, clipping the count it just added",
-    from: "        todoTab:SetWidth(todoTab.label:GetStringWidth() + 40)", to: "" },
+    from: "        btn:SetWidth(btn.label:GetStringWidth() + 40)", to: "" },
   // ---- the in-client UI checker (v0.161.0a) --------------------------------
   // A diagnostic that cannot fail is worse than none, because a clean run from it reads as
   // evidence. These break the arithmetic that decides whether something is outside its
@@ -1616,4 +1616,11 @@ module.exports = [
     label: "a failed read is cached, making one bad moment permanent",
     from: "    if name and stats then statsCache[name] = stats end",
     to: "    if name then statsCache[name] = stats or {} end" },
+
+  // ---- one badge setter for every tab (v0.171.0a) --------------------------
+  // A panel can refresh before its tab exists. An unknown name must be ignored rather than
+  // fatal, or the whole window build dies on an ordering detail.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "badging a tab that does not exist takes the window down with it",
+    from: "        if not btn or not btn.label then return end", to: "" },
 ];

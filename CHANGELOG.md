@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.171.0a] - 2026-08-15 — no scale, no ranking
+
+### Fixed
+**With no active scale, the Enhance tab still showed a ranked list.**
+
+Every number on that panel is your own stat weights applied to an enchant. With no scale there
+are no weights, so everything landed on the same score and the list fell back to its
+tiebreaker — alphabetical — under a heading promising *"best first"*. A confident ordering
+built on nothing, with the only hint being the words *"scored by no scale"* buried in the
+subtitle.
+
+It now says so as the whole answer and points at the wizard, because the ordering **is** the
+panel: with nothing to rank by there is nothing there worth reading.
+
+That makes **three** distinct reasons the tab can be empty — no scale, nothing collected yet,
+every slot already done — and it now says which. The gate asserts all three are distinguishable
+from each other, not merely that each produces a message.
+
+### Added
+The Enhance tab carries its count, like To Do: **Enhance (4)** when four worn slots have
+something available, plain **Enhance** when none do. Zero is not "(0)" — a badge announcing
+that nothing needs attention is a badge drawing attention to the absence of anything to attend
+to.
+
+### Changed
+`SetTodoTabCount` became **`ns.SetTabCount(name, n)`**, keyed on the tab. It was about to gain
+a `SetEnhanceTabCount` beside it — two copies to keep in step, written one from the other minus
+whatever got forgotten. That is the shape behind three separate defects in this project already:
+the tab accent, the row heights, and the never-scanned message.
+
+Growing a tab shifts the tabs to its **left**, since the chain anchors each one to its
+neighbour's left edge. That is the harmless direction — they slide along the row rather than
+overlap — and `tabtest.js`'s row-fits-the-window check is what holds the case where they would
+run out of space.
+
+
 ## [0.170.0a] - 2026-08-15 — what a tab click cost
 
 ### Fixed

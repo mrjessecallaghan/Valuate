@@ -377,16 +377,30 @@ if buttons and buttons.todo then
     local label = buttons.todo.label
     local wasWidth = buttons.todo:GetWidth()
 
-    ns.SetTodoTabCount(3)
+    ns.SetTabCount("todo", 3)
     ok(label:GetText():find("3", 1, true) ~= nil,
        "the tab shows how many things are outstanding (" .. tostring(label:GetText()) .. ")")
     ok(buttons.todo:GetWidth() > wasWidth, "and grows to fit the longer label")
 
     -- Zero is NOT "(0)". A badge saying nothing is outstanding is a badge drawing attention
     -- to the absence of anything to attend to.
-    ns.SetTodoTabCount(0)
+    ns.SetTabCount("todo", 0)
     eq(label:GetText(), "To Do", "with nothing outstanding it goes back to a plain label")
     eq(buttons.todo:GetWidth(), wasWidth, "and back to its original width")
+
+    -- Generic, keyed on the tab name. It started as SetTodoTabCount and would have become
+    -- SetEnhanceTabCount beside it - two copies to keep in step, which is the shape that has
+    -- cost this project three separate defects.
+    local enhanceWas = buttons.enhance:GetWidth()
+    ns.SetTabCount("enhance", 5)
+    ok(buttons.enhance.label:GetText():find("5", 1, true) ~= nil,
+       "the same setter badges any tab (" .. tostring(buttons.enhance.label:GetText()) .. ")")
+    ns.SetTabCount("enhance", 0)
+    eq(buttons.enhance:GetWidth(), enhanceWas, "and clears it the same way")
+
+    -- A panel can refresh before its tab exists, so an unknown name must be ignored rather
+    -- than fatal - otherwise the whole window build dies on an ordering detail.
+    ok(pcall(ns.SetTabCount, "nosuchtab", 3), "an unknown tab name is ignored rather than fatal")
 end
 
 -- ---- the row of tabs still fits across the window --------------------------------

@@ -135,6 +135,33 @@ ok(said:find("Minor Agility", 1, true) ~= nil, "and the third, because it still 
 eq(said:find("Superior Spellpower", 1, true), nil,
    "a slot with nothing equipped in it is not offered")
 
+-- ---- no scale means no ranking, and it says so -----------------------------------------------
+-- Every number on this panel is your stat weights applied to an enchant. With no active scale
+-- there are no weights, so everything lands on the same score and the list falls back to its
+-- tiebreaker - alphabetical - under a heading promising "best first".
+--
+-- Said as the whole answer rather than a footnote, because the ordering IS the panel: with
+-- nothing to rank by there is nothing here worth reading.
+local realScale = Valuate.GetPrimaryScale
+Valuate.GetPrimaryScale = function() return nil, nil end
+ns.RefreshEnhancePanel()
+eq(visibleRows(), 0, "with no scale there are no rows")
+said = texts()
+ok(said:find("nothing to rank these against", 1, true) ~= nil,
+   "and it says why, rather than showing an ordering built on nothing")
+ok(said:find("wizard", 1, true) ~= nil, "pointing at the thing that fixes it")
+
+-- Distinct from the OTHER two empty states. Three different reasons for an empty panel, and a
+-- panel that says the same thing for all of them is lying to two of the three.
+eq(said:find("not been shown any", 1, true), nil,
+   "not confused with never having been shown any enhancements")
+eq(said:find("already has an enhancement", 1, true), nil,
+   "nor with having already done every slot")
+
+Valuate.GetPrimaryScale = realScale
+ns.RefreshEnhancePanel()
+ok(visibleRows() > 0, "and the rows come back once there is a scale again")
+
 -- ---- the 'only missing' filter -------------------------------------------------------------
 ns.EnhanceFilters.onlyMissing = false
 ns.RefreshEnhancePanel()

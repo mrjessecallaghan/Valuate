@@ -178,6 +178,32 @@ function ns.CreateEnhancePanel(parent)
         local scale, scaleName = nil, nil
         if Valuate.GetPrimaryScale then scale, scaleName = Valuate:GetPrimaryScale() end
 
+        -- No scale, no ranking.
+        --
+        -- Every score on this panel is your stat weights applied to an enchant. With no active
+        -- scale there are no weights, so everything lands on the same number and the list
+        -- falls back to its tiebreaker - which is alphabetical, and would sit under a heading
+        -- promising "best first". A confident ordering built on nothing.
+        --
+        -- Said as the whole answer rather than a note in the subtitle, because the ordering IS
+        -- the panel: with nothing to rank by there is nothing here worth reading. The To Do
+        -- tab draws the same line for the same reason.
+        if not scaleName then
+            for i = 1, #rowPool do rowPool[i]:Hide() end
+            unreadTitle:Hide()
+            unreadBody:Hide()
+            list:SetHeight(1)
+            empty:SetText("No active scale, so there is nothing to rank these against.\n\n" ..
+                "Every number here is your own stat weights applied to an enchant. Pick or " ..
+                "build a scale first - /valuate wizard - and this becomes a ranking rather " ..
+                "than a list.")
+            empty:Show()
+            subtitle:SetText("For the gear you are wearing.")
+            sourceBtn.label:SetText(SourceLabel())
+            if ns.SetTabCount then ns.SetTabCount("enhance", 0) end
+            return 0
+        end
+
         local bySlot, unreadable = {}, {}
         if ns.CollectEnhancements then bySlot, unreadable = ns.CollectEnhancements() end
 
@@ -314,6 +340,10 @@ function ns.CreateEnhancePanel(parent)
             "For the gear you are wearing, scored by %s. Best first, then what is still " ..
             "better than nothing.", scaleName or "no scale"))
         sourceBtn.label:SetText(SourceLabel())
+
+        -- On the tab, so you can see whether it is worth opening. Same argument as To Do:
+        -- the count lives in here and the tab was the one place it was not shown.
+        if ns.SetTabCount then ns.SetTabCount("enhance", offered) end
 
         return offered
     end

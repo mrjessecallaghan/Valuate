@@ -523,9 +523,30 @@ local function CreateTabSystem(mainFrame, contentFrame)
     -- Resizing is safe here specifically because this tab is the leftmost of the right-hand
     -- group: the chain anchors each tab to the LEFT edge of its neighbour, so this one grows
     -- away from the others rather than pushing them along.
+    -- Generic, keyed on the tab name.
+    --
+    -- Started as SetTodoTabCount and would have become SetEnhanceTabCount beside it, which is
+    -- the shape that has cost this project three separate defects - two copies that have to
+    -- stay in step, and a second one written from the first minus whatever got forgotten.
+    --
+    -- Growing a tab shifts the tabs to its LEFT, because the chain anchors each one to the
+    -- left edge of its neighbour. That is the harmless direction: they slide along the row
+    -- rather than overlapping, and the row-fits-the-window check in tabtest.js is what holds
+    -- the case where they would run out of space.
+    function ns.SetTabCount(name, n)
+        local btn = tabs[name]
+        if not btn or not btn.label then return end
+        local base = btn.baseLabel or btn.label:GetText()
+        btn.baseLabel = base
+        -- Zero is NOT "(0)". A badge announcing that nothing needs attention is a badge
+        -- drawing attention to the absence of anything to attend to.
+        btn.label:SetText((n and n > 0) and (base .. " (" .. n .. ")") or base)
+        btn:SetWidth(btn.label:GetStringWidth() + 40)
+    end
+
+    -- Kept as a name the To Do panel already calls, rather than editing both sides at once.
     function ns.SetTodoTabCount(n)
-        todoTab.label:SetText((n and n > 0) and ("To Do (" .. n .. ")") or "To Do")
-        todoTab:SetWidth(todoTab.label:GetStringWidth() + 40)
+        ns.SetTabCount("todo", n)
     end
     
     -- Select default tab
