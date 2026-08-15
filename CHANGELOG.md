@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.123.0a] - 2026-08-15 — the guess outlives the click
+
+### Fixed
+Yesterday's release made the picker's tooltip admit that six specs have weights nobody ever
+published. **That warning had a lifetime of one hover.**
+
+Both paths that turn a template into a scale — *From Template* and the wizard — dropped the
+flag on the floor. The instant you clicked, the scale was indistinguishable from one built on
+researched numbers, and it stayed that way for as long as you used it. A warning you see once,
+*before* you have done the thing, is barely a warning: the moment you would actually act on it
+is days later in the scale editor, wondering why this build scores oddly — and that screen said
+nothing.
+
+The flag now travels: `template.inferred` → `scale.Inferred` → **the editor says so, every
+time you open it**, in orange, above the stat grid. Scales built on researched weights carry
+no such line, deliberately. A caveat on everything is a caveat on nothing.
+
+### Added
+The editor's summary now also says **where a scale came from** — `from Warrior Arms` for
+anything the wizard built. That was stored as `AutoSource` from the day the wizard shipped and
+displayed nowhere, so a scale generated from a template looked exactly like sixty numbers
+somebody typed in by hand.
+
+### Technical
+The header grows from 40px to 62px when the warning is present, rather than the line being
+placed below it — the stat grid anchors to the header's bottom edge, so a line placed outside
+would render underneath the grid. Growing the header moves the grid down for free and leaves
+the other ninety-five scales pixel-identical. The `settings-anchor-chain` lint rule caught the
+first attempt, which anchored to a frame `summaryText` was already using.
+
+New gate `tools/inferred.js` (17 checks) runs both creation paths and the real editor summary,
+asserting the flag survives end to end and that it does **not** appear on researched specs.
+6 mutations, all caught. Slicing `PlanAutoScale` needed `MATCH_UNSURE` spliced in first — an
+unspliced constant is `nil` rather than absent, so the chunk loads clean and then dies
+mid-comparison.
+
 ## [0.122.0a] - 2026-08-15 — spec tooltips say what they will chase
 
 ### Added

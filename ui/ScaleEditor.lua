@@ -884,6 +884,13 @@ function ValuateUI_CreateScaleFromTemplate(template)
         Color = template.color or "FFFFFF",  -- Use spec's color
         Visible = true,
         Icon = template.icon,
+        -- Carried onto the scale, not left behind on the template.
+        --
+        -- The picker's tooltip warns that six specs have weights nobody ever published, but a
+        -- warning that lasts one hover is barely a warning: the instant you click, the scale
+        -- it makes looks exactly like one built on researched numbers, and it stays that way
+        -- for as long as you use it. This is what lets the scale keep saying it.
+        Inferred = template.inferred or nil,
         Values = {},
         Unusable = {}
     }
@@ -1336,7 +1343,7 @@ local function CreateScaleEditor(parent)
     local headerFrame = CreateFrame("Frame", nil, parent)
     headerFrame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     headerFrame:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
-    headerFrame:SetHeight(40)
+    headerFrame:SetHeight(40)   -- grown to HEADER_HEIGHT_WARNED when a scale carries the guess warning
     
     -- Scale Name (single line header)
     local nameLabel = headerFrame:CreateFontString(nil, "OVERLAY", FONT_H1)
@@ -1514,6 +1521,26 @@ local function CreateScaleEditor(parent)
     summaryText:SetJustifyH("RIGHT")
     summaryText:SetTextColor(unpack(COLORS.textDim))
 
+    -- The "these numbers were guessed" line. Its own font string rather than more text
+    -- appended to the summary, because it needs to WRAP and the summary is a single
+    -- right-aligned line - and because a caveat crammed onto the end of a stat count is a
+    -- caveat nobody reads.
+    --
+    -- Anchored to nameLabel, not to headerFrame. The header is already summaryText's anchor,
+    -- and two controls sharing one produce the overlap CheckColumnAnchors exists to catch.
+    --
+    -- The HEADER GROWS to fit it instead of the line being placed below the header: the stat
+    -- grid anchors to the header's bottom edge, so a line placed outside would render
+    -- underneath the grid. Growing the header moves the grid down for free, and on the
+    -- ninety-five scales that are not guesses the layout is exactly what it was.
+    local inferredText = headerFrame:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    inferredText:SetPoint("TOPLEFT", nameLabel, "BOTTOMLEFT", 0, -INNER_SPACING)
+    inferredText:SetJustifyH("LEFT")
+    inferredText:Hide()
+
+    local HEADER_HEIGHT_PLAIN = 40
+    local HEADER_HEIGHT_WARNED = 62
+
     -- Published on ns because CreateStatRow is defined ABOVE this function and so
     -- cannot see a local declared here. Callers read ns at call time, never
     -- re-localise it.
@@ -1551,7 +1578,35 @@ local function CreateScaleEditor(parent)
                 local decimals = Valuate:GetOptions().decimalPlaces or 1
                 parts = parts .. string.format("  ·  gear " .. "|cFFFFFFFF%." .. decimals .. "f|r", total)
             end
+
+            -- Where these numbers came from. Both facts were already stored on the scale and
+            -- neither was ever shown, so a scale the wizard built from a Warrior Arms
+            -- template looked identical to sixty numbers somebody typed in by hand.
+            if scale.AutoSource then
+                parts = parts .. string.format("  ·  from |cFFFFFFFF%s|r", tostring(scale.AutoSource))
+            end
+
             summaryText:SetText(parts)
+        end
+
+        -- The warning outlives the click.
+        --
+        -- Six specs have no published stat priority, so theirs were read off their own prose.
+        -- The picker says so while you hover, but that warning used to die the moment you
+        -- committed - and the scale it made then looked exactly like one built on researched
+        -- numbers for as long as you kept using it. This is the screen where you would act on
+        -- it, so this is where it has to keep saying so.
+        if scale.Inferred then
+            -- Width is set here rather than by a second anchor point, so the header stays
+            -- summaryText's alone. GetWidth is right by now; the header is already laid out.
+            inferredText:SetWidth(math.max(120, (headerFrame:GetWidth() or 400) - 8))
+            inferredText:SetText("|cFFFF8833These weights are a guess|r - no stat priority " ..
+                "was ever published for this spec. Edit them as you learn what works.")
+            inferredText:Show()
+            headerFrame:SetHeight(HEADER_HEIGHT_WARNED)
+        else
+            inferredText:Hide()
+            headerFrame:SetHeight(HEADER_HEIGHT_PLAIN)
         end
     end
     ns.UpdateScaleEditorSummary = UpdateEditorSummary

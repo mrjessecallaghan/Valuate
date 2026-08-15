@@ -1310,6 +1310,14 @@ function Valuate:PlanAutoScale(opts)
         icon = spec.icon,
         basedOn = tostring(class and class.class or "?") .. " " .. tostring(spec.name or "?"),
         role = spec.role,
+        -- Whether the template's numbers were ever published.
+        --
+        -- Six specs have no stat priority anywhere, so theirs were read off their own prose.
+        -- The picker's tooltip says so, but a warning that lasts one hover is barely a
+        -- warning: the moment you commit, the scale it makes is indistinguishable from one
+        -- built on researched weights, and it stays that way for as long as you use it.
+        -- Travelling with the plan is what lets the scale itself keep saying it.
+        inferred = spec.inferred or nil,
         -- The template's banned stats travel with the plan.
         --
         -- They were being dropped: every wizard-made scale got an EMPTY Unusable table, so a
@@ -1370,6 +1378,10 @@ function Valuate:CommitAutoScale(plan, scales)
         -- Which class/spec built this, so a later run can tell "the same build, drifted"
         -- from "a different build entirely" and only offer to update the former.
         AutoSource = plan.basedOn,
+        -- Saved with the scale, not just shown once. A scale built on numbers nobody ever
+        -- published should say so every time you look at it, not only in the second before
+        -- you agreed to it.
+        Inferred = plan.inferred or nil,
         Values = {},
         Unusable = {},
         Visible = true,
@@ -9925,6 +9937,14 @@ local VERIFY_CHECKS = {
         steps = "Run /valuate pvpscale make, then zone into a battleground. Read the chat line. Leave, and read it again. Then /reload while INSIDE a battleground and leave afterwards.",
         expect = "Zoning in says it switched and names the scale; leaving says it switched back and names the one you were on. After a reload inside, leaving STILL restores - the target is saved, not held in memory.",
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
+    },
+    {
+        id = "inferredscale", since = "0.123.0a",
+        gate = "tools/inferred.js",
+        title = "A scale built on guessed weights keeps saying so",
+        steps = "From Template, create a scale from a Son of Arugal spec (Ferocity, Blood, Packleader or Fleshweaver). Look at the editor header. Then /reload and open it again. Then open any other scale.",
+        expect = "An orange line above the stat grid saying the weights are a guess, with the stat grid sitting lower to make room. It is still there after a reload. Any scale NOT built from an inferred spec shows no such line and the header is its usual height.",
+        broke = "The gate proves the flag survives creation and that the editor reads it, but two things only the client settles. FIRST, the header grows from 40 to 62 pixels: check the stat grid moved down rather than the warning landing on top of it, and that switching from a warned scale to a plain one shrinks it back rather than leaving a gap. SECOND, /reload is the real test of the flag being SAVED - it lives on the scale in ValuateScales, and if saved variables drop it the warning silently reverts to lasting one session instead of one hover.",
     },
     {
         id = "spectip", since = "0.122.0a",

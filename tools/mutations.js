@@ -99,6 +99,13 @@ const SPEC_TIP = {
   end: "\n-- ========================================",
 };
 
+// The two doors from a template into a saved scale, plus the screen that has to keep saying
+// what the picker only said once.
+const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction Valuate:CommitAutoScale" };
+const COMMIT_AUTO = { start: "function Valuate:CommitAutoScale(", end: "\n-- Everything that can" };
+const FROM_TEMPLATE = { start: "function ValuateUI_CreateScaleFromTemplate(", end: "\nfunction ValuateUI_NewScale" };
+const EDITOR_SUMMARY = { start: "local function UpdateEditorSummary(", end: "\n    ns.UpdateScaleEditorSummary" };
+
 
 module.exports = [
   // ---- the repaint caches (v0.91.0a, v0.92.0a) -----------------------------
@@ -149,7 +156,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.122.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.123.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -676,4 +683,28 @@ module.exports = [
   { gate: "spectip", file: "ui/Pickers.lua", scope: SPEC_TIP,
     label: "the numbers appear with no heading saying what they are",
     from: 'GameTooltip:AddLine("Values most:", 0.6, 0.6, 0.6)', to: "local _ = 1" },
+
+  // ---- the guess has to outlive the click (v0.123.0a) ----------------------
+  // v0.122.0a made the picker admit six specs have weights nobody published. That warning
+  // lasted ONE HOVER: both creation paths dropped the flag, so the scale it made was
+  // indistinguishable from a researched one for as long as you used it. Each mutation here
+  // puts it back to that.
+  { gate: "inferred", file: "ui/ScaleEditor.lua", scope: FROM_TEMPLATE,
+    label: "From Template forgets the weights were a guess the instant you click",
+    from: "Inferred = template.inferred or nil,", to: "Inferred = nil," },
+  { gate: "inferred", file: "ui/ScaleEditor.lua", scope: FROM_TEMPLATE,
+    label: "every scale built from a template claims to be a guess",
+    from: "Inferred = template.inferred or nil,", to: "Inferred = true," },
+  { gate: "inferred", file: "Valuate.lua", scope: PLAN_AUTO,
+    label: "the wizard loses the flag between matching a spec and describing the plan",
+    from: "inferred = spec.inferred or nil,", to: "inferred = nil," },
+  { gate: "inferred", file: "Valuate.lua", scope: COMMIT_AUTO,
+    label: "the plan carries the flag and the committed scale drops it anyway",
+    from: "Inferred = plan.inferred or nil,", to: "Inferred = nil," },
+  { gate: "inferred", file: "ui/ScaleEditor.lua", scope: EDITOR_SUMMARY,
+    label: "the flag is stored and never shown - the code looks like it works",
+    from: "if scale.Inferred then", to: "if false then" },
+  { gate: "inferred", file: "ui/ScaleEditor.lua", scope: EDITOR_SUMMARY,
+    label: "every scale is warned about, so the warning stops meaning anything",
+    from: "if scale.Inferred then", to: "if true then" },
 ];
