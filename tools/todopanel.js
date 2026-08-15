@@ -116,7 +116,45 @@ ok(rows[2].detail and not rows[2].detail:IsShown(),
    "an item with no detail hides the detail line rather than inheriting one")
 ok(rows[1].detail:IsShown(), "and an item with one shows it")
 
+-- ---- rows grow to fit what is in them -----------------------------------------------------
+-- These details are sentences, not labels. The one BuildTodoList writes for a guessed scale
+-- runs to two hundred characters and wraps to three lines at this width, and a fixed-height
+-- row put the second and third of them outside their own backdrop, over whatever came next.
+ITEMS = {
+    { kind = "upgrade", text = "Short", command = "/valuate upgrades" },
+    { kind = "guess", text = "The weights in Fury are a guess",
+      detail = "No stat priority was ever published for that spec, so they were read off its " ..
+               "description. Everything below is ranked by them. Edit them as you learn what " ..
+               "actually works for you.",
+      command = "/valuate scales" },
+}
+ns.RefreshTodoPanel()
+local sized = {}
+for _, f in ipairs(__frames) do
+    if f.__todoRow and f:IsShown() then sized[#sized + 1] = f end
+end
+eq(#sized, 2, "two items, two rows")
+ok(sized[2]:GetHeight() > sized[1]:GetHeight(),
+   "the row with a wrapping paragraph is taller than the one with a single line (" ..
+   tostring(sized[1]:GetHeight()) .. " vs " .. tostring(sized[2]:GetHeight()) .. ")")
+
+-- The list frame has to account for it too, or the rows below run off the panel.
+local listFrame
+for _, f in ipairs(__frames) do
+    if f.__todoRow then listFrame = listFrame or f:GetParent() end
+end
+ok(listFrame and listFrame:GetHeight() >= sized[1]:GetHeight() + sized[2]:GetHeight(),
+   "the list is at least as tall as the rows it holds")
+
 -- ---- clicking a row runs THAT row's command ----------------------------------------------
+ITEMS = {
+    { kind = "scale", text = "Refresh Fury - your gear has moved on",
+      detail = "Everything below is scored by this scale.", command = "/valuate wizard" },
+    { kind = "upgrade", text = "Equip Bonecrusher in Main Hand", command = "/valuate upgrades" },
+    { kind = "sockets", text = "Fill 2 empty sockets",
+      detail = "Stats you have already earned.", command = "/valuate sockets" },
+}
+ns.RefreshTodoPanel()
 __ran = {}
 rows[1].go.__scripts.OnClick(rows[1].go)
 eq(#__ran, 1, "clicking a row runs one command")

@@ -7625,6 +7625,24 @@ function Valuate:BuildTodoList()
                 command = "/valuate upgrades",
             })
         end
+
+        -- Say how many were left out.
+        --
+        -- Trimming to three is right - a seventeen-line answer to "what should I do next" is
+        -- not an answer - but a list that silently stops at three reads as a complete one,
+        -- and somebody with twelve upgrades waiting would have no idea nine of them exist.
+        --
+        -- /valuate upgrades caps at five and has always said "...and N more". This was the
+        -- one place in the addon that capped a list and kept quiet about it.
+        --
+        -- Appended to the last row's detail rather than taking a row of its own: an entry
+        -- that is only an apology for the entries above it is not a thing you can go and do.
+        local hidden = #upgrades - 3
+        if hidden > 0 and items[#items] then
+            local last = items[#items]
+            local note = string.format("%d more waiting in your bags.", hidden)
+            last.detail = last.detail and (last.detail .. "  " .. note) or note
+        end
     end
 
     -- Guarded with an `if`, NOT `local _, n = Valuate.X and Valuate:X()`. Lua adjusts an

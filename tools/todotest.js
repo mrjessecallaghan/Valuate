@@ -129,9 +129,34 @@ eq(#many, 3, "at most three upgrades - this is a to-do list, not the whole panel
 ok(many[1].text:find("Item 1", 1, true) ~= nil, "and they are the BIGGEST three, in order")
 ok(many[3].text:find("Item 3", 1, true) ~= nil, "third is the third biggest")
 
+-- ...and it SAYS it stopped at three.
+--
+-- Trimming is right; stopping silently is not. A list that ends at three reads as a complete
+-- one, so somebody with seventeen upgrades waiting would never learn that fourteen of them
+-- exist. /valuate upgrades caps at five and has always said "...and N more"; this was the
+-- one place in the addon that capped a list and kept quiet about it.
+ok(many[3].detail and many[3].detail:find("14 more", 1, true) ~= nil,
+   "the last row says how many were left out (" .. tostring(many[3].detail) .. ")")
+
+-- On the LAST row, not a row of its own: an entry that is only an apology for the entries
+-- above it is not a thing you can go and do.
+eq(#many, 3, "and says so without spending a row on it")
+
 -- Fewer than three is fine; it must not pad.
 UPGRADES = { { itemLink = "[Only]", slotName = "Chest", gain = 5 } }
-eq(#Valuate:BuildTodoList(), 1, "one upgrade produces one item, not three")
+local one = Valuate:BuildTodoList()
+eq(#one, 1, "one upgrade produces one item, not three")
+eq(one[1].detail, nil, "and says nothing about more, because there are none")
+
+-- Exactly three is exactly three, with nothing hidden - the off-by-one worth pinning, since
+-- "3 more waiting" when there are none is worse than saying nothing.
+UPGRADES = {}
+for i = 1, 3 do
+    UPGRADES[i] = { itemLink = "[Item " .. i .. "]", slotName = "Slot " .. i, gain = 10 - i }
+end
+local exactly = Valuate:BuildTodoList()
+eq(#exactly, 3, "three upgrades gives three rows")
+eq(exactly[3].detail, nil, "and no note, because nothing was left out")
 
 -- An empty slot is called out, because the whole score being the gain makes it rank high
 -- for a reason that is not "this item is remarkable".

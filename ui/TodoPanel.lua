@@ -22,8 +22,12 @@ local COLORS = ns.COLORS
 local BACKDROP_PANEL = ns.BACKDROP_PANEL
 local FONT_H2, FONT_BODY, FONT_SMALL = ns.FONT_H2, ns.FONT_BODY, ns.FONT_SMALL
 
+-- A FLOOR, not the height. Rows grow to fit their own text; see Refresh.
 local ROW_HEIGHT = 40
 local ROW_GAP = 6
+local TEXT_TOP_PAD = 8
+local TEXT_BOTTOM_PAD = 8
+local DETAIL_GAP = 3
 
 -- Rows are POOLED, not created per refresh.
 --
@@ -60,14 +64,14 @@ local function BuildRow(parent, index)
     row.accent = accent
 
     local text = row:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    text:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -8)
+    text:SetPoint("TOPLEFT", row, "TOPLEFT", 12, -TEXT_TOP_PAD)
     text:SetPoint("RIGHT", row, "RIGHT", -120, 0)
     text:SetJustifyH("LEFT")
     text:SetTextColor(unpack(COLORS.textTitle))
     row.text = text
 
     local detail = row:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    detail:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -3)
+    detail:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -DETAIL_GAP)
     detail:SetPoint("RIGHT", row, "RIGHT", -120, 0)
     detail:SetJustifyH("LEFT")
     detail:SetTextColor(unpack(COLORS.textDim))
@@ -175,6 +179,19 @@ function ns.CreateTodoPanel(parent)
             -- and read this field, so a reused row runs the command it is CURRENTLY showing
             -- rather than the one it was first given.
             row.command = item.command
+
+            -- Sized to what is actually in it, not to a number picked when the row was
+            -- designed. ROW_HEIGHT is a floor now rather than the height.
+            --
+            -- These details are sentences, not labels - the one on a guessed scale runs to
+            -- two hundred characters and wraps to three lines at this width. A fixed 40px
+            -- row put the second and third of them outside their own backdrop, on top of
+            -- whatever came next.
+            local h = TEXT_TOP_PAD + row.text:GetStringHeight()
+            if item.detail then
+                h = h + DETAIL_GAP + row.detail:GetStringHeight()
+            end
+            row:SetHeight(math.max(ROW_HEIGHT, h + TEXT_BOTTOM_PAD))
             row:Show()
         end
 
@@ -188,7 +205,12 @@ function ns.CreateTodoPanel(parent)
             list:SetHeight(1)
         else
             empty:Hide()
-            list:SetHeight(#items * ROW_HEIGHT + (#items - 1) * ROW_GAP)
+            -- Summed from the rows themselves, because they no longer share a height.
+            local total = 0
+            for i = 1, #items do
+                total = total + rowPool[i]:GetHeight() + (i > 1 and ROW_GAP or 0)
+            end
+            list:SetHeight(total)
         end
 
         return #items

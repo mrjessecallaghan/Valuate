@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.159.0a] - 2026-08-15 — two things wrong with yesterday's tab
+
+Both of these are defects in the To Do work that shipped an hour ago, found by going back
+over it rather than by anything going wrong.
+
+### Fixed
+**The to-do list stopped at three upgrades without saying so.** Trimming is right — a
+seventeen-line answer to *"what should I do next"* is not an answer, and the source says so.
+But a list that ends at three reads as a complete one, so somebody with seventeen upgrades
+waiting would never learn that fourteen of them exist.
+
+`/valuate upgrades` caps at five and has always ended with *"...and N more"*. This was the
+**one place in the addon that capped a list and kept quiet about it**. The last row now
+carries the count.
+
+On the last row rather than a row of its own, deliberately: an entry that is only an apology
+for the entries above it is not a thing you can go and do.
+
+### Fixed
+**Rows were a fixed 40 pixels tall, and the details are sentences.** The explanation
+`BuildTodoList` writes for a guessed scale runs to two hundred characters and wraps to three
+lines at that width — so its second and third lines were drawn outside their own row's
+backdrop, on top of whatever came next.
+
+Rows now measure their own text. `ROW_HEIGHT` became a floor rather than the height, and the
+list sums the rows it actually holds instead of multiplying.
+
+### Technical
+The off-by-one on the far side of the disclosure is pinned too: claiming three more are
+waiting when there are exactly three is worse than saying nothing, because it sends you
+looking for something that is not there.
+
+
 ## [0.158.0a] - 2026-08-15 — the to-do list finally has somewhere to live
 
 ### Added

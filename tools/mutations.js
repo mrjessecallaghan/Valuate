@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.158.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.159.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1322,4 +1322,29 @@ module.exports = [
     label: "the To Do tab shows whatever was true when the window was first opened",
     from: "                if ns.RefreshTodoPanel then ns.RefreshTodoPanel() end",
     to: "                if false then ns.RefreshTodoPanel() end" },
+  // ---- the to-do list admits what it left out (v0.159.0a) ------------------
+  // Trimming to three is right; stopping silently is not. A list that ends at three reads
+  // as a complete one. /valuate upgrades caps at five and has always said so - this was the
+  // one place in the addon that capped a list and kept quiet about it.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the to-do list stops at three upgrades and lets it look like all of them",
+    from: "        local hidden = #upgrades - 3", to: "        local hidden = 0" },
+
+  // The off-by-one on the other side: claiming more are waiting when none are is worse
+  // than saying nothing, because it sends you looking for something that is not there.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "it claims more upgrades are waiting when there are exactly three",
+    from: "        if hidden > 0 and items[#items] then", to: "        if hidden >= 0 and items[#items] then" },
+  // Rows are sized to their own text. A fixed height put the second and third lines of a
+  // wrapping paragraph outside the row backdrop, over whatever came next.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "rows go back to a fixed height, so long details overflow their own row",
+    from: "            row:SetHeight(math.max(ROW_HEIGHT, h + TEXT_BOTTOM_PAD))",
+    to: "            row:SetHeight(ROW_HEIGHT)" },
+
+  // ...and the list has to grow with them, or the rows below run off the panel.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "the list keeps its old fixed-height sum and clips the rows below",
+    from: "                total = total + rowPool[i]:GetHeight() + (i > 1 and ROW_GAP or 0)",
+    to: "                total = total + ROW_HEIGHT + (i > 1 and ROW_GAP or 0)" },
 ];
