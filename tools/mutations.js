@@ -156,7 +156,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.124.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.125.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -707,4 +707,20 @@ module.exports = [
   { gate: "inferred", file: "ui/ScaleEditor.lua", scope: EDITOR_SUMMARY,
     label: "every scale is warned about, so the warning stops meaning anything",
     from: "if scale.Inferred then", to: "if true then" },
+
+  // ---- the settings column balance (v0.125.0a) -----------------------------
+  // The measurement is the whole rule. A panel that reports nothing, or reports the same
+  // number three times, satisfies a balance check trivially and forever.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "the panel stops reporting how full its columns are, so balance can never be checked again",
+    from: "parent.columnContentHeights = { columnHeights[1], columnHeights[2], columnHeights[3] }",
+    to: "parent.columnContentHeights = nil" },
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "every column reports the tallest height, so the check passes on any layout",
+    from: "parent.columnContentHeights = { columnHeights[1], columnHeights[2], columnHeights[3] }",
+    to: "parent.columnContentHeights = { tallest, tallest, tallest }" },
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "a whole section lands back on a column that was already the longest",
+    from: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton)',
+    to: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton) columnHeights[1] = columnHeights[1] + 400' },
 ];

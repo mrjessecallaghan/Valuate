@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.125.0a] - 2026-08-15 — the Settings columns, measured
+
+### Changed
+I have twice now ended a release by suggesting someone check whether the Settings columns
+still fit. That is a question with an answer, so this time I measured it instead of asking:
+
+    998 / 952 / 580
+
+Nothing was broken — the panel scrolls, and the scroll child is sized from the **tallest**
+column, so nothing was ever unreachable. It was wrong in a quieter way: the last four hundred
+pixels of scrolling were two columns of whitespace beside one column of content, which reads
+as the panel having ended and then not having ended.
+
+**Messages & Convenience** moves to column 3, giving **998 / 686 / 846**. It also reads better
+there — next to the things you set once and forget, rather than beside the automations that
+act on your character.
+
+### Added — so it cannot drift again
+Sections have always been appended to whichever column looked emptiest at the time, and
+nothing ever checked the result. The panel now reports how tall each column's content is, and
+`settingstest.js` requires **the shortest column to be at least 60% of the tallest**.
+
+The threshold is deliberately generous. Three columns filled by hand will never be equal, and
+a gate that demanded they were would be re-tuned into meaninglessness the first time it fired.
+60% catches "a whole section landed on one column again" and stays quiet about ordinary
+unevenness. It fails on the layout that shipped this morning, at 58%.
+
+### Technical
+Mutation testing found the obvious hole immediately: a panel that reports the tallest height
+for **all three** columns passes a balance check on any layout, forever — the ratio comes out
+at 1.00 and the gate is delighted. Three hand-filled columns do not come out identical, so
+identical numbers now fail as a constant rather than a measurement.
+
+That guard stops there on purpose. Cross-checking the reported heights against the real frames
+would catch a hand-crafted *near*-constant too, but building a second layout engine inside the
+gate to catch a mutation nobody would write is how gates turn into the thing they were meant
+to protect.
+
 ## [0.124.0a] - 2026-08-15 — the last invisible options
 
 ### Added

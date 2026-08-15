@@ -180,6 +180,52 @@ if not built then
 end
 ok(true, "the Settings panel builds")
 
+-- ---- the three columns stay roughly level -------------------------------------
+-- Sections have always been appended to whichever column looked emptiest at the time, and
+-- nothing ever checked the result. By v0.124.0a it had drifted to 998 / 952 / 580.
+--
+-- That is not a broken layout - the panel scrolls, and the scroll child is sized from the
+-- TALLEST column, so nothing is unreachable. It is worse than broken in a quieter way: the
+-- last four hundred pixels of scrolling were two columns of whitespace beside one column of
+-- content, which reads as the panel having ended and then not having ended.
+--
+-- The threshold is deliberately generous. Three columns filled by hand will never be equal,
+-- and a gate that demanded they were would be re-tuned into meaninglessness the first time
+-- it fired. 60% catches "a whole section landed on one column again" and stays quiet about
+-- ordinary unevenness.
+local h = parent.columnContentHeights
+ok(type(h) == "table" and #h == 3, "the panel reports how tall each column's content is")
+
+-- The reported numbers have to be a MEASUREMENT, not three copies of one number.
+--
+-- Reporting the tallest height for all three columns satisfies any balance check, forever,
+-- on any layout - which is exactly what a mutation proved: the ratio came out at 1.00 and
+-- the gate was delighted.
+--
+-- Three columns filled by hand do not come out identical, so identical numbers mean nobody
+-- measured. That is a weaker guard than cross-checking against the real frames would be, and
+-- it is deliberately where this stops: catching a constant is worth a line, and building a
+-- second layout engine here to catch a hand-crafted near-constant is not.
+if type(h) == "table" and #h == 3 then
+    ok(not (h[1] == h[2] and h[2] == h[3]),
+       "the three reported heights are not all identical - that means a constant, not a measurement")
+
+end
+if type(h) == "table" and #h == 3 then
+    local tallest, shortest = 0, math.huge
+    for _, v in ipairs(h) do
+        if v > tallest then tallest = v end
+        if v < shortest then shortest = v end
+    end
+    ok(tallest > 0, "the columns have content at all")
+    local ratio = tallest > 0 and (shortest / tallest) or 0
+    ok(ratio >= 0.60, string.format(
+        "the shortest column is at least 60%% of the tallest - got %d%% (%d / %d / %d). " ..
+        "A new section has probably landed on a column that was already the longest; " ..
+        "move it to the shortest, or say here why this one belongs where it is.",
+        math.floor(ratio * 100 + 0.5), h[1], h[2], h[3]))
+end
+
 -- ---- the layout self-check must not cry wolf ----------------------------------
 -- Building the panel runs CheckColumnAnchors over all three columns. In the client it
 -- printed a red "two controls share an anchor and will OVERLAP" warning repeatedly for
