@@ -224,6 +224,130 @@ if buttons then
     end
 end
 
+-- ---- the tabs answer the mouse --------------------------------------------------
+-- Every other clickable thing here responds to hover; tabs answered only by being clicked,
+-- so the one row whose entire job is "click me to go somewhere" gave no sign it could be.
+--
+-- The active tab is deliberately exempt: it already wears the selected colours, and
+-- tweening it on hover would dim the thing telling you where you are. SelectTab stays the
+-- only writer of that colour, which is what makes the exemption safe rather than an
+-- oversight - so it is asserted, not assumed.
+--
+-- The hover FADES, so the colour has not moved on the frame the mouse arrives. Reading it
+-- immediately would compare a value against itself and pass no matter what the hover did -
+-- which is how this assertion read on its first run.
+-- The FIRST frame with an OnUpdate, not the last. Animations.lua creates its shared ticker
+-- at load, before any of this window exists; several widgets built later keep an OnUpdate of
+-- their own, so taking the last match drives some unrelated widget and the tween never runs.
+local animDriver
+for _, f in ipairs(__frames) do
+    if f.__scripts and f.__scripts.OnUpdate and not animDriver then animDriver = f end
+end
+local function settle()
+    if not animDriver then return end
+    for _ = 1, 30 do animDriver.__scripts.OnUpdate(animDriver, 0.05) end
+end
+
+if buttons and animDriver then
+    tabs.selectTab("scales")
+    settle()
+
+    local idle = buttons.about
+    local before = { idle:GetBackdropColor() }
+    idle:GetScript("OnEnter")(idle)
+    settle()
+    local after = { idle:GetBackdropColor() }
+    local moved = false
+    for i = 1, 4 do
+        if before[i] ~= after[i] then moved = true end
+    end
+    ok(moved, "hovering a tab you are not on lightens it")
+    idle:GetScript("OnLeave")(idle)
+    settle()
+
+    -- Watch the BORDER, not the fill.
+    --
+    -- SelectTab paints the active tab with COLORS.buttonHover - the same fill the hover
+    -- tween targets - so a hover that wrongly fired on the active tab would move it to the
+    -- colour it already has and change nothing observable. Written against the fill first,
+    -- this assertion passed whether the guard existed or not.
+    --
+    -- The border is where the two differ: the active tab wears selectedBorder, the hover
+    -- targets borderLight, and swapping one for the other dims the only strong edge in the
+    -- row - the thing actually telling you which tab you are on.
+    local active = buttons.scales
+    local activeBefore = { active:GetBackdropBorderColor() }
+    active:GetScript("OnEnter")(active)
+    settle()
+    local activeAfter = { active:GetBackdropBorderColor() }
+    local activeMoved = false
+    for i = 1, 4 do
+        if activeBefore[i] ~= activeAfter[i] then activeMoved = true end
+    end
+    ok(not activeMoved, "hovering the tab you ARE on leaves its selected border alone")
+end
+
+-- ---- every button in the window answers the mouse ------------------------------
+-- This gate builds the whole window, so it can ask the question of ALL of them at once
+-- rather than one button at a time - which matters, because the way a button shows hover
+-- here is not uniform and a check written against one technique would miss the others.
+--
+-- Two are legitimate and not interchangeable:
+--   * a HIGHLIGHT-layer texture, drawn by the client only while the mouse is over the
+--     frame, needing no script - used where OnEnter is already spoken for by a tooltip;
+--   * a hover handler that moves the backdrop, instantly or as a fade.
+--
+-- Scan Best Equipment had neither, while the three buttons beside it each carried the
+-- texture with a comment explaining the technique. It was found by auditing, not by
+-- anyone noticing - a button that never lights up looks disabled rather than broken.
+--
+-- Narrowed by IDENTITY on the shared backdrop table, not merely "has a backdrop": slot
+-- frames, scrollbar arrows, lock toggles and the colour swatch are all Buttons with a
+-- backdrop, and none of them is trying to look like a button. Only the ones wearing
+-- BACKDROP_BUTTON have made that promise.
+--
+-- Tabs are excluded and asserted separately, just above: the ACTIVE tab deliberately does
+-- not answer hover, because it already wears the selected colours. Folding them in here
+-- would need this sweep to know which tab is current, and would report the one correct
+-- exemption in the window as a defect.
+local isTab = {}
+for _, btn in pairs(buttons or {}) do isTab[btn] = true end
+
+local mute = {}
+for _, f in ipairs(__frames) do
+    if f.__type == "Button" and f.__backdrop == ns.BACKDROP_BUTTON and f.__scripts
+       and not isTab[f] then
+        local hl = false
+        for _, region in ipairs(f.__regions or {}) do
+            if region.__layer == "HIGHLIGHT" then hl = true end
+        end
+        if not hl and f.__scripts.OnEnter then
+            -- Drive it and see whether anything about the frame's fill changes.
+            local before = { f:GetBackdropColor() }
+            pcall(f.__scripts.OnEnter, f)
+            settle()
+            local after = { f:GetBackdropColor() }
+            for i = 1, 4 do
+                if before[i] ~= after[i] then hl = true end
+            end
+            if f.__scripts.OnLeave then pcall(f.__scripts.OnLeave, f) end
+            settle()
+        end
+        -- Named by its label, because these frames are anonymous and "unnamed" told me
+        -- only how many were wrong, not which.
+        if not hl then
+            local who = f.__name
+            if not who and f.label and f.label.GetText then who = f.label:GetText() end
+            for _, region in ipairs(f.__regions or {}) do
+                if not who and region.GetText and region:GetText() then who = region:GetText() end
+            end
+            mute[#mute + 1] = who or "unnamed"
+        end
+    end
+end
+eq(#mute, 0, "every button in the window shows something on hover (" ..
+   table.concat(mute, ", ") .. ")")
+
 -- ---- and the tab still changes ------------------------------------------------
 switchTo("instructions")
 switchTo("bestEquipment")

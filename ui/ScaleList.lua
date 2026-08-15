@@ -817,7 +817,7 @@ local function CreateScaleList(parent)
         -- which loads after this file.
         if Valuate.ShowScaleLibrary then Valuate:ShowScaleLibrary() end
     end)
-    libraryButton:SetScript("OnEnter", function(self)
+    libraryButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Scale Library", 1, 1, 1)
             GameTooltip:AddLine("Scales saved here are shared by ALL your characters.", 0.8, 0.8, 0.8, true)
@@ -826,10 +826,10 @@ local function CreateScaleList(parent)
             GameTooltip:Show()
         end
     end)
-    libraryButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    libraryButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Tooltip for template button
-    templateButton:SetScript("OnEnter", function(self)
+    templateButton:HookScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))
         self:SetBackdropBorderColor(unpack(COLORS.borderLight))
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
@@ -838,7 +838,7 @@ local function CreateScaleList(parent)
         GameTooltip:Show()
         end
     end)
-    templateButton:SetScript("OnLeave", function(self)
+    templateButton:HookScript("OnLeave", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonBg))
         self:SetBackdropBorderColor(unpack(COLORS.border))
         GameTooltip:Hide()

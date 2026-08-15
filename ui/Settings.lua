@@ -939,7 +939,7 @@ local function CreateSettingsPanel(parent)
         o.notifyBagUpgradeMode = (o.notifyBagUpgradeMode == "oncePerUpgrade") and "everyLoot" or "oncePerUpgrade"
         self.label:SetText(NotifyModeText())
     end)
-    notifyModeButton:SetScript("OnEnter", function(self)
+    notifyModeButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Re-prompt frequency", 1, 1, 1)
             GameTooltip:AddLine("Every loot: re-shows the prompt after each loot event while an upgrade sits in your bags.", 0.8, 0.8, 0.8, true)
@@ -947,7 +947,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    notifyModeButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    notifyModeButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[1] = columnHeights[1] + 24 + ELEMENT_SPACING
 
     -- Auto Confirm Bind On Loot checkbox (Column 1, below Notify Bag Upgrades)
@@ -1339,7 +1339,7 @@ local function CreateSettingsPanel(parent)
         Valuate:GetOptions().autoDeleteMaxQuality = q
         self.label:SetText(QualityText())
     end)
-    qualityButton:SetScript("OnEnter", function(self)
+    qualityButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Max Quality", 1, 1, 1)
             GameTooltip:AddLine("Never auto-delete an item above this quality. Click to cycle.", 0.8, 0.8, 0.8, true)
@@ -1347,7 +1347,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    qualityButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    qualityButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[2] = columnHeights[2] + 20 + ELEMENT_SPACING
 
     -- Value ceiling / floor (entered in gold, stored as copper)
@@ -2006,7 +2006,7 @@ local function CreateSettingsPanel(parent)
         SetKeybind(mouseKey)
     end)
     
-    keybindButton:SetScript("OnEnter", function(self)
+    keybindButton:HookScript("OnEnter", function(self)
         if not isCapturingKeybind then
             self:SetBackdropColor(unpack(COLORS.buttonHover))
             self:SetBackdropBorderColor(unpack(COLORS.borderLight))
@@ -2019,7 +2019,7 @@ local function CreateSettingsPanel(parent)
         end
     end)
     
-    keybindButton:SetScript("OnLeave", function(self)
+    keybindButton:HookScript("OnLeave", function(self)
         if not isCapturingKeybind then
             self:SetBackdropColor(unpack(COLORS.buttonBg))
             self:SetBackdropBorderColor(unpack(COLORS.border))
@@ -2112,7 +2112,7 @@ local function CreateSettingsPanel(parent)
         end
         self.label:SetText(AlertStyleText())
     end)
-    alertStyleButton:SetScript("OnEnter", function(self)
+    alertStyleButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Upgrade Alert", 1, 1, 1)
             GameTooltip:AddLine("Popup: a dialog with an Equip button.", 0.8, 0.8, 0.8, true)
@@ -2122,7 +2122,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    alertStyleButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    alertStyleButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
 
     -- Other-spec upgrades checkbox (Column 3, below the Upgrade Alert row)
@@ -2248,7 +2248,7 @@ local function CreateSettingsPanel(parent)
             end,
         })
     end)
-    restoreButton:SetScript("OnEnter", function(self)
+    restoreButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Restore Default Settings", 1, 1, 1)
             GameTooltip:AddLine("Puts every option on this page back to how it shipped.", 0.8, 0.8, 0.8, true)
@@ -2257,7 +2257,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    restoreButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    restoreButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
 
     -- Settings snapshot (Column 3, below Restore Defaults). Two buttons on one row:
@@ -2273,7 +2273,7 @@ local function CreateSettingsPanel(parent)
         local n = Valuate:SaveSettingsSnapshot()
         print(string.format("|cFF00FF00[Valuate]|r Saved %d setting(s) for your other characters.", n))
     end)
-    saveSettingsButton:SetScript("OnEnter", function(self)
+    saveSettingsButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Save For Alts", 1, 1, 1)
             GameTooltip:AddLine("Stores this character's settings so any other character can load them.", 0.8, 0.8, 0.8, true)
@@ -2282,7 +2282,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    saveSettingsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    saveSettingsButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
 
     local loadSettingsButton = CreateStyledButton(col3, "Load Saved", 128, 22)
     loadSettingsButton:SetPoint("LEFT", saveSettingsButton, "RIGHT", ELEMENT_SPACING, 0)
@@ -2307,14 +2307,14 @@ local function CreateSettingsPanel(parent)
             end,
         })
     end)
-    loadSettingsButton:SetScript("OnEnter", function(self)
+    loadSettingsButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
             GameTooltip:AddLine("Load Saved", 1, 1, 1)
             GameTooltip:AddLine("Applies the settings you saved on another character. Your scales are untouched.", 0.8, 0.8, 0.8, true)
             GameTooltip:Show()
         end
     end)
-    loadSettingsButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    loadSettingsButton:HookScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[3] = columnHeights[3] + 44 + ELEMENT_SPACING
     
     -- ---- Messages & Convenience -----------------------------------------------
@@ -2408,7 +2408,7 @@ local function CreateSettingsPanel(parent)
     deleteButton:SetBackdropBorderColor(0.8, 0, 0, 1)
     
     -- Custom hover effects for red border
-    deleteButton:SetScript("OnEnter", function(self)
+    deleteButton:HookScript("OnEnter", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonHover))
         self:SetBackdropBorderColor(1, 0.2, 0.2, 1)  -- Brighter red on hover
         if ShowTooltipSafe(self, "ANCHOR_TOP") then
@@ -2418,7 +2418,7 @@ local function CreateSettingsPanel(parent)
             GameTooltip:Show()
         end
     end)
-    deleteButton:SetScript("OnLeave", function(self)
+    deleteButton:HookScript("OnLeave", function(self)
         self:SetBackdropColor(unpack(COLORS.buttonBg))
         self:SetBackdropBorderColor(0.8, 0, 0, 1)  -- Back to red
         GameTooltip:Hide()

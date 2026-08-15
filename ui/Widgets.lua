@@ -162,33 +162,30 @@ local function RGBToHex(r, g, b)
 end
 
 
-local function CreateStyledButton(parent, text, width, height)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetWidth(width or 100)
-    btn:SetHeight(height or BUTTON_HEIGHT)
-    btn:SetBackdrop(BACKDROP_BUTTON)
-    btn:SetBackdropColor(unpack(COLORS.buttonBg))
-    btn:SetBackdropBorderColor(unpack(COLORS.border))
-    
-    local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
-    label:SetText(text or "")
-    label:SetTextColor(unpack(COLORS.textBody))
-    btn.label = label
-    
+-- The hover and press behaviour of a button, separated from the making of one.
+--
+-- It lived inside CreateStyledButton, which meant a button built any other way had none of
+-- it - and several are, because they need a label colour, an icon or an anchor the helper
+-- does not take. Those buttons wore the same backdrop and looked identical whether the
+-- mouse was over them or not.
+--
+-- HOOKED, not set: most of these buttons already use OnEnter to open a tooltip, and that is
+-- the whole reason they were built by hand. Replacing their scripts to give them a hover
+-- would have taken the tooltip away.
+function ns.AttachButtonFeedback(btn)
     -- Hover fades in/out at the same speed; the press is instant so clicks still
     -- feel snappy, then the release eases back to the hover state.
     --
     -- In and out used to differ (0.12 / 0.18). Asymmetric hover can be deliberate,
     -- but nothing here documented it as such and every other control in the addon
     -- was symmetric, so this reads as drift rather than design. One duration now.
-    btn:SetScript("OnEnter", function(self)
+    btn:HookScript("OnEnter", function(self)
         TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.fast)
     end)
-    btn:SetScript("OnLeave", function(self)
+    btn:HookScript("OnLeave", function(self)
         TweenBackdrop(self, COLORS.buttonBg, COLORS.border, MOTION.fast)
     end)
-    btn:SetScript("OnMouseDown", function(self)
+    btn:HookScript("OnMouseDown", function(self)
         -- Stop the hover fade FIRST. This used to read
         --     self:SetScript("OnUpdate", nil)  -- cancel any running fade
         -- which stopped meaning anything when tweens moved onto the shared driver:
@@ -198,11 +195,27 @@ local function CreateStyledButton(parent, text, width, height)
         Anim.cancelProp(self, "backdrop")
         self:SetBackdropColor(unpack(COLORS.buttonPressed))
     end)
-    btn:SetScript("OnMouseUp", function(self)
+    btn:HookScript("OnMouseUp", function(self)
         TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.instant)
     end)
-    
     return btn
+end
+
+local function CreateStyledButton(parent, text, width, height)
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetWidth(width or 100)
+    btn:SetHeight(height or BUTTON_HEIGHT)
+    btn:SetBackdrop(BACKDROP_BUTTON)
+    btn:SetBackdropColor(unpack(COLORS.buttonBg))
+    btn:SetBackdropBorderColor(unpack(COLORS.border))
+
+    local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
+    label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    label:SetText(text or "")
+    label:SetTextColor(unpack(COLORS.textBody))
+    btn.label = label
+
+    return ns.AttachButtonFeedback(btn)
 end
 
 -- Makes Escape close a frame, the way it closes Blizzard's own windows.

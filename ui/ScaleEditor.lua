@@ -1451,14 +1451,14 @@ local function CreateScaleEditor(parent)
     importButton:SetScript("OnClick", function(self)
         Valuate:ShowImportDialog()
     end)
-    importButton:SetScript("OnEnter", function(self)
+    importButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_TOP") then
         GameTooltip:SetText("Import Scale", 1, 1, 1)
         GameTooltip:AddLine("Import a scale from a scale tag.", nil, nil, nil, true)
         GameTooltip:Show()
         end
     end)
-    importButton:SetScript("OnLeave", function(self)
+    importButton:HookScript("OnLeave", function(self)
         GameTooltip:Hide()
     end)
     
@@ -1471,14 +1471,14 @@ local function CreateScaleEditor(parent)
         end
         Valuate:ShowExportDialog(ns.EditingScaleName)
     end)
-    exportButton:SetScript("OnEnter", function(self)
+    exportButton:HookScript("OnEnter", function(self)
         if ShowTooltipSafe(self, "ANCHOR_TOP") then
         GameTooltip:SetText("Export Scale", 1, 1, 1)
         GameTooltip:AddLine("Export the current scale as a scale tag to share with others.", nil, nil, nil, true)
         GameTooltip:Show()
         end
     end)
-    exportButton:SetScript("OnLeave", function(self)
+    exportButton:HookScript("OnLeave", function(self)
         GameTooltip:Hide()
     end)
     

@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.157.0a] - 2026-08-15 — fourteen buttons that never lit up
+
+### Fixed
+**Twelve buttons built by the shared helper had lost their hover.**
+
+`CreateStyledButton` installs a fade on `OnEnter`. Twelve of the buttons it makes then call
+`SetScript("OnEnter", …)` to show a tooltip — and `SetScript` **replaces** the slot. Last
+writer wins, so the fade was gone. Nothing was missing, nothing errored: Restore Default
+Settings, Save For Alts, Load Saved, Import, Export, Scale Library and seven others simply
+stopped lighting up when you pointed at them, which reads as *disabled* rather than broken.
+
+Those twelve now `HookScript` their tooltips, so both run.
+
+**Scan Best Equipment had no hover at all.** Clear Items, Equip All and Save Set — the three
+buttons beside it — each carry a `HIGHLIGHT`-layer texture, which the client draws only
+while the mouse is over the frame and which needs no script. That is precisely the technique
+for a button whose `OnEnter` is spoken for by a tooltip, and there is a comment on each of
+the three saying so. Scan's `OnEnter` is a tooltip too. It just never got the texture.
+
+**The tabs answered nothing.** Every other clickable thing in the addon responds to the
+mouse — a row lifts, a button lightens, a close box goes red. Tabs responded only to being
+clicked, so the one row whose entire job is *"click me to go somewhere"* was the one place
+giving no sign it could be. They now lighten on hover, except the tab you are already on:
+that one wears the selected colours, and `SelectTab` stays the only writer of them.
+
+### Changed
+The hover and press behaviour moved out of `CreateStyledButton` into `ns.AttachButtonFeedback`,
+so a button built any other way can have it without being rebuilt. It **hooks** rather than
+sets, which is the whole point — the buttons that need it are the ones already using those
+slots for a tooltip.
+
+### Added
+`tabtest.js` builds the whole window, so it now asks the question of **every** button in it
+at once: does this light up when the mouse arrives? It accepts either technique — a
+`HIGHLIGHT` texture or a handler that moves the backdrop — because both are legitimate here
+and a check written against one would have missed the other.
+
+That is what makes it worth having. This was found by auditing, and the audit was wrong
+three times before it was right: it missed the HIGHLIGHT textures, then missed hover
+handlers declared hundreds of lines from their button, then reported four buttons as broken
+that were fine. Only running the real window settles it.
+
+### Technical
+Two mistakes in the new gate, both of which made an assertion pass for the wrong reason:
+
+- It read the backdrop **immediately** after hovering. The hover is a fade, so nothing had
+  moved yet, and the check compared a value against itself.
+- It watched the **fill** when asserting that the active tab is exempt. `SelectTab` paints
+  the active tab with the same colour the hover targets, so a hover that wrongly fired on it
+  would change nothing observable. The **border** is where those two differ — and it is the
+  strong edge that marks your place, which is what the exemption exists to protect.
+
+Both were caught by mutation rather than by reading.
+
+
 ## [0.156.0a] - 2026-08-15 — four of the six tabs never showed you where you were
 
 ### Fixed

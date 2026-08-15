@@ -362,7 +362,29 @@ local function CreateTabSystem(mainFrame, contentFrame)
         btn:SetScript("OnClick", function()
             SelectTab(name)
         end)
-        
+
+        -- Hover, for the tabs you are not on.
+        --
+        -- Every other clickable thing in this addon answers the mouse - a row lifts, a
+        -- button lightens, a close box goes red. Tabs answered only by being clicked, so
+        -- the one place in the window whose entire job is "click me to go somewhere" was
+        -- the one place that gave no sign it could be clicked.
+        --
+        -- Skipped for the ACTIVE tab, which already wears the selected colours; tweening
+        -- it on hover would dim the thing telling you where you are, and moving the mouse
+        -- away would then have to guess which state to restore. SelectTab is the only
+        -- writer of that colour and stays so.
+        btn:SetScript("OnEnter", function(self)
+            if activeTab ~= name then
+                TweenBackdrop(self, COLORS.buttonHover, COLORS.borderLight, MOTION.fast)
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            if activeTab ~= name then
+                TweenBackdrop(self, COLORS.buttonPressed, COLORS.borderDark, MOTION.fast)
+            end
+        end)
+
         local label = btn:CreateFontString(nil, "OVERLAY", FONT_BODY)
         label:SetPoint("CENTER", btn, "CENTER", 0, 0)
         label:SetText(text)

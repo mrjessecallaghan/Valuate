@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.156.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.157.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1247,4 +1247,39 @@ module.exports = [
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "the tab buttons stop being reachable, and nothing can check them again",
     from: "        buttons = tabs,", to: "        buttons = nil," },
+  // ---- every button answers the mouse (v0.157.0a) --------------------------
+  // Twelve buttons built by the shared helper had their hover fade REPLACED by a later
+  // SetScript for a tooltip - the helper installs on the same slot, and last writer wins.
+  // Nothing was missing and nothing errored; the buttons simply stopped lighting up, which
+  // reads as disabled rather than broken.
+
+  // The helper's own feedback. If the button it builds stops responding, everything
+  // downstream of it does too.
+  { gate: "tabtest", file: "ui/Widgets.lua",
+    label: "the shared button helper stops giving any hover feedback",
+    from: "    btn:HookScript(\"OnEnter\", function(self)\n        TweenBackdrop(self, COLORS.buttonHover",
+    to: "    btn:HookScript(\"OnEnter\", function(self)\n        if false then TweenBackdrop(self, COLORS.buttonHover" },
+
+  // And the reason those twelve went quiet: SetScript replaces, HookScript chains.
+  { gate: "tabtest", file: "ui/Settings.lua",
+    label: "a tooltip handler replaces a button\u2019s hover instead of chaining onto it",
+    from: "restoreButton:HookScript(\"OnEnter\"", to: "restoreButton:SetScript(\"OnEnter\"" },
+
+  // Scan Best Equipment: the odd one out among its own three siblings, each of which
+  // carries this texture with a comment saying why.
+  { gate: "tabtest", file: "ui/BestEquipment.lua",
+    label: "the scan button loses the highlight its three siblings all have",
+    from: "    local scanHL = scanButton:CreateTexture(nil, \"HIGHLIGHT\")",
+    to: "    local scanHL = scanButton:CreateTexture(nil, \"ARTWORK\")" },
+
+  // Tabs: hover on the ones you are not on, and NOT on the one you are.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "tabs stop answering the mouse entirely",
+    from: "            if activeTab ~= name then\n                TweenBackdrop(self, COLORS.buttonHover",
+    to: "            if false then\n                TweenBackdrop(self, COLORS.buttonHover" },
+
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "hover dims the ACTIVE tab, the one thing telling you where you are",
+    from: "            if activeTab ~= name then\n                TweenBackdrop(self, COLORS.buttonHover",
+    to: "            if true then\n                TweenBackdrop(self, COLORS.buttonHover" },
 ];

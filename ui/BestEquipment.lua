@@ -147,6 +147,15 @@ local function CreateBestEquipmentPanel(parent)
     scanButton:SetPoint("TOPLEFT", parent, "TOPLEFT", PADDING, -PADDING)
     scanButton:SetBackdrop(BACKDROP_BUTTON)
     scanButton:SetBackdropColor(unpack(COLORS.buttonBg))
+    -- The odd one out among its own siblings.
+    --
+    -- Clear Items, Equip All and Save Set each carry this texture, with a comment saying
+    -- why: the HIGHLIGHT layer is drawn only while the mouse is over the frame and needs no
+    -- script, which is what lets a button keep hover feedback when its OnEnter is spoken
+    -- for by a tooltip. Scan's OnEnter is a tooltip too. It just never got the texture.
+    local scanHL = scanButton:CreateTexture(nil, "HIGHLIGHT")
+    scanHL:SetAllPoints(scanButton)
+    ns.SetSolidColor(scanHL, 1, 1, 1, 0.10)
     scanButton:SetBackdropBorderColor(unpack(COLORS.border))
     
     local scanLabel = scanButton:CreateFontString(nil, "OVERLAY", FONT_BODY)
