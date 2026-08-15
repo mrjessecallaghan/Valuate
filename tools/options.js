@@ -291,6 +291,54 @@ const NOT_A_PREFERENCE = {
   autoAcceptTrivialBelow: "a level threshold, set with /valuate trivial <n>",
 };
 
+/*
+ * Every automation appears in the "what is running" line.
+ *
+ * ns.AUTOMATION_LABELS drives the summary at the top of Settings. A label missing there means
+ * an automation runs without ever being listed as running - which is worse than not having
+ * the line, because the line reads as complete.
+ *
+ * This is the fifth hand-maintained list in this project to be given a rule rather than
+ * trusted: the About panel, the verify checklist, the report toggles and the in-game manual
+ * all drifted first.
+ */
+const labels = core.match(/ns\.AUTOMATION_LABELS = \{([\s\S]*?)\n\}/);
+if (labels) {
+  const labelled = new Set([...labels[1].matchAll(/^\s*(\w+)\s*=/gm)].map((m) => m[1]));
+  const NOT_A_RUNNING_AUTOMATION = {
+    autoDeleteIntervalSecs: "how often junk cleanup runs, not a thing that runs",
+    autoRepairGuildFirst: "which purse auto-repair uses, once auto-repair is on",
+    autoAcceptSkipTrivial: "which quests auto-accept skips, once auto-accept is on",
+    autoRollRecipes: "widens auto-roll, cannot act alone",
+    autoRollTradeGoods: "widens auto-roll, cannot act alone",
+    autoScan: "WHEN scanning happens, not whether",
+    notifyBagUpgradeMode: "which upgrades the prompt covers, once it is on",
+    notifyBagUpgradeStyle: "chat or dialog, once the prompt is on",
+    notifyUpgradeSound: "whether the prompt makes a noise",
+    notifyOtherSpecUpgrades: "widens the prompt to other specs",
+    autoConfirmBindOnLoot: "answers a dialog for an equip you asked for",
+    autoDeleteDryRun: "makes auto-delete report instead of act",
+    autoDeleteKeepFree: "how many slots auto-delete leaves free",
+    autoDeleteMinValue: "the floor auto-delete will not go below",
+    autoDeleteValueSource: "which price auto-delete reads",
+    autoDeleteMaxQuality: "the quality ceiling auto-delete will not pass",
+    autoDeleteMaxValue: "the value ceiling auto-delete will not pass",
+  };
+  const automations = keys.filter(
+    (k) => /^(auto|notify)/.test(k) && !NOT_A_PREFERENCE[k] && !NOT_A_RUNNING_AUTOMATION[k]
+  );
+  const unlisted = automations.filter((k) => !labelled.has(k));
+  if (unlisted.length) {
+    console.error(
+      "Automations missing from ns.AUTOMATION_LABELS:\n  " + unlisted.join("\n  ") +
+        "\n\nThe Settings summary lists what is running. An automation absent from " +
+        "that table runs without ever appearing there, and the line reads as complete " +
+        "either way."
+    );
+    process.exit(1);
+  }
+}
+
 const settingsPanel = read("ui/Settings.lua");
 const unfindable = keys.concat(Object.keys(LAZY_OK)).filter(
   (k) => !NOT_A_PREFERENCE[k] && !settingsPanel.includes(k)

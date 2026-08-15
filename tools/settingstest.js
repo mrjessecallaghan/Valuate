@@ -148,6 +148,15 @@ Valuate.LoadSettingsSnapshot = function() end
 Valuate.HasSettingsSnapshot = function() return false end
 Valuate.ShowConfirmDialog = function() end
 Valuate.GetProfessionOverrideChoices = function() return {} end
+Valuate.ActiveAutomations = function()
+    local on = {}
+    if STORE.autoRepair then on[#on + 1] = "repair" end
+    if STORE.autoSellJunk then on[#on + 1] = "sell junk" end
+    if STORE.autoRollLoot then on[#on + 1] = "roll on loot" end
+    if STORE.autoDeleteJunk then on[#on + 1] = "delete junk" end
+    table.sort(on)
+    return on
+end
 
 -- Records the option key each checkbox initialises itself from.
 --
@@ -484,6 +493,46 @@ HIT_RATING, HIT_PERCENT = 5, 1.0
 ns.RefreshSettingsHitStatus()
 eq(hitLineText():find("You are capped", 1, true), nil,
    "taking hit off updates the line - it re-reads rather than remembering")
+
+-- ---- what is actually running ---------------------------------------------------------
+-- Twenty automations across four sections, every one off by default. That is right, and it
+-- leaves a real question unanswered after a few sessions of switching things on: WHICH are
+-- running? The answer lived only in /valuate report, which you have to know exists.
+ok(ns.RefreshSettingsActiveLine ~= nil, "the panel publishes a way to refresh its running line")
+
+local function activeText()
+    local out = {}
+    for _, f in ipairs(__frames) do
+        for _, region in ipairs(f.__regions or {}) do
+            if region.GetText then
+                local t = region:GetText()
+                if t and (t:find("Running", 1, true) or t:find("No automation", 1, true)) then
+                    out[#out + 1] = t
+                end
+            end
+        end
+    end
+    return table.concat(out, " | ")
+end
+
+for key in pairs(STORE) do
+    if type(STORE[key]) == "boolean" then STORE[key] = false end
+end
+ns.RefreshSettingsActiveLine()
+ok(activeText():find("No automation", 1, true) ~= nil,
+   "with everything off it says so plainly rather than showing an empty list")
+
+STORE.autoRepair = true
+ns.RefreshSettingsActiveLine()
+local one = activeText()
+ok(one:find("Running", 1, true) ~= nil, "switching one on is reported")
+ok(one:find("repair", 1, true) ~= nil, "and names it, rather than only counting")
+
+-- It RE-READS. The panel is built once and reused for the whole session while these boxes are
+-- being ticked, so a count fixed at build time would be worse than none: it would look live.
+STORE.autoRepair = false
+ns.RefreshSettingsActiveLine()
+eq(activeText():find("repair", 1, true), nil, "switching it back off updates the line")
 
 return failures, checks
 `,

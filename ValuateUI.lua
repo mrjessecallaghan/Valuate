@@ -303,6 +303,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
                 -- were already on still wants a current number, and this is the panel's only
                 -- line that goes stale on its own.
                 if ns.RefreshSettingsHitStatus then ns.RefreshSettingsHitStatus() end
+                if ns.RefreshSettingsActiveLine then ns.RefreshSettingsActiveLine() end
                 if isSwitch then
                     Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
                     -- Staggered column reveal, same flourish as Best Equipment.

@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.152.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.153.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.152.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.153.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,9 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• Settings opens with a line saying WHICH automations are running. Twenty of\n" ..
+        "   them, all off by default, spread across four sections - the answer used to\n" ..
+        "   live only in /valuate report.\n" ..
         "• HIT NOW STOPS COUNTING once you are capped. Past the cap it does nothing,\n" ..
         "   so it scores nothing, and only the part of an item's hit that fits under\n" ..
         "   the cap counts. The rating-per-percent is worked out from YOUR gear, so it\n" ..

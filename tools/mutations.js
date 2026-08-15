@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.152.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.153.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1132,4 +1132,17 @@ module.exports = [
   { gate: "minimaptest", file: "MinimapButton.lua",
     label: "every scale is called a guess, so the mark stops meaning anything",
     from: "            if scale.Inferred then", to: "            if true then" },
+
+  // ---- what is actually running (v0.153.0a) --------------------------------
+  // Twenty automations, all off by default, spread across four sections. The line answering
+  // "which are on" is only useful if it re-reads and if the label table stays complete.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "the running line is written once and then never updates, so it looks live and lies",
+    from: "    ns.RefreshSettingsActiveLine = RefreshActiveLine", to: "" },
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "an empty list reads as blank rather than saying nothing is running",
+    from: "        if #on == 0 then", to: "        if false then" },
+  { gate: "options", file: "Valuate.lua",
+    label: "an automation drops out of the running list and nothing notices",
+    from: '    autoRollLoot = "roll on loot",', to: "" },
 ];

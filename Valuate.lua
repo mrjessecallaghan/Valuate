@@ -7468,6 +7468,50 @@ end
 --
 -- Only what you can act on. An empty list means an empty list, not a heading with nothing
 -- under it - a to-do list that always has entries is one you stop opening.
+-- Which automations are actually switched on.
+--
+-- Twenty of them now, spread across four Settings sections and a dozen commands, every one
+-- off by default. That is the right default and it leaves a real question unanswered: after
+-- a few sessions of switching things on, WHICH of them are running? The answer lived only in
+-- /valuate report, which you have to know exists and read in a chat frame.
+--
+-- Derived from the options table rather than a list written out here. A hand-kept list of
+-- automations is the exact thing that has drifted in this project four times - the About
+-- panel, the verify checklist, the report's own toggles and the in-game manual - and this one
+-- would drift the same way, silently, the first time an automation was added.
+--
+-- Returns a sorted array of labels, so two calls in a row cannot disagree about the order.
+ns.AUTOMATION_LABELS = {
+    autoRelease = "release on death",
+    autoLeaveBattleground = "leave finished battlegrounds",
+    autoQueuePvP = "re-queue PvP",
+    autoQueueDungeon = "re-queue dungeons",
+    autoAcceptBattleground = "take battleground invites",
+    autoEquipOnLevelUp = "equip on level-up",
+    autoEquipUpgrades = "equip upgrades as they drop",
+    autoUnjunkProtected = "rescue gear from junk",
+    autoLearnAppearances = "collect appearances",
+    autoDeleteJunk = "delete junk",
+    autoSellJunk = "sell junk",
+    autoRepair = "repair",
+    autoRollLoot = "roll on loot",
+    autoAcceptQuests = "accept quests",
+    autoQuestTurnIn = "turn in quests",
+    autoQuestReward = "pick quest rewards",
+    notifyDungeonNoUpgrades = "suggest leaving spent dungeons",
+    notifyBagUpgrade = "prompt on bag upgrades",
+}
+
+function Valuate:ActiveAutomations()
+    local options = Valuate:GetOptions()
+    local on = {}
+    for key, label in pairs(ns.AUTOMATION_LABELS) do
+        if options[key] then on[#on + 1] = label end
+    end
+    table.sort(on)
+    return on
+end
+
 function Valuate:BuildTodoList()
     local items = {}
 

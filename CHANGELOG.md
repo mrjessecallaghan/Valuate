@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.153.0a] - 2026-08-15 — which automations are actually running
+
+### Added
+Settings now opens with a line saying what is switched on:
+
+> **Running:** delete junk, equip upgrades as they drop, repair *and 2 more*
+
+Twenty automations, all off by default, spread across four sections. That default is right,
+and it leaves a real question unanswered after a few sessions of switching things on: **which
+of these are running?** The answer lived only in `/valuate report`, which you have to know
+exists and then read in a chat frame.
+
+It re-reads whenever Settings is shown. The panel is built once and reused for the whole
+session while those boxes are being ticked, so a count fixed at build time would be worse
+than none — it would look live.
+
+### Added — and the list cannot quietly fall behind
+`options.js` now requires every automation in `DEFAULT_OPTIONS` to appear in the label table
+that drives the line. This is the **fifth** hand-maintained list in this project to be given
+a rule rather than trusted — the About panel, the verify checklist, the report's own toggles
+and the in-game manual all drifted first.
+
+It earned that immediately: it found `autoRoll` in my brand-new table, and **the option is
+called `autoRollLoot`**. Auto-roll would have run without ever appearing in the list of what
+is running — the exact failure the rule was written for, in the table it was written to
+guard, minutes after both were added.
+
+Working through the rest drew a line worth having: **a modifier is not an automation.**
+`autoDeleteMinValue`, `notifyBagUpgradeStyle`, `autoScan` and eleven others shape something
+already switched on, or are a number. Listing them as "running" would report a preference as
+a process, so each is exempted by name with a reason.
+
+### Technical
+The `top-level-local-budget` rule fired for the third consecutive release — this file sits
+at 180 of Lua's 200 locals per scope. The label table is data, so it moved onto `ns` beside
+the other shared tables rather than costing a slot.
+
+And the settings fixture had to mock `ActiveAutomations`, which lives in `Valuate.lua` while
+that harness loads only `ui/`. Without it the first assertion passed because the function was
+**missing entirely** — a green check for the wrong reason, which is the fourth time this week
+a fixture and the thing it tested were quietly disconnected.
+
 ## [0.152.0a] - 2026-08-15 - the guess reaches the glance
 
 ### Added

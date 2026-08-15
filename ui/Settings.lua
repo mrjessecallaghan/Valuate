@@ -238,8 +238,39 @@ local function CreateSettingsPanel(parent)
 
     local col1 = columnFrames[1]
 
+    -- What is actually running, before any of the switches.
+    --
+    -- Every automation here is off by default, which is right - and after a few sessions of
+    -- switching things on, "which of these are running?" has no answer short of reading four
+    -- sections of checkboxes. It was available only in /valuate report, which you have to
+    -- know exists.
+    local activeLine = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    activeLine:SetPoint("TOPLEFT", col1, "TOPLEFT", 0, 0)
+    activeLine:SetWidth(settingsColumnWidth)
+    activeLine:SetJustifyH("LEFT")
+    activeLine:SetTextColor(unpack(COLORS.textBody))
+    columnHeights[1] = 28 + ELEMENT_SPACING
+
+    -- Refreshed rather than set once. This panel is built once and reused for the session
+    -- while the boxes below it are being ticked, so a count fixed at build time would be
+    -- worse than none: it would look live.
+    local function RefreshActiveLine()
+        local on = Valuate.ActiveAutomations and Valuate:ActiveAutomations() or {}
+        if #on == 0 then
+            activeLine:SetText("|cFFAAAAAANo automation is running. Everything below is off " ..
+                "until you switch it on.|r")
+        elseif #on <= 3 then
+            activeLine:SetText("|cFF00FF00Running:|r " .. table.concat(on, ", "))
+        else
+            activeLine:SetText(string.format("|cFF00FF00Running:|r %s |cFFAAAAAAand %d more|r",
+                table.concat(on, ", ", 1, 3), #on - 3))
+        end
+    end
+    RefreshActiveLine()
+    ns.RefreshSettingsActiveLine = RefreshActiveLine
+
     -- Display & Formatting Section Header
-    local displayHeader = CreateSectionHeader(col1, 1, "Display & Formatting", nil)
+    local displayHeader = CreateSectionHeader(col1, 1, "Display & Formatting", activeLine)
     
     -- Decimal Places (Column 1)
     local decimalLabel = col1:CreateFontString(nil, "OVERLAY", FONT_SMALL)
