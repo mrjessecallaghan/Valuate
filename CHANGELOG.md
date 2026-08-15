@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.163.0a] - 2026-08-15 — the same lie, one panel over
+
+### Fixed
+The Best Equipment tab labelled its grid **"Not scanned this session — these are last
+session's results"** whenever there was no scan this session. A character who has never
+scanned has no scan this session either, and no last session's results — so somebody looking
+at an empty grid was told it came from last time.
+
+Three states, two branches. It now distinguishes them: *scanned N ago*, *last session's
+results*, and **"Never scanned — press Scan and there will be something here."**
+
+This is the same defect fixed in the To Do tab an hour ago, in a different file, and it
+predates that work by months.
+
+### Technical
+That makes **three times** for this mistake, in three files, so `CLAUDE.md`'s rule about it
+now names all three and states the tell: **one `if not X` branch serving two populations**,
+one of which has data and one of which has none. Whenever a nil check produces a *sentence*
+rather than a decision, ask which of the two the sentence is true for.
+
+The other two instances were things the UI *said* rather than decided, which is why they
+survived longer — a wrong decision gets noticed, a wrong sentence gets read past.
+
+A sweep of every other empty-state message found the codebase generally gets this right:
+`/valuate future` hedges with *"run /valuate scan if that seems wrong"*, the junk rescue
+reports how many items it checked, and the dungeon advice stays silent about dungeons it does
+not know rather than reporting nothing there. These two were the outliers.
+
+Also renamed a local so its mutation anchor was unambiguous: `haveAny` already existed a few
+hundred lines below, and matching it made the anchor land on either site. Matching the local
+one-line idiom already used there fixed both problems at once.
+
+
 ## [0.162.0a] - 2026-08-15 — the To Do tab was lying to new characters
 
 ### Fixed

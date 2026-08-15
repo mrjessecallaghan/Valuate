@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.162.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.163.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1417,4 +1417,18 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "the scan blocker never clears, so it sits at the top of every list forever",
     from: "    elseif not (best and best[scaleName]) then", to: "    elseif true then" },
+  // ---- the scan-age line knows three states (v0.163.0a) --------------------
+  // It printed "these are last session’s results" for the absence of a heartbeat, full
+  // stop - so a character who had never scanned was told the empty grid in front of them
+  // came from last time. Same shape as the to-do list telling an unscanned character its
+  // gear was all up to date: a missing measurement read as a measurement of nothing.
+  { gate: "tabtest", file: "ui/BestEquipment.lua",
+    label: "a never-scanned character is told they are looking at last session’s results",
+    from: "        if haveStored then", to: "        if true then" },
+
+  // And the other direction: real saved results reported as nothing, which would have
+  // people re-scanning gear the addon already knows about.
+  { gate: "tabtest", file: "ui/BestEquipment.lua",
+    label: "saved results from last session are reported as never having scanned",
+    from: "        if haveStored then", to: "        if false then" },
 ];

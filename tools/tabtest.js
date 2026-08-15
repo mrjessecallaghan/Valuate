@@ -412,6 +412,47 @@ if buttons then
        tostring(ns.ValuateUIFrame:GetWidth()) .. ")")
 end
 
+-- ---- the scan-age line knows THREE states, not two -----------------------------
+-- It read "Not scanned this session - these are last session's results" for the absence of a
+-- scan heartbeat, full stop. A character who has never scanned at all has no heartbeat
+-- either, and no last session's results - so the line told somebody looking at an empty grid
+-- that what they were seeing came from last time.
+--
+-- Same shape as the to-do list telling an unscanned character its gear was all up to date: a
+-- missing measurement read as a measurement of nothing.
+local bePanel = ns.ValuateUIFrame.tabs.bestEquipmentPanel
+ok(bePanel and bePanel.UpdateScanAge ~= nil, "the scan-age line can be re-read")
+
+if bePanel and bePanel.UpdateScanAge then
+    local function ageText()
+        for _, r in ipairs(bePanel.__regions or {}) do
+            local t = r.GetText and r:GetText()
+            if t and (t:find("canned", 1, true) or t:find("Never", 1, true)) then return t end
+        end
+        return ""
+    end
+
+    Valuate.GetAutomationHeartbeat = function() return 42 end
+    bePanel.UpdateScanAge()
+    ok(ageText():find("42", 1, true) ~= nil or ageText():find("ago", 1, true) ~= nil,
+       "a scan this session says how long ago (" .. ageText() .. ")")
+
+    -- No heartbeat, but saved results exist: last session's, which is what it always said.
+    Valuate.GetAutomationHeartbeat = function() return nil end
+    Valuate.GetBestEquipment = function() return { Dps = { [5] = {} } } end
+    bePanel.UpdateScanAge()
+    ok(ageText():find("last session", 1, true) ~= nil,
+       "with saved results it says they are last session's (" .. ageText() .. ")")
+
+    -- No heartbeat AND no saved results: never scanned. There is no last session to blame.
+    Valuate.GetBestEquipment = function() return {} end
+    bePanel.UpdateScanAge()
+    ok(ageText():find("Never scanned", 1, true) ~= nil,
+       "with nothing stored it says it has never scanned (" .. ageText() .. ")")
+    eq(ageText():find("last session", 1, true), nil,
+       "and does NOT claim to be showing results from a session that never happened")
+end
+
 -- ---- and the tab still changes ------------------------------------------------
 switchTo("instructions")
 switchTo("bestEquipment")

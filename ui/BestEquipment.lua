@@ -180,12 +180,29 @@ local function CreateBestEquipmentPanel(parent)
 
     local function UpdateScanAge()
         local ago = Valuate.GetAutomationHeartbeat and Valuate:GetAutomationHeartbeat("scan")
-        if not ago then
-            scanAgeText:SetText("|cFFFF8800Not scanned this session|r - these are last session's results")
+        if ago then
+            local when = (SecondsToTime and ago >= 1) and SecondsToTime(ago) or "moments"
+            scanAgeText:SetText("|cFF888888Scanned " .. when .. " ago|r")
             return
         end
-        local when = (SecondsToTime and ago >= 1) and SecondsToTime(ago) or "moments"
-        scanAgeText:SetText("|cFF888888Scanned " .. when .. " ago|r")
+
+        -- No heartbeat this session. THREE states, and this had two branches.
+        --
+        -- "Not scanned this session - these are last session's results" was printed for the
+        -- absence of a heartbeat, full stop. A character who has never scanned at all has no
+        -- heartbeat either, and no last session's results - so the panel told somebody
+        -- looking at an empty grid that what they were seeing came from last time.
+        --
+        -- Same shape as the to-do list telling an unscanned character its gear was all up to
+        -- date: a missing measurement read as a measurement of nothing.
+        local stored = Valuate.GetBestEquipment and Valuate:GetBestEquipment()
+        local haveStored = false
+        if stored then for _ in pairs(stored) do haveStored = true break end end
+        if haveStored then
+            scanAgeText:SetText("|cFFFF8800Not scanned this session|r - these are last session's results")
+        else
+            scanAgeText:SetText("|cFFFF8800Never scanned|r - press Scan and there will be something here")
+        end
     end
     parent.UpdateScanAge = UpdateScanAge
     UpdateScanAge()

@@ -93,6 +93,25 @@ end?
   so the item genuinely is an upgrade - and must match. Applying the rule below to all three
   exits would have been the obvious move and the wrong one, which is why the gate mutates
   that case too.
+
+  **This is the most-repeated mistake in the project — three times now, in three files.**
+  The other two are both things the UI SAID rather than decided, which is why they went
+  unnoticed longer:
+
+  | Where | Said | When |
+  |---|---|---|
+  | PassLoot `Upgrade` rule | "yes, an upgrade" | never scanned |
+  | To Do tab (v0.162.0a) | "your gear, gems and enchants are all up to date" | never scanned |
+  | Best Equipment scan-age (v0.163.0a) | "these are last session's results" | never scanned, no results |
+
+  The tell is always the same shape: **one `if not X` branch serving two populations**, one
+  of which has data and one of which has none. Whenever a nil check produces a sentence
+  rather than a decision, ask which of those two the sentence is true for.
+
+  And check the FIXTURE, not just the code. `todotest.js` never mocked `GetBestEquipment` at
+  all, so every case in it was built as though a scan had happened - the state most players
+  are in, and the easiest to write tests from. The bug shipped through a gate that could not
+  express it.
 - **When the action cannot be undone, uncertainty declines to act.** Three decisions now
   share that rule and it is the one to copy: surplus-gear marking says no unless every guard
   clears, quest reward selection picks NOTHING when nothing scored and there is a real choice
