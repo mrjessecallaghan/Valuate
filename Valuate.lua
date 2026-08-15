@@ -10256,8 +10256,48 @@ local eventErrorOrder = {}
 -- The trade: with scriptErrors ON you would otherwise get a full traceback, and now
 -- you get the message only. The message carries file:line, which is usually enough,
 -- and it is a good deal in exchange for the errors being visible at all by default.
+-- What the addon actually cost you, per event, while you played.
+--
+-- RunProfile below measures on demand: it runs a scan and times it. That answers "how
+-- expensive is a scan", which is a different question from "why does the game hitch when I
+-- loot" - and only the second one gets reported by anybody.
+--
+-- Every automation in this addon runs from the handler below, so timing it here covers all
+-- twenty across all thirty-three events without touching a single call site. Two numbers per
+-- event: the worst single call, because that is what a stutter IS, and the running total,
+-- because a hundred cheap calls on ITEM_PUSH can cost more than one expensive one on a scan.
+--
+-- Written after the TSM integration froze a client on a hot path nobody was measuring. This
+-- addon is the one always loaded, runs on BAG_UPDATE and ITEM_PUSH, and had no instrument
+-- at all.
+ns.eventCost = {}
+ns.EVENT_STUTTER_MS = 100
+
 frame:SetScript("OnEvent", function(self, event, ...)
+    local started = debugprofilestop and debugprofilestop() or nil
     local ok, err = pcall(OnEvent, self, event, ...)
+
+    if started then
+        local took = debugprofilestop() - started
+        local cost = ns.eventCost[event]
+        if not cost then
+            cost = { worst = 0, total = 0, count = 0 }
+            ns.eventCost[event] = cost
+        end
+        cost.count = cost.count + 1
+        cost.total = cost.total + took
+        if took > cost.worst then cost.worst = took end
+
+        -- Said ONCE per event, not per occurrence. A warning that fires every time you loot
+        -- is a warning you turn off, and then it is not a warning.
+        if took > ns.EVENT_STUTTER_MS and not cost.warned then
+            cost.warned = true
+            print(string.format(
+                "|cFFFF8800[Valuate]|r %s took %dms - long enough to feel. |cFFAAAAAA/valuate profile|r",
+                tostring(event), took))
+        end
+    end
+
     if ok or eventErrors[event] then return end
 
     eventErrors[event] = tostring(err)
@@ -10998,7 +11038,52 @@ function Valuate:RunProfile()
     print("    Item slot lookups   " .. rate(cs.slotHit, cs.slotMiss))
     print("  |cFFAAAAAAOpen your bags a few times first - these only move when something " ..
           "asks. A low rate after that is a real problem; 'not used yet' just means idle.|r")
+
+    -- What it actually cost you, as opposed to what a benchmark says it costs.
+    --
+    -- Everything above is measured on demand: a scan is run, and timed. That answers "how
+    -- expensive is a scan". It does not answer "why does the game hitch when I loot", which
+    -- is the question people actually have, and which needs measuring while you play rather
+    -- than while you ask.
+    Valuate:PrintEventCost()
     return true
+end
+
+-- Sorted by WORST single call, not by total.
+--
+-- A stutter is one long call. A hundred short ones on ITEM_PUSH may add up to more time and
+-- still feel like nothing, so total is shown but does not decide the order - the thing you
+-- came here to find is at the top either way.
+function Valuate:PrintEventCost()
+    local costs = {}
+    for event, cost in pairs(ns.eventCost or {}) do
+        costs[#costs + 1] = { event = event, worst = cost.worst, total = cost.total,
+                              count = cost.count }
+    end
+    if #costs == 0 then
+        print("  |cFF00FF00Events|r |cFFAAAAAAnothing measured yet - this fills as you play.|r")
+        return 0
+    end
+
+    -- Tie-broken on the event name, which is unique, because pairs() order is not a ranking
+    -- and two events costing the same would reorder between runs.
+    table.sort(costs, function(a, b)
+        if a.worst ~= b.worst then return a.worst > b.worst end
+        return a.event < b.event
+    end)
+
+    print("  |cFF00FF00Events|r |cFFAAAAAA(what this addon cost, while you played)|r")
+    for i = 1, math.min(#costs, 6) do
+        local c = costs[i]
+        local colour = c.worst > (ns.EVENT_STUTTER_MS or 100) and "|cFFFF8800" or "|cFFFFFFFF"
+        print(string.format("    %-28s %s%6.1f ms|r worst  |cFFAAAAAA(%d call%s, %.0f ms total)|r",
+            c.event, colour, c.worst, c.count, c.count == 1 and "" or "s", c.total))
+    end
+    if #costs > 6 then
+        print(string.format("    |cFFAAAAAA...and %d more event(s), all cheaper than these.|r",
+            #costs - 6))
+    end
+    return #costs
 end
 
 -- Prints every scale, in a stable order, with its internal key when that differs from

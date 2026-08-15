@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.173.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.174.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1672,4 +1672,33 @@ module.exports = [
     scope: { start: "local function RequiredItemLevel(", end: "    return nil" },
     label: "the recipe's own name supplies a requirement, if it happens to mention a level",
     from: "for i = 2, tip:NumLines() do", to: "for i = 1, tip:NumLines() do" },
+  // ---- what the addon cost you (v0.174.0a) ---------------------------------
+  // The TSM integration froze a client on a hot path nobody was measuring. This addon is
+  // the one always loaded, runs twenty automations off thirty-three events, and had no
+  // instrument at all.
+  { gate: "eventcost", file: "Valuate.lua",
+    label: "sorted by total, so a hundred harmless calls outrank the one that stutters",
+    from: "        if a.worst ~= b.worst then return a.worst > b.worst end",
+    to: "        if a.total ~= b.total then return a.total > b.total end" },
+
+  // pairs() is not a ranking. A table that reshuffles is one you stop trusting.
+  { gate: "eventcost", file: "Valuate.lua",
+    label: "events costing the same reorder between runs",
+    from: "        return a.event < b.event", to: "        return false" },
+
+  // A blank section reads as "this addon costs nothing", which is a claim it has not earned.
+  { gate: "eventcost", file: "Valuate.lua",
+    label: "having measured nothing prints an empty heading instead of saying so",
+    from: "    if #costs == 0 then", to: "    if false then" },
+
+  // Silently stopping at six reads as a complete list.
+  { gate: "eventcost", file: "Valuate.lua",
+    label: "the events not shown are dropped without saying how many",
+    from: "    if #costs > 6 then", to: "    if false then" },
+
+  // A report that flags everything flags nothing.
+  { gate: "eventcost", file: "Valuate.lua",
+    label: "every event is coloured as a problem, including the cheap ones",
+    from: "        local colour = c.worst > (ns.EVENT_STUTTER_MS or 100) and \"|cFFFF8800\" or \"|cFFFFFFFF\"",
+    to: "        local colour = \"|cFFFF8800\"" },
 ];

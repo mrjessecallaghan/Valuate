@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.174.0a] - 2026-08-15 — what this addon actually cost you
+
+### Added
+**`/valuate profile` now reports what the addon cost while you played**, per event, sorted by
+the worst single call.
+
+`RunProfile` already measured on demand: it runs a scan and times it. That answers *"how
+expensive is a scan"*. It does not answer *"why does the game hitch when I loot"* — which is
+the question people actually have, and which has to be measured while you play rather than
+while you ask.
+
+Every automation in this addon runs from one event handler, so timing it there covers **all
+twenty across all thirty-three events** without touching a single call site.
+
+Two numbers per event. The **worst single call**, because that is what a stutter *is*. And
+the **running total**, because a hundred cheap calls on `ITEM_PUSH` can cost more than one
+expensive call on a scan — that is the difference between one bad function and death by a
+thousand cuts, and only the total tells them apart.
+
+Sorted by the worst, not the total. An event over 100ms is coloured; the rest are not,
+because a report that flags everything flags nothing. And an event that crosses that line
+says so once, in chat, when it happens — **once per event, not per occurrence**: a warning
+that fires every time you loot is a warning you turn off.
+
+### Why now
+The TSM integration froze a client this session, on a hot path nobody was measuring. This
+addon is the one that is *always* loaded, runs on `BAG_UPDATE` and `ITEM_PUSH`, and had no
+instrument at all.
+
+### Technical
+The stable-ordering assertion **passed with the tiebreaker deleted entirely**. Re-running the
+report five times and comparing proves only that nothing is random — `pairs()` is arbitrary
+but stable for one table in one Lua state.
+
+It now asserts the order is alphabetical, and **first checks its own premise**: that `pairs()`
+is not already handing the keys over in order. If it is, the fixture says it cannot test this
+rather than passing on a coincidence.
+
+
 ## [0.173.0a] - 2026-08-15 — an enchant you cannot apply is not a better one
 
 ### Added
