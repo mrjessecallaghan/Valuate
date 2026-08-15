@@ -129,6 +129,41 @@ eq(unknown, 1, "but one boss has no data, which is what must keep the caller qui
 remaining, upgrades, unknown = ns.CountRemainingUpgrades(partial, { Unmapped = true }, upgradeIs200)
 eq(unknown, 0, "killing the unmapped boss removes the uncertainty with it")
 
+-- ---- trash and other things you cannot kill ------------------------------------
+-- A "Trash Mobs" section never dies. Counted as a boss it would sit in the remaining list
+-- forever, the dungeon would never read as finished, and the prompt would never fire at all.
+-- Counted as nothing it would hide real loot. So: a reason to STAY, never a thing to finish.
+local withTrash = {
+    bosses = { { name = "Only", items = { 100 } } },        -- 100 is not an upgrade
+    extra  = { { name = "Trash Mobs", items = { 200 } } },  -- 200 is
+}
+remaining, upgrades, unknown = ns.CountRemainingUpgrades(withTrash, {}, upgradeIs200)
+eq(remaining, 1, "trash is not counted among the bosses you still have to kill")
+eq(upgrades, 1, "but its loot is still a reason to be here")
+eq(unknown, 0, "and it is fully mapped")
+
+-- With the boss dead, trash alone still holds the prompt back.
+remaining, upgrades = ns.CountRemainingUpgrades(withTrash, { Only = true }, upgradeIs200)
+eq(remaining, 0, "no bosses left")
+eq(upgrades, 1, "yet trash can still drop something you would wear")
+
+-- Trash with nothing for you must not block anything.
+local dullTrash = {
+    bosses = { { name = "Only", items = { 100 } } },
+    extra  = { { name = "Trash Mobs", items = { 100 } } },
+}
+remaining, upgrades, unknown = ns.CountRemainingUpgrades(dullTrash, {}, upgradeIs200)
+eq(upgrades, 0, "trash with nothing in it for you is not a reason to stay")
+eq(unknown, 0, "and does not make the picture uncertain")
+
+-- Unreadable trash is still uncertainty.
+local coldTrash = {
+    bosses = { { name = "Only", items = { 100 } } },
+    extra  = { { name = "Trash Mobs" } },
+}
+remaining, upgrades, unknown = ns.CountRemainingUpgrades(coldTrash, {}, upgradeIs200)
+eq(unknown, 0, "an extra section with no item list is simply skipped, not counted as unknown")
+
 -- ---- refusals -----------------------------------------------------------------
 eq(ns.CountRemainingUpgrades(nil, {}, upgradeIs200), nil, "no dungeon is nil, not zero")
 eq(ns.CountRemainingUpgrades({}, {}, upgradeIs200), nil, "a dungeon with no boss list is nil too")
@@ -153,6 +188,22 @@ for name, d in pairs(ns.DUNGEON_LOOT) do
 end
 ok(named > 0, "the shipped table names at least one boss, got " .. named)
 
+-- The table is generated from AtlasLoot rather than written by hand, so it should be big.
+-- A generator that silently harvested nothing would leave a syntactically perfect file that
+-- makes the whole feature a no-op, and every assertion above would still pass.
+local dungeonCount = 0
+for _ in pairs(ns.DUNGEON_LOOT) do dungeonCount = dungeonCount + 1 end
+ok(dungeonCount >= 30, "the generated table covers the 5-mans, got " .. dungeonCount .. " dungeons")
+ok(named >= 200, "and names their bosses, got " .. named)
+ok(withItems >= 200, "with real item ids attached, got " .. withItems .. " bosses carrying loot")
+
+-- The example from the request, end to end on the SHIPPED data.
+local dm = ns.GetDungeonLoot("The Deadmines")
+ok(dm ~= nil, "Deadmines is in the shipped table under the name GetInstanceInfo reports")
+local foundSmite = false
+for _, b in ipairs(dm.bosses) do if b.name == "Mr. Smite" then foundSmite = true end end
+ok(foundSmite, "and Mr. Smite is one of its bosses, by the name the combat log will use")
+
 -- ============================================================================
 -- THE RUNTIME HALF - the real bodies from Valuate.lua against a mocked client
 -- ============================================================================
@@ -170,7 +221,13 @@ function GetInstanceInfo() return INSTANCE_NAME, INSTANCE_TYPE end
 
 -- Item id -> what the client knows. nil entry = never seen it, so GetItemInfo returns nothing.
 local ITEM_CACHE = {}
-function GetItemInfo(id) local e = ITEM_CACHE[id] if not e then return nil end return e.name, e.link end
+function GetItemInfo(id)
+    local e = ITEM_CACHE[id]
+    if not e then return nil end
+    -- Nine returns, because equipLoc is the ninth and it is what separates a chestpiece from
+    -- a recipe. A mock that stopped at two made that distinction untestable.
+    return e.name, e.link, nil, nil, nil, nil, nil, nil, e.equipLoc or "INVTYPE_CHEST"
+end
 local ITEM_STATS = {}
 function Valuate:GetScaledStatsForItem(link) return ITEM_STATS[link] end
 local UPGRADES = {}
@@ -198,6 +255,13 @@ local function seedItem(id, isUpgrade)
     ITEM_CACHE[id] = { name = "Item " .. id, link = link }
     ITEM_STATS[link] = { Strength = 10 }
     UPGRADES[link] = isUpgrade and true or false
+end
+
+-- Something that is not gear at all: a recipe, a bag, a reagent. AtlasLoot's boss tables are
+-- full of them.
+local function seedJunk(id)
+    local link = "|Hitem:" .. id .. "|h[Junk " .. id .. "]|h"
+    ITEM_CACHE[id] = { name = "Junk " .. id, link = link, equipLoc = "" }
 end
 
 -- A dungeon shaped like the request: only the fourth boss has anything for you.
@@ -320,6 +384,25 @@ ITEM_CACHE[9999] = { name = "Item 9999", link = "cold" }   -- cached, but no sta
 Valuate:ResetDungeonProgress()
 eq(Valuate:GetDungeonUpgradeStatus().unknown, 1,
    "an item whose tooltip parsed to nothing is unknown too, not 'no'")
+
+-- ---- a recipe is a definite no, not a shrug ------------------------------------
+-- AtlasLoot lists recipes, bags and quest items among a boss's drops. Those parse to no
+-- stats, which looks exactly like "the client has not cached this yet" - and reading them as
+-- unknown would leave the boss permanently unanswerable and the prompt permanently silent.
+-- That failure is indistinguishable from the feature being switched off.
+ns.DUNGEON_LOOT["Recipemines"] = {
+    bosses = { { name = "Cook", items = { 8801 } } },   -- drops a recipe and nothing else
+}
+seedJunk(8801)
+INSTANCE_NAME = "Recipemines"
+Valuate:ResetDungeonProgress()
+status = Valuate:GetDungeonUpgradeStatus()
+eq(status.unknown, 0, "a recipe is not gear, and the addon can say so definitely")
+eq(status.upgrades, 0, "and it is certainly not an upgrade")
+
+DIALOGS = {}
+Valuate:ConsiderDungeonLeave()
+eq(#DIALOGS, 1, "so a boss that only drops recipes does NOT block the prompt")
 
 -- ---- a finished dungeon is not worth interrupting anyone over -------------------
 -- Every boss here has something for you, so no prompt can fire while any of them is alive.

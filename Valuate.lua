@@ -6518,8 +6518,16 @@ end
 -- upgrade" would quietly turn an empty cache into advice to leave.
 local function DungeonItemIsUpgrade(itemId)
     if type(itemId) ~= "number" then return nil end
-    local _, link = GetItemInfo(itemId)
+    local _, link, _, _, _, _, _, _, equipLoc = GetItemInfo(itemId)
     if not link then return nil end                    -- not cached; the ask itself queues it
+
+    -- Not gear at all - a recipe, a bag, a reagent. This is a DEFINITE no, and telling it
+    -- apart from "I could not read it" matters: a boss table full of recipes would otherwise
+    -- read as unknown and suppress the prompt forever, which is the failure mode that looks
+    -- exactly like the feature being switched off.
+    if equipLoc == "" or equipLoc == "INVTYPE_NON_EQUIP" or equipLoc == "INVTYPE_BAG" then
+        return false
+    end
 
     local stats = Valuate.GetScaledStatsForItem and Valuate:GetScaledStatsForItem(link)
     if not stats or not next(stats) then return nil end -- parsed nothing: unknown, not "no"
@@ -9923,16 +9931,16 @@ local VERIFY_CHECKS = {
         gate = "tools/dungeonloot.js",
         title = "The dungeon panel is honest about what it does not know",
         steps = "Run /valuate dungeon in the open world, then inside a dungeon that is NOT in the table (anything but Deadmines), then inside Deadmines itself.",
-        expect = "Outside an instance: 'Not in a 5-man dungeon.' In an unlisted one: it names the dungeon and says nothing will be suggested there - and says so in a way that cannot be mistaken for 'there is nothing worth staying for'. In Deadmines: six bosses in kill order, each marked 'no loot data - keeps the addon quiet', and a summary reading 6 left, 0 with an upgrade, 6 unknown.",
-        broke = "This is the check the whole feature rests on. The loot table ships with NO item ids, so the honest output today is 'I know the bosses, I know nothing about their drops'. If any boss reads 'nothing here for you' instead, the code is converting missing data into a negative answer - stop and fix that before adding a single id. Also confirm GetInstanceInfo's name matches the table key exactly; if Ascension reports Deadmines under a different string, the entry silently never matches.",
+        expect = "Outside an instance: 'Not in a 5-man dungeon.' In an unlisted one: it names the dungeon and says nothing will be suggested there - and says so in a way that cannot be mistaken for 'there is nothing worth staying for.' In Deadmines: every boss listed by name, each green (has an upgrade), grey (nothing for you) or yellow (items not cached yet), plus a summary counting all three.",
+        broke = "This is the check the whole feature rests on. The table is harvested from AtlasLoot rather than written by hand, so the risk is not a typo - it is the KEY not matching. If /valuate dungeon says 'no loot data for The Deadmines' while you are standing in Deadmines, GetInstanceInfo reports a different string than AtlasLoot's zone name, and the entry silently never matches - which the safety rules turn into permanent silence rather than a visible error. Check a Wrath dungeon too; the two AtlasLoot modules were written years apart.",
     },
     {
         id = "dungeonkills", since = "0.120.0a",
         gate = "tools/dungeonloot.js",
         title = "Boss kills are noticed, and the prompt does not fire on a table it cannot read",
         steps = "Switch on /valuate autoleavedungeon, run Deadmines, and check /valuate dungeon after each boss dies. Then /valuate report.",
-        expect = "Killed bosses go grey and read 'dead' - that proves the combat-log name matching works on this server. NO leave prompt ever appears, because every boss is unknown. The report's 'Dungeon leave check' heartbeat says how many bosses had no loot data.",
-        broke = "3.3.5 has no BOSS_KILL, so kills are matched by name out of the combat log, and the argument positions are the part that cannot be verified headlessly. If bosses never go grey, the name is arriving in a different slot than select(6, ...) - the failure is silent by design, since an unmatched name is ignored rather than guessed at. A prompt appearing at all on today's table means the unknown check is broken.",
+        expect = "Killed bosses go grey and read 'dead' - that proves combat-log name matching works on this server. The prompt appears only once nothing ahead of you is an upgrade AND nothing ahead is unknown; the 'Dungeon leave check' heartbeat in /valuate report says which of the two kept it quiet.",
+        broke = "3.3.5 has no BOSS_KILL, so kills are matched by name out of the combat log, and the argument positions are the part no headless gate can settle. If bosses never go grey, the name is arriving in a slot other than select(6, ...) - the failure is silent by design, since an unmatched name is ignored rather than guessed at. Watch for the opposite too: AtlasLoot's boss names come from a library and may not be byte-identical to what the combat log reports - titles, punctuation, apostrophes. A boss that never goes grey while you are certain it died is that mismatch.",
     },
     {
         id = "dungeonlisten", since = "0.120.0a",

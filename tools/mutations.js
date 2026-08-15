@@ -142,7 +142,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.120.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.121.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -563,7 +563,29 @@ module.exports = [
     from: "unknown = unknown + 1   -- no list at all", to: "unknown = unknown + 0   --" },
   { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
     label: "an item the client could not resolve is treated as a definite 'no'",
-    from: "elseif answer == nil then", to: "elseif answer == false then" },
+    from: "if answer == nil then unresolved = true end",
+    to: "if answer == false then unresolved = true end" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "one unreadable item hides a real upgrade sitting further down the same list",
+    from: "if answer == true then return true end", to: "if answer == true then return nil end" },
+
+  // ---- trash and other things that cannot be killed (v0.121.0a) ------------
+  // AtlasLoot lists "Trash Mobs" and vendor sections alongside real bosses. Counted as
+  // bosses they would never die, the dungeon would never read as finished, and the prompt
+  // would never fire at all - the feature would look switched off rather than broken.
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "trash is counted as a boss you still have to kill, so the dungeon never ends",
+    from: "for _, section in ipairs(dungeon.extra or {}) do",
+    to: "for _, section in ipairs(dungeon.bosses) do" },
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
+    label: "trash loot stops counting as a reason to stay",
+    from: "    for _, section in ipairs(dungeon.extra or {}) do", to: "    for _, section in ipairs({}) do" },
+
+  // ---- gear versus everything else (v0.121.0a) -----------------------------
+  { gate: "dungeonloot", file: "Valuate.lua", scope: D_ITEM,
+    label: "a recipe or a bag reads as 'cannot tell', so a boss that drops one blocks the prompt forever",
+    from: 'if equipLoc == "" or equipLoc == "INVTYPE_NON_EQUIP" or equipLoc == "INVTYPE_BAG" then',
+    to: "if false then" },
   { gate: "dungeonloot", file: "ui/DungeonLoot.lua", scope: D_COUNT,
     label: "a boss you already killed is still counted as standing between you and the door",
     from: "if not killed[boss.name] then", to: "if true then" },
@@ -607,4 +629,12 @@ module.exports = [
   { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
     label: "it offers to leave a dungeon that is already finished, which is just noise",
     from: "if status.remaining <= 0 then return end", to: "if false then return end" },
+
+  // ---- the harvested loot table (v0.121.0a) --------------------------------
+  // The table is generated from AtlasLoot, so the failure that matters is not a wrong id -
+  // it is a generator that quietly harvests NOTHING and leaves a syntactically perfect file
+  // that makes the whole feature a no-op while every other assertion still passes.
+  { gate: "dungeonloot", file: "ui/DungeonLoot.lua",
+    label: "the harvested table collapses to a handful of dungeons",
+    from: 'ns.DUNGEON_LOOT = {', to: 'ns.DUNGEON_LOOT = {} ns.UNUSED_LOOT = {' },
 ];

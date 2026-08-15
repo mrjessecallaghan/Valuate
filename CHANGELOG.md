@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.121.0a] - 2026-08-15 — the loot table, harvested rather than invented
+
+### Added
+The dungeon-leave feature now ships with **36 dungeons, 264 bosses and 2,918 item ids** — real
+ones, including Ascension's own custom items (the seven-digit ids).
+
+Yesterday's entry said the ids could not be obtained from outside the game and shipped the
+feature with an empty table. That was true of *writing* them and false of *finding* them:
+**AtlasLoot was sitting in the AddOns folder the whole time**, and its Ascension build already
+carries this server's loot tables. So the ids are now **harvested, never authored** —
+`tools/genloot.js` reads AtlasLoot's data files and generates `ui/DungeonLoot.lua`.
+
+Re-run it after AtlasLoot updates:
+
+    node tools/genloot.js --write
+
+It runs as a gate in check-only mode the rest of the time, so the table cannot silently drift
+away from the source it came from. A gate that rewrote the file it was checking would turn
+"this drifted" into "this quietly fixed itself", and the drift is the thing worth being told
+about — it means the ids you are being advised on are not the ids the game will drop.
+
+AtlasLoot is a *source*, not a dependency. The generated file is committed, so the addon works
+without it; a checkout that lacks it simply cannot re-verify the table.
+
+### Fixed — two things yesterday's release got wrong
+- **A recipe blocked the prompt forever.** A boss's loot list is full of things that are not
+  gear, and those parse to no stats — which looked exactly like "the client has not cached this
+  yet". Read as *unknown*, one recipe made a boss permanently unanswerable and the prompt
+  permanently silent, which is indistinguishable from the feature being switched off.
+  `GetItemInfo`'s `equipLoc` is the honest discriminator: not gear is a definite **no**.
+- **Trash would have stopped the prompt from ever firing.** AtlasLoot lists "Trash Mobs",
+  "Quest Item" and vendor sections alongside real bosses. Counted as bosses they would never
+  die, so the dungeon would never read as finished. They are now `extra`: their loot counts as
+  a reason to **stay**, but they are never counted among what you still have to kill.
+
+  The distinction is structural, not guesswork — AtlasLoot names real encounters with
+  `BabbleBoss[...]` and sections with a plain string. That signal exists only in the source
+  files, which is why the generator reads them rather than the loaded tables.
+
+### Technical
+The gate now runs 3,245 checks, including an assertion that the harvested table is actually
+*big*: a generator that silently harvested nothing would leave a syntactically perfect file
+that makes the whole feature a no-op while every other assertion still passed. 138 mutations,
+all caught — and one of them found that my `equipLoc` fix was untested, because the mocked
+`GetItemInfo` returned two values where the real one returns nine.
+
 ## [0.120.0a] - 2026-08-15 — dungeons say when they are done with you
 
 ### Added
@@ -34,7 +80,8 @@ around it is built so that being incomplete is safe rather than merely tolerable
   upgrade" would make the addon most confident about leaving exactly when it knows least.
 
 So on today's table the prompt will essentially never fire, and that is the correct behaviour
-rather than a bug. `/valuate dungeon` prints what is known for the instance you are standing in,
+rather than a bug. *(Superseded by v0.121.0a, which harvests the ids from AtlasLoot. The
+safety rules below still hold — they are what make a partial table safe.)* `/valuate dungeon` prints what is known for the instance you are standing in,
 boss by boss — a wrong or missing entry is meant to be *visible*, not something you infer from
 the addon having said nothing for an hour. Add ids you have actually watched drop; an id you are
 unsure of belongs in no list.
