@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.140.0a] - 2026-08-15 — the wizard's weak-match warning was a boolean
+
+### Fixed
+`PlanAutoScale` sets `caution` when the closest template is a poor match. It was a **boolean**,
+and the wizard — its only consumer — does:
+
+    screen.caution:SetText(plan.caution or "")
+
+So an unsure match called `SetText(true)`.
+
+**That is the levelling case exactly.** Templates describe endgame builds; gear at level ten
+carries two or three stats, so the closest match is genuinely poor and this fires. The one
+screen that should have explained itself said nothing, on the only characters that needed it.
+
+It is a sentence now, and it names the number:
+
+> Only a 38% match — your gear carries few of the stats these builds are described by, which
+> is normal while levelling. It is still a reasonable start; run this again once you have more
+> gear.
+
+Worth saying rather than hiding: a weak match is not a failure, it is what a half-empty gear
+set looks like, and the scale it produces is still a better starting point than none.
+
+### Technical — nothing read the field
+No gate touched `plan.caution`, in any form, which is why a type error sat in the plan
+structure the wizard is built around. The new assertions pin the **type** rather than the
+wording: a rewrite may change the sentence and may not go back to something `SetText` will
+choke on.
+
+And the first version of those assertions was itself vacuous. I guarded them with
+`if weakPlan.caution ~= nil then`, so the mutation that removes the warning entirely — nil
+caution — **skipped every check written to demand it** and survived. Two releases running now
+where the fixture, not the code, was the thing that needed fixing.
+
 ## [0.139.0a] - 2026-08-15 — compiling the files nothing compiled
 
 ### Added

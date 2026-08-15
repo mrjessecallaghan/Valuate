@@ -350,6 +350,54 @@ reloaded.Values.Strength = 0.11
 eq(Valuate:GetAutoScaleDrift(), reloaded.DisplayName,
    "a backwards clock recomputes rather than serving a stale cached answer")
 
+-- ---- a weak match has to be a SENTENCE ------------------------------------------------
+-- plan.caution was a boolean, and the wizard's only consumer does SetText(plan.caution or "").
+-- So an unsure match called SetText(true) - and an unsure match is the LEVELLING case exactly:
+-- templates describe endgame builds, gear at level ten carries two or three stats, and the
+-- closest match is genuinely poor. The one screen that should have explained itself said
+-- nothing, on the only characters that needed it.
+--
+-- Nothing read the field, so nothing caught it. Its TYPE is the assertion.
+local weakPlan = Valuate:PlanAutoScale({
+    templates = TEMPLATES,
+    -- Two stats, both primary. This is what a level ten actually wears, and it is why the
+    -- match score lands under the threshold rather than because anything is wrong.
+    totals = { Strength = 12, Stamina = 9 },
+})
+ok(weakPlan ~= nil, "a sparse, low-level gear set still produces a plan")
+ok(weakPlan ~= nil and weakPlan.caution ~= nil,
+   "and it DOES caution - this fixture is deliberately a weak match, so a nil here means " ..
+   "the warning was lost rather than that the match was good")
+if weakPlan then
+    eq(type(weakPlan.caution), "string",
+       "and a weak match cautions with a SENTENCE - a boolean here reaches SetText(true)")
+    ok(weakPlan.caution:find("%%") ~= nil,
+       "naming the match percentage, so the warning is checkable rather than vague")
+    ok(weakPlan.caution:find("levelling", 1, true) ~= nil
+       or weakPlan.caution:find("more gear", 1, true) ~= nil,
+       "and says a weak match is normal while levelling rather than implying something broke")
+end
+
+-- A strong match must NOT caution. An always-present warning is one nobody reads, which is
+-- the same argument the wizard's own comment makes about this exact label.
+local strongPlan = Valuate:PlanAutoScale({
+    templates = TEMPLATES,
+    totals = { Strength = 100, CritRating = 40, HitRating = 30, AttackPower = 60 },
+})
+if strongPlan then
+    eq(strongPlan.caution, nil, "a confident match carries no caution at all")
+end
+
+-- Whatever it holds, it must be something SetText can take. This is the shape of the bug
+-- rather than its wording, so a rewrite cannot reintroduce it.
+for _, plan in ipairs({ weakPlan, strongPlan }) do
+    if plan then
+        local t = type(plan.caution)
+        ok(t == "string" or t == "nil",
+           "caution is only ever a string or nil - never a boolean the UI will hand to SetText")
+    end
+end
+
 return failures, checks
 `,
   "autowizard",

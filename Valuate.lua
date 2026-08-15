@@ -1361,7 +1361,22 @@ function Valuate:PlanAutoScale(opts)
             and runnerUp.name or nil,
         -- Set when the wizard should not sound sure. The screen still lets you create it -
         -- a dead end helps nobody - but it says what would give a better answer.
-        caution = (score < MATCH_UNSURE)
+        -- A SENTENCE, or nil. It used to be a boolean, and the wizard's only consumer does
+        -- `SetText(plan.caution or "")` - so an unsure match called SetText(true).
+        --
+        -- Which is the low-level case exactly. Templates describe endgame builds, and gear at
+        -- level ten carries two or three stats, so the closest match is genuinely poor and
+        -- this fires. The one screen that should have explained itself said nothing, on the
+        -- only characters that needed it - and nothing read the field, so no gate noticed.
+        --
+        -- Worth saying rather than hiding: a weak match is not a failure, it is what a
+        -- half-empty gear set looks like, and the scale it produces is still a better
+        -- starting point than an empty one.
+        caution = (score < MATCH_UNSURE) and string.format(
+            "Only a %d%% match - your gear carries few of the stats these builds are " ..
+            "described by, which is normal while levelling. It is still a reasonable start; " ..
+            "run this again once you have more gear.",
+            math.floor((score or 0) * 100 + 0.5)) or nil
             and "Your gear is mixed, so this is a rough guess. Picking a role below usually does better."
             or nil,
     }

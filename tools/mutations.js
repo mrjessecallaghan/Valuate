@@ -174,7 +174,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.139.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.140.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -969,4 +969,17 @@ module.exports = [
   { gate: "compileall", file: "tools/compileall.js",
     label: "the scan silently covers nothing, so every file passes by not being looked at",
     from: "    } else if (entry.name.endsWith(\".lua\")) {", to: "    } else if (false) {" },
+
+  // ---- a weak match explains itself (v0.140.0a) ----------------------------
+  // caution was a boolean and the wizard does SetText(plan.caution or ""), so an unsure match
+  // called SetText(true) - on exactly the low-level characters that needed the explanation.
+  { gate: "autowizard", file: "Valuate.lua", scope: PLAN_AUTO,
+    label: "caution goes back to a boolean, so the wizard hands SetText(true) to the client",
+    from: "caution = (score < MATCH_UNSURE) and string.format(", to: "caution = (score < MATCH_UNSURE) and true and (" },
+  { gate: "autowizard", file: "Valuate.lua", scope: PLAN_AUTO,
+    label: "every match cautions, and a warning on everything is a warning on nothing",
+    from: "caution = (score < MATCH_UNSURE) and string.format(", to: "caution = true and string.format(" },
+  { gate: "autowizard", file: "Valuate.lua", scope: PLAN_AUTO,
+    label: "a weak match says nothing at all, which is where this started",
+    from: "caution = (score < MATCH_UNSURE) and string.format(", to: "caution = false and string.format(" },
 ];
