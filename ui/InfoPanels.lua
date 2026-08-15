@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.134.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.135.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,10 +460,12 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.134.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.135.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
+        "• The * on a capped stat now has a key under the breakdown saying what it\n" ..
+        "   means, instead of being a second thing to wonder about.\n" ..
         "• FIXED: the gear SCAN - which drives Best Equipment and the auto-roll\n" ..
         "   baseline - still valued your own gear as if you were not wearing it.\n" ..
         "   That was the same bug as before, in the place that acts rather than\n" ..

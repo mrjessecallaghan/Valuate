@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.135.0a] - 2026-08-15 — a key for the star
+
+### Fixed
+Two releases ago I started marking stats the hit cap had cut with a `*`, so a row where value
+× weight visibly does not reach the total would not read as an arithmetic bug.
+
+I did not explain the star anywhere it appears. The explanation lives on the Alt-hover detail;
+the star is in the main stat breakdown. **A symbol with no key is a second thing to wonder
+about**, on a line already confusing enough that it needed marking — the same shape of problem
+the star was added to solve, one layer up.
+
+There is now a grey line under the total: *"\* capped or tapered — worth less than value ×
+weight. /valuate hit"*. It prints **only when something on that item actually carries a
+star** — a legend for a symbol that is not on screen is noise — and once per item rather than
+once per scale.
+
+### Technical — shipped without a gate, deliberately named as such
+No gate can see this. The stat breakdown lives in a deeply nested tooltip builder that cannot
+be sliced, and the two gates nearest it test sign-consistency arithmetic and detail-line
+assembly rather than rendered text. It has a parse check and a scope check behind it and
+nothing else.
+
+That is the second time in three releases I have chosen to leave something uncovered rather
+than contort a fixture into a test that passes without checking. It is recorded here and in a
+`/valuate verify` entry rather than left to look like the other 61 gates were watching.
+
+The scope check earned its keep immediately: the first attempt put the legend outside the
+block where its flag was declared, and `globals.js` caught `anyAdjusted` reading as an
+undefined global.
+
 ## [0.134.0a] - 2026-08-15 — the other seven places
 
 ### Fixed

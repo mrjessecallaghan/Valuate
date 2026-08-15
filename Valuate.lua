@@ -2545,6 +2545,9 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                             -- Track totals for the summary line
                             local totalHoverContrib = 0
                             local totalEquippedContrib = 0
+                            -- Whether anything on this item got a star, so the key at the
+                            -- bottom is printed only when there is something to explain.
+                            local anyAdjusted = false
                             
                             -- Display each stat contribution
                             for _, entry in ipairs(breakdown) do
@@ -2554,7 +2557,10 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                 -- equal the contribution, and without a mark that reads as a
                                 -- bug rather than as the cap doing its job. One symbol, on the
                                 -- name, so all four line variants below get it from one place.
-                                if entry.adjusted then statDisplayName = statDisplayName .. "*" end
+                                if entry.adjusted then
+                                    statDisplayName = statDisplayName .. "*"
+                                    anyAdjusted = true
+                                end
                                 
                                 if equippedStats and entry.equippedValue and compMode ~= "off" then
                                     -- With comparison (only if comparison mode is enabled)
@@ -2699,6 +2705,21 @@ local function AddScoreLinesToTooltip(tooltip, stats, itemLink)
                                     local totalLine = "  " .. prefix .. "|cFF" .. color .. "Total: " .. totalText .. "|r"
                                     tooltip:AddLine(totalLine)
                                 end
+                            end
+
+                            -- What the star means.
+                            --
+                            -- Added last release and left unexplained, which is its own small
+                            -- version of the problem it was marking: a symbol with no key is a
+                            -- second thing to wonder about, on a line already confusing enough
+                            -- that it needed marking.
+                            --
+                            -- After both total branches, so it appears once however the
+                            -- comparison is configured, and only when a row actually carries a
+                            -- star - a legend for a symbol that is not on screen is noise.
+                            if anyAdjusted then
+                                tooltip:AddLine("  |cFFAAAAAA* capped or tapered - worth less than " ..
+                                    "value x weight. /valuate hit|r")
                             end
                             end
                         end
@@ -10418,6 +10439,16 @@ local VERIFY_CHECKS = {
         steps = "Run /valuate hit. Compare the hit percentage it prints against your character sheet. Then equip or remove a piece with hit rating and run it again.",
         expect = "The percentage matches the sheet. The derived 'rating per 1%' is sane for your level - far smaller at low level than the 32.79 people quote for 80. Changing gear moves both, and the cap in rating moves with it.",
         broke = "This is the one number in the feature that is not taken from a table, and everything else rests on it. It is GetCombatRating divided by GetCombatRatingBonus, which is exact on a stock client - but Ascension is modified, and if either returns something unexpected the conversion is silently wrong and every hit item gets mis-ranked in a direction nothing displays. If /valuate hit says 'not calibrated' while you are visibly wearing hit, the rating index is wrong for this client. Check both a caster and a melee scale: they read different indices.",
+    },
+    {
+        id = "hitcapstar", since = "0.135.0a",
+        -- No gate field, deliberately: nothing headless can reach this tooltip path, and
+        -- naming one that cannot would make the check look safe to skip. tocsync.js checks
+        -- that any gate NAMED here exists; the honest answer is to name none.
+        title = "The star in the stat breakdown has a key under it",
+        steps = "Switch on Settings > Display > stat breakdown. While capped, hover an item carrying hit. Then hover one carrying none.",
+        expect = "The hit row reads 'Hit*' and a grey line under the total says what the star means. On an item with no hit there is no star and NO key line.",
+        broke = "No gate can see this. The stat breakdown lives in a deeply nested tooltip builder that cannot be sliced, and the two gates nearest it test sign-consistency arithmetic and detail lines rather than rendered text - so this was shipped on a parse check and a scope check alone. The half worth doubting is the second: a legend that prints on every item, including ones with nothing starred, turns a key into noise. Also check it appears exactly once rather than once per active scale.",
     },
     {
         id = "hitcapvalue", since = "0.130.0a",
