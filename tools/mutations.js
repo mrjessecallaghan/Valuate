@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.174.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.175.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -441,10 +441,20 @@ module.exports = [
     from: "if top <= 0 then", to: "if false then" },
 
   // ---- the PvP scale swap (v0.109.0a) --------------------------------------
-  { gate: "queuetest", file: "Valuate.lua",
-    label: "re-entry overwrites the restore target, stranding you on the PvP scale forever",
-    from: "        if options.characterWindowScale == wanted then\n            return false, \"Already using it.\"",
-    to: "        if false then\n            return false, \"Already using it.\"" },
+  //
+  // NO MUTATION HERE, deliberately, and this note is the reason.
+  //
+  // This used to break the idempotence guard - "already on it, do nothing" - to prove the
+  // restore target could not be overwritten with the PvP scale, stranding you on it. When
+  // v0.175.0a added dungeon and outdoor contexts it also added a second guard: the restore
+  // slot is only written when it is empty, because a battleground-to-dungeon hop would
+  // otherwise record the BATTLEGROUND scale as "what you were using".
+  //
+  // Those two guards now cover the same failure, so either one alone is removable with no
+  // observable change - an EQUIVALENT mutation, not a test gap. Confirmed the way CLAUDE.md
+  // says to: removing BOTH fails three assertions in queuetest.js, so the pair is jointly
+  // load-bearing. Neither is deleted on the strength of the other, and no test was weakened
+  // to manufacture a catch.
   { gate: "queuetest", file: "Valuate.lua",
     label: "switches to a scale that was deleted, so every score reads zero",
     from: "if not scales[wanted] then", to: "if false then" },
@@ -1701,4 +1711,34 @@ module.exports = [
     label: "every event is coloured as a problem, including the cheap ones",
     from: "        local colour = c.worst > (ns.EVENT_STUTTER_MS or 100) and \"|cFFFF8800\" or \"|cFFFFFFFF\"",
     to: "        local colour = \"|cFFFF8800\"" },
+  // ---- the scale follows where you are (v0.175.0a) -------------------------
+  // A PvP scale switch already existed. This adds dungeons and an optional outdoor scale
+  // to it, which turns one restore slot into a thing that can strand you.
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "a dungeon uses the PvP scale, because both contexts read the same option",
+    from: "        local name = opts.dungeonScale", to: "        local name = opts.pvpScale" },
+
+  // Raids are dungeons and arenas are PvP. Dropping either grouping silently leaves that
+  // content on whatever scale you happened to have.
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "a raid is not treated as a dungeon, so raiding uses your outdoor scale",
+    from: "    if inInstance and (instanceType == \"party\" or instanceType == \"raid\") then",
+    to: "    if inInstance and instanceType == \"party\" then" },
+
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "an arena is not treated as PvP",
+    from: "    if inInstance and (instanceType == \"pvp\" or instanceType == \"arena\") then",
+    to: "    if inInstance and instanceType == \"pvp\" then" },
+
+  // THE case a second context introduces: battleground straight into a dungeon. Overwriting
+  // the restore slot on the second hop makes the target the BATTLEGROUND scale, and coming
+  // out you land on that and stay there.
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "hopping between two contexts overwrites what you were actually using",
+    from: "        if options.pvpScaleRestore == nil then", to: "        if true then" },
+
+  // Switching to a deleted scale silently leaves every score wrong with no sign of why.
+  { gate: "queuetest", file: "Valuate.lua",
+    label: "a nomination deleted since you made it switches you to nothing",
+    from: "        if not scales[wanted] then", to: "        if false then" },
 ];

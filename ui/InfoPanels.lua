@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.174.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.175.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.174.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.175.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,9 +474,15 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-        "• /valuate profile now reports what this addon cost you WHILE YOU PLAYED,\n" ..
-        "   per event, worst call first - so 'the game hitches when I loot' has an\n" ..
-        "   answer. Anything slow enough to feel says so once, in chat.\n" ..
+        "• NEW: a scale per place. /valuate pvpscale, /valuate dungeonscale and\n" ..
+        "   /valuate normalscale - the addon switches as you zone, and puts back what\n" ..
+        "   you were using when you leave. Raids count as dungeons, arenas as PvP.\n" ..
+        "• Diagnostics worth reading: /valuate profile now reports what this addon cost\n" ..
+        "   you WHILE YOU PLAYED, per event, worst call first - so 'the game hitches\n" ..
+        "   when I loot' has an answer, and anything slow enough to feel says so once in\n" ..
+        "   chat. And /valuate report no longer prints twenty-two identical 'not yet\n" ..
+        "   this session' lines: the ones you switched off are counted, and the ones\n" ..
+        "   switched ON that have never run are called out.\n" ..
         "• NEW: an Enhance tab. One row per slot you are WEARING, showing the best\n" ..
         "   enchant available then the next best then the one after - because second\n" ..
         "   best still beats an empty slot, and is often the one you can afford. Read\n" ..

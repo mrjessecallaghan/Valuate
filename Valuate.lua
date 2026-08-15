@@ -851,8 +851,18 @@ local DEFAULT_OPTIONS = {
     -- Offer to leave a dungeon whose remaining bosses hold nothing for you. Notify-only: it
     -- asks rather than acting, and only when nothing remaining is unknown.
     notifyDungeonNoUpgrades = false,
-    -- Nominated by name, so nil means "off". Set with /valuate pvpscale <name>.
+    -- Nominated by NAME, so nil means "off" for that context. Set with /valuate pvpscale,
+    -- /valuate dungeonscale, /valuate normalscale.
+    --
+    -- Three contexts, one restore slot. pvpScaleRestore keeps its old name because it is
+    -- shipped saved data on live characters and renaming it would strand whoever was inside
+    -- a battleground at the time on the PvP scale forever - the exact failure the persisted
+    -- restore exists to prevent.
     pvpScale = nil,
+    dungeonScale = nil,
+    -- Optional. Unset means "put back whatever I was using", which is what shipped and is
+    -- usually what you want; set it to pin a specific scale for the open world instead.
+    normalScale = nil,
     pvpScaleRestore = nil,
     chatMessages = true,                  -- verbose chat messages
     scanVerbose = false,                  -- scan completion messages
@@ -979,6 +989,7 @@ local SNAPSHOT_EXCLUDED = {
     professionOverrides = true,
     -- Names a scale that may not exist on the target character.
     characterWindowScale = true,
+
     -- Same reason, and it arrived in v0.109.0a without being added here: your Warrior's
     -- "Arms (PvP)" is not a scale your Necromancer has, and nominating it there would leave
     -- that character switching to nothing every time it zoned into a battleground.
@@ -7590,6 +7601,39 @@ end
 --
 -- tools/options.js checks both halves: every automation appears here, and every beat named
 -- here is one that MarkAutomation actually records somewhere.
+-- ============================================================================
+-- The scale follows where you are
+-- ============================================================================
+--
+-- A battleground and a dungeon reward different gear, and the scale deciding what counts as
+-- an upgrade should not be whichever one you happened to leave selected.
+--
+-- Raids count as DUNGEON and arenas count as PVP. Both pairs are the same kind of content
+-- wanting the same stats, and a fourth setting whose honest description is "the same as that
+-- other one" is worse than picking the obvious grouping and saying so here.
+--
+-- Returns the nominated scale name for where you are, or nil for "nowhere special".
+--
+-- Pure, and separated from the client call, because the whole decision is three comparisons
+-- and every one of them is a way to put you in the wrong scale in the one place it matters.
+function ns.ScaleForContext(inInstance, instanceType, opts)
+    if not opts then return nil end
+    if inInstance and (instanceType == "pvp" or instanceType == "arena") then
+        local name = opts.pvpScale
+        return (type(name) == "string" and name ~= "") and name or nil
+    end
+    if inInstance and (instanceType == "party" or instanceType == "raid") then
+        local name = opts.dungeonScale
+        return (type(name) == "string" and name ~= "") and name or nil
+    end
+    -- Everywhere else, including an instance type this client has and this code has not heard
+    -- of. Treating an unknown place as "normal" is the conservative reading: it is the scale
+    -- you chose for the rest of the time, which is what an unrecognised place is.
+    local name = opts.normalScale
+    return (type(name) == "string" and name ~= "") and name or nil
+end
+
+
 ns.AUTOMATION_LABELS = {
     autoRelease             = { label = "release on death",              beat = "autoRelease" },
     autoLeaveBattleground   = { label = "leave finished battlegrounds",  beat = "bgLeave" },
@@ -7874,34 +7918,98 @@ end
 --
 -- Announced both ways. Silently changing which scale drives your upgrade arrows, your
 -- best-in-slot and your junk marking would be indistinguishable from the addon breaking.
-function Valuate:ApplyContextScale()
+-- Nominating a scale for one context: show it, set it, or clear it.
+--
+-- Shared by /valuate dungeonscale and /valuate normalscale. The PvP one keeps its own
+-- handler because it also builds a scale for you ("make"), but the validation below is the
+-- same in all three and a second copy is how they drift into accepting different names.
+function Valuate:SetContextScale(optionKey, where, arg)
     local options = Valuate:GetOptions()
-    local wanted = options.pvpScale
-    if type(wanted) ~= "string" or wanted == "" then return false, "No PvP scale set." end
+    arg = strtrim(arg or "")
+
+    if arg == "" then
+        if options[optionKey] then
+            print(string.format("|cFF00FF00[Valuate]|r In %s, Valuate switches to |cFFFFFFFF%s|r.",
+                where, options[optionKey]))
+        else
+            print(string.format("|cFF00FF00[Valuate]|r No scale set for %s.", where))
+        end
+        print("  |cFFAAAAAA<name>  ·  off|r")
+        return false
+    end
+
+    if arg == "off" then
+        options[optionKey] = nil
+        print(string.format("|cFF00FF00[Valuate]|r No longer switching scale for %s.", where))
+        -- Honoured immediately, or switching this off while standing in the place it applies
+        -- to would leave you on that scale with nothing left to switch you back.
+        if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+        return true
+    end
 
     local scales = Valuate:GetScales() or {}
+    if not scales[arg] then
+        print(string.format("|cFFFF0000Valuate|r: No scale called '%s'. /valuate scales lists them.",
+            arg))
+        return false
+    end
 
-    if InBattleground() then
+    options[optionKey] = arg
+    print(string.format("|cFF00FF00[Valuate]|r %s will use |cFFFFFFFF%s|r.", where, arg))
+    if Valuate.ApplyContextScale then Valuate:ApplyContextScale() end
+    return true
+end
+
+function Valuate:ApplyContextScale()
+    local options = Valuate:GetOptions()
+    local scales = Valuate:GetScales() or {}
+
+    local inInstance, instanceType
+    if type(IsInInstance) == "function" then inInstance, instanceType = IsInInstance() end
+    local wanted = ns.ScaleForContext(inInstance, instanceType, options)
+
+    local where = (instanceType == "arena" and "the arena")
+        or (instanceType == "pvp" and "the battleground")
+        or (instanceType == "raid" and "the raid")
+        or (instanceType == "party" and "the dungeon")
+        or "here"
+
+    if wanted then
         if options.characterWindowScale == wanted then
+            Valuate:MarkAutomation("contextScale", "already on " .. wanted .. " for " .. where)
             return false, "Already using it."
         end
         if not scales[wanted] then
-            -- Deleted since it was nominated. Say so rather than switching to nothing.
-            print("|cFFFF8800[Valuate]|r PvP scale |cFFFFFFFF" .. wanted ..
-                  "|r no longer exists - staying on your current one. /valuate pvpscale <name>")
+            -- Deleted since it was nominated. Say so rather than switching to nothing: every
+            -- score, arrow and junk mark comes from this, and switching to nothing silently
+            -- would look like the addon breaking.
+            print("|cFFFF8800[Valuate]|r The scale set for " .. where .. " (|cFFFFFFFF" ..
+                  wanted .. "|r) no longer exists - staying on your current one.")
+            Valuate:MarkAutomation("contextScale",
+                "'" .. wanted .. "' is gone; left the scale alone")
             return false, "The nominated scale is gone."
         end
 
-        options.pvpScaleRestore = options.characterWindowScale or ""
+        -- Recorded only on the FIRST switch away from your own choice. Overwriting it on a
+        -- battleground-to-dungeon hop would make the restore target "the battleground scale"
+        -- and strand you there on the way out.
+        if options.pvpScaleRestore == nil then
+            options.pvpScaleRestore = options.characterWindowScale or ""
+        end
         options.characterWindowScale = wanted
         if Valuate.ResetTooltips then Valuate:ResetTooltips() end
-        print("|cFF00FF00[Valuate]|r Battleground - switched to |cFFFFFFFF" .. wanted .. "|r.")
+        print("|cFF00FF00[Valuate]|r " .. where:gsub("^the ", "In the ") ..
+              " - switched to |cFFFFFFFF" .. wanted .. "|r.")
+        Valuate:MarkAutomation("contextScale", "switched to " .. wanted .. " for " .. where)
         return true, "Switched to " .. wanted .. "."
     end
 
-    -- Out of the battleground. Only act if we are the ones who switched.
+    -- Nowhere with a scale of its own. Only act if WE were the ones who switched.
     local restore = options.pvpScaleRestore
-    if restore == nil then return false, "Nothing to restore." end
+    if restore == nil then
+        Valuate:MarkAutomation("contextScale", "no scale set for " .. where)
+        return false, "Nothing to restore."
+    end
     options.pvpScaleRestore = nil
 
     if restore == "" then
@@ -7911,14 +8019,18 @@ function Valuate:ApplyContextScale()
         options.characterWindowScale = restore
     else
         print("|cFFFF8800[Valuate]|r The scale you were using before (" .. tostring(restore) ..
-              ") is gone - leaving the PvP one active.")
+              ") is gone - leaving the current one active.")
         if Valuate.ResetTooltips then Valuate:ResetTooltips() end
+        Valuate:MarkAutomation("contextScale",
+            "could not restore '" .. tostring(restore) .. "' - it is gone")
         return false, "The previous scale is gone."
     end
 
     if Valuate.ResetTooltips then Valuate:ResetTooltips() end
-    print("|cFF00FF00[Valuate]|r Left the battleground - back to |cFFFFFFFF" ..
+    print("|cFF00FF00[Valuate]|r Back to |cFFFFFFFF" ..
           (restore ~= "" and restore or "no specific scale") .. "|r.")
+    Valuate:MarkAutomation("contextScale",
+        "restored " .. (restore ~= "" and restore or "no specific scale"))
     return true, "Restored " .. (restore ~= "" and restore or "no scale") .. "."
 end
 
@@ -10036,7 +10148,13 @@ end
 function Valuate:AutoRollOnLoot(rollID, isRetry)
     local options = Valuate:GetOptions()
     if not options.autoRollLoot or not rollID then return end
-    if not GetLootRollItemInfo or not RollOnLoot then return end
+    -- Switched ON and unable to work is the case worth recording. Without this the feature
+    -- sits at "not yet this session" forever on a client that lacks the API, which is
+    -- indistinguishable from one where you simply have not been in a group.
+    if not GetLootRollItemInfo or not RollOnLoot then
+        Valuate:MarkAutomation("autoRoll", "this client has no loot-roll API - cannot roll")
+        return
+    end
 
     local _, name, _, _, _, canNeed, canGreed = GetLootRollItemInfo(rollID)
     local link = GetLootRollItemLink and GetLootRollItemLink(rollID)
@@ -10174,6 +10292,11 @@ function Valuate:AutoAcceptQuests(event)
                 local lvl = GetAvailableLevel and GetAvailableLevel(i) or nil
                 if not IsTrivialQuestLevel(lvl) then
                     SelectAvailableQuest(i)
+                    -- The working path recorded nothing, so auto-accept doing its job
+                    -- perfectly showed "not yet this session" forever - the exact state the
+                    -- heartbeat exists to distinguish from being broken.
+                    Valuate:MarkAutomation("questAccept",
+                        string.format("took quest %d of %d offered", i, numAvail))
                     return
                 end
             end
@@ -10187,11 +10310,15 @@ function Valuate:AutoAcceptQuests(event)
                 -- Layout wasn't recognised, so we can't judge level. Accept as before -
                 -- never silently decline a quest just because we couldn't read it.
                 SelectGossipAvailableQuest(1)
+                Valuate:MarkAutomation("questAccept",
+                    "took the first quest - could not read the gossip layout to judge levels")
                 return
             end
             for i = 1, numAvail do
                 if not IsTrivialQuestLevel(quests[i] and quests[i].level) then
                     SelectGossipAvailableQuest(i)
+                    Valuate:MarkAutomation("questAccept",
+                        string.format("took quest %d of %d offered", i, numAvail))
                     return
                 end
             end
@@ -10352,6 +10479,23 @@ end
 -- Deliberately answers the questions that otherwise need three separate commands:
 -- what upgrades are waiting, how much they're worth, which weapon set is live, whether
 -- bags are under pressure, and which automation is armed.
+-- How to describe one automation's heartbeat. Returns "ran" | "off" | "stalled" | "idle".
+--
+-- The distinction that matters is "stalled": switched ON and never once recorded anything.
+-- It is either "no occasion yet" or "quietly broken" and nothing here can tell which - but
+-- reporting it identically to the twenty switched off by choice buries it, and reporting it
+-- as plain "not yet" implies the harmless reading of the two.
+--
+-- enabled is true / false / nil, and nil is a THIRD thing: a beat with no option behind it
+-- (the gear scan, the bank snapshot). Those cannot be switched on, so "on but never ran"
+-- would be a nonsense verdict about them.
+function ns.HeartbeatState(ago, enabled)
+    if ago then return "ran" end
+    if enabled == false then return "off" end
+    if enabled then return "stalled" end
+    return "idle"
+end
+
 function Valuate:PrintReport()
     local options = Valuate:GetOptions()
     local scales = Valuate:GetScales()
@@ -10519,6 +10663,7 @@ function Valuate:PrintReport()
         -- case is the other branch, standing on a progress screen for a quest you cannot
         -- complete yet, where doing nothing is correct and looks like being broken.
         { key = "questTurnIn",   label = "Quest turn-in" },
+        { key = "contextScale",  label = "Scale for where you are" },
         { key = "vendorNotes",   label = "Vendor/trainer notes" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
         { key = "wardrobe",      label = "Wardrobe collecting" },
@@ -10536,15 +10681,37 @@ function Valuate:PrintReport()
         { key = "autoEquip",     label = "Auto-equip upgrades" },
         { key = "unjunk",        label = "Un-junk protected gear" },
     }
+    -- Which beats belong to an automation you have actually switched on.
+    --
+    -- Twenty-two lines all reading "not yet this session" is not a report, it is a wall - and
+    -- it makes the one line that matters (switched ON and never once ran) look exactly like
+    -- the twenty around it that are off by choice. Built from ns.AUTOMATION_LABELS, which
+    -- already pairs every option with its beat, so this cannot drift from what is running.
+    local options = Valuate:GetOptions()
+    local enabled = {}
+    for key, entry in pairs(ns.AUTOMATION_LABELS or {}) do
+        if entry.beat then enabled[entry.beat] = options[key] and true or false end
+    end
+
     print("  |cFFAAAAAALast run this session:|r")
+    local quiet = 0
     for _, hb in ipairs(HEARTBEATS) do
         local ago, outcome = Valuate:GetAutomationHeartbeat(hb.key)
-        if ago then
+        local state = ns.HeartbeatState(ago, enabled[hb.key])
+        if state == "ran" then
             print(string.format("    %s: |cFFFFFFFF%s ago|r |cFFAAAAAA(%s)|r",
                 hb.label, SecondsToTime(math.max(1, math.floor(ago))), outcome or "ran"))
+        elseif state == "off" then
+            -- Off by choice. Counted, not printed: you already know, and it is not news.
+            quiet = quiet + 1
+        elseif state == "stalled" then
+            print(string.format("    %s: |cFFFF8800on, but has not run yet|r", hb.label))
         else
             print(string.format("    %s: |cFFAAAAAAnot yet this session|r", hb.label))
         end
+    end
+    if quiet > 0 then
+        print(string.format("    |cFFAAAAAA...and %d switched off.|r", quiet))
     end
 end
 
@@ -12067,6 +12234,8 @@ SlashCmdList["VALUATE"] = function(msg)
             } },
             { key = "queue", title = "Battlegrounds and queues", lines = {
                 "  /valuate pvpscale <name> - Use this scale in battlegrounds, yours elsewhere",
+                "  /valuate dungeonscale <name> - use this scale in dungeons and raids",
+                "  /valuate normalscale <name> - use this scale outside instances",
                 "  /valuate pvpscale make - Build a PvP scale from the one you use now",
                 "  /valuate queuepvp - Queue for a random battleground now",
                 "  /valuate queuedungeon - Queue for a random dungeon now",
@@ -12887,6 +13056,10 @@ SlashCmdList["VALUATE"] = function(msg)
         if options[key] then
             print("  |cFFAAAAAA/valuate queuecheck says whether this client can actually do it.|r")
         end
+    elseif strsub(command, 1, 12) == "dungeonscale" then
+        Valuate:SetContextScale("dungeonScale", "dungeons and raids", strsub(msg, 14))
+    elseif strsub(command, 1, 11) == "normalscale" then
+        Valuate:SetContextScale("normalScale", "the open world", strsub(msg, 13))
     elseif strsub(command, 1, 8) == "pvpscale" then
         local options = Valuate:GetOptions()
         local arg = strtrim(strsub(msg, 10) or "")

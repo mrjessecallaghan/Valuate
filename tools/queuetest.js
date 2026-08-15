@@ -40,6 +40,10 @@ const PIECES = [
   /^local PVP_SCALE_COLOR = "[0-9A-Fa-f]{6}"/m,
   /^local PVP_STATS = \{[^\r\n]*\}/m,
   /^function Valuate:BuildPvPScaleFrom\([\s\S]*?\r?\nend/m,
+  // ApplyContextScale asks this which context you are in. It lives on `ns` and is pure,
+  // which is the point of it: the whole decision is three comparisons and each one is a way
+  // to put you in the wrong scale in the one place it matters.
+  /^function ns\.ScaleForContext\([\s\S]*?\r?\nend/m,
   /^function Valuate:ApplyContextScale\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
@@ -70,6 +74,7 @@ local function saysAbout(reason, word, what)
     end
 end
 
+ns = {}
 Valuate = {}
 local OPTIONS = {}
 function Valuate:GetOptions() return OPTIONS end
@@ -408,6 +413,75 @@ INSIDE, KIND = false, nil
 eq(Valuate:ApplyContextScale(), true, "leaving restores")
 eq(OPTIONS.characterWindowScale, "Raid", "the scale you were using")
 eq(OPTIONS.pvpScaleRestore, nil, "and the marker is cleared")
+
+-- ---- and the same for dungeons -----------------------------------------------
+-- A battleground and a dungeon reward different gear; the scale deciding what counts as an
+-- upgrade should not be whichever one you left selected.
+SCALES.Tank = {}
+OPTIONS.dungeonScale = "Tank"
+OPTIONS.characterWindowScale = "Raid"
+
+INSIDE, KIND = true, "party"
+eq(Valuate:ApplyContextScale(), true, "zoning into a dungeon switches to the dungeon scale")
+eq(OPTIONS.characterWindowScale, "Tank", "which is now active")
+
+INSIDE, KIND = false, nil
+eq(Valuate:ApplyContextScale(), true, "and leaving restores what you had")
+eq(OPTIONS.characterWindowScale, "Raid", "exactly")
+
+-- Raids count as dungeons and arenas as PvP: same content, same stats, and a fourth setting
+-- meaning "the same as that other one" is worse than the obvious grouping.
+INSIDE, KIND = true, "raid"
+eq(Valuate:ApplyContextScale(), true, "a raid uses the dungeon scale")
+eq(OPTIONS.characterWindowScale, "Tank", "the dungeon one")
+INSIDE, KIND = false, nil
+Valuate:ApplyContextScale()
+
+INSIDE, KIND = true, "arena"
+eq(Valuate:ApplyContextScale(), true, "an arena uses the PvP scale")
+eq(OPTIONS.characterWindowScale, "Arena", "the PvP one")
+INSIDE, KIND = false, nil
+Valuate:ApplyContextScale()
+
+-- ---- THE case a second context introduces ------------------------------------
+-- Battleground straight into a dungeon without passing through the world. One restore slot,
+-- and overwriting it on the second hop would make the restore target "the PvP scale" - so
+-- coming out you would land on that and stay there.
+OPTIONS.characterWindowScale = "Raid"
+INSIDE, KIND = true, "pvp"
+Valuate:ApplyContextScale()
+eq(OPTIONS.pvpScaleRestore, "Raid", "the first switch remembers your own scale")
+
+INSIDE, KIND = true, "party"
+eq(Valuate:ApplyContextScale(), true, "hopping straight to a dungeon switches again")
+eq(OPTIONS.characterWindowScale, "Tank", "to the dungeon scale")
+eq(OPTIONS.pvpScaleRestore, "Raid",
+   "and STILL remembers your own scale, not the battleground's")
+
+INSIDE, KIND = false, nil
+Valuate:ApplyContextScale()
+eq(OPTIONS.characterWindowScale, "Raid", "so coming out lands on what you actually chose")
+
+-- ---- an explicit outdoor scale beats restoring --------------------------------
+-- Unset means "put back whatever I was using", which is what shipped. Set, it pins.
+OPTIONS.normalScale = "Raid"
+OPTIONS.characterWindowScale = "Tank"
+INSIDE, KIND = false, nil
+eq(Valuate:ApplyContextScale(), true, "an explicit outdoor scale is applied")
+eq(OPTIONS.characterWindowScale, "Raid", "even with nothing to restore")
+OPTIONS.normalScale = nil
+
+-- ---- a nominated scale that has since been deleted ----------------------------
+-- Switching to nothing silently would leave every score, arrow and junk mark wrong with no
+-- sign of why.
+OPTIONS.dungeonScale = "Deleted"
+OPTIONS.characterWindowScale = "Raid"
+INSIDE, KIND = true, "party"
+eq(Valuate:ApplyContextScale(), false, "a deleted nomination does not switch")
+eq(OPTIONS.characterWindowScale, "Raid", "and leaves you on what you had")
+OPTIONS.dungeonScale = "Tank"
+INSIDE, KIND = false, nil
+OPTIONS.pvpScaleRestore = nil
 
 eq(Valuate:ApplyContextScale(), false, "with nothing to restore, leaving again does nothing")
 eq(OPTIONS.characterWindowScale, "Raid", "and does not disturb your scale")

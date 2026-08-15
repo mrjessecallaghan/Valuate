@@ -286,6 +286,8 @@ const NOT_A_PREFERENCE = {
   minimapButtonAngle: "where you dragged the minimap button to",
   verifiedChecks: "which /valuate verify items you have ticked off",
   pvpScale: "nominated BY NAME, so a checkbox cannot express it - /valuate pvpscale",
+  dungeonScale: "nominated BY NAME, like pvpScale - /valuate dungeonscale",
+  normalScale: "nominated BY NAME, like pvpScale - /valuate normalscale",
   pvpScaleRestore: "internal bookkeeping for restoring the scale after a battleground",
   characterWindowScale: "which scale the character window shows - chosen in that window",
   autoAcceptTrivialBelow: "a level threshold, set with /valuate trivial <n>",

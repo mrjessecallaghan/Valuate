@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.175.0a] - 2026-08-15 — the scale follows where you are
+
+### Added
+**A scale per context.** Nominate one for battlegrounds, one for dungeons, and optionally one
+for the open world, and the addon switches as you zone.
+
+```
+/valuate pvpscale <name>       (already existed)
+/valuate dungeonscale <name>   new
+/valuate normalscale <name>    new
+```
+
+A battleground and a dungeon reward different gear, and the scale deciding what counts as an
+upgrade should not be whichever one you happened to leave selected.
+
+**Raids count as dungeons and arenas as PvP.** Both pairs are the same kind of content wanting
+the same stats, and a fourth setting whose honest description is *"the same as that other one"*
+is a worse default than picking the obvious grouping and saying so.
+
+The outdoor scale is **optional**. Left unset it means *"put back whatever I was using"* —
+which is what shipped, and usually what you want. Set, it pins.
+
+### The case a second context creates
+There is **one restore slot**, and it is written only when empty. A battleground straight into
+a dungeon without passing through the world would otherwise record the *battleground* scale as
+"what you were using" — so coming out you would land on that and stay there.
+
+### Technical — I nearly deleted a working feature
+A PvP scale switch already existed, and it is better built than what I started writing: the
+restore target is **persisted**, so reloading or crashing inside a battleground does not
+strand you.
+
+I did not check first, and defined a second `Valuate:ApplyContextScale` that would have
+silently replaced it — same name, no error, feature gone. Caught only because the file already
+had one. This release extends that function rather than replacing it, and `pvpScaleRestore`
+keeps its now-inaccurate name **on purpose**: it is shipped saved data on live characters, and
+renaming it would strand whoever was inside a battleground at the time on the PvP scale
+forever — the exact failure the persisted restore exists to prevent.
+
+### Technical — an equivalent mutation, confirmed rather than chased
+The idempotence guard and the new write-restore-once guard now cover the same failure, so
+either alone is removable with no observable change. Confirmed the way `CLAUDE.md` prescribes:
+removing **both** fails three assertions, so the pair is jointly load-bearing. Neither was
+deleted on the strength of the other, and no test was weakened to manufacture a catch. The
+mutation was replaced with a note saying so.
+
+### Also
+Three automations were recording a heartbeat only when they **acted**. Quest auto-accept
+marked nothing on the path that works, so auto-accepting perfectly showed *"not yet this
+session"* forever — indistinguishable from broken, which is the exact state the heartbeat
+exists to rule out. Auto-roll now also records the case where it is switched on and the client
+has no loot-roll API.
+
+And `/valuate report` no longer prints twenty-two identical *"not yet this session"* lines. The
+ones switched off by choice are counted, not listed; the ones switched **on and never run** are
+called out, because that is the only line in that block worth reading.
+
+
 ## [0.174.0a] - 2026-08-15 — what this addon actually cost you
 
 ### Added

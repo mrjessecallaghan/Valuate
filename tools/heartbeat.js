@@ -41,6 +41,13 @@ if (!labels) {
   process.exit(1);
 }
 
+// HeartbeatState lives on ns, so it is matched separately from the Valuate: methods below.
+const stateFn = lua.match(/^function ns\.HeartbeatState\([\s\S]*?\r?\nend/m);
+if (!stateFn) {
+  console.error("  SLICE  could not find ns.HeartbeatState - this gate tests nothing");
+  process.exit(1);
+}
+
 const fns = ["MarkAutomation", "GetAutomationHeartbeat", "ActiveAutomations", "ActiveAutomationDetail"]
   .map(function (name) {
     const hit = lua.match(
@@ -85,6 +92,7 @@ local automationHeartbeat = {}
 
 ${labels}
 ${fns.replace(/\$/g, "$$$$")}
+${stateFn[0].replace(/\$/g, "$$$$")}
 
 local OPTIONS = {}
 Valuate.GetOptions = function() return OPTIONS end
@@ -167,6 +175,29 @@ eq(#names, #d, "the short list and the detailed list count the same automations"
 for i = 1, #names do
     eq(names[i], d[i].label, "and name them in the same order (" .. i .. ")")
 end
+
+-- ---- how each beat is described in the report ---------------------------------------------
+-- Twenty-two lines all reading "not yet this session" is a wall, not a report - and it makes
+-- the one line that matters look exactly like the twenty around it.
+--
+-- The distinction is "stalled": switched ON and never once recorded anything. That is either
+-- "no occasion yet" or "quietly broken", and nothing here can tell which - but reporting it
+-- identically to the ones off by choice buries it, and calling it plain "not yet" quietly
+-- asserts the harmless one of the two.
+eq(ns.HeartbeatState(42, true), "ran", "having run is the whole answer, on or off")
+eq(ns.HeartbeatState(42, false), "ran", "even for one since switched off")
+eq(ns.HeartbeatState(nil, false), "off", "off by choice is not news")
+eq(ns.HeartbeatState(nil, true), "stalled",
+   "switched ON and never run is called out - it is the one line worth reading")
+
+-- nil enabled is a THIRD thing, not a falsy second. The gear scan and the bank snapshot have
+-- no option behind them, so "on but has not run yet" would be a nonsense verdict about them.
+eq(ns.HeartbeatState(nil, nil), "idle",
+   "a beat with no option behind it is idle, not stalled")
+
+-- Zero is a real elapsed time - something that ran this instant. Treating it as "never" would
+-- report the most recent run of all as the one that never happened.
+eq(ns.HeartbeatState(0, true), "ran", "ran a moment ago is still having run")
 
 return failures, checks
 `,
