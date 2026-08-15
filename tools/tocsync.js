@@ -307,6 +307,39 @@ try {
        * older entries is a judgement nobody should be forced into by a build failure. It
        * catches the drift that actually happened: a bullet appended per release, forever.
        */
+      /*
+       * The in-game manual still describes the automations that exist.
+       *
+       * The Instructions panel's Automation section documented five of them while the addon
+       * had twenty - it stopped at quest rewards, so the hit cap, auto-equip, the junk rescue
+       * and every queue automation were absent from the only manual inside the game. That is
+       * the same drift the About panel had, and the same drift the verify checklist had: a
+       * hand-maintained list nobody was checking.
+       *
+       * The authority is the help's own "auto" group, which commands.js already proves is
+       * complete. If a command is documented there as an automation, the manual has to at
+       * least name it.
+       */
+      const core2 = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
+      const autoGroup = core2.match(/key = "auto",[\s\S]*?\n\s*\} \},/);
+      if (autoGroup) {
+        const autoCmds = [...autoGroup[0].matchAll(/\/valuate (\w+)/g)].map((x) => x[1]);
+        const missing = autoCmds.filter((c) => !panel.includes("/valuate " + c));
+        // A ceiling rather than zero: several automations are described by NAME in prose
+        // without their command, which is fine for a manual. What is not fine is the manual
+        // falling silently behind as automations are added - which is what happened.
+        if (missing.length > autoCmds.length / 2) {
+          console.error(
+            "  MANUAL  the Instructions panel names only " +
+              (autoCmds.length - missing.length) + " of " + autoCmds.length +
+              " automation commands. Missing: " + missing.join(", ") +
+              "\n             The in-game manual is drifting behind the automations. It is the " +
+              "only documentation inside the game."
+          );
+          ok = false;
+        }
+      }
+
       const NEWS_BULLET_LIMIT = 60;
       // Scoped to the CURRENT-version block. Counting bullets across the whole file swept up
       // every historical section too and reported 221 against a limit of 60 - a rule firing

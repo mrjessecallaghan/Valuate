@@ -209,7 +209,7 @@ local function CreateInstructionsPanel(parent)
     local headerAuto = CreateSectionHeader("Automation", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
-    local textAuto = CreateBodyText("All of this is opt-in, under Settings. Every automated feature has a matching command that explains why it did nothing, which is usually faster than guessing:\n\n• Auto Roll - Needs upgrades, unlearned recipes for professions you have (even above your current skill), and crafting materials your professions use. /valuate rollcheck <item> explains any single decision.\n• Auto Delete / Auto Sell - clears junk to keep bag slots free. Deletion is irreversible, so ALWAYS run /valuate deletepreview first. While either is switched on, item tooltips tell you the verdict directly: junk items say whether anything is protecting them (best-in-slot, a quest item, an equipment set, a future upgrade) or that nothing is. Hover before you trust it.\n• Auto Accept / Turn In Quests, and picking the best quest reward.\n• /valuate report shows when each automation last ran and what it concluded - including 'ran and correctly did nothing', which is a different answer from 'never ran'.", currentY)
+    local textAuto = CreateBodyText("All of this is opt-in, under Settings, and every one of them is OFF until you switch it on. Each has a matching command that explains why it did nothing, which is usually faster than guessing.\n\nGEAR\n• Auto Roll - Needs upgrades, unlearned recipes for professions you have (even above your current skill), and crafting materials your professions use. /valuate rollcheck <item> explains any single decision.\n• Equip upgrades as they drop (/valuate autoequip) and on level-up (/valuate autoequiplevel). Both refuse in combat and respect locked slots. Equipping a looted BoE binds it, which cannot be undone, so these stay opt-in.\n• Auto Delete / Auto Sell - clears junk to keep bag slots free. Deletion is irreversible, so ALWAYS run /valuate deletepreview first. While either is on, item tooltips give the verdict directly: junk items say whether anything is protecting them (best-in-slot, a quest item, an equipment set, a future upgrade) or that nothing is. Hover before you trust it.\n• Rescue gear from the junk pile - AdiBags decides junk by quality, this addon by what your scale is worth, and at low level a white or grey item really can be your best-in-slot. /valuate unjunk lists them, /valuate autounjunk does it as gear arrives. It never marks anything AS junk.\n\nQUESTS AND LOOT\n• Auto Accept and Turn In quests (/valuate turnin), and picking the best quest reward. /valuate trivial sets how far below your level a quest must be to be skipped.\n• Collect wardrobe appearances as they arrive (/valuate autowardrobe). /valuate wardrobe previews what it would take, since collecting can bind an item.\n\nOUT IN THE WORLD\n• Release on death (/valuate autorelease), take a battleground invite (/valuate autoacceptbg), re-queue for PvP (/valuate autoqueuepvp) or a dungeon (/valuate autoqueuedungeon), and leave a finished battleground once the scoreboard has been up long enough to read (/valuate autoleavebg). /valuate queuecheck says which of these your client can actually do.\n• Leave a dungeon once nothing left in it is an upgrade - and stay quiet whenever a boss has no loot data, because 'I do not know' must never be delivered as 'there is nothing here'. /valuate autoleavedungeon switches it on; /valuate dungeon shows what is known for where you are standing.\n\n• /valuate report shows when each automation last ran and what it concluded - including 'ran and correctly did nothing', which is a different answer from 'never ran'. /valuate quiet silences the running commentary without switching any of it off.", currentY)
     local textAutoHeight = textAuto:GetStringHeight()
     currentY = currentY - textAutoHeight - sectionSpacing
 
@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.150.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.151.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.150.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.151.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(

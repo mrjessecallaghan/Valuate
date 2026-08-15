@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.151.0a] - 2026-08-15 — the manual had stopped keeping up
+
+### Fixed
+The Instructions panel is the only documentation **inside the game**. Its Automation section
+described **five** automations. The addon has **twenty** — it stopped at quest rewards, so
+auto-equip, the junk rescue, the dungeon leave check and every queue automation were simply
+absent from the manual a user reads.
+
+Same drift as the About panel, which was a year behind, and the verify checklist, which had
+stopped growing twenty-five releases before anyone noticed. A hand-maintained list nobody was
+checking.
+
+It now covers all of them — grouped as gear, quests and loot, and out in the world — and each
+one **names its command**, because a manual that describes a feature without saying how to
+switch it on is half a manual.
+
+### Added
+`tocsync.js` compares the manual against the help system's own automation group — which
+`commands.js` already proves is complete — and fails if the manual has fallen behind more
+than half of them. A ceiling rather than zero: describing an automation by name in prose
+without its command is a reasonable thing for a manual to do, while falling silently behind
+as new ones are added is not.
+
+It fired immediately at **nine of twenty**, which is how the missing commands got written in.
+
+### Technical
+Lua 5.1 has no `\u` escape — that arrived in 5.3 — so the bullet characters I generated were a
+parse error rather than text. `compileall.js` caught it, which is the gate added two days ago
+for exactly this case: `luaparse` would have accepted the file.
+
+The verify checklist's lag rule then fired at eleven releases behind, so the two things from
+this run that only a client can settle are now on it: whether AdiBags actually **listens** to
+the un-junk message, and whether auto-equip records what it displaced *before* the bag update
+that wakes auto-delete arrives.
+
+Third time today I wrote a mutation that **loosens** a check. Loosening makes the gate pass,
+and mutation testing reads a passing gate as survival. Only tightening proves a check is live.
+
 ## [0.150.0a] - 2026-08-15 - the login summary raises a guessed scale
 
 ### Added

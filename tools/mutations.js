@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.150.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.151.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1115,4 +1115,11 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "every scale is flagged as a guess, so the flag stops meaning anything",
     from: "    if primaryScale and primaryScale.Inferred then", to: "    if true then" },
+
+  // ---- the in-game manual keeps up (v0.151.0a) -----------------------------
+  // The Automation section documented five automations while the addon had twenty. Same
+  // drift as the About panel and the verify checklist: a hand-maintained list nobody checked.
+  { gate: "tocsync", file: "tools/tocsync.js",
+    label: "the manual-drift check never actually compares anything",
+    from: "if (missing.length > autoCmds.length / 2) {", to: "if (missing.length > -1) {" },
 ];

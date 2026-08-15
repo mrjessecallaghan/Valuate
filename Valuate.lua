@@ -10761,6 +10761,22 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "unjunkreal", since = "0.147.0a",
+        gate = "tools/deletetest.js",
+        title = "Un-junking actually un-junks, in AdiBags",
+        steps = "With AdiBags loaded, mark a piece of your best-in-slot gear as Junk by hand. Run /valuate unjunk. Look at the Junk section.",
+        expect = "It names the item and the reason it was kept, and the item leaves the Junk section without a reload.",
+        broke = "The gate proves this addon sends AdiBags_OverrideFilter with a nil section, which is what JunkTools does to un-mark. What no gate can prove is that AdiBags LISTENS - the message name, the argument order and whether a FiltersChanged refresh is enough are all its internals, read off its source rather than a documented API. If the item stays in the Junk section, the message shape is wrong and this feature is doing nothing at all while reporting success. Also worth checking it does NOT un-junk a genuine grey.",
+    },
+    {
+        id = "displacedgear", since = "0.146.0a",
+        gate = "tools/deletetest.js",
+        title = "Auto-equip does not feed your old gear to auto-delete",
+        steps = "Switch on auto-equip and auto-delete together. Get an upgrade for a slot where you are wearing something poor - at low level, a grey. Let it swap, then watch the bags for five minutes.",
+        expect = "The displaced item stays in your bags. /valuate deletepreview lists it as kept, with the reason 'just replaced by auto-equip'.",
+        broke = "This is the one combination on the list that can DESTROY something, and it only exists because two automations that had never met were switched on together. The gate proves the protection and its five-minute expiry against a mocked clock; what it cannot prove is the ORDER of real events - whether the bag update that triggers auto-delete arrives before this addon has recorded what it displaced. If the item vanishes, the mark is being written too late, and the fix is the ordering rather than the grace period.",
+    },
+    {
         id = "weakmatch", since = "0.140.0a",
         gate = "tools/autowizard.js",
         title = "The wizard explains a weak match instead of showing nothing",
