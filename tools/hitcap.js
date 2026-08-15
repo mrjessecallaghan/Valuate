@@ -44,6 +44,7 @@ const PIECES = [
   /^local function DiminishingFactor\([\s\S]*?\r?\nend/m,
   /^function Valuate:CalculateItemScore\([\s\S]*?\r?\nend/m,
   /^function Valuate:BuildHitCapLine\([\s\S]*?\r?\nend/m,
+  /^function Valuate:CalculateStatBreakdown\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -277,6 +278,71 @@ local blind2 = tipFor({ HitRating = 20 }, CASTER)
 ok(blind2 ~= nil, "an uncalibrated character gets a line rather than silence")
 ok(blind2:find("scored in full", 1, true) ~= nil,
    "saying the score was not adjusted - silence would read as 'you have room'")
+
+RATING, PERCENT = 10, 2.0
+tick()
+
+-- ---- an item you are ALREADY WEARING ---------------------------------------------------
+-- The flaw this section exists for, found by sweeping after the fact rather than while
+-- writing it. Your current hit % includes everything equipped, so a worn item has already
+-- been counted into it. Scored naively, the very piece that got you to the cap contributes
+-- nothing - while a bag alternative carrying no hit is scored in full. Best Equipment would
+-- advise swapping away the item keeping you capped, which drops you under it, which makes hit
+-- valuable again, which advises swapping back.
+RATING, PERCENT = 20, 4.0   -- exactly capped, and ALL of it from the one piece below
+tick()
+
+local wornPiece = { HitRating = 20, Intellect = 5 }
+near(scoreOf(wornPiece, CASTER), 5,
+     "scored as a bag item, a capped character's hit is worth nothing - correct for something " ..
+     "you are considering ADDING")
+near(Valuate:CalculateItemScore(wornPiece, CASTER, { worn = true }), 25,
+     "but the piece you are WEARING is scored for what you would lose by removing it - all " ..
+     "of its hit is doing work, because without it you are under the cap")
+
+-- The half-wasted case, from the other side: 8% worn against a 4% cap means half of that
+-- item's hit is genuinely dead even though you are wearing it.
+RATING, PERCENT = 40, 8.0
+tick()
+near(Valuate:CalculateItemScore({ HitRating = 40 }, CASTER, { worn = true }), 20,
+     "a worn item carrying twice the cap has half its hit doing work, and half wasted")
+
+-- And a worn item with no hit is unaffected by any of this.
+RATING, PERCENT = 20, 4.0
+tick()
+near(Valuate:CalculateItemScore({ Intellect = 5 }, CASTER, { worn = true }), 5,
+     "a worn item with no hit scores exactly as it always did")
+
+-- ---- the breakdown agrees with the score ------------------------------------------------
+-- Two independent paths computed contributions and only one knew about the cap, so the score
+-- said hit contributed nothing while the panel explaining that score listed it as the biggest
+-- line on the item. The panel is the thing people open BECAUSE the total surprised them.
+local function breakdownTotal(stats, scale)
+    local rows = Valuate:CalculateStatBreakdown(stats, scale)
+    local sum = 0
+    for _, r in ipairs(rows or {}) do sum = sum + r.contribution end
+    return sum
+end
+
+local capped2 = { HitRating = 20, Intellect = 5 }
+near(breakdownTotal(capped2, CASTER), scoreOf(capped2, CASTER),
+     "the breakdown adds up to the score it is explaining")
+
+local function rowFor(stats, scale, want)
+    for _, r in ipairs(Valuate:CalculateStatBreakdown(stats, scale) or {}) do
+        if r.statName == want then return r end
+    end
+end
+local hitRow = rowFor(capped2, CASTER, "HitRating")
+ok(hitRow ~= nil, "hit still appears in the breakdown rather than vanishing")
+near(hitRow.contribution, 0, "contributing nothing, which is what the score did with it")
+eq(hitRow.adjusted, true, "and flagged as adjusted, so a display can say WHY it is smaller")
+
+-- Under the cap, nothing is flagged - a marker on everything would mean nothing.
+RATING, PERCENT = 5, 1.0
+tick()
+local roomy = rowFor({ HitRating = 5 }, CASTER, "HitRating")
+eq(roomy.adjusted, nil, "with headroom to spare, nothing is marked as adjusted")
 
 RATING, PERCENT = 10, 2.0
 tick()

@@ -3661,16 +3661,33 @@ end
 -- Item-by-item rather than a flat multiplier on the stat, because the answer genuinely
 -- differs per item: with 1% of headroom left, an item carrying a little hit is fully useful
 -- and one carrying a lot is mostly wasted. Returns a 0..1 factor.
-local function HitValueFactor(itemRating, scale)
+-- `worn` says this item is one you are ALREADY WEARING, and it matters more than it looks.
+--
+-- Your current hit % includes everything equipped, so an item you have on has already been
+-- counted into it. Scored naively, the piece that got you to the cap reads as contributing
+-- nothing - and since a bag alternative with no hit is scored at full value, Best Equipment
+-- would cheerfully advise swapping away the item keeping you capped. You would then be under
+-- the cap, hit would become valuable again, and it would advise swapping back.
+--
+-- So for a worn item the question is not "what does this add on top of what I have" but
+-- "what would I lose by taking it off": its hit is valued against the headroom that would
+-- exist WITHOUT it.
+local function HitValueFactor(itemRating, scale, worn)
     if not Valuate:GetOptions().hitCapAware then return 1 end
     local state = Valuate:GetHitState(scale)
     -- Cannot tell: change nothing. Never guess at a scoring input.
     if not state or not state.calibrated or not itemRating or itemRating <= 0 then return 1 end
 
-    if state.headroom <= 0 then return 0 end          -- already capped: this is worth nothing
     local itemPercent = itemRating / state.perPercent
-    if itemPercent <= state.headroom then return 1 end -- all of it lands under the cap
-    return state.headroom / itemPercent                -- only the part below the cap counts
+
+    -- Room to fill. For a worn item, add back what it is already contributing - computed from
+    -- cap and percent directly rather than from state.headroom, which is clamped at zero and
+    -- would hide how far past the cap you are.
+    local headroom = state.cap - state.percent
+    if worn then headroom = headroom + itemPercent end
+    if headroom <= 0 then return 0 end                -- no room at all: worth nothing
+    if itemPercent <= headroom then return 1 end      -- all of it lands under the cap
+    return headroom / itemPercent                     -- only the part below the cap counts
 end
 
 -- Diminishing VALUE for the stats that stack without ever capping.
@@ -3702,7 +3719,9 @@ local function DiminishingFactor(statName, scale, ownedRating)
     return 1 / (1 + (have / half))
 end
 
-function Valuate:CalculateItemScore(stats, scale)
+-- opts.worn marks stats that came off an item you are wearing. Only the hit cap cares, and
+-- only because your current hit already includes it - see HitValueFactor.
+function Valuate:CalculateItemScore(stats, scale, opts)
     if not stats or not scale or not scale.Values then
         return nil
     end
@@ -3750,7 +3769,8 @@ function Valuate:CalculateItemScore(stats, scale)
                 -- headroom left a small hit item is fully useful and a large one is mostly
                 -- wasted - and a flat factor cannot tell those apart.
                 if statName == "HitRating" then
-                    contribution = contribution * HitValueFactor(statValue, scale)
+                    contribution = contribution *
+                        HitValueFactor(statValue, scale, opts and opts.worn)
                 else
                     contribution = contribution *
                         DiminishingFactor(statName, scale, owned and owned[statName])
@@ -3789,11 +3809,25 @@ local function RankStatShares(statTotals, scale)
             local value = statTotals[statName]
             if value and value ~= 0 then
                 local contribution = value * weight
+                -- The question this function exists to answer is "of the weights I have set,
+                -- which are doing any work?" - and a weight on hit you are already capped on
+                -- is the single clearest example of one that is not. Leaving it unadjusted
+                -- would have this feature confidently reporting a dead weight as a live one,
+                -- which is precisely the answer it was built to stop you guessing at.
+                local capped = false
+                if statName == "HitRating" then
+                    local factor = HitValueFactor(value, scale)
+                    if factor < 1 then
+                        contribution = contribution * factor
+                        capped = true
+                    end
+                end
                 total = total + contribution
                 magnitude = magnitude + math.abs(contribution)
                 tinsert(ranked, {
                     stat = statName, value = value,
                     weight = weight, contribution = contribution,
+                    capped = capped or nil,
                 })
             else
                 -- Weighted, but you are carrying none of it. Worth naming: it is the
@@ -3850,16 +3884,40 @@ function Valuate:CalculateStatBreakdown(stats, scale)
     end
     
     -- Calculate contribution for each stat
+    --
+    -- Adjusted by exactly what CalculateItemScore adjusts by. This is the panel someone opens
+    -- BECAUSE the total surprised them, so it is the worst possible place for the two to
+    -- disagree: the score would say hit contributed nothing while the breakdown explaining
+    -- that score listed it as the biggest line on the item.
+    local bdOptions = Valuate:GetOptions()
+    local bdAdjusting = bdOptions and (bdOptions.hitCapAware or bdOptions.diminishingReturns)
+    local bdOwned = bdAdjusting and Valuate.GetCachedEquippedStatTotals
+        and Valuate:GetCachedEquippedStatTotals() or nil
+
     for statName, statValue in pairs(stats) do
         local weight = scaleValues[statName]
         if weight and weight ~= 0 and statValue and statValue ~= 0 then
             local normalizedWeight = weight * normalizeFactor
             local contribution = statValue * normalizedWeight
+            local capped = false
+            if bdAdjusting then
+                local factor
+                if statName == "HitRating" then
+                    factor = HitValueFactor(statValue, scale)
+                else
+                    factor = DiminishingFactor(statName, scale, bdOwned and bdOwned[statName])
+                end
+                if factor < 1 then capped = true end
+                contribution = contribution * factor
+            end
             table.insert(breakdown, {
                 statName = statName,
                 statValue = statValue,
                 weight = normalizedWeight,
-                contribution = contribution
+                contribution = contribution,
+                -- So a display can say WHY this line is smaller than its numbers imply,
+                -- rather than leaving the reader to do the multiplication.
+                adjusted = capped or nil,
             })
         end
     end
@@ -4026,7 +4084,10 @@ function Valuate:GetEquippedItemScoreBySlotId(slotId, scale)
     local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     
     if stats then
-        local score = Valuate:CalculateItemScore(stats, scale)
+        -- worn: these stats came off your body, so your current hit already includes them.
+        -- Without this the piece keeping you capped scores nothing for its hit, and Best
+        -- Equipment would advise replacing it with something that drops you under the cap.
+        local score = Valuate:CalculateItemScore(stats, scale, { worn = true })
         return score or 0
     end
     
@@ -4102,7 +4163,8 @@ function Valuate:CalculateTotalEquippedScore(scale)
                 tooltip:SetInventoryItem("player", slotId)
                 local stats = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                 if stats then
-                    local score = Valuate:CalculateItemScore(stats, scale)
+                    -- Everything summed here is by definition on your body.
+                    local score = Valuate:CalculateItemScore(stats, scale, { worn = true })
                     if score then
                         totalScore = totalScore + score
                     end

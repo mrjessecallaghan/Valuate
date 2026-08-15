@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.132.0a] - 2026-08-15 — what the hit cap missed
+
+### Fixed — the addon would tell you to throw away your hit gear
+The bad one. Your current hit % **includes everything you are wearing**, so an item you
+already have on has been counted into it. Scored naively, the very piece that got you to the
+cap contributes nothing — while a bag alternative carrying no hit is scored in full.
+
+Best Equipment would therefore advise swapping away the item keeping you capped. That drops
+you under the cap, which makes hit valuable again, which advises swapping back.
+
+An item you are **wearing** is now scored for what you would lose by taking it off: its hit is
+valued against the headroom that would exist **without** it. A worn piece providing exactly
+your cap counts in full; one providing twice the cap counts half. An item in your bags is
+still scored as what it would **add**, which was right all along — the two questions are
+genuinely different and the code now asks whichever one applies.
+
+### Fixed — the breakdown disagreed with the score it explains
+Two other paths compute per-stat contributions, and neither knew about the cap:
+`CalculateStatBreakdown` and `RankStatShares`. So the score said hit contributed nothing while
+the panel explaining that score listed it as the biggest line on the item.
+
+That panel is the thing people open **because** the total surprised them, which makes it the
+worst possible place for the two to disagree. Both now apply exactly what the scoring applies,
+and an adjusted line is flagged so a display can say why it is smaller rather than leaving the
+reader to do the multiplication.
+
+`RankStatShares` matters especially: it answers *"of the weights I have set, which are doing
+any work?"*, and a weight on hit you are already capped on is the clearest possible example of
+one that is not. It was confidently reporting a dead weight as a live one — the exact answer
+it was built to stop you guessing at.
+
+### Technical
+Both were found by sweeping after the fact rather than while writing the feature, which is
+worth recording: yesterday's release passed 61 gates and 189 mutations with both of these in
+it. Gates prove the thing you thought to check.
+
+6 new mutations, and two older ones had to be retargeted — the fix rewrote the lines they were
+anchored to, and the ambiguity guard reported them as UNAPPLIED rather than letting them
+silently pass against code that no longer existed.
+
 ## [0.131.0a] - 2026-08-15 — and saying so on the item
 
 ### Added

@@ -106,6 +106,7 @@ const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
 const HIT_STATE = { start: "function Valuate:GetHitState(", end: "\n-- How much of THIS item" };
+const BREAKDOWN = { start: "function Valuate:CalculateStatBreakdown(", end: "\n    -- Sort by contribution" };
 const HIT_LINE = { start: "function Valuate:BuildHitCapLine(", end: "\nfunction Valuate:BuildDetailLines" };
 const HIT_FACTOR = { start: "local function HitValueFactor(", end: "\n-- Diminishing VALUE" };
 const DIM_FACTOR = { start: "local function DiminishingFactor(", end: "\nfunction Valuate:CalculateItemScore" };
@@ -168,7 +169,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.131.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.132.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -825,10 +826,10 @@ module.exports = [
   // a GUESS mis-ranks every hit item in a direction nobody can see. The second is worse.
   { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
     label: "hit past the cap is valued in full again - the bug the feature exists for",
-    from: "if state.headroom <= 0 then return 0 end", to: "if state.headroom <= 0 then return 1 end" },
+    from: "if headroom <= 0 then return 0 end", to: "if headroom <= 0 then return 1 end" },
   { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
     label: "an item that overshoots the cap is counted whole instead of up to the cap",
-    from: "return state.headroom / itemPercent", to: "return 1" },
+    from: "return headroom / itemPercent", to: "return 1" },
   { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
     label: "it acts on an UNCALIBRATED conversion - capping on a number nobody derived",
     from: "if not state or not state.calibrated or not itemRating or itemRating <= 0 then return 1 end",
@@ -883,4 +884,26 @@ module.exports = [
   { gate: "hitcap", file: "Valuate.lua", scope: HIT_LINE,
     label: "builds that ignore hit are lectured about a cap costing them nothing",
     from: "if not scale or not scale.Values or not scale.Values.HitRating", to: "if false and (nil" },
+
+  // ---- what the after-the-fact sweep found (v0.132.0a) ---------------------
+  // Shipping the hit cap left two holes, and neither showed up while writing it.
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "the piece keeping you capped scores nothing, so you are told to replace it",
+    from: "if worn then headroom = headroom + itemPercent end", to: "" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "every item is treated as already worn, so nothing is ever capped",
+    from: "if worn then headroom = headroom + itemPercent end",
+    to: "headroom = headroom + itemPercent" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "headroom is read from the clamped field, hiding how far past the cap you are",
+    from: "local headroom = state.cap - state.percent", to: "local headroom = state.headroom" },
+  { gate: "hitcap", file: "Valuate.lua", scope: BREAKDOWN,
+    label: "the breakdown disagrees with the score it exists to explain",
+    from: "            if bdAdjusting then", to: "            if false then" },
+  { gate: "hitcap", file: "Valuate.lua", scope: BREAKDOWN,
+    label: "an adjusted line is not marked, so a smaller number has no visible reason",
+    from: "                if factor < 1 then capped = true end", to: "" },
+  { gate: "hitcap", file: "Valuate.lua", scope: BREAKDOWN,
+    label: "every line is marked adjusted, so the marker stops meaning anything",
+    from: "                if factor < 1 then capped = true end", to: "                capped = true" },
 ];
