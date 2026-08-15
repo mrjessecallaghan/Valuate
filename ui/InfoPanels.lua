@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.146.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.147.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.146.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.147.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,11 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• NEW: RESCUE GEAR FROM THE JUNK PILE. AdiBags decides junk by quality; this\n" ..
+        "   addon decides by what your scale is worth, and at low level a white or\n" ..
+        "   even grey item really can be your best-in-slot. This clears the junk\n" ..
+        "   marking on anything the delete protections keep. Off by default, and it\n" ..
+        "   NEVER marks anything as junk - only rescues. /valuate unjunk lists them.\n" ..
         "• FIXED: gear that auto-equip took OFF you was protected by none of the\n" ..
         "   delete rules - not best-in-slot any more, not an upgrade any more - so\n" ..
         "   auto-delete could remove the item you were wearing seconds earlier. It is\n" ..

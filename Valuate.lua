@@ -824,6 +824,9 @@ local DEFAULT_OPTIONS = {
     -- automation here does. Goes through EquipBestSet, so it inherits the combat guard, the
     -- slot locks and the bind-intent marking rather than growing thinner copies of them.
     autoEquipUpgrades = false,
+    -- Clear the junk marking on anything IsProtectedFromDelete keeps. Off by default: it
+    -- writes to AdiBags' own override table, which is an edit rather than a display tweak.
+    autoUnjunkProtected = false,
     -- Hit past the cap does nothing, so it should score nothing. ON by default: this is a
     -- game rule rather than a preference, and scoring capped hit at full weight is simply
     -- wrong. See GetHitState - it refuses to act when it cannot work out the conversion.
@@ -9308,6 +9311,78 @@ function Valuate:AutoLearnAppearances()
     end
 end
 
+-- Un-junk anything this addon is protecting.
+--
+-- AdiBags decides junk by QUALITY. Valuate decides by what your scale is worth. Those two
+-- disagree hardest at low level, where a white or even a grey item really can be your
+-- best-in-slot - so the gear you are actually wearing lands in the Junk section, and every
+-- addon that trusts that section, including this one's own selling, treats it as disposable.
+--
+-- The addon already knows the answer. IsProtectedFromDelete is the single sentence this
+-- project treats as load-bearing, and it covers best-in-slot, weapon-set members, quest
+-- items, equipment-set members, future upgrades and upgrades for any scale. Anything it
+-- keeps has no business sitting in a junk pile.
+--
+-- OFF by default, because it writes to ANOTHER ADDON'S state. AdiBags remembers an override
+-- until something clears it, so this is not a display tweak that stops when you switch it
+-- off - it is an edit. Saying so is why the toggle warns rather than just toggling.
+--
+-- One direction only. It never MARKS anything as junk: deciding something is worthless is a
+-- judgement this addon has no business making on your behalf, and the reverse - rescuing
+-- something it can prove you want - is the half that is safe to automate.
+function Valuate:AutoUnjunkProtected(verbose)
+    local options = Valuate:GetOptions()
+    if not verbose and not options.autoUnjunkProtected then return 0 end
+
+    local AdiBags, junkModule = ResolveAdiBagsJunk()
+    if not AdiBags or not AdiBags.SendMessage then
+        if verbose then
+            print("|cFFFF8800Valuate|r: AdiBags is not loaded, so there is no junk marking to undo.")
+        end
+        return 0
+    end
+
+    local freed, checked = 0, 0
+    for bag = 0, 4 do
+        for slot = 1, (GetContainerNumSlots(bag) or 0) do
+            local link = GetContainerItemLink(bag, slot)
+            if link then
+                local itemId = GetItemIdFromLink and GetItemIdFromLink(link)
+                local _, _, quality = GetItemInfo(link)
+                if itemId and IsItemJunk(AdiBags, junkModule, itemId, quality) then
+                    checked = checked + 1
+                    local protected, why = IsProtectedFromDelete(bag, slot, link)
+                    if protected then
+                        -- A nil section is how JunkTools un-marks: the Junk filter excludes
+                        -- anything with an override pointing nowhere.
+                        pcall(function()
+                            AdiBags:SendMessage("AdiBags_OverrideFilter", nil, nil, itemId)
+                        end)
+                        freed = freed + 1
+                        if verbose then
+                            print(string.format("  |cFF00FF00Un-junked|r %s |cFFAAAAAA(%s)|r",
+                                link, tostring(why)))
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if freed > 0 then
+        pcall(function() AdiBags:SendMessage("AdiBags_FiltersChanged") end)
+        Valuate:MarkAutomation("unjunk", string.format("rescued %d of %d junk item(s)", freed, checked))
+        if options.chatMessages ~= false or verbose then
+            print(string.format("|cFF00FF00[Valuate]|r Un-junked %d item(s) your scale wants. " ..
+                "|cFFAAAAAA/valuate unjunk lists them.|r", freed))
+        end
+    elseif verbose then
+        print(string.format("|cFF00FF00[Valuate]|r Nothing to rescue - %d junk item(s) checked, " ..
+            "none of them protected.", checked))
+    end
+    return freed
+end
+
 function Valuate:AutoSellJunk(verbose)
     local options = Valuate:GetOptions()
     if not MerchantFrame or not MerchantFrame:IsShown() then
@@ -10074,6 +10149,7 @@ function Valuate:PrintReport()
         -- from one that is broken.
         { key = "dungeonLeave",  label = "Dungeon leave check" },
         { key = "autoEquip",     label = "Auto-equip upgrades" },
+        { key = "unjunk",        label = "Un-junk protected gear" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -11459,6 +11535,8 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate hit - What the scoring assumes about your hit, and how much cap is left")
         print("  /valuate hitcap - Toggle scoring hit at zero once you are capped")
         print("  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)")
+        print("  /valuate unjunk - Un-mark junk on gear your scale actually wants")
+        print("  /valuate autounjunk - Toggle doing that automatically")
         print("  /valuate autoequip - Toggle putting upgrades on as they drop, without asking")
         print("  /valuate where - Which dungeons hold an upgrade you could actually wear")
         print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
@@ -11863,6 +11941,19 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "unjunk" then
+        -- Verbose run, listing each rescue and its reason. Works whether or not the
+        -- automation is switched on: seeing what it WOULD do is the point.
+        Valuate:AutoUnjunkProtected(true)
+    elseif command == "autounjunk" then
+        local options = Valuate:GetOptions()
+        options.autoUnjunkProtected = not options.autoUnjunkProtected
+        print("|cFF00FF00Valuate|r: Auto un-junk protected gear " ..
+            (options.autoUnjunkProtected and "|cFF00FF00on|r" or "|cFFFF0000off|r"))
+        if options.autoUnjunkProtected then
+            print("  |cFFAAAAAAThis edits AdiBags' own override table, so the marking stays " ..
+                "cleared after you switch this back off. It never marks anything AS junk.|r")
+        end
     elseif command == "autoequip" then
         local options = Valuate:GetOptions()
         options.autoEquipUpgrades = not options.autoEquipUpgrades

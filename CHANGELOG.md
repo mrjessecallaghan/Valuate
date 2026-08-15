@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.147.0a] - 2026-08-15 — rescuing gear from the junk pile
+
+### Added
+**AdiBags decides junk by quality. This addon decides by what your scale is worth.** Those
+two disagree hardest at low level, where a white or even a grey item really can be your
+best-in-slot — so the gear you are actually wearing lands in the Junk section, and every
+addon that trusts that section, including this one's own selling, treats it as disposable.
+
+`/valuate unjunk` clears the junk marking on anything `IsProtectedFromDelete` keeps —
+best-in-slot, weapon-set members, quest items, equipment-set members, future upgrades, and
+upgrades for any scale. It lists each rescue and the reason it was kept.
+
+`/valuate autounjunk` does it as gear arrives. **Off by default**, for a sharper reason than
+usual: it writes to *another addon's* override table. That is an edit, not a display tweak —
+the marking stays cleared after you switch this back off, and the toggle says so.
+
+**One direction only.** It never marks anything *as* junk. Deciding an item is worthless is
+a judgement this addon has no business making on your behalf; rescuing something it can
+prove you want is the half that is safe to automate. A mutation makes it send a junk section
+instead of a nil one, so that stays true.
+
+### Checked, not changed
+Auto-sell already routes through `IsProtectedFromDelete`, so it inherited yesterday's
+displaced-gear protection with no work — which is the payoff for putting that guard in the
+shared function rather than beside auto-delete. And the new keep-reason already surfaces:
+the tooltip prints *"Junk, but kept: …"* verbatim.
+
+### Technical
+Two fixture bugs, both the same species as the ones these gates keep finding in the addon:
+`clear()` rebuilds the whole `Valuate` table and so wiped the sliced method under test, and
+an item marked displaced by an earlier case **stayed marked**, protecting it in a later block
+for a reason that had nothing to do with what that block was testing.
+
+The column-balance mutation was retargeted rather than resized again. A fixed pixel amount
+judged against a ratio goes stale every time the layout gets better balanced — it drifted
+under the line at 91% having already been raised once. It now tightens the **threshold**
+instead, which cannot expire. Worth recording the wrong turn on the way: loosening an
+assertion makes the gate *pass*, which mutation testing reads as survival. The only way to
+prove a check is live is to make it fail.
 ## [0.146.0a] - 2026-08-15 — two automations that had never met
 
 ### Fixed

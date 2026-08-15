@@ -30,7 +30,7 @@ const path = require("path");
 const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
-const extra = ["MarkDisplaced", "WasDisplacedByUs"].map(function (name) {
+const extra = ["MarkDisplaced", "WasDisplacedByUs", "AutoUnjunkProtected"].map(function (name) {
   const hit = lua.match(
     new RegExp("^function Valuate:" + name + "\\([\\s\\S]*?\\r?\\nend", "m")
   );
@@ -252,6 +252,82 @@ NOW = 1000
 Valuate:MarkDisplaced(4242)
 eq(IsProtectedFromDelete(1, 1, "|Hitem:9999|h[Other]|h"), false,
    "marking one item does not protect everything in your bags")
+
+-- ---- rescuing gear from the junk pile ---------------------------------------------------
+-- AdiBags decides junk by QUALITY; this addon decides by what your scale is worth. They
+-- disagree hardest at low level, where a white or even grey item really can be your
+-- best-in-slot - so gear you are WEARING lands in the Junk section, and everything that
+-- trusts that section, including this addon's own selling, treats it as disposable.
+--
+-- The dangerous half is the direction. This writes to another addon's override table, and an
+-- automation that could mark things AS junk would be making a judgement about worth that
+-- nobody asked it to make.
+local sent, filtersChanged = {}, 0
+local JUNKY = {}
+local FAKE_ADIBAGS = {
+    SendMessage = function(_, msg, section, _unused, itemId)
+        if msg == "AdiBags_FiltersChanged" then filtersChanged = filtersChanged + 1 return end
+        sent[#sent + 1] = { msg = msg, section = section, itemId = itemId }
+    end,
+}
+ResolveAdiBagsJunk = function() return FAKE_ADIBAGS, nil end
+IsItemJunk = function(_, _, itemId) return JUNKY[itemId] == true end
+GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end
+local BAGLINKS = {}
+GetContainerItemLink = function(bag, slot) return BAGLINKS[slot] end
+GetItemInfo = function() return "Item", nil, 0 end
+Valuate.MarkAutomation = function() end
+Valuate.GetOptions = function() return { autoUnjunkProtected = true, chatMessages = false } end
+
+BAGLINKS[1] = "|Hitem:4242|h[Protected]|h"
+BAGLINKS[2] = "|Hitem:5555|h[Genuine Junk]|h"
+JUNKY[4242], JUNKY[5555] = true, true
+
+-- Only 4242 is protected: it is best-for something. Fields set individually rather than
+-- through clear(), which rebuilds the whole table and would take the sliced method with it.
+GetContainerItemQuestInfo = function() return false, nil end
+GetContainerItemEquipmentSetInfo = function() return false end
+Valuate.GetFutureUpgradeScales = function() return nil end
+Valuate.GetStatsForTooltipSetter = function() return { str = 10 } end
+Valuate.IsUpgradeForAnyScale = function() return false end
+Valuate.GetBestForInfo = function(_, link)
+    if link and link:find("4242", 1, true) then return { { scale = "Melee" } } end
+    return nil
+end
+Valuate.GetOptions = function() return { autoUnjunkProtected = true, chatMessages = false } end
+Valuate.MarkAutomation = function() end
+
+local freed = Valuate:AutoUnjunkProtected()
+eq(freed, 1, "exactly the protected item is rescued")
+eq(#sent, 1, "and exactly one override is sent")
+eq(sent[1] and sent[1].itemId, 4242, "for the item your scale actually wants")
+eq(sent[1] and sent[1].section, nil,
+   "with a NIL section, which is how the junk filter is told to exclude it")
+ok(filtersChanged >= 1, "and the filters are refreshed once, not per item")
+
+-- The direction that matters. Nothing here may ever mark something AS junk: deciding an item
+-- is worthless is a judgement this addon has no business making for you.
+for _, m in ipairs(sent) do
+    ok(m.section == nil,
+       "no message carries a junk section - this rescues only, it never marks")
+end
+
+-- Switched off means untouched, including another addon's state.
+sent, filtersChanged = {}, 0
+Valuate.GetOptions = function() return { autoUnjunkProtected = false } end
+eq(Valuate:AutoUnjunkProtected(), 0, "with the option off it does nothing")
+eq(#sent, 0, "and writes nothing to AdiBags")
+
+-- Nothing protected: nothing sent. A rescue that fires on genuine junk would be worse than
+-- none, because it would quietly refill the pile you were trying to empty.
+sent = {}
+Valuate.GetOptions = function() return { autoUnjunkProtected = true, chatMessages = false } end
+Valuate.GetBestForInfo = function() return nil end
+Valuate.GetFutureUpgradeScales = function() return nil end
+Valuate.IsUpgradeForAnyScale = function() return false end
+Valuate.displaced.at = {}
+eq(Valuate:AutoUnjunkProtected(), 0, "genuine junk is left exactly where it is")
+eq(#sent, 0, "and nothing is written")
 
 return failures, checks
 `,

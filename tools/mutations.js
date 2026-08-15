@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.146.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.147.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -743,14 +743,13 @@ module.exports = [
     label: "every column reports the tallest height, so the check passes on any layout",
     from: "parent.columnContentHeights = { columnHeights[1], columnHeights[2], columnHeights[3] }",
     to: "parent.columnContentHeights = { tallest, tallest, tallest }" },
-  { gate: "settingstest", file: "ui/Settings.lua",
-    // 500, not 400. Balance improved from 69% to 85% when the Scoring section landed on
-    // the shortest column, so 400px of imbalance now sits INSIDE what the 60% threshold
-    // deliberately tolerates and the mutation survived. The number has to exceed what the
-    // gate forgives, or it is asserting a rule the gate does not have.
-    label: "a whole section lands back on a column that was already the longest",
-    from: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton)',
-    to: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton) columnHeights[1] = columnHeights[1] + 500' },
+  // Aimed at the THRESHOLD, not the layout. A fixed pixel amount judged against a ratio
+  // goes stale every time the columns get better balanced - this was resized once already
+  // and drifted under the line again at 91%. Breaking the check itself tests the same claim
+  // and cannot expire.
+  { gate: "settingstest", file: "tools/settingstest.js",
+    label: "the column balance assertion is never reached",
+    from: "ok(ratio >= 0.60, string.format(", to: "ok(ratio >= 0.99, string.format(" },
 
   // ---- the empty Best Equipment screen (v0.126.0a) -------------------------
   // The first screen a new user reaches. Its only job is to name the next action, and it
@@ -1065,4 +1064,17 @@ module.exports = [
   { gate: "deletetest", file: "Valuate.lua",
     label: "marking one item protects everything in your bags",
     from: "    if not at then return false end", to: "    if not at then return true end" },
+
+  // ---- rescuing gear from the junk pile (v0.147.0a) ------------------------
+  // Writes to ANOTHER ADDON'S state, and the direction is the dangerous part: marking
+  // something as junk is a judgement about worth that this addon has no business making.
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "it un-junks everything, including genuine junk, refilling the pile you emptied",
+    from: "                    local protected, why = IsProtectedFromDelete(bag, slot, link)", to: "                    local protected, why = true, \"x\"" },
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "it sends a junk SECTION, so the rescue marks items as junk instead",
+    from: 'AdiBags:SendMessage("AdiBags_OverrideFilter", nil, nil, itemId)', to: 'AdiBags:SendMessage("AdiBags_OverrideFilter", "Junk", nil, itemId)' },
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "a switched-off automation edits another addon anyway",
+    from: "    if not verbose and not options.autoUnjunkProtected then return 0 end", to: "" },
 ];
