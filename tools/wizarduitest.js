@@ -328,11 +328,33 @@ EQUIPPED = {
 EQUIPPED = {}
 local naked, nakedErr = pcall(function() primary.__scripts.OnClick(primary) end)
 ok(naked, "clicking with no readable gear does not error: " .. tostring(nakedErr))
-local said = false
-for _, line in ipairs(__printed) do
-    if string.find(line, "put something on", 1, true) then said = true end
+-- The reason has to arrive IN the wizard. It used to be printed to chat and the window was
+-- left on the screen you were already on - a button that appears to do nothing, with the
+-- explanation behind the window that just failed to respond. The likeliest way to reach this
+-- is also the worst place to be lost: a new character wearing nothing, on the first screen of
+-- an addon they installed a minute ago.
+local shown = ""
+for _, f in ipairs(__frames) do
+    for _, region in ipairs(f.__regions or {}) do
+        if region.GetText and region.__shown ~= false then
+            local t = region:GetText()
+            if t then shown = shown .. " | " .. t end
+        end
+    end
 end
-ok(said, "it explains why instead of failing silently")
+ok(shown:find("put something on", 1, true) ~= nil,
+   "the reason is shown in the wizard, not printed behind it")
+ok(shown:find("could not build", 1, true) ~= nil,
+   "under a heading that says the attempt failed")
+ok(shown:find("Nothing was created", 1, true) ~= nil,
+   "and it says nothing was changed - the first question after a failure is what it did to you")
+
+-- A way onward, not just a wall. The usual fix is one screen back.
+local hasRetry = false
+for _, f in ipairs(__frames) do
+    if f.label and f.label.GetText and f.label:GetText() == "Try again" then hasRetry = true end
+end
+ok(hasRetry, "and it offers a way back rather than only a Close button")
 
 -- ---- the right template set for the character -------------------------------------
 -- Detected from the CLASS, not the realm name: realm names change and a second CoA realm

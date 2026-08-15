@@ -14,7 +14,7 @@ local _, ns = ...
 local PADDING, ELEMENT_SPACING, INNER_SPACING = ns.PADDING, ns.ELEMENT_SPACING, ns.INNER_SPACING
 local BUTTON_HEIGHT = ns.BUTTON_HEIGHT
 local COLORS = ns.COLORS
-local FONT_H1, FONT_SMALL = ns.FONT_H1, ns.FONT_SMALL
+local FONT_H1, FONT_SMALL, FONT_BODY = ns.FONT_H1, ns.FONT_SMALL, ns.FONT_BODY
 local Anim = ns.Anim
 
 -- The wizard's colour, matching AUTO_SCALE_COLOR in Valuate.lua. Read through HexToRGB
@@ -273,6 +273,48 @@ end
 -- Screen 3: done
 -- ========================================
 
+-- When it cannot build one.
+--
+-- This used to print the reason to chat and return, leaving the wizard sitting on the screen
+-- you were already on. Every refusal PlanAutoScale writes is deliberately actionable - "put
+-- something on first" - and all of that care was being delivered behind the window that had
+-- just failed to respond, to someone whose attention is on the button they pressed.
+--
+-- The likeliest way to reach it is also the worst place to be lost: a brand-new character
+-- wearing nothing, on the first screen of the addon they just installed.
+local function BuildStepFailed(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetAllPoints(parent)
+
+    local title = CreateLabel(f, FONT_H1, COLORS.textTitle, "I could not build one")
+    title:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+
+    -- The reason in PlanAutoScale's own words. Rewording it here would mean two places to
+    -- keep true, and the version behind the window is the one that gets updated.
+    f.reason = CreateLabel(f, FONT_BODY, COLORS.textBody, "")
+    f.reason:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    f.reason:SetWidth(WIDTH - PADDING * 2)
+
+    local hint = CreateLabel(f, FONT_SMALL, COLORS.textDim,
+        "Nothing was created or changed. Fix the above and try again, or build a scale by " ..
+        "hand from a class template.")
+    hint:SetPoint("TOPLEFT", f.reason, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    hint:SetWidth(WIDTH - PADDING * 2)
+
+    -- Back to the start rather than only Close: the usual fix - equip something, pick a
+    -- different role - is one screen away, and closing the window to reopen it is a step
+    -- nobody should have to work out for themselves.
+    local retry = ns.CreateStyledButton(f, "Try again", 150, BUTTON_HEIGHT + 4)
+    retry:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+    retry:SetScript("OnClick", function() ShowScreen("choose") end)
+
+    local close = ns.CreateStyledButton(f, "Close", 120, BUTTON_HEIGHT)
+    close:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    close:SetScript("OnClick", function() if WizardFrame then WizardFrame:Hide() end end)
+
+    return f
+end
+
 local function BuildStepDone(parent)
     local f = CreateFrame("Frame", nil, parent)
     f:SetAllPoints(parent)
@@ -355,6 +397,7 @@ local function CreateWizardFrame()
     screens.choose = BuildStepChoose(body)
     screens.preview = BuildStepPreview(body)
     screens.done = BuildStepDone(body)
+    screens.failed = BuildStepFailed(body)
 
     -- Escape closes it. Registered by NAME, which is why the frame has one.
     ns.RegisterEscapeClose("ValuateWizardFrame")
@@ -381,9 +424,18 @@ function ns.WizardPlan(role)
     })
 
     if not plan then
-        -- Says what went wrong in the words PlanAutoScale chose, rather than a dead end.
-        -- Every refusal in that function is written to be actionable.
-        print("|cFF3FE0C8[Valuate]|r " .. tostring(why or "I could not build a scale."))
+        -- Shown IN the wizard, in the words PlanAutoScale chose. It used to print and return,
+        -- which left the window sitting on the screen you were already on while the
+        -- explanation went to the chat frame behind it - a button that appears to do nothing.
+        local message = tostring(why or "I could not build a scale.")
+        if screens.failed then
+            screens.failed.reason:SetText(message)
+            ShowScreen("failed")
+        else
+            -- Only if the screen failed to build. Losing the reason entirely would be worse
+            -- than printing it somewhere imperfect.
+            print("|cFF3FE0C8[Valuate]|r " .. message)
+        end
         return
     end
 

@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.129.0a] - 2026-08-15 — the wizard says why it stopped
+
+### Fixed
+When the wizard could not build a scale, it **printed the reason to chat and returned** —
+leaving the window sitting on the screen you were already on. From where you are standing,
+the button you just pressed did nothing, and the explanation is behind the window that failed
+to respond to it.
+
+The code even had a comment saying it said what went wrong *"rather than a dead end"*. It was
+right about the words and wrong about where they landed.
+
+The likeliest way to reach it is the worst place to be lost: a **brand-new character wearing
+nothing**, on the first screen of an addon they installed a minute ago. `PlanAutoScale` has an
+actionable refusal ready for exactly that — *"I could not read any equipped gear — put
+something on first"* — and it was being delivered somewhere they were not looking.
+
+There is now a failure screen, showing:
+
+- the reason, in `PlanAutoScale`'s own words (rewording it here would mean two places to keep
+  true, and the one behind the window is the one that gets updated)
+- **"Nothing was created or changed"** — the first question after a failure is what it did to
+  you, and it deserves an answer before you have to ask
+- **Try again**, not just Close. The usual fix is one screen back, and closing the window to
+  reopen it is a step nobody should have to work out for themselves.
+
+### Technical
+Two gates objected, both correctly. `globals.js` caught `FONT_BODY` being used in a file that
+never localised it — it had `FONT_H1` and `FONT_SMALL` only. And `wizarduitest.js` failed on
+*"it explains why instead of failing silently"*, an assertion that had been reading `__printed`
+— it was passing because of the exact behaviour being removed. It now reads what is on the
+**screen**, which is what the assertion always meant. 4 mutations, all caught.
+
 ## [0.128.0a] - 2026-08-15 — the addon checks its own homework
 
 ### Added
