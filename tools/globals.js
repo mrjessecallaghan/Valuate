@@ -60,6 +60,10 @@ GetNumEquipmentSets GetEquipmentSetInfo GetEquipmentSetItemIDs SaveEquipmentSet 
 UseEquipmentSet GetEquipmentSetLocations EquipmentManager_UnpackLocation
 CanMerchantRepair GetRepairAllCost RepairAllItems CanGuildBankRepair GetMoney
 MerchantFrame GetMerchantNumItems GetBuybackItemInfo GetMerchantItemLink MERCHANT_ITEMS_PER_PAGE
+GetMerchantItemInfo GetSpellInfo
+-- Tradeskill and Craft. Enchanting uses the CRAFT api on 3.3.5, not TradeSkill, so a
+-- feature that only read one of the two would silently miss an entire profession.
+GetNumTradeSkills GetTradeSkillInfo GetTradeSkillRecipeLink GetNumCrafts GetCraftInfo
 MerchantFrame_UpdateMerchantInfo ContainerFrame_Update
 LootFrame LootFrame_Update GetLootSlotLink
 GetNumQuestChoices GetQuestItemLink GetQuestItemInfo GetQuestReward CompleteQuest

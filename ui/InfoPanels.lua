@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.164.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.165.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.164.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.165.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,25 +474,23 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• GROUNDWORK: /valuate enhancecheck reports which enchant data sources this\n" ..
+        "   client exposes. An Enhancements tab is coming; what it can show depends on\n" ..
+        "   what the client will tell us, and one of those APIs is custom to Ascension.\n" ..
         "• FIXED: 'Upgrade at level 24' for gear you could already wear. Ascension\n" ..
         "   scales gear to your level, so the item template's level is not a fact about\n" ..
         "   you - the requirement is now read from the tooltip, which the client draws\n" ..
         "   for YOUR character with scaling applied. Old scans are discarded once.\n" ..
-        "• FIXED: Best Equipment said 'these are last session's results' to characters\n" ..
-        "   who had never scanned at all. It now says 'Never scanned' and tells you what\n" ..
-        "   to press.\n" ..
-        "• FIXED: the To Do tab told a character who had never scanned that everything\n" ..
-        "   was up to date. It now says it has not looked yet, and offers the scan.\n" ..
+        "• FIXED: two panels told characters who had NEVER scanned that they were\n" ..
+        "   looking at last session's results, and that their gear was all up to date.\n" ..
+        "   Both now say they have not looked yet, and offer the scan.\n" ..
         "• NEW: /valuate uicheck walks the window and reports anything drawn outside\n" ..
         "   where it belongs - text over a border, a row past its box, a frame off the\n" ..
         "   screen. The headless tests cannot measure a pixel; this can.\n" ..
-        "• The To Do tab reads 'To Do (3)' when three things need doing, and plain\n" ..
-        "   'To Do' when nothing does - so you can see whether it is worth opening.\n" ..
-        "• The To Do list shows three upgrades and now SAYS how many more are waiting,\n" ..
-        "   and its rows grow to fit their own text instead of spilling out of them.\n" ..
         "• NEW: a To Do tab. Everything worth doing about your gear, in the order that\n" ..
-        "   unblocks the rest, with a button on each row that runs it. The addon could\n" ..
-        "   already answer this - the answer only ever went to the chat frame.\n" ..
+        "   unblocks the rest, with a button on each row that runs it. The tab itself\n" ..
+        "   reads 'To Do (3)' so you can see whether it is worth opening, it says how\n" ..
+        "   many upgrades it left out, and its rows grow to fit their own text.\n" ..
         "• FIXED: fourteen buttons never lit up when you pointed at them. Twelve had\n" ..
         "   their hover replaced by a tooltip; Scan Best Equipment never had one; and\n" ..
         "   the tabs answered nothing at all. All of them respond now.\n" ..

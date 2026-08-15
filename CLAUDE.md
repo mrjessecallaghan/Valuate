@@ -444,6 +444,7 @@ callback either reschedule or be genuinely final.
 | `ScaleEditor.lua` | Stat-weight grid, weapon-set group, import/export dialogs |
 | `BestEquipment.lua` | Best Equipment tab (**keeps the frame pool** — see below) |
 | `Settings.lua` | Settings tab + `CheckColumnAnchors` |
+| `Enhance.lua` | Item enhancements read LIVE from the client; /valuate enhancecheck probes what it exposes |
 | `UICheck.lua` | /valuate uicheck — walks the live window for text or frames drawn outside where they belong |
 | `TodoPanel.lua` | The To Do tab — renders `Valuate:BuildTodoList`, one clickable row per item |
 | `InfoPanels.lua` | Instructions / About / Changelog |

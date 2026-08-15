@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.165.0a] - 2026-08-15 — groundwork for per-slot enhancements
+
+Foundation for an Enhancements tab. **The tab itself is not in this release** — this is the
+part that had to be settled first, because what is buildable depends entirely on what the
+client will tell us.
+
+### Added
+**`/valuate enhancecheck`** reports which enchant data sources this client actually exposes,
+naming each one and, when it is missing, why that matters.
+
+That command exists because the answer is genuinely unknown. `AscensionEnchantAdvisor` — the
+one addon here that reads enchants — probes **five different global names** for Ascension's
+enchant collection API and takes whichever answers. That is not a criticism of it; it is
+evidence that nobody knows which is real. Writing this feature against a guess would have
+produced a panel that silently showed nothing.
+
+It also reports the Craft API separately from TradeSkill, because **Enchanting uses `GetNumCrafts`
+rather than `GetNumTradeSkills` on 3.3.5** — a build that read only tradeskills would miss the
+entire profession the feature is mostly about.
+
+### Added
+Slot classification: which slot an enhancement goes on, read from its recipe name, because on
+a live recipe that is the only usable fact. `"Enchant Boots - Greater Assault"` names its slot;
+nothing else does.
+
+It is first-match-wins, which makes **order the behaviour** — `"weapon"` is a substring of the
+two-handed and off-hand names, so placed too early it claims all of them for the main hand.
+The gate's cases are real recipe names for that reason: a test written against the patterns
+would agree with whatever order they happened to be in.
+
+### Known gap, stated rather than papered over
+A family of enhancements names its slot nowhere — `"Arcanum of Torment"` is a head enchant and
+reads as nothing at all. Those return nil, which is right (guessing a slot offers an
+enhancement on gear it cannot go on), but nil is **not** the same as "does not exist". They
+belong in the panel's *couldn't read these* section rather than being dropped.
+
+### Technical — why live-only
+AtlasLoot ships ~4,100 crafting spellIDs grouped by slot, which looked like the obvious
+source. It carries **no stats, no vendor, no cost, no required level and no skill level** —
+and it is retail Wrath's list, on a custom server that changes all of those. Shipping it would
+have produced a confident catalogue of things that may not exist here.
+
+### Fixed
+`api.js` matched the first `local methods = {` across all thirty-odd concatenated Lua files
+when looking for the selftest's curated list. A local of that name in a new module captured
+the match, and the gate then reported that module's strings as phantom selftest entries. It
+now anchors inside `RunSelfTest`, because `methods` is a common name and the anchor should not
+depend on nobody else using it.
+
+
 ## [0.164.0a] - 2026-08-15 — "upgrade at level 24" for gear you can already wear
 
 ### Fixed

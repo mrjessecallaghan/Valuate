@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.164.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.165.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1452,4 +1452,30 @@ module.exports = [
     label: "the item name is scanned, so its text can invent a required level",
     scope: { start: "function ns.TooltipRequiredLevel(", end: "    return nil" },
     from: "for i = 2, tooltip:NumLines() do", to: "for i = 1, tooltip:NumLines() do" },
+  // ---- enhancement slot classification (v0.165.0a) -------------------------
+  // A live recipe gives one usable fact: its name. So the slot is read out of "Enchant
+  // Boots - Greater Assault", first-match-wins - which makes ORDER the behaviour.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "weapon is matched before two-handed, so every 2H enchant becomes a 1H one",
+    from: "    { pattern = \"2h weapon\",  slots = { 16 } },", to: "" },
+
+  // The reverse: a plain weapon enchant fits either hand, and losing that makes the
+  // off-hand look like it has no options at all.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a plain weapon enchant is offered for the main hand only",
+    from: "    { pattern = \"weapon\",     slots = { 16, 17 } },",
+    to: "    { pattern = \"weapon\",     slots = { 16 } }," },
+
+  // A ring enchant fits both fingers. One of them silently having no options is the kind
+  // of gap nobody reports, because an empty row reads as "nothing available".
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "ring enchants are offered for one finger but not the other",
+    from: "    { pattern = \"ring\",       slots = { 11, 12 } },",
+    to: "    { pattern = \"ring\",       slots = { 11 } }," },
+
+  // And the probe must REPORT a missing source rather than throw. The client is the
+  // unknown quantity here; a probe that errors teaches nothing about it.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a source the client lacks is reported as present anyway",
+    from: "        if ok and present then", to: "        if true then" },
 ];

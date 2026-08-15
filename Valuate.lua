@@ -11930,6 +11930,7 @@ SlashCmdList["VALUATE"] = function(msg)
                 "  /valuate report - Gear status: upgrades waiting, weapon sets, bag space, automation",
                 "  /valuate selftest - Check the addon's own plumbing and integrations",
                 "  /valuate uicheck - Look for text or frames drawn outside where they belong",
+                "  /valuate enhancecheck - Report which enchant data sources this client exposes",
                 "  /valuate test [itemlink] - Test parsing an item (shift-click item to link)",
                 "  /valuate debug - Toggle debug mode (shows tooltip text being parsed)",
                 "  /valuate profile - Measure scan, scoring and tooltip-parse timings",
@@ -12098,6 +12099,15 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif command == "selftest" then
         Valuate:RunSelfTest()
+    elseif command == "enhancecheck" then
+        -- What can this client actually tell us about enhancements? Live-only data means
+        -- coverage depends entirely on which APIs exist here, and one of them is custom
+        -- to Ascension and undocumented.
+        if ns.PrintEnhanceProbe then
+            ns.PrintEnhanceProbe()
+        else
+            print("|cFFFF0000[Valuate]|r ui/Enhance.lua did not load.")
+        end
     elseif command == "uicheck" then
         -- The half no gate can see: real fonts, real anchors, real screen positions.
         if ns.RunUICheck then
