@@ -104,6 +104,9 @@ const SPEC_TIP = {
 const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction Valuate:CommitAutoScale" };
 const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        if noScalesTextFrame then" };
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
+const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
+const SC_ITEMS = { start: "local function SelfCheckDungeonItems(", end: "\n-- Does the dungeon you are standing in" };
+const SC_KEYS = { start: "local function SelfCheckDungeonKeys(", end: "\nlocal SELF_CHECKS" };
 const COMMIT_AUTO = { start: "function Valuate:CommitAutoScale(", end: "\n-- Everything that can" };
 const FROM_TEMPLATE = { start: "function ValuateUI_CreateScaleFromTemplate(", end: "\nfunction ValuateUI_NewScale" };
 const EDITOR_SUMMARY = { start: "local function UpdateEditorSummary(", end: "\n    ns.UpdateScaleEditorSummary" };
@@ -158,7 +161,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.127.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.128.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -214,7 +217,9 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua",
     label: "caches judged on one lookup, so a lucky first hit reads as 100%",
     from: "if total < SELF_VERIFY_MIN_HITS then", to: "if false then" },
-  { gate: "selfverify", file: "Valuate.lua",
+  // Scoped when SelfCheckDungeonItems reused the same threshold. An anchor that was
+  // unique when written does not stay unique, which is what the ambiguity guard is for.
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_CACHES,
     label: "a cold cache passes, hiding that the optimisation is not real on this client",
     from: "if pct >= 80 then", to: "if pct >= 0 then" },
   { gate: "selfverify", file: "Valuate.lua",
@@ -757,4 +762,30 @@ module.exports = [
   { gate: "aboutfits", file: "tools/luaharness.js",
     label: "string height stops depending on the string, and layout gates measure nothing",
     from: "return lines * 12", to: "return 12" },
+
+  // ---- the self-checks for the harvested loot table (v0.128.0a) ------------
+  // These are the only things that will ever settle whether 2,918 ids taken out of AtlasLoot
+  // are real on this server. A wrong verdict here is worse than no verdict: it is a green
+  // line about data nobody has tested.
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_ITEMS,
+    label: "a completely cold cache reports PASS, so untested ids look verified",
+    from: 'if resolved == 0 then', to: "if false then" },
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_ITEMS,
+    label: "any resolution rate at all counts as success, so a broken table passes",
+    from: "if pct >= 80 then", to: "if pct >= 0 then" },
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_ITEMS,
+    label: "the ambiguous middle is reported as a definite failure instead of 'run it again'",
+    from: '    return "skip", string.format(\n        "Only %d%% of %d sampled ids resolved',
+    to: '    return "fail", string.format(\n        "Only %d%% of %d sampled ids resolved' },
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_ITEMS,
+    label: "a generator that harvested nothing reads as fine",
+    from: 'if #ids == 0 then', to: "if false then" },
+
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_KEYS,
+    label: "a dungeon whose name does not match reports PASS - the silent failure stays silent",
+    from: '    return "fail", string.format(\n        "\\"%s\\" is not in the loot table',
+    to: '    return "pass", string.format(\n        "\\"%s\\" is not in the loot table' },
+  { gate: "selfverify", file: "Valuate.lua", scope: SC_KEYS,
+    label: "standing in the open world is judged as a real result rather than skipped",
+    from: 'if instanceType ~= "party" then', to: "if false then" },
 ];

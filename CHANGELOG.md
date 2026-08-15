@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.128.0a] - 2026-08-15 — the addon checks its own homework
+
+### Added
+Eight releases have shipped today and every one ended with me saying it was unverified in the
+client. The checklist reached 48 entries. Some of those entries do not need a human at all —
+they need a running client, which is a different thing — so `/valuate selfverify` now answers
+two of them itself.
+
+**Do the harvested dungeon item ids exist on this server?** I harvested 2,918 ids out of
+AtlasLoot and said plainly I could not verify one from outside the game. This is the inside of
+the game. It samples 120 ids spread across the table and asks the client.
+
+The difficulty is that `GetItemInfo` returns nothing both for an item that does not exist
+**and** for one the client has never fetched, and those are opposite answers. Asking is also
+what fixes the second case — the call queues a server lookup — so the check reports a **rate**
+and tells you to run it twice, rather than declaring an id fake on one miss:
+
+| | |
+|---|---|
+| nothing resolved | **fail** — cold cache or a wrong table; run it again |
+| under 80% | **skip** — undecided, and it says how to decide it |
+| 80%+ | **pass** — with the rate, not just "ok" |
+| no ids at all | **fail** — and it blames the generator, not your cache |
+
+**Does this dungeon's name match the loot table?** The whole feature hangs on a string match
+between AtlasLoot's zone names and whatever `GetInstanceInfo` returns here. A mismatch is
+silent *by design* — an unlisted dungeon produces no advice — so the failure looks exactly
+like the feature being switched off, and nothing would ever have told you. Stand in a 5-man
+and run `/valuate selfverify`.
+
+### Technical
+Two mutation results worth recording, because both were caused by this change rather than
+found by it:
+
+- Adding `if pct >= 80 then` made an **older** mutation ambiguous. It had been unscoped
+  because the anchor was unique when it was written — and an anchor that is unique today does
+  not stay unique. That is exactly what the ambiguity guard exists for; the old entry is now
+  scoped to the function it names.
+- The empty-table branch survived, because it and the cold-cache branch both return `fail`.
+  The status is the same; the **message** is not, and the message is the entire value — one
+  says "your client has not fetched these yet", the other says "the generator is broken".
+  Asserting only the status let a mutation delete the branch and survive. The gate now checks
+  the wording.
+
 ## [0.127.0a] - 2026-08-15 — the About panel could not grow, so it did not
 
 ### Fixed

@@ -7401,8 +7401,100 @@ local function SelfCheckAutomationsCanRun()
                    ". The toggle will sit there looking armed and never fire."
 end
 
+-- Do the harvested dungeon item ids exist on THIS server?
+--
+-- 2,918 ids were taken out of AtlasLoot and I said plainly that I could not verify one from
+-- outside the game. This is the inside of the game. The client is the only thing that can
+-- settle it, and it can - so asking it is strictly better than shipping the caveat and
+-- leaving the question open forever.
+--
+-- The honest reading of a nil is the whole difficulty. GetItemInfo returns nothing both for
+-- an item that does not exist AND for one the client has simply never fetched, and those are
+-- opposite answers. Asking is also what fixes the second case: the call queues a server
+-- lookup, so a second run a minute later resolves everything real. That is why this reports
+-- a RATE and says to run it twice, rather than declaring a specific id fake on one miss.
+local function SelfCheckDungeonItems()
+    if not ns.DUNGEON_LOOT then
+        return "skip", "The dungeon loot table did not load."
+    end
+    if type(GetItemInfo) ~= "function" then
+        return "skip", "No GetItemInfo() on this client."
+    end
+
+    -- Sampled rather than exhaustive: 2,918 GetItemInfo calls in one frame is a stutter
+    -- nobody asked for, and a sample answers the actual question - is this table broadly
+    -- right for this server - just as well as a full sweep would.
+    local SAMPLE = 120
+    local ids, seen = {}, {}
+    for _, dungeon in pairs(ns.DUNGEON_LOOT) do
+        for _, boss in ipairs(dungeon.bosses or {}) do
+            for _, id in ipairs(boss.items or {}) do
+                if not seen[id] then seen[id] = true ids[#ids + 1] = id end
+            end
+        end
+    end
+    if #ids == 0 then
+        return "fail", "The loot table has no item ids at all - the generator harvested nothing."
+    end
+
+    -- Evenly spread through the list, so the sample covers dungeons across both expansions
+    -- rather than the first few alphabetically.
+    local step = math.max(1, math.floor(#ids / SAMPLE))
+    local asked, resolved = 0, 0
+    for i = 1, #ids, step do
+        asked = asked + 1
+        if GetItemInfo(ids[i]) then resolved = resolved + 1 end
+        if asked >= SAMPLE then break end
+    end
+
+    local pct = math.floor((resolved / asked) * 100 + 0.5)
+    if resolved == 0 then
+        return "fail", string.format(
+            "None of %d sampled item ids resolved. Either the client cache is completely cold " ..
+            "(run this again in a minute) or the harvested table is wrong for this server.", asked)
+    end
+    if pct >= 80 then
+        return "pass", string.format(
+            "%d%% of %d sampled dungeon item ids exist on this server. The rest are most " ..
+            "likely just uncached - re-run to confirm they climb.", pct, asked)
+    end
+    return "skip", string.format(
+        "Only %d%% of %d sampled ids resolved so far. Asking is what caches them, so run " ..
+        "this again in a minute: if the number does not climb, the loot table is wrong for " ..
+        "this server and /valuate dungeon will be advising on items that do not drop.",
+        pct, asked)
+end
+
+-- Does the dungeon you are standing in have an entry under the name the client reports?
+--
+-- The whole feature hangs on a string match between AtlasLoot's zone names and whatever
+-- GetInstanceInfo() returns here. A mismatch is silent BY DESIGN - an unlisted dungeon
+-- produces no advice at all - so the failure looks exactly like the feature being switched
+-- off, and nothing would ever tell you.
+local function SelfCheckDungeonKeys()
+    if not ns.DUNGEON_LOOT or type(GetInstanceInfo) ~= "function" then
+        return "skip", "No dungeon loot table, or no GetInstanceInfo() on this client."
+    end
+    local ok, name, instanceType = pcall(GetInstanceInfo)
+    if not ok or type(name) ~= "string" then
+        return "skip", "GetInstanceInfo() gave no usable name."
+    end
+    if instanceType ~= "party" then
+        return "skip", "Not in a 5-man - stand in one and re-run to check its name matches."
+    end
+    if ns.DUNGEON_LOOT[name] then
+        return "pass", string.format("\"%s\" matches an entry, so the loot check can speak here.", name)
+    end
+    return "fail", string.format(
+        "\"%s\" is not in the loot table, so nothing will ever be suggested here. Either the " ..
+        "dungeon is genuinely unmapped, or this server names it differently from AtlasLoot - " ..
+        "and the two are indistinguishable from outside.", name)
+end
+
 local SELF_CHECKS = {
     { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
+    { id = "dungeonids", title = "The harvested dungeon item ids exist on this server", run = SelfCheckDungeonItems },
+    { id = "dungeonkey", title = "This dungeon's name matches the loot table", run = SelfCheckDungeonKeys },
     { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries },
     { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches },
     { id = "agreement",  title = "Two scoring paths agree about your gear", run = SelfCheckScoreAgreement },
@@ -9974,7 +10066,7 @@ local VERIFY_CHECKS = {
         id = "dungeondata", since = "0.120.0a",
         gate = "tools/dungeonloot.js",
         title = "The dungeon panel is honest about what it does not know",
-        steps = "Run /valuate dungeon in the open world, then inside a dungeon that is NOT in the table (anything but Deadmines), then inside Deadmines itself.",
+        steps = "Run /valuate selfverify first - it now answers the name-matching half on its own. Then /valuate dungeon in the open world, in a dungeon that is NOT in the table, and inside Deadmines.",
         expect = "Outside an instance: 'Not in a 5-man dungeon.' In an unlisted one: it names the dungeon and says nothing will be suggested there - and says so in a way that cannot be mistaken for 'there is nothing worth staying for.' In Deadmines: every boss listed by name, each green (has an upgrade), grey (nothing for you) or yellow (items not cached yet), plus a summary counting all three.",
         broke = "This is the check the whole feature rests on. The table is harvested from AtlasLoot rather than written by hand, so the risk is not a typo - it is the KEY not matching. If /valuate dungeon says 'no loot data for The Deadmines' while you are standing in Deadmines, GetInstanceInfo reports a different string than AtlasLoot's zone name, and the entry silently never matches - which the safety rules turn into permanent silence rather than a visible error. Check a Wrath dungeon too; the two AtlasLoot modules were written years apart.",
     },

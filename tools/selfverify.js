@@ -38,6 +38,8 @@ const PIECES = [
   /^local function SelfCheckScoreAgreement\([\s\S]*?\r?\nend/m,
   /^local QUEUE_AUTOMATION_NEEDS = \{[\s\S]*?\r?\n\}/m,
   /^local function SelfCheckAutomationsCanRun\([\s\S]*?\r?\nend/m,
+  /^local function SelfCheckDungeonItems\([\s\S]*?\r?\nend/m,
+  /^local function SelfCheckDungeonKeys\([\s\S]*?\r?\nend/m,
   /^local SELF_CHECKS = \{[\s\S]*?\r?\n\}/m,
   /^function Valuate:RunSelfVerify\([\s\S]*?\r?\nend/m,
 ];
@@ -117,6 +119,12 @@ local EQUIPPED, BAGS = {}, {}
 function GetInventoryItemLink(_, slotId) return EQUIPPED[slotId] end
 function GetContainerNumSlots(bagId) return BAGS[bagId] and 16 or 0 end
 function GetContainerItemLink(bagId, slotId) return BAGS[bagId] and BAGS[bagId][slotId] end
+
+-- The dungeon loot table and the client's view of it. ns already exists above.
+local ITEMS_EXIST = {}
+function GetItemInfo(id) return ITEMS_EXIST[id] and ("Item " .. id) or nil end
+local INSTANCE_NAME, INSTANCE_TYPE = "Nowhere", "none"
+function GetInstanceInfo() return INSTANCE_NAME, INSTANCE_TYPE end
 
 ` + sliced.join("\n") + `
 
@@ -278,7 +286,7 @@ OPTIONS.autoLeaveBattleground = nil
 
 -- ---- the shape of the report -------------------------------------------------
 local all = Valuate:RunSelfVerify()
-eq(#all, 5, "every check reports, none silently dropped")
+eq(#all, 7, "every check reports, none silently dropped")
 for _, r in ipairs(all) do
     ok(r.status == "pass" or r.status == "fail" or r.status == "skip",
        "every status is one of the three, never nil: " .. tostring(r.id))
@@ -294,7 +302,71 @@ table.insert(SELF_CHECKS, { id = "silent", title = "a check that returns nothing
 local silent = resultFor("silent")
 eq(silent.status, "fail", "a check that returns nothing is a FAILURE, not a pass")
 ok(type(silent.detail) == "string" and silent.detail ~= "", "and still says something")
-eq(#Valuate:RunSelfVerify(), 6, "and it is reported, not dropped")
+eq(#Valuate:RunSelfVerify(), 8, "and it is reported, not dropped")
+
+-- ---- the harvested dungeon item ids -------------------------------------------
+-- This check is the only thing that will ever settle whether 2,918 ids taken out of
+-- AtlasLoot are real on THIS server. Its whole difficulty is that a nil from GetItemInfo
+-- means both "does not exist" and "not fetched yet", and those are opposite answers.
+ns.DUNGEON_LOOT = {
+    ["Testmines"] = { bosses = {
+        { name = "A", items = { 101, 102, 103, 104 } },
+        { name = "B", items = { 105, 106, 107, 108 } },
+    } },
+}
+
+-- Cold cache: nothing resolves. This must NOT read as "the table is wrong" with certainty,
+-- but it must also not pass - a green line here would be a lie about untested data.
+ITEMS_EXIST = {}
+local cold = resultFor("dungeonids")
+eq(cold.status, "fail", "not one id resolving is a failure, not a quiet pass")
+ok(cold.detail:find("again", 1, true) ~= nil,
+   "and it says to re-run, because asking is what caches them")
+
+-- Everything resolves: the harvest is good for this server.
+for i = 101, 108 do ITEMS_EXIST[i] = true end
+local warm = resultFor("dungeonids")
+eq(warm.status, "pass", "ids that all resolve is a pass")
+ok(warm.detail:find("100%%") ~= nil or warm.detail:find("100", 1, true) ~= nil,
+   "and it reports the rate rather than just saying 'ok'")
+
+-- Half resolving is the ambiguous middle, and it must stay ambiguous rather than picking a
+-- side. Reported as SKIP with instructions, not as pass and not as fail.
+ITEMS_EXIST = { [101] = true, [102] = true, [103] = true, [104] = true }
+local half = resultFor("dungeonids")
+eq(half.status, "skip", "a partial rate is undecided, not a verdict")
+ok(half.detail:find("again", 1, true) ~= nil, "and says how to decide it")
+
+-- An empty table is a broken generator, and that IS a definite failure.
+ns.DUNGEON_LOOT = { ["Empty"] = { bosses = { { name = "A", items = {} } } } }
+local none = resultFor("dungeonids")
+eq(none.status, "fail", "a table with no ids at all is a failure")
+-- Same STATUS as a cold cache, deliberately different message. Asserting only the status let
+-- a mutation delete this branch entirely and survive: both paths said "fail" and the gate
+-- could not tell "your client has not fetched these yet" from "the generator is broken",
+-- which are the two things a reader most needs told apart.
+ok(none.detail:find("harvested nothing", 1, true) ~= nil,
+   "and it blames the GENERATOR rather than telling you to wait for a cache that will never fill")
+
+-- ---- the dungeon name matching --------------------------------------------------
+-- The feature hangs on a string match, and a mismatch is silent BY DESIGN - so without
+-- this, a wrong key looks exactly like the feature being switched off.
+ns.DUNGEON_LOOT = { ["The Deadmines"] = { bosses = { { name = "A", items = { 1 } } } } }
+
+INSTANCE_NAME, INSTANCE_TYPE = "Elwynn Forest", "none"
+eq(resultFor("dungeonkey").status, "skip", "standing in the open world is a skip, not a verdict")
+
+INSTANCE_NAME, INSTANCE_TYPE = "The Deadmines", "party"
+eq(resultFor("dungeonkey").status, "pass", "a name that matches an entry passes")
+
+INSTANCE_NAME = "Deadmines"
+local missed = resultFor("dungeonkey")
+eq(missed.status, "fail", "a near-miss name is a FAILURE - this is the silent case")
+ok(missed.detail:find("Deadmines", 1, true) ~= nil,
+   "and it prints what the client actually called it, so the fix is obvious")
+
+INSTANCE_NAME, INSTANCE_TYPE = "The Deadmines", "raid"
+eq(resultFor("dungeonkey").status, "skip", "a raid is not this feature's business")
 
 return failures, checks
 `,
