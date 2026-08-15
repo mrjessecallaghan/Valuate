@@ -7933,6 +7933,52 @@ end
 -- OnUpdate watching the key or nothing at all. Nothing at all: hold Alt and hover, or move
 -- off and back. An OnUpdate polling for a key on every frame, for a line most hovers do not
 -- want, is a poor trade - and this codebase has a lint rule about raw OnUpdate for a reason.
+-- Why did this item's hit count for less than the number on it?
+--
+-- v0.130.0a made hit stop scoring once you are capped, which silently changes what an item is
+-- worth - and a score that quietly moved is worse than one that did not, because you cannot
+-- tell a working addon from a broken one. The whole reason this addon shows a breakdown is
+-- that a confident number with no explanation is not evidence.
+--
+-- Returns a line, or nil when there is nothing to say. Nothing to say is the common case: no
+-- hit on the item, feature off, uncalibrated, or plenty of headroom left.
+function Valuate:BuildHitCapLine(stats, scale)
+    if not Valuate:GetOptions().hitCapAware then return nil end
+    local itemRating = stats and tonumber(stats.HitRating)
+    if not itemRating or itemRating <= 0 then return nil end
+    -- Only worth a line if this scale actually wants hit. An item carrying hit, hovered by
+    -- someone whose build ignores it, is not being penalised by the cap.
+    if not scale or not scale.Values or not scale.Values.HitRating
+        or scale.Values.HitRating == 0 then return nil end
+
+    local state = Valuate:GetHitState(scale)
+    if not state then return nil end
+
+    -- Not calibrated is worth saying, because the feature is doing NOTHING and the score is
+    -- therefore the old one. Silence here would look like "you have headroom".
+    if not state.calibrated then
+        return "|cFFAAAAAAHit is scored in full - no hit rating worn yet, so the rating-per-" ..
+               "percent cannot be worked out.|r"
+    end
+
+    if state.headroom <= 0 then
+        return string.format("|cFFFF8800This item's %d hit is worth nothing|r - you are at the " ..
+            "%.1f%% cap.", itemRating, state.cap)
+    end
+
+    local itemPercent = itemRating / state.perPercent
+    if itemPercent <= state.headroom then
+        -- Fits entirely. Say how much room is left, since that is the thing a person hovering
+        -- a hit item actually wants to know.
+        return string.format("|cFFAAAAAAAll %d hit counts - %.2f%% of the %.1f%% cap still to go.|r",
+            itemRating, state.headroom, state.cap)
+    end
+
+    local usefulRating = math.floor(state.headroom * state.perPercent + 0.5)
+    return string.format("|cFFFF8800Only %d of this item's %d hit counts|r - the rest is past " ..
+        "the %.1f%% cap.", usefulRating, itemRating, state.cap)
+end
+
 function Valuate:BuildDetailLines(itemLink, stats)
     local info = Valuate:ExplainBestInSlot(itemLink, stats)
     if not info then return nil end
@@ -7958,6 +8004,13 @@ function Valuate:BuildDetailLines(itemLink, stats)
             lines[#lines + 1] = string.format("%s  |cFFAAAAAAno weights set|r", named)
         end
     end
+
+    -- One line for the whole item, not one per scale: the cap is a property of your
+    -- character, so repeating it under every scale would be the same sentence three times.
+    -- Uses the primary scale, which is the one whose cap the scoring actually applied.
+    local primary = Valuate.GetPrimaryScale and Valuate:GetPrimaryScale()
+    local hitLine = primary and Valuate:BuildHitCapLine(stats, primary)
+    if hitLine then lines[#lines + 1] = hitLine end
 
     return #lines > 0 and lines or nil
 end

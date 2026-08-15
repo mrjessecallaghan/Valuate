@@ -43,6 +43,7 @@ const PIECES = [
   /^local DIMINISHING_STATS = \{[\s\S]*?\r?\n\}/m,
   /^local function DiminishingFactor\([\s\S]*?\r?\nend/m,
   /^function Valuate:CalculateItemScore\([\s\S]*?\r?\nend/m,
+  /^function Valuate:BuildHitCapLine\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
   const m = lua.match(re);
@@ -224,6 +225,61 @@ OWNED = { Strength = 99999 }
 local STR = { Values = { Strength = 1.0 } }
 near(scoreOf({ Strength = 10 }, STR), 10, "primary stats are not tapered - they do not work like that")
 OPTIONS.diminishingReturns = false
+
+-- ---- the tooltip says WHY the number moved ------------------------------------------
+-- A score that quietly changed is worse than one that did not: you cannot tell a working
+-- addon from a broken one. This whole project shows a breakdown because a confident number
+-- with no explanation is not evidence, and v0.130.0a introduced a silent adjustment.
+local function tipFor(stats, scale) return Valuate:BuildHitCapLine(stats, scale) end
+
+OPTIONS.hitCapAware = true
+OPTIONS.diminishingReturns = false
+
+-- Nothing to say is the common case, and saying nothing is right.
+RATING, PERCENT = 10, 2.0
+tick()
+eq(tipFor({ Intellect = 5 }, CASTER), nil, "an item with no hit gets no line")
+eq(tipFor({ HitRating = 5 }, { Values = { Intellect = 1.0 } }), nil,
+   "nor does a build that does not want hit - nothing is being penalised")
+
+OPTIONS.hitCapAware = false
+eq(tipFor({ HitRating = 5 }, CASTER), nil, "nor when the feature is switched off")
+OPTIONS.hitCapAware = true
+
+-- Fits entirely: confirm it counts, and say how much room is left. That is the thing someone
+-- hovering a hit item actually wants to know.
+local fits = tipFor({ HitRating = 5 }, CASTER)
+ok(fits ~= nil, "an item whose hit all fits still gets a line")
+ok(fits:find("All 5 hit counts", 1, true) ~= nil, "saying it all counts")
+ok(fits:find("2.00%", 1, true) ~= nil, "and how much headroom is left")
+
+-- Partly wasted. The useful RATING is named, not a percentage - the number on the item is a
+-- rating, so the comparison has to be in the same units to mean anything.
+local partial = tipFor({ HitRating = 20 }, CASTER)
+ok(partial ~= nil, "an item that overshoots gets a line")
+ok(partial:find("Only 10 of this item's 20 hit counts", 1, true) ~= nil,
+   "naming how much of it counts, in rating rather than percent")
+
+-- Fully capped: the strongest case, and the one that makes a good item look bad for no
+-- visible reason.
+RATING, PERCENT = 20, 4.0
+tick()
+local capped = tipFor({ HitRating = 20 }, CASTER)
+ok(capped ~= nil, "a capped character gets a line")
+ok(capped:find("worth nothing", 1, true) ~= nil, "saying the hit is worth nothing")
+ok(capped:find("4.0%", 1, true) ~= nil, "and naming the cap it is measured against")
+
+-- Uncalibrated has to speak too. The feature is doing NOTHING here, so silence would read as
+-- "you have headroom" when the truth is "this was not adjusted at all".
+RATING, PERCENT = 0, 0
+tick()
+local blind2 = tipFor({ HitRating = 20 }, CASTER)
+ok(blind2 ~= nil, "an uncalibrated character gets a line rather than silence")
+ok(blind2:find("scored in full", 1, true) ~= nil,
+   "saying the score was not adjusted - silence would read as 'you have room'")
+
+RATING, PERCENT = 10, 2.0
+tick()
 
 return failures, checks
 `,

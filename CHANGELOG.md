@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.131.0a] - 2026-08-15 — and saying so on the item
+
+### Added
+Yesterday's release made hit stop counting once you are capped. It did that **silently**: an
+item's score simply became smaller, with nothing anywhere explaining why.
+
+That is the failure this whole project keeps circling. A score that quietly moved is worse
+than one that did not, because you cannot tell a working addon from a broken one — and the
+reason this addon shows a breakdown at all is that a confident number with no explanation is
+not evidence. I shipped the exact problem I have spent the week removing from other people's
+screens.
+
+Hovering an item with hit now says which case you are in:
+
+| | |
+|---|---|
+| plenty of room | *All 12 hit counts — 2.40% of the 4.0% cap still to go* |
+| partly wasted | *Only 10 of this item's 20 hit counts — the rest is past the 4.0% cap* |
+| capped | *This item's 20 hit is worth nothing — you are at the 4.0% cap* |
+| not calibrated | *Hit is scored in full — no hit rating worn yet* |
+
+Four details that are deliberate:
+
+- **The wasted portion is named in rating, not percent.** The number printed on the item is a
+  rating, so a comparison in any other unit means nothing at a glance.
+- **The "all of it counts" case still gets a line.** It is not noise — how much room is left is
+  precisely what someone hovering a hit item wants to know.
+- **"Not calibrated" speaks too.** The feature is doing *nothing* in that state, and silence
+  would read as "you have headroom" when the truth is "this was not adjusted at all".
+- **A build that does not want hit gets no line.** Nothing is being taken from it, and a
+  caveat on an item that is not being penalised is just noise.
+
+One line for the whole item rather than one per scale, because the cap is a property of your
+character — repeating it under every scale would be the same sentence three times.
+
+### Technical
+4 mutations, all caught, each restoring the silence in a different place. The gate now runs 42
+checks against the real `BuildHitCapLine`.
+
 ## [0.130.0a] - 2026-08-15 — hit stops counting once you cannot miss
 
 ### Added

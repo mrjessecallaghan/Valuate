@@ -106,6 +106,7 @@ const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
 const HIT_STATE = { start: "function Valuate:GetHitState(", end: "\n-- How much of THIS item" };
+const HIT_LINE = { start: "function Valuate:BuildHitCapLine(", end: "\nfunction Valuate:BuildDetailLines" };
 const HIT_FACTOR = { start: "local function HitValueFactor(", end: "\n-- Diminishing VALUE" };
 const DIM_FACTOR = { start: "local function DiminishingFactor(", end: "\nfunction Valuate:CalculateItemScore" };
 const CASTER_TEST = { start: "local function ScaleIsCaster(", end: "\n-- What the client says" };
@@ -167,7 +168,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.130.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.131.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -865,4 +866,21 @@ module.exports = [
     label: "primary stats are tapered too, though they do not work that way",
     from: "local DIMINISHING_STATS = {\n    CritRating = true,",
     to: "local DIMINISHING_STATS = setmetatable({}, { __index = function() return true end })\nlocal _UNUSED = {\n    CritRating = true," },
+
+  // ---- saying why the number moved (v0.131.0a) -----------------------------
+  // A silent scoring adjustment is worse than none: you cannot tell a working addon from a
+  // broken one. Each of these puts the silence back in a different place.
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_LINE,
+    label: "a capped item says nothing, so a good item looks bad for no visible reason",
+    from: "if state.headroom <= 0 then", to: "if false then" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_LINE,
+    label: "an uncalibrated character is told nothing, which reads as having headroom",
+    from: "if not state.calibrated then", to: "if false then" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_LINE,
+    label: "the wasted portion is reported in percent, not the rating printed on the item",
+    from: "local usefulRating = math.floor(state.headroom * state.perPercent + 0.5)",
+    to: "local usefulRating = math.floor(state.headroom + 0.5)" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_LINE,
+    label: "builds that ignore hit are lectured about a cap costing them nothing",
+    from: "if not scale or not scale.Values or not scale.Values.HitRating", to: "if false and (nil" },
 ];
