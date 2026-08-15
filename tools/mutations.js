@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.163.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.164.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1431,4 +1431,25 @@ module.exports = [
   { gate: "tabtest", file: "ui/BestEquipment.lua",
     label: "saved results from last session are reported as never having scanned",
     from: "        if haveStored then", to: "        if false then" },
+  // ---- Ascension scales gear, so the template level is not a fact (v0.164.0a) ---
+  // GetItemInfo’s minLevel is the item template’s number. On a server that scales gear
+  // to your level it says nothing about this character, and the scan was filing wearable
+  // gear under "upgrade at level 24" for a level already effectively passed. The tooltip
+  // is rendered for THIS character with scaling applied, so redness is the whole signal.
+  { gate: "scaledlevel", file: "Valuate.lua",
+    label: "a met requirement drawn in white is read as a level still ahead of you",
+    from: "        if TooltipLineIsRed(line) then", to: "        if line then" },
+
+  // The other direction: a real requirement missed means gear recommended that cannot be
+  // worn, which is worse - it is advice you cannot act on at all.
+  { gate: "scaledlevel", file: "Valuate.lua",
+    label: "a genuinely unmet level requirement is ignored",
+    from: "            local level = text and text:match(pattern)",
+    to: "            local level = nil" },
+
+  // Line 1 is the item name in its quality colour, and legendary orange is close to red.
+  { gate: "scaledlevel", file: "Valuate.lua",
+    label: "the item name is scanned, so its text can invent a required level",
+    scope: { start: "function ns.TooltipRequiredLevel(", end: "    return nil" },
+    from: "for i = 2, tooltip:NumLines() do", to: "for i = 1, tooltip:NumLines() do" },
 ];

@@ -1513,11 +1513,37 @@ function Valuate:GetAutoScaleDrift()
     return drifted
 end
 
+-- The shape/meaning version of the stored scan, NOT the addon version.
+--
+-- Bumped only when previously stored data would now be READ WRONG - not when the addon
+-- changes, which is most releases and would throw away a good scan every time.
+--
+-- 2: reqLevel used to be GetItemInfo's template minLevel. Ascension scales gear to your
+--    level, so that number was never a fact about this character, and every scan written
+--    before v0.164.0a carries it. Those values drive "upgrade at level 24" lines for gear
+--    you can already wear, and they would have gone on doing so until something happened
+--    to trigger a rescan - which for a levelling character can be a long time.
+ns.BEST_EQUIPMENT_SCHEMA = 2
+
 -- Get character-specific best equipment table
 function Valuate:GetBestEquipment()
     if not ValuateBestEquipment then
         ValuateBestEquipment = {}
     end
+
+    -- Discard once, rather than migrate.
+    --
+    -- The stored value cannot be corrected in place: the truth is in a tooltip that has to
+    -- be rendered against the live item, and the item may not even be in the bags any more.
+    -- A scan is cheap and happens on the next bag update anyway; a wrong level sitting in
+    -- front of somebody is not. So the old data goes, and the next scan refills it.
+    if ValuateBestEquipment.__schema ~= ns.BEST_EQUIPMENT_SCHEMA then
+        for k in pairs(ValuateBestEquipment) do
+            ValuateBestEquipment[k] = nil
+        end
+        ValuateBestEquipment.__schema = ns.BEST_EQUIPMENT_SCHEMA
+    end
+
     return ValuateBestEquipment
 end
 
@@ -4387,6 +4413,39 @@ local function TooltipHasUnmetRequirement(tooltipName)
     return false
 end
 
+-- The level this character actually has to reach, read from the tooltip - or nil.
+--
+-- ASCENSION SCALES GEAR TO YOUR LEVEL, so GetItemInfo's minLevel is the template's number
+-- and not a fact about this character. An item whose template says "Requires Level 24" is
+-- commonly wearable long before 24 because it scaled down to meet you, and the addon was
+-- reading that static 24 and parking the item in "upgrade at level 24" - a level you had
+-- already effectively passed, for an item you could put on immediately.
+--
+-- The tooltip does not have that problem. It is rendered by the client, for this character,
+-- with scaling already applied: if the requirement is genuinely unmet it is drawn RED, and
+-- if it is met it is not drawn red at all. TooltipLineIsRed's own comment made this argument
+-- about proficiencies - "respects Ascension's learned proficiencies rather than a static
+-- class table" - and the level check simply never got the same treatment.
+--
+-- Returns nil when no red level line is present, which means there is no level to wait for.
+function ns.TooltipRequiredLevel(tooltipName)
+    local tooltip = _G[tooltipName]
+    if not tooltip then return nil end
+    for i = 2, tooltip:NumLines() do
+        local line = getglobal(tooltipName .. "TextLeft" .. i)
+        if TooltipLineIsRed(line) then
+            local text = line:GetText()
+            -- Localised via the client's own format string where it exists, falling back to
+            -- the enUS wording. Only a RED line is read, so a met requirement shown in white
+            -- can never be mistaken for one that is still ahead of you.
+            local pattern = (ITEM_MIN_LEVEL or "Requires Level %d"):gsub("%%d", "(%%d+)")
+            local level = text and text:match(pattern)
+            if level then return tonumber(level) end
+        end
+    end
+    return nil
+end
+
 -- How many of this item may be EQUIPPED at once, from its tooltip.
 -- Returns nil when unrestricted.
 --
@@ -4556,17 +4615,21 @@ function Valuate:ScanBankContents()
                         local itemName, _, _, _, itemMinLevel, _, _, _, itemEquipLoc = GetItemInfo(itemLink)
                         if itemEquipLoc and itemEquipLoc ~= ""
                            and not Valuate:IsItemExcludedFromEvaluation(itemLink) then
-                            local ok, stats, hasUnmetReq, uniqueLimit = pcall(function()
+                            local ok, stats, hasUnmetReq, uniqueLimit, tipLevel = pcall(function()
                                 tooltip:ClearLines()
                                 tooltip:SetBagItem(bagId, slotId)
                                 local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                                 return parsed,
                                     TooltipHasUnmetRequirement("ValuatePrivateTooltip"),
-                                    TooltipUniqueLimit("ValuatePrivateTooltip")
+                                    TooltipUniqueLimit("ValuatePrivateTooltip"),
+                                    ns.TooltipRequiredLevel("ValuatePrivateTooltip")
                             end)
                             if ok and stats then
                                 local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
-                                local reqLevel = itemMinLevel or 0
+                                -- From the TOOLTIP, not from GetItemInfo. Ascension scales
+                                -- gear to your level, so the template's minLevel is not a
+                                -- fact about this character - see TooltipRequiredLevel.
+                                local reqLevel = tipLevel or 0
                                 items[itemId] = {
                                     itemLink = itemLink,
                                     itemName = itemName or "Unknown",
@@ -4578,7 +4641,12 @@ function Valuate:ScanBankContents()
                                     -- "Equippable" here means the character MEETS the
                                     -- requirements - not that it can be reached right
                                     -- now. Reachability is the `source` field's job.
-                                    equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq),
+                                    -- The tooltip is the whole answer. It is rendered for
+                                    -- THIS character with scaling applied, so a second test
+                                    -- against a static template level can only disagree with
+                                    -- it - and did, parking wearable gear in "upgrade at
+                                    -- level 24" for a level the character had passed.
+                                    equippableNow = not hasUnmetReq,
                                     uniqueLimit = uniqueLimit,
                                     count = 1,
                                 }
@@ -4676,7 +4744,11 @@ function Valuate:ScanBestEquipment()
                                 stats = stats,
                                 itemTexture = itemTexture,
                                 itemQuality = itemQuality or 0,
-                                reqLevel = itemMinLevel or 0,
+                                -- Zero, not the template's number. You are WEARING it, so
+                                -- whatever level it once claimed to want is settled, and a
+                                -- non-zero value here would feed "upgrade at level N" about
+                                -- an item already on your body.
+                                reqLevel = 0,
                                 -- An equipped item is by definition currently equippable.
                                 equippableNow = true,
                                 source = "equipped",
@@ -4718,21 +4790,23 @@ function Valuate:ScanBestEquipment()
                                 tooltip:ClearLines()
                                 -- Use SetBagItem for bag items to get actual scaled stats
                                 -- Use pcall to safely handle cases where item might be in transit
-                                local success, stats, hasUnmetReq, uniqueLimit = pcall(function()
+                                local success, stats, hasUnmetReq, uniqueLimit, tipLevel = pcall(function()
                                     tooltip:SetBagItem(bagId, slotId)
                                     local parsed = Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
                                     return parsed,
                                         TooltipHasUnmetRequirement("ValuatePrivateTooltip"),
-                                        TooltipUniqueLimit("ValuatePrivateTooltip")
+                                        TooltipUniqueLimit("ValuatePrivateTooltip"),
+                                        ns.TooltipRequiredLevel("ValuatePrivateTooltip")
                                 end)
 
                                 if success and stats then
                                     local _, _, itemQuality, _, _, _, _, _, _, itemTexture = GetItemInfo(itemLink)
-                                    local reqLevel = itemMinLevel or 0
-                                    -- Equippable now = meets required level AND the tooltip shows no
-                                    -- red (unmet) requirement lines. Bag items only; equipped items
-                                    -- are always equippable.
-                                    local equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq)
+                                    -- Both from the TOOLTIP. The line above already says why
+                                    -- the stats are read that way - "to get actual scaled
+                                    -- stats" - and the requirement scales for exactly the same
+                                    -- reason. Only the stats half was ever done.
+                                    local reqLevel = tipLevel or 0
+                                    local equippableNow = not hasUnmetReq
                                     itemData[itemId] = {
                                         itemLink = itemLink,
                                         itemName = itemName or "Unknown",
@@ -10955,6 +11029,14 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "scaledlevel", since = "0.164.0a",
+        gate = "tools/scaledlevel.js",
+        title = "Scaled gear is not filed under a level you have passed",
+        steps = "Put a piece of gear in your bags whose tooltip names a level ABOVE yours but which Ascension has scaled so you can wear it. Run /valuate scan, then hover it and open Best Equipment.",
+        expect = "No 'Upgrade at level N' line. It is treated as wearable now and appears as a normal upgrade if it beats what you have on.",
+        broke = "The scan used GetItemInfo minLevel - the item TEMPLATE's number - and compared your level against it, so scaled gear was parked in the future list at a level you had effectively passed. The fix reads the requirement from the tooltip instead, because the client renders that for your character with scaling already applied. The gate proves the reader against mocked tooltips; what only the client can show is whether Ascension actually draws a met requirement in white rather than red, which is the entire assumption. If scaled gear STILL shows an upgrade-at-level line, that assumption is wrong and the colour test needs replacing with something else.",
     },
     {
         id = "uicheck", since = "0.161.0a",

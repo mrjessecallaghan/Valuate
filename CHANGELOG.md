@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.164.0a] - 2026-08-15 — "upgrade at level 24" for gear you can already wear
+
+### Fixed
+**Ascension scales gear to your level, and the addon was reading the item template anyway.**
+
+`GetItemInfo`'s `minLevel` is a number on the item's template. On a server that scales gear
+down to meet you it is not a fact about your character — a piece whose template says
+*Requires Level 24* is commonly wearable well before 24. The scan compared your level against
+that number:
+
+```lua
+equippableNow = (playerLevel >= reqLevel) and (not hasUnmetReq)
+```
+
+…so wearable gear was filed under **"Upgrade at level 24"**, for a level you had effectively
+already passed, on an item you could have put on immediately. Everything downstream — the
+tooltip line, the future list, the level-up announcement — was fed that number.
+
+The tooltip does not have this problem. It is rendered by the client, **for your character,
+with scaling applied**: an unmet requirement is drawn red, a met one is not. The addon was
+already reading redness for proficiencies, and `TooltipLineIsRed`'s own comment makes exactly
+this argument — *"respects Ascension's learned proficiencies rather than a static class
+table"*. The level check simply never got the same treatment. Nor did the stats, except that
+they did: the bag scan carries the comment *"use SetBagItem for bag items to get actual
+scaled stats"*. Half the job was done years ago.
+
+Requirements now come from the tooltip at all three scan sites, and `equippableNow` is
+whatever the client says it is. An equipped item's stored level is zero, because you are
+wearing it and a template number about an item on your body can only mislead.
+
+### Fixed
+**Stored scans from before this release carry the old numbers**, and would have gone on
+producing wrong level lines until something triggered a rescan — which for a levelling
+character can be a long time. `ValuateBestEquipment` now carries a schema marker and
+discards once when it does not match.
+
+Discarded rather than migrated, deliberately: the correct value lives in a tooltip that has
+to be rendered against the live item, and the item may not be in your bags any more. A rescan
+is cheap and happens on the next bag update; a wrong level in front of somebody is not.
+
+### Technical
+New gate `scaledlevel.js` runs the real reader against mocked tooltips. The colour *is* the
+signal, so the cases are about colour: white "Requires Level 24" yields no level; red yields
+its number; a red line with no level in it yields nothing rather than zero, so the caller
+still says *"upgrade once you can use it"* instead of inventing *"at level 0"*; the item name
+on line 1 is skipped however red it is; and orange is not red, because legendary quality text
+sits inside the red channel but not the green one.
+
+The schema constant and the new reader both had to go on `ns` rather than be file locals —
+`Valuate.lua` sits at 180 of Lua's 200 locals per scope, and `top-level-local-budget` caught
+each of them on the way in.
+
+
 ## [0.163.0a] - 2026-08-15 — the same lie, one panel over
 
 ### Fixed
