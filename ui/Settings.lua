@@ -1437,6 +1437,115 @@ local function CreateSettingsPanel(parent)
     bgHint:SetTextColor(unpack(COLORS.textDim))
     columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
 
+    -- ---- Scoring ---------------------------------------------------------------
+    --
+    -- What a stat is worth to you RIGHT NOW, rather than in the abstract. A stat weight is a
+    -- claim about the next point of a stat, and two things make that claim change: the hit
+    -- cap, past which hit does nothing at all, and how much of a stat you have already
+    -- stacked.
+    --
+    -- In column 2 because the balance gate measured the columns at 998/686/846 and this is
+    -- the shortest.
+    local scoringHeader = CreateSectionHeader(col2, 2, "Scoring", bgHint)
+
+    local hitCapCheckbox = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
+    hitCapCheckbox:SetSize(24, 24)
+    hitCapCheckbox:SetPoint("TOPLEFT", scoringHeader, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    local hitCapLabel = hitCapCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    hitCapLabel:SetPoint("LEFT", hitCapCheckbox, "RIGHT", 5, 0)
+    hitCapLabel:SetText("Stop valuing hit once you are capped")
+    hitCapLabel:SetTextColor(unpack(COLORS.textBody))
+    hitCapCheckbox:SetChecked(Valuate:GetOptions().hitCapAware == true)
+    hitCapCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().hitCapAware =
+            (self:GetChecked() == 1) or (self:GetChecked() == true)
+        if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    end)
+    hitCapCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Stop valuing hit once you are capped", 1, 1, 1)
+            GameTooltip:AddLine("Past the cap, hit does nothing at all, so it scores nothing. " ..
+                "Only the part of an item's hit that lands under the cap counts.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("/valuate hit shows what it is assuming, including the rating " ..
+                "per 1% it worked out from your own gear.", 0.6, 0.9, 0.6, true)
+            GameTooltip:Show()
+        end
+    end)
+    hitCapCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
+
+    CreateCol2NumberRow("Cap for a target this many levels above you:", hitCapCheckbox, ELEMENT_SPACING,
+        tostring(Valuate:GetOptions().hitCapTargetGap or 0),
+        function(box) box:SetNumeric(true) box:SetMaxLetters(1) end,
+        function(box)
+            local n = tonumber(box:GetText())
+            if n and n >= 0 and n <= 3 then
+                Valuate:GetOptions().hitCapTargetGap = math.floor(n)
+                if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
+                if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+            end
+            box:SetText(tostring(Valuate:GetOptions().hitCapTargetGap or 0))
+        end,
+        tostring(Valuate:GetOptions().hitCapTargetGap or 0))
+    columnHeights[2] = columnHeights[2] + 18 + ELEMENT_SPACING
+
+    local hitCapHint = col2:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    hitCapHint:SetPoint("TOPLEFT", col2, "TOPLEFT", 0, -columnHeights[2])
+    hitCapHint:SetWidth(settingsColumnWidth)
+    hitCapHint:SetJustifyH("LEFT")
+    hitCapHint:SetText("0 = same-level mobs, 3 = a raid boss. The cap is far higher\n" ..
+                       "against a boss, so levelling with the boss number set would\n" ..
+                       "have you stacking hit you cannot use.")
+    hitCapHint:SetTextColor(unpack(COLORS.textDim))
+    columnHeights[2] = columnHeights[2] + 40 + ELEMENT_SPACING
+
+    local drCheckbox = CreateFrame("CheckButton", nil, col2, "UICheckButtonTemplate")
+    drCheckbox:SetSize(24, 24)
+    drCheckbox:SetPoint("TOPLEFT", hitCapHint, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    local drLabel = drCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    drLabel:SetPoint("LEFT", drCheckbox, "RIGHT", 5, 0)
+    drLabel:SetText("Value crit/haste less as you stack them")
+    drLabel:SetTextColor(unpack(COLORS.textBody))
+    drCheckbox:SetChecked(Valuate:GetOptions().diminishingReturns == true)
+    drCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().diminishingReturns =
+            (self:GetChecked() == 1) or (self:GetChecked() == true)
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    end)
+    drCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Value crit/haste less as you stack them", 1, 1, 1)
+            -- Said plainly on the control itself, because the honest version of this is not
+            -- what most people expect and they are about to change how their gear is ranked.
+            GameTooltip:AddLine("This is a PREFERENCE, not a game mechanic. 3.3.5 applies no " ..
+                "diminishing returns to crit or haste rating - that is linear, and the ones " ..
+                "you may be thinking of are on dodge and parry.", 1.0, 0.7, 0.4, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("What is true is that your tenth point of crit does less for " ..
+                "you than your first, because it competes with everything else you have " ..
+                "stacked. Switch this on if you want that reflected.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+        end
+    end)
+    drCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    columnHeights[2] = columnHeights[2] + 24 + ELEMENT_SPACING
+
+    CreateCol2NumberRow("Half weight at this much rating:", drCheckbox, ELEMENT_SPACING,
+        tostring(Valuate:GetOptions().diminishingHalfAt or 400),
+        function(box) box:SetNumeric(true) box:SetMaxLetters(5) end,
+        function(box)
+            local n = tonumber(box:GetText())
+            if n and n > 0 then
+                Valuate:GetOptions().diminishingHalfAt = math.floor(n)
+                if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+            end
+            box:SetText(tostring(Valuate:GetOptions().diminishingHalfAt or 400))
+        end,
+        tostring(Valuate:GetOptions().diminishingHalfAt or 400))
+    columnHeights[2] = columnHeights[2] + 18 + ELEMENT_SPACING
+
 
     -- ========================================
     -- COLUMN 3: Character Window, Keybindings, Advanced

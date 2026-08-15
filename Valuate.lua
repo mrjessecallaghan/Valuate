@@ -640,7 +640,12 @@ local function OnEvent(self, event, addonName, ...)
             -- rather than several seconds later.
             ScheduleScan(ScanTiming().delay, "bag")
         end
+    elseif event == "PLAYER_LEVEL_UP" or event == "COMBAT_RATING_UPDATE" then
+        -- Both change what a point of hit is worth: levelling moves the conversion, and a
+        -- rating update means the gear underneath it moved. Cheap to drop, wrong to keep.
+        if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
         -- Equipment changed - mark that we had a change
         recentEquipmentChange = true
         -- Failsafe: always clear the in-transit flag after items have settled.
@@ -814,6 +819,20 @@ local DEFAULT_OPTIONS = {
     autoQueueDungeon = false,
     autoAcceptBattleground = false,
     autoEquipOnLevelUp = false,
+    -- Hit past the cap does nothing, so it should score nothing. ON by default: this is a
+    -- game rule rather than a preference, and scoring capped hit at full weight is simply
+    -- wrong. See GetHitState - it refuses to act when it cannot work out the conversion.
+    hitCapAware = true,
+    -- What you are assumed to be fighting, as a level gap: 0 same-level, 3 a raid boss.
+    -- Defaults to 0 because most play is levelling, and a level 10 fighting level 10s has a
+    -- 4% spell cap while the boss number would tell them to stack four times as much.
+    hitCapTargetGap = 0,
+    -- Diminishing VALUE for crit/haste/expertise/armour pen. OFF by default, and deliberately
+    -- so: 3.3.5 applies no diminishing returns to those conversions, this is a claim about
+    -- worth rather than mechanics, and it reorders your gear list.
+    diminishingReturns = false,
+    -- The rating at which such a stat drops to half weight.
+    diminishingHalfAt = 400,
     -- Offer to leave a dungeon whose remaining bosses hold nothing for you. Notify-only: it
     -- asks rather than acting, and only when nothing remaining is unknown.
     notifyDungeonNoUpgrades = false,
@@ -3508,6 +3527,181 @@ end
 -- stats: Table of stat values {Strength = 10, Stamina = 20, ...}
 -- scale: Table of stat weights {Strength = 1.5, Stamina = 1.0, ...}
 -- Returns: Total score (number)
+-- ============================================================================
+-- HIT CAP, AND WHAT A STAT IS ACTUALLY WORTH TO YOU RIGHT NOW
+-- ============================================================================
+--
+-- A stat weight is a claim about the NEXT point of a stat, and this addon has been treating
+-- that claim as if it never changed. It does. Hit is the clearest case: once you cannot miss,
+-- the next point of hit is worth exactly nothing, and a scale that keeps weighting it at 1.0
+-- will happily rank a hit-stacked item above a better one forever.
+--
+-- Two separate ideas live here, and they are NOT the same kind of thing:
+--
+--   THE HIT CAP IS A GAME RULE. Past it, hit does nothing at all. Getting this wrong is a
+--   straightforward scoring error.
+--
+--   DIMINISHING RETURNS ON CRIT AND HASTE ARE A MODELLING CHOICE. 3.3.5 has no diminishing
+--   returns on the rating-to-percent conversion for those - it is linear, and anyone who
+--   tells you otherwise is thinking of dodge and parry. What IS true is that the tenth point
+--   of crit is worth less to you than the first, because it is competing with everything else
+--   you have stacked. That is a preference about how to value stacking, not a mechanic, and
+--   it is labelled as one everywhere it appears.
+--
+-- ---------------------------------------------------------------------------------------
+-- WHAT THE CAP ACTUALLY IS
+-- ---------------------------------------------------------------------------------------
+-- Miss chance depends on the level gap between you and what you are hitting, so "the hit cap"
+-- is meaningless without saying what you are fighting. These are the standard 3.3.5 values:
+--
+--            same level   +1     +2     +3 (boss)
+--   spell         4%       5%     6%      17%
+--   melee         5%      5.5%    6%       8%
+--
+-- Ascension is a modified server and may not use them. /valuate hit prints what it is
+-- assuming so a wrong number is visible rather than silently steering your gear.
+local HIT_CAP_BY_GAP = {
+    spell = { [0] = 4.0, [1] = 5.0, [2] = 6.0, [3] = 17.0 },
+    melee = { [0] = 5.0, [1] = 5.5, [2] = 6.0, [3] = 8.0 },
+}
+
+-- 3.3.5 combat rating indices. Named rather than inlined because 6/7/8 as bare numbers in a
+-- scoring path is exactly the sort of thing that gets "tidied" into the wrong order.
+local CR_HIT_MELEE, CR_HIT_RANGED, CR_HIT_SPELL = 6, 7, 8
+
+-- Does this scale describe someone who casts, or someone who swings?
+--
+-- There is ONE HitRating stat in this addon, but spell hit and melee hit are different caps.
+-- Rather than add a stat nobody's gear carries, the scale is asked what it values: a build
+-- weighting spell power and intellect wants the spell cap.
+local function ScaleIsCaster(scale)
+    local v = scale and scale.Values
+    if not v then return false end
+    local caster = (v.SpellPower or 0) + (v.Intellect or 0)
+    local physical = (v.AttackPower or 0) + (v.Strength or 0) + (v.Agility or 0)
+    return caster > physical
+end
+
+-- What the client says about your hit, right now.
+--
+-- Returns nil when it cannot tell, and every caller treats that as "do not adjust anything" -
+-- the same rule as the dungeon loot table. A scoring model that guesses at your hit is worse
+-- than one that ignores it, because it is wrong in a direction nobody can see.
+--
+-- Fields:
+--   percent        hit % you currently have from rating
+--   cap            the cap being assumed, and
+--   headroom       how much of it is left
+--   perPercent     rating needed for 1% - DERIVED from your own gear, never assumed
+--   calibrated     false when perPercent could not be derived (you carry no hit at all)
+local hitStateCache, hitStateAt = nil, -1
+local HIT_STATE_TTL = 2
+
+function Valuate:InvalidateHitState()
+    hitStateCache, hitStateAt = nil, -1
+end
+
+function Valuate:GetHitState(scale)
+    local now = (GetTime and GetTime()) or 0
+    -- Keyed by caster/melee, since the two have different caps and both can be asked for in
+    -- one repaint. A single cached answer would hand a caster the melee cap.
+    local key = ScaleIsCaster(scale) and "spell" or "melee"
+    if hitStateCache and hitStateCache[key]
+        and now - hitStateAt <= HIT_STATE_TTL and now >= hitStateAt then
+        return hitStateCache[key]
+    end
+
+    if type(GetCombatRating) ~= "function" or type(GetCombatRatingBonus) ~= "function" then
+        return nil
+    end
+
+    local ratingId = (key == "spell") and CR_HIT_SPELL or CR_HIT_MELEE
+    local okRating, rating = pcall(GetCombatRating, ratingId)
+    local okBonus, percent = pcall(GetCombatRatingBonus, ratingId)
+    if not okRating or not okBonus or type(percent) ~= "number" then return nil end
+    rating = tonumber(rating) or 0
+
+    local options = Valuate:GetOptions()
+    local gap = tonumber(options.hitCapTargetGap) or 0
+    if gap < 0 then gap = 0 elseif gap > 3 then gap = 3 end
+    local cap = HIT_CAP_BY_GAP[key][gap]
+
+    -- Rating per 1%, DERIVED from what you are wearing rather than from a table.
+    --
+    -- The conversion changes with level - at level 10 a point of hit rating is worth far more
+    -- percent than at 80 - and writing down a level curve for a modified server would be
+    -- exactly the invented number this addon keeps refusing to ship. Your own gear already
+    -- knows the answer, so it is asked. With no hit rating at all there is nothing to divide,
+    -- and the honest result is "not calibrated" rather than a guess.
+    local perPercent, calibrated = nil, false
+    if rating > 0 and percent > 0 then
+        perPercent = rating / percent
+        calibrated = true
+    end
+
+    local state = {
+        key = key,
+        rating = rating,
+        percent = percent,
+        cap = cap,
+        gap = gap,
+        headroom = math.max(0, cap - percent),
+        perPercent = perPercent,
+        calibrated = calibrated,
+    }
+    hitStateCache = hitStateCache or {}
+    if now < hitStateAt then hitStateCache = {} end
+    hitStateCache[key] = state
+    hitStateAt = now
+    return state
+end
+
+-- How much of THIS item's hit rating is worth anything.
+--
+-- Item-by-item rather than a flat multiplier on the stat, because the answer genuinely
+-- differs per item: with 1% of headroom left, an item carrying a little hit is fully useful
+-- and one carrying a lot is mostly wasted. Returns a 0..1 factor.
+local function HitValueFactor(itemRating, scale)
+    if not Valuate:GetOptions().hitCapAware then return 1 end
+    local state = Valuate:GetHitState(scale)
+    -- Cannot tell: change nothing. Never guess at a scoring input.
+    if not state or not state.calibrated or not itemRating or itemRating <= 0 then return 1 end
+
+    if state.headroom <= 0 then return 0 end          -- already capped: this is worth nothing
+    local itemPercent = itemRating / state.perPercent
+    if itemPercent <= state.headroom then return 1 end -- all of it lands under the cap
+    return state.headroom / itemPercent                -- only the part below the cap counts
+end
+
+-- Diminishing VALUE for the stats that stack without ever capping.
+--
+-- Say plainly what this is: 3.3.5 applies no diminishing returns to the crit or haste
+-- rating-to-percent conversion. It is linear. This is a claim about WORTH, not about
+-- mechanics - the tenth point of crit competes with everything else you have already
+-- stacked, so it does less for you than the first did.
+--
+-- A gentle curve, and off by default, because it changes how your gear is ranked and nobody
+-- should discover that by noticing their list reordered. HALF_VALUE_AT is where a stat drops
+-- to half weight; the curve is 1 / (1 + have/HALF_VALUE_AT), which is smooth, never reaches
+-- zero, and has no cliff for an item to sit either side of.
+local DIMINISHING_STATS = {
+    CritRating = true,
+    HasteRating = true,
+    ExpertiseRating = true,
+    ArmorPenetration = true,
+}
+
+local function DiminishingFactor(statName, scale, ownedRating)
+    if not DIMINISHING_STATS[statName] then return 1 end
+    local options = Valuate:GetOptions()
+    if not options.diminishingReturns then return 1 end
+    local half = tonumber(options.diminishingHalfAt) or 0
+    if half <= 0 then return 1 end
+    local have = tonumber(ownedRating) or 0
+    if have <= 0 then return 1 end
+    return 1 / (1 + (have / half))
+end
+
 function Valuate:CalculateItemScore(stats, scale)
     if not stats or not scale or not scale.Values then
         return nil
@@ -3537,14 +3731,35 @@ function Valuate:CalculateItemScore(stats, scale)
         end
     end
     
+    -- What you already have, for the stats whose value depends on it. Fetched ONCE per item
+    -- rather than per stat, and only when something actually wants it: with both features off
+    -- this is a single table lookup and the loop below is exactly what it always was.
+    local options2 = options or Valuate:GetOptions()
+    local adjusting = options2 and (options2.hitCapAware or options2.diminishingReturns)
+    local owned = adjusting and Valuate.GetCachedEquippedStatTotals
+        and Valuate:GetCachedEquippedStatTotals() or nil
+
     -- Multiply each stat value by its weight (and normalize if enabled) and sum them
     for statName, statValue in pairs(stats) do
         local weight = scaleValues[statName]
         if weight and weight ~= 0 then
-            total = total + (statValue * weight * normalizeFactor)
+            local contribution = statValue * weight * normalizeFactor
+            if adjusting then
+                -- Hit past the cap does nothing, so it scores nothing. Applied to the ITEM's
+                -- rating rather than as a flat multiplier on the stat, because with a little
+                -- headroom left a small hit item is fully useful and a large one is mostly
+                -- wasted - and a flat factor cannot tell those apart.
+                if statName == "HitRating" then
+                    contribution = contribution * HitValueFactor(statValue, scale)
+                else
+                    contribution = contribution *
+                        DiminishingFactor(statName, scale, owned and owned[statName])
+                end
+            end
+            total = total + contribution
         end
     end
-    
+
     return total
 end
 
@@ -9187,6 +9402,8 @@ frame:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
 -- PLAYER_ENTERING_WORLD is unregistered after the first fire, so it cannot serve here.
 frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 frame:RegisterEvent("LFG_COMPLETION_REWARD")
+-- Fires when a combat rating moves, which is the signal that cached hit state is stale.
+frame:RegisterEvent("COMBAT_RATING_UPDATE")
 frame:RegisterEvent("EQUIPMENT_SWAP_PENDING")
 frame:RegisterEvent("EQUIPMENT_SWAP_FINISHED")
 frame:RegisterEvent("BAG_UPDATE")
@@ -10031,6 +10248,22 @@ local VERIFY_CHECKS = {
         broke = "New in v0.109.0a. The switch is easy; the restore is where this could quietly leave you scoring dungeon gear against a PvP scale for days. Worth confirming the zone events Ascension fires actually reach it - if they do not, you will simply never see the first message, which is the tell.",
     },
     {
+        id = "hitcap", since = "0.130.0a",
+        gate = "tools/hitcap.js",
+        title = "The hit cap matches what your character sheet says",
+        steps = "Run /valuate hit. Compare the hit percentage it prints against your character sheet. Then equip or remove a piece with hit rating and run it again.",
+        expect = "The percentage matches the sheet. The derived 'rating per 1%' is sane for your level - far smaller at low level than the 32.79 people quote for 80. Changing gear moves both, and the cap in rating moves with it.",
+        broke = "This is the one number in the feature that is not taken from a table, and everything else rests on it. It is GetCombatRating divided by GetCombatRatingBonus, which is exact on a stock client - but Ascension is modified, and if either returns something unexpected the conversion is silently wrong and every hit item gets mis-ranked in a direction nothing displays. If /valuate hit says 'not calibrated' while you are visibly wearing hit, the rating index is wrong for this client. Check both a caster and a melee scale: they read different indices.",
+    },
+    {
+        id = "hitcapvalue", since = "0.130.0a",
+        gate = "tools/hitcap.js",
+        title = "Capped hit actually stops being valued",
+        steps = "With a scale that weights hit, hover an item carrying hit rating while under the cap, then again once /valuate hit says you are capped.",
+        expect = "Under the cap it contributes as it always did. Once capped, the same item scores as though its hit were not there - the rest of the item is unchanged. An item that would take you PAST the cap counts only the part that fits.",
+        broke = "The headless gate proves the arithmetic; what it cannot prove is that the cap the server actually uses matches the table. The standard 3.3.5 numbers are 4% spell and 5% melee against a same-level target, and Ascension may differ. If you can still miss same-level targets while /valuate hit says you are capped, the table is wrong for this server and the fix is the number in HIT_CAP_BY_GAP, not the code.",
+    },
+    {
         id = "emptybest", since = "0.126.0a",
         gate = "tools/firstrun.js",
         title = "The empty Best Equipment screen tells you the right thing to do next",
@@ -10778,6 +11011,9 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate autoleavebg - Toggle leaving a battleground once it has finished")
         print("  /valuate autoqueuepvp - Toggle re-queueing for PvP after leaving a battleground")
         print("  /valuate autoqueuedungeon - Toggle re-queueing for a dungeon after one finishes")
+        print("  /valuate hit - What the scoring assumes about your hit, and how much cap is left")
+        print("  /valuate hitcap - Toggle scoring hit at zero once you are capped")
+        print("  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)")
         print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
         print("  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade")
         print("  /valuate autoacceptbg - Toggle taking a battleground invite automatically")
@@ -11180,6 +11416,64 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "hit" then
+        -- What the scoring is actually assuming about your hit, in numbers you can check
+        -- against your own character sheet. The whole point is that a wrong assumption here
+        -- is invisible - it just quietly reorders your gear - so it gets printed.
+        local scale, scaleName = Valuate:GetPrimaryScale()
+        if not scale then
+            print("|cFFFF8800Valuate|r: No active scale, so there is nothing to score.")
+            return
+        end
+        local state = Valuate:GetHitState(scale)
+        print("|cFF00FF00[Valuate]|r Hit, for |cFFFFFFFF" .. tostring(scaleName) .. "|r")
+        if not state then
+            print("  |cFFFF8800This client has no GetCombatRating()|r - hit is scored at full " ..
+                "weight, exactly as it was before.")
+            return
+        end
+        print(string.format("  Treated as a |cFFFFFFFF%s|r build (from what the scale weights).",
+            state.key == "spell" and "caster" or "melee"))
+        print(string.format("  You have |cFFFFFFFF%.2f%%|r hit from |cFFFFFFFF%d|r rating.",
+            state.percent, state.rating))
+        print(string.format("  Cap assumed |cFFFFFFFF%.1f%%|r (target %d level(s) above you) - " ..
+            "|cFFFFFFFF%.2f%%|r to go.", state.cap, state.gap, state.headroom))
+        if state.calibrated then
+            print(string.format("  Your own gear says |cFFFFFFFF%.1f|r rating per 1%%, so the " ..
+                "cap is about |cFFFFFFFF%d|r rating.", state.perPercent,
+                math.floor(state.cap * state.perPercent + 0.5)))
+        else
+            print("  |cFFFF8800Not calibrated|r - you carry no hit rating, so there is nothing " ..
+                "to work the conversion out from. Hit is scored at full weight until you wear " ..
+                "some. Guessing the level curve is exactly the invented number this addon " ..
+                "refuses to ship.")
+        end
+        if not Valuate:GetOptions().hitCapAware then
+            print("  |cFFAAAAAACap-awareness is OFF - /valuate hitcap turns it on.|r")
+        elseif state.headroom <= 0 then
+            print("  |cFF00FF00You are capped|r - further hit scores zero.")
+        end
+        print("  |cFFAAAAAA/valuate hittarget <0-3> changes what you are assumed to fight.|r")
+    elseif command == "hitcap" then
+        local options = Valuate:GetOptions()
+        options.hitCapAware = not options.hitCapAware
+        print("|cFF00FF00Valuate|r: Hit-cap awareness " ..
+            (options.hitCapAware and "|cFF00FF00on|r" or "|cFFFF0000off|r"))
+        if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
+        if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+    elseif strsub(command, 1, 9) == "hittarget" then
+        local options = Valuate:GetOptions()
+        local n = tonumber(strtrim(strsub(command, 10) or ""))
+        if not n or n < 0 or n > 3 then
+            print("|cFFFF0000Valuate|r: Give a level gap from 0 to 3. 0 is a same-level " ..
+                "target, 3 is a raid boss.")
+        else
+            options.hitCapTargetGap = math.floor(n)
+            print(string.format("|cFF00FF00Valuate|r: Hit cap now assumes a target " ..
+                "|cFFFFFFFF%d|r level(s) above you.", math.floor(n)))
+            if Valuate.InvalidateHitState then Valuate:InvalidateHitState() end
+            if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
+        end
     elseif command == "dungeon" then
         -- What this addon knows about where you are standing, boss by boss.
         --

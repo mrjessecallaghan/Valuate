@@ -4,6 +4,78 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.130.0a] - 2026-08-15 — hit stops counting once you cannot miss
+
+### Added
+A stat weight is a claim about the **next** point of a stat, and this addon has been treating
+that claim as if it never changed. Hit is where that breaks hardest: once you cannot miss, the
+next point of hit is worth exactly nothing, and a scale weighting it at 1.0 will happily rank
+a hit-stacked item above a better one forever.
+
+Scoring now knows the cap. Only the part of an item's hit that lands **under** it counts —
+applied per item rather than as a flat multiplier, because with 1% of headroom left a small
+hit item is fully useful and a large one is mostly wasted, and a flat factor cannot tell those
+apart. On by default: this is a game rule, not a preference.
+
+**The cap depends on what you are fighting**, so that is a setting (Settings → Scoring, or
+`/valuate hittarget 0-3`). These are the standard 3.3.5 values:
+
+| | same level | +1 | +2 | +3 (boss) |
+|---|---|---|---|---|
+| spell | **4%** | 5% | 6% | 17% |
+| melee | 5% | 5.5% | 6% | 8% |
+
+Default is same-level, because most play is levelling — and *"I'm level 10 and my hit cap is
+4"* is exactly the spell/same-level number. With the boss figure set, a level 10 would be told
+to stack four times the hit they can use.
+
+Which row applies is read off the scale itself: a build weighting spell power and intellect
+gets the spell cap, one weighting strength and attack power gets melee. There is one
+`HitRating` stat, and adding a second that nobody's gear carries would have been worse.
+
+### The conversion is derived, never assumed
+This is the part I want to be plain about. Rating-to-percent **changes with level** — at level
+10 a point of hit rating is worth far more percent than at 80 — and Ascension is a modified
+server. Writing down a level curve would be exactly the invented number this addon keeps
+refusing to ship, and a wrong one would quietly mis-rank every piece of gear carrying hit, in
+a direction nobody could see.
+
+So your own gear is asked: `GetCombatRating` ÷ `GetCombatRatingBonus` **is** the conversion,
+exactly, for your level and this server. If you carry no hit rating at all there is nothing to
+divide, and the feature does **nothing** — hit is scored at full weight and `/valuate hit` says
+why. It calibrates itself the moment you wear a single point of hit.
+
+`/valuate hit` prints the whole assumption: caster or melee, what you have, the cap, the
+headroom, the derived rating-per-percent, and roughly what the cap costs in rating.
+
+### Added — diminishing value for crit and haste, labelled honestly
+Asked for alongside the hit cap, and it needs a caveat the request did not have: **3.3.5
+applies no diminishing returns to the crit or haste rating conversion.** It is linear. The
+diminishing returns people remember are on dodge and parry.
+
+What *is* true is that your tenth point of crit does less for you than your first, because it
+competes with everything else you have stacked. That is a claim about **worth**, not about
+mechanics, so it ships **off by default** with the distinction stated on the control itself.
+Switch it on and crit, haste, expertise and armour penetration taper as you accumulate them —
+a smooth curve that halves at a rating you choose and never reaches zero, because a stat with
+no cap should always be worth something.
+
+### Technical
+Cheap when off: with both features disabled the scoring loop is one extra table lookup and is
+otherwise exactly what it was. Hit state is cached with a short TTL and dropped on equipment
+change, level-up and `COMBAT_RATING_UPDATE`.
+
+Two mutations survived the first pass and both named gaps in the **fixture**, not the code:
+nothing had ever tested hit-cap *off* while diminishing returns were *on* — the combination a
+user reaches by enabling the optional one — and nothing checked that headroom clamps at zero
+rather than going negative, which `/valuate hit` would print as "-1.50% to go".
+
+A third was collateral: the Settings columns went from 998/936/**846** with the new Scoring
+section, improving balance from 69% to 85%, which pushed an existing balance mutation inside
+what the 60% threshold deliberately tolerates. It was resized rather than the threshold
+tightened — a mutation has to exceed what the gate forgives, or it asserts a rule the gate
+does not have.
+
 ## [0.129.0a] - 2026-08-15 — the wizard says why it stopped
 
 ### Fixed

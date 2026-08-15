@@ -105,6 +105,10 @@ const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction V
 const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        if noScalesTextFrame then" };
 const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const SC_CACHES = { start: "local function SelfCheckCaches(", end: "\nlocal SCORE_AGREEMENT_TOLERANCE" };
+const HIT_STATE = { start: "function Valuate:GetHitState(", end: "\n-- How much of THIS item" };
+const HIT_FACTOR = { start: "local function HitValueFactor(", end: "\n-- Diminishing VALUE" };
+const DIM_FACTOR = { start: "local function DiminishingFactor(", end: "\nfunction Valuate:CalculateItemScore" };
+const CASTER_TEST = { start: "local function ScaleIsCaster(", end: "\n-- What the client says" };
 const WIZ_PLAN = { start: "function ns.WizardPlan(", end: "\n    currentPlan = plan" };
 const WIZ_FAILED = { start: "local function BuildStepFailed(", end: "\nlocal function BuildStepDone" };
 const SC_ITEMS = { start: "local function SelfCheckDungeonItems(", end: "\n-- Does the dungeon you are standing in" };
@@ -163,7 +167,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.129.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.130.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -729,9 +733,13 @@ module.exports = [
     from: "parent.columnContentHeights = { columnHeights[1], columnHeights[2], columnHeights[3] }",
     to: "parent.columnContentHeights = { tallest, tallest, tallest }" },
   { gate: "settingstest", file: "ui/Settings.lua",
+    // 500, not 400. Balance improved from 69% to 85% when the Scoring section landed on
+    // the shortest column, so 400px of imbalance now sits INSIDE what the 60% threshold
+    // deliberately tolerates and the mutation survived. The number has to exceed what the
+    // gate forgives, or it is asserting a rule the gate does not have.
     label: "a whole section lands back on a column that was already the longest",
     from: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton)',
-    to: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton) columnHeights[1] = columnHeights[1] + 400' },
+    to: 'CreateSectionHeader(col3, 3, "Messages & Convenience", loadSettingsButton) columnHeights[1] = columnHeights[1] + 500' },
 
   // ---- the empty Best Equipment screen (v0.126.0a) -------------------------
   // The first screen a new user reaches. Its only job is to name the next action, and it
@@ -810,4 +818,51 @@ module.exports = [
     label: "a dead end - Close only, with the fix one screen away and no way back to it",
     from: 'local retry = ns.CreateStyledButton(f, "Try again", 150, BUTTON_HEIGHT + 4)',
     to: 'local retry = ns.CreateStyledButton(f, "Close", 150, BUTTON_HEIGHT + 4)' },
+
+  // ---- the hit cap (v0.130.0a) ---------------------------------------------
+  // Two failure directions, opposite in kind. Not capping over-values a dead stat; capping on
+  // a GUESS mis-ranks every hit item in a direction nobody can see. The second is worse.
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "hit past the cap is valued in full again - the bug the feature exists for",
+    from: "if state.headroom <= 0 then return 0 end", to: "if state.headroom <= 0 then return 1 end" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "an item that overshoots the cap is counted whole instead of up to the cap",
+    from: "return state.headroom / itemPercent", to: "return 1" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "it acts on an UNCALIBRATED conversion - capping on a number nobody derived",
+    from: "if not state or not state.calibrated or not itemRating or itemRating <= 0 then return 1 end",
+    to: "if not state or not itemRating or itemRating <= 0 then return 1 end" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_FACTOR,
+    label: "a switched-off scoring model changes your scores anyway",
+    from: "if not Valuate:GetOptions().hitCapAware then return 1 end", to: "" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_STATE,
+    label: "the conversion is assumed rather than derived, so it claims calibration it lacks",
+    from: "if rating > 0 and percent > 0 then", to: "if true then" },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_STATE,
+    label: "headroom can go negative, so being over the cap reads as room to spare",
+    from: "headroom = math.max(0, cap - percent),", to: "headroom = cap - percent," },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_STATE,
+    label: "everyone gets the melee cap, so casters are told to stack an extra 1%",
+    from: 'local key = ScaleIsCaster(scale) and "spell" or "melee"', to: 'local key = "melee"' },
+  { gate: "hitcap", file: "Valuate.lua", scope: HIT_STATE,
+    label: "the target level is ignored, so a raid cap is applied while levelling",
+    from: "local gap = tonumber(options.hitCapTargetGap) or 0", to: "local gap = 0" },
+  { gate: "hitcap", file: "Valuate.lua", scope: CASTER_TEST,
+    label: "caster and melee builds are told apart backwards",
+    from: "return caster > physical", to: "return physical > caster" },
+
+  // ---- diminishing value: a preference, and it has to behave like one ------
+  { gate: "hitcap", file: "Valuate.lua", scope: DIM_FACTOR,
+    label: "a preference that reorders your gear turns itself on",
+    from: "if not options.diminishingReturns then return 1 end", to: "" },
+  { gate: "hitcap", file: "Valuate.lua", scope: DIM_FACTOR,
+    label: "the curve falls twice as fast as the setting says it will",
+    from: "return 1 / (1 + (have / half))", to: "return 1 / (1 + (have / half) * 2)" },
+  { gate: "hitcap", file: "Valuate.lua", scope: DIM_FACTOR,
+    label: "the taper reaches zero, making heavily-stacked items unrankable against each other",
+    from: "return 1 / (1 + (have / half))", to: "return math.max(0, 1 - (have / half))" },
+  { gate: "hitcap", file: "Valuate.lua",
+    label: "primary stats are tapered too, though they do not work that way",
+    from: "local DIMINISHING_STATS = {\n    CritRating = true,",
+    to: "local DIMINISHING_STATS = setmetatable({}, { __index = function() return true end })\nlocal _UNUSED = {\n    CritRating = true," },
 ];
