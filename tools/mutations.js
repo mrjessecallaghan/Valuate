@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.155.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.156.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1224,4 +1224,27 @@ module.exports = [
     label: "an automation that has had no occasion to run shows a blank instead of saying so",
     from: 'GameTooltip:AddDoubleLine(a.label, "no occasion yet",',
     to: 'GameTooltip:AddDoubleLine(a.label, "",' },
+  // ---- every tab is built the same way (v0.156.0a) -------------------------
+  // Four of the six tabs were hand-copied from CreateTab and none of the copies carried
+  // the accent bar. SelectTab guards on the accent existing, so it skipped them without
+  // a texture error or a missing frame - four tabs simply never showed you where you
+  // were. Nothing could see it either, because the buttons were locals.
+
+  // The bar itself.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "a tab is built without the accent that marks the one you are on",
+    from: "        btn.accent = accent",
+    to: "        if name ~= \"about\" then btn.accent = accent end" },
+
+  // And that it follows the selection rather than merely existing. A bar shown on every
+  // tab at once marks nothing.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "the accent stays lit on tabs you have left, so it marks all of them",
+    from: "                if btn.accent then btn.accent:Hide() end",
+    to: "                if false then btn.accent:Hide() end" },
+
+  // The buttons have to stay reachable, or the checks above go back to being unwritable.
+  { gate: "tabtest", file: "ValuateUI.lua",
+    label: "the tab buttons stop being reachable, and nothing can check them again",
+    from: "        buttons = tabs,", to: "        buttons = nil," },
 ];

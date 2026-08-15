@@ -180,6 +180,50 @@ local firstAway = __reveals
 switchTo("bestEquipment")
 eq(__reveals, 1, "returning to a tab you left DOES play its arrival again")
 
+-- ---- every tab is built the same way -------------------------------------------
+-- Four of the six were hand-copied from the helper, and none of the copies carried the
+-- accent bar - the azure line marking the tab you are actually on. SelectTab guards on the
+-- accent existing at all, so it skipped them in silence: no missing texture, no error,
+-- just four tabs that never showed you where you were.
+--
+-- Written against the whole set rather than the four, because the next tab added by hand
+-- would be the fifth and this gate should not need editing to notice.
+local EXPECTED_TABS = { "scales", "settings", "changelog", "about", "instructions", "bestEquipment" }
+local buttons = ns.ValuateUIFrame.tabs.buttons
+ok(buttons ~= nil, "the tab buttons are reachable from outside the builder")
+
+if buttons then
+    local built = 0
+    for _ in pairs(buttons) do built = built + 1 end
+    eq(built, #EXPECTED_TABS, "every tab in the row was built")
+
+    for _, name in ipairs(EXPECTED_TABS) do
+        local btn = buttons[name]
+        ok(btn ~= nil, "tab exists: " .. name)
+        if btn then
+            ok(btn.accent ~= nil,
+               "tab has the accent bar that marks the one you are on: " .. name)
+            ok(btn.label ~= nil, "tab has a label: " .. name)
+            ok(btn:GetWidth() > 0, "tab was sized to its text: " .. name)
+        end
+    end
+
+    -- And the accent actually follows the selection, rather than merely existing.
+    --
+    -- Guarded, because a missing accent is the exact failure above and an unguarded index
+    -- here would abort the run with a Lua error instead of reporting which tab was wrong.
+    -- The gate still fails either way; only one of the two tells you what happened.
+    local a, b = buttons.about.accent, buttons.bestEquipment.accent
+    if a and b then
+        tabs.selectTab("about")
+        ok(a:IsShown(), "the selected tab shows its accent")
+        ok(not b:IsShown(), "and the others hide theirs")
+        tabs.selectTab("bestEquipment")
+        ok(b:IsShown(), "which moves with the selection")
+        ok(not a:IsShown(), "leaving the tab you came from unmarked")
+    end
+end
+
 -- ---- and the tab still changes ------------------------------------------------
 switchTo("instructions")
 switchTo("bestEquipment")

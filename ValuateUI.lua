@@ -344,7 +344,16 @@ local function CreateTabSystem(mainFrame, contentFrame)
     end
     
     -- Create tab buttons dynamically - sitting on bottom border of window
-    local function CreateTab(name, text, panel, anchorSide)
+    --
+    -- anchorTo chains a tab to the LEFT of an existing one. Without it this helper could
+    -- only place a tab at one edge or the other, so the four tabs in the middle of the row
+    -- were each hand-built instead - about seventy lines of the same button, copied.
+    --
+    -- They did not copy all of it. The accent bar below was never part of those four, and
+    -- SelectTab guards with `if btn.accent then`, so it skipped them in silence: four of the
+    -- six tabs showed no azure bar for the tab you were actually on, and none of the sweep.
+    -- The duplication was not the defect, but it is what let the defect hide.
+    local function CreateTab(name, text, panel, anchorSide, anchorTo)
         local btn = CreateFrame("Button", nil, mainFrame)  -- Parent to mainFrame for proper anchoring
         btn:SetHeight(22)
         btn:SetBackdrop(BACKDROP_BUTTON)
@@ -372,8 +381,10 @@ local function CreateTabSystem(mainFrame, contentFrame)
         -- Size button based on text
         btn:SetWidth(label:GetStringWidth() + 40)
         
-        -- Position tab on specified side of window bottom
-        if anchorSide == "right" then
+        -- Position tab on specified side of window bottom, or beside a neighbour
+        if anchorTo then
+            btn:SetPoint("RIGHT", anchorTo, "LEFT", -4, 0)
+        elseif anchorSide == "right" then
             btn:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, -21)
         else
             btn:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, -21)
@@ -443,89 +454,13 @@ local function CreateTabSystem(mainFrame, contentFrame)
     -- Create Settings tab first (anchored to right)
     local settingsTab = CreateTab("settings", "Settings", settingsPanel, "right")
     
-    -- Create Changelog tab to the left of Settings
-    local changelogBtn = CreateFrame("Button", nil, mainFrame)
-    changelogBtn:SetHeight(22)
-    changelogBtn:SetBackdrop(BACKDROP_BUTTON)
-    changelogBtn:SetBackdropColor(unpack(COLORS.buttonBg))
-    changelogBtn:SetBackdropBorderColor(unpack(COLORS.border))
-    changelogBtn:SetScript("OnClick", function()
-        SelectTab("changelog")
-    end)
-    
-    local changelogLabel = changelogBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    changelogLabel:SetPoint("CENTER", changelogBtn, "CENTER", 0, 0)
-    changelogLabel:SetText("Changelog")
-    changelogLabel:SetTextColor(unpack(COLORS.textBody))
-    changelogBtn.label = changelogLabel
-    changelogBtn:SetWidth(changelogLabel:GetStringWidth() + 40)
-    changelogBtn:SetPoint("RIGHT", settingsTab, "LEFT", -4, 0)
-    
-    tabs["changelog"] = changelogBtn
-    tabPanels["changelog"] = changelogPanel
-    
-    -- Create About tab to the left of Changelog
-    local aboutBtn = CreateFrame("Button", nil, mainFrame)
-    aboutBtn:SetHeight(22)
-    aboutBtn:SetBackdrop(BACKDROP_BUTTON)
-    aboutBtn:SetBackdropColor(unpack(COLORS.buttonBg))
-    aboutBtn:SetBackdropBorderColor(unpack(COLORS.border))
-    aboutBtn:SetScript("OnClick", function()
-        SelectTab("about")
-    end)
-    
-    local aboutLabel = aboutBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    aboutLabel:SetPoint("CENTER", aboutBtn, "CENTER", 0, 0)
-    aboutLabel:SetText("About")
-    aboutLabel:SetTextColor(unpack(COLORS.textBody))
-    aboutBtn.label = aboutLabel
-    aboutBtn:SetWidth(aboutLabel:GetStringWidth() + 40)
-    aboutBtn:SetPoint("RIGHT", changelogBtn, "LEFT", -4, 0)
-    
-    tabs["about"] = aboutBtn
-    tabPanels["about"] = aboutPanel
-    
-    -- Create Instructions tab to the left of About
-    local instructionsBtn = CreateFrame("Button", nil, mainFrame)
-    instructionsBtn:SetHeight(22)
-    instructionsBtn:SetBackdrop(BACKDROP_BUTTON)
-    instructionsBtn:SetBackdropColor(unpack(COLORS.buttonBg))
-    instructionsBtn:SetBackdropBorderColor(unpack(COLORS.border))
-    instructionsBtn:SetScript("OnClick", function()
-        SelectTab("instructions")
-    end)
-    
-    local instructionsLabel = instructionsBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    instructionsLabel:SetPoint("CENTER", instructionsBtn, "CENTER", 0, 0)
-    instructionsLabel:SetText("Instructions")
-    instructionsLabel:SetTextColor(unpack(COLORS.textBody))
-    instructionsBtn.label = instructionsLabel
-    instructionsBtn:SetWidth(instructionsLabel:GetStringWidth() + 40)
-    instructionsBtn:SetPoint("RIGHT", aboutBtn, "LEFT", -4, 0)
-    
-    tabs["instructions"] = instructionsBtn
-    tabPanels["instructions"] = instructionsPanel
-    
-    -- Create Best Equipment tab to the left of Instructions
-    local bestEquipmentBtn = CreateFrame("Button", nil, mainFrame)
-    bestEquipmentBtn:SetHeight(22)
-    bestEquipmentBtn:SetBackdrop(BACKDROP_BUTTON)
-    bestEquipmentBtn:SetBackdropColor(unpack(COLORS.buttonBg))
-    bestEquipmentBtn:SetBackdropBorderColor(unpack(COLORS.border))
-    bestEquipmentBtn:SetScript("OnClick", function()
-        SelectTab("bestEquipment")
-    end)
-    
-    local bestEquipmentLabel = bestEquipmentBtn:CreateFontString(nil, "OVERLAY", FONT_BODY)
-    bestEquipmentLabel:SetPoint("CENTER", bestEquipmentBtn, "CENTER", 0, 0)
-    bestEquipmentLabel:SetText("Best Equipment")
-    bestEquipmentLabel:SetTextColor(unpack(COLORS.textBody))
-    bestEquipmentBtn.label = bestEquipmentLabel
-    bestEquipmentBtn:SetWidth(bestEquipmentLabel:GetStringWidth() + 40)
-    bestEquipmentBtn:SetPoint("RIGHT", instructionsBtn, "LEFT", -4, 0)
-    
-    tabs["bestEquipment"] = bestEquipmentBtn
-    tabPanels["bestEquipment"] = bestEquipmentPanel
+    -- The rest of the row, right to left. Each was a hand-built copy of CreateTab until
+    -- the helper learned to chain - and none of the copies carried the accent bar, so the
+    -- tab you were on was marked only on Scales and Settings.
+    local changelogTab = CreateTab("changelog", "Changelog", changelogPanel, nil, settingsTab)
+    local aboutTab = CreateTab("about", "About", aboutPanel, nil, changelogTab)
+    local instructionsTab = CreateTab("instructions", "Instructions", instructionsPanel, nil, aboutTab)
+    CreateTab("bestEquipment", "Best Equipment", bestEquipmentPanel, nil, instructionsTab)
     
     -- Select default tab
     SelectTab("scales")
@@ -539,7 +474,12 @@ local function CreateTabSystem(mainFrame, contentFrame)
         changelogPanel = changelogPanel,
         settingsPanel = settingsPanel,
         bestEquipmentPanel = bestEquipmentPanel,
-        selectTab = SelectTab
+        selectTab = SelectTab,
+        -- The buttons themselves, so a gate can check they were all built the same way.
+        -- Four of the six used to be hand-copied and quietly lacked the accent bar that
+        -- marks the tab you are on; nothing could see that, because nothing could reach
+        -- them from outside this function.
+        buttons = tabs,
     }
 end
 

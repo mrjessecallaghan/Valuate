@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.156.0a] - 2026-08-15 — four of the six tabs never showed you where you were
+
+### Fixed
+The window has six tabs. **Two of them marked which one you were on.**
+
+`CreateTab` builds a tab button, and part of what it builds is an azure accent bar along the
+top edge, shown only for the active tab and swept in rather than popped so that switching
+tabs reads as a transition. It was used for exactly **two** tabs — Scales and Settings.
+
+The other four — Best Equipment, Instructions, About, Changelog — were each hand-built,
+about seventy lines of the same button copied four times, because the helper could only
+place a tab at one edge of the window and those four needed to chain right-to-left. The
+copies did not copy everything. **None of them created an accent.**
+
+`SelectTab` guards on the accent existing before touching it, so it skipped those four in
+silence. No missing texture, no Lua error, nothing in the log — just four tabs that never
+showed the strongest signal of which one you were looking at, and never played the sweep.
+
+`CreateTab` now takes a neighbour to chain against, and **all six tabs go through it**. That
+deleted 83 lines and left 7.
+
+### Added
+`tabtest.js` now checks that every tab in the row has an accent, a label, and a width, and
+that the accent **follows the selection** rather than merely existing — a bar lit on every
+tab at once marks nothing.
+
+Written against the whole set rather than the four that were broken, so the next tab added
+by hand is caught without editing the gate.
+
+### Technical
+The tab buttons were locals inside the window builder, reachable from nowhere. That is why
+nothing could see this: the gate could switch tabs and watch panels appear, but it could not
+look at a tab. They are published now, with a note saying what they are for.
+
+The duplication was not the defect. It is what let the defect hide — the four copies each
+looked complete on their own, and only differ from the original in what they omit.
+
+
 ## [0.155.0a] - 2026-08-15 — and what did each of them actually do?
 
 ### Added
