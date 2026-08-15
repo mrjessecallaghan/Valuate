@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.161.0a] - 2026-08-15 — asking the client the questions no gate can
+
+### Added
+**`/valuate uicheck`** — walks the live window and reports anything drawn where it does not
+belong.
+
+Sixty-seven headless gates prove a great deal about this UI: that every tab is built the same
+way, that buttons answer the mouse, that rows are reused rather than leaked. **None of them
+can measure a pixel.** The harness has no font metrics and does no layout — its
+`GetStringHeight` is a rough model that says so in its own comment, and `GetBottom` does not
+exist at all, because there is nothing to resolve a position against.
+
+So the defects that survive every gate are the ones with a coordinate in them. That is not a
+theory: **v0.158.0a shipped one.** A to-do row was a fixed 40 pixels and the explanation for a
+guessed scale wraps to three lines, so its second and third lines were drawn over whatever
+came next. Every gate passed. It was obvious in half a second of looking.
+
+This asks about that directly, in the client, using `GetTop` and `GetBottom` — resolved screen
+coordinates, which answer exactly what the harness cannot:
+
+- text or textures drawn outside the frame that owns them, **quoting the offending text** so
+  it can be found;
+- anything pushed off the edge of the screen;
+- whether exactly one tab is marked as current — a bar on all of them marks none, and until
+  v0.156.0a four of six carried no bar at all;
+- buttons that give no sign they can be clicked.
+
+It is a diagnostic. It reports and returns counts; nothing acts on the result.
+
+### Technical
+`uicheck.js` tests the **checker**, not the UI — it cannot test the UI, which is the whole
+point. It feeds fabricated rectangles shaped like the v0.158.0a defect and proves the report
+names it, quotes it, and says which direction it spilled.
+
+The direction that keeps it honest is tested too: a correctly laid-out window must report
+nothing. A checker that complains about correct layout trains people to ignore it, and then
+it protects nothing at all.
+
+Hidden frames are skipped — a pooled row sits hidden with stale coordinates far outside its
+list, and measuring those would bury the real report under phantoms. That assertion was
+written the wrong way round first, with the *parent* hidden rather than the child, and passed
+whether the child was checked or not: the parent's own guard was doing all the work. The
+mutation caught it.
+
+
 ## [0.160.0a] - 2026-08-15 — the tab says how many
 
 ### Added

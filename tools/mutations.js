@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.160.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.161.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1365,4 +1365,36 @@ module.exports = [
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "the tab keeps its old width, clipping the count it just added",
     from: "        todoTab:SetWidth(todoTab.label:GetStringWidth() + 40)", to: "" },
+  // ---- the in-client UI checker (v0.161.0a) --------------------------------
+  // A diagnostic that cannot fail is worse than none, because a clean run from it reads as
+  // evidence. These break the arithmetic that decides whether something is outside its
+  // parent; the gate feeds it fabricated coordinates, because the harness does no layout -
+  // which is the entire reason the command exists.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "text below its own row is no longer noticed - the v0.158.0a defect exactly",
+    from: "        if c.bottom < p.bottom - SLACK then over[#over + 1] = \"below\" end",
+    to: "        if false then over[#over + 1] = \"below\" end" },
+
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "the slack swallows real overflow instead of a rounded edge",
+    from: "local SLACK = 1", to: "local SLACK = 400" },
+
+  // The direction that keeps it honest. A checker that complains about correct layout
+  // trains people to ignore it, and then it protects nothing at all.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "a correctly laid-out window is reported as broken",
+    from: "        if c.top > p.top + SLACK then over[#over + 1] = \"above\" end",
+    to: "        if c.top >= p.top - 999 then over[#over + 1] = \"above\" end" },
+
+  // Hidden pooled rows keep stale coordinates. Measuring them would bury the real report.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "hidden rows are measured, so a pooled list reports dozens of phantom problems",
+    scope: { start: "-- ---- 1. nothing is drawn outside", end: "-- ---- 2. nothing is off" },
+    from: "if not (child.IsShown and child:IsShown()) then return end",
+    to: "if child == nil then return end" },
+
+  // And the tab count, which is how four of six tabs went unmarked until v0.156.0a.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    label: "every tab lit at once passes, though a bar on all of them marks none",
+    from: "        elseif lit > 1 then", to: "        elseif false then" },
 ];

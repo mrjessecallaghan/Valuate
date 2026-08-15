@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.160.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.161.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.160.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.161.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,9 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• NEW: /valuate uicheck walks the window and reports anything drawn outside\n" ..
+        "   where it belongs - text over a border, a row past its box, a frame off the\n" ..
+        "   screen. The headless tests cannot measure a pixel; this can.\n" ..
         "• The To Do tab reads 'To Do (3)' when three things need doing, and plain\n" ..
         "   'To Do' when nothing does - so you can see whether it is worth opening.\n" ..
         "• The To Do list shows three upgrades and now SAYS how many more are waiting,\n" ..

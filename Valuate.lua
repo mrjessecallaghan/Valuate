@@ -10918,6 +10918,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "uicheck", since = "0.161.0a",
+        gate = "tools/uicheck.js",
+        title = "The UI checker finds nothing, and you agree with it",
+        steps = "Run /valuate uicheck. Then walk every tab yourself and look for text sitting over a border, a row spilling past its box, or anything half off the window.",
+        expect = "It reports clean, and your own eyes agree. If it names something, it quotes the text so you can find it.",
+        broke = "This command exists because sixty-seven headless gates cannot measure a pixel - the harness has no font metrics and does no layout, so a fixed-height row whose text wrapped to three lines passed every one of them and shipped in v0.158.0a. The gate here proves the checker REPORTS correctly against fabricated coordinates; only the client can supply real ones. The failure to watch for is the opposite of a missed defect: if it names things that look fine to you, its slack is too tight and it will train you to ignore it, which is worse than not having it.",
+    },
+    {
         id = "todotab", since = "0.158.0a",
         gate = "tools/todopanel.js",
         title = "The To Do tab lists real work, and its buttons do it",
@@ -11800,6 +11808,7 @@ SlashCmdList["VALUATE"] = function(msg)
             { key = "check", title = "Diagnostics", lines = {
                 "  /valuate report - Gear status: upgrades waiting, weapon sets, bag space, automation",
                 "  /valuate selftest - Check the addon's own plumbing and integrations",
+                "  /valuate uicheck - Look for text or frames drawn outside where they belong",
                 "  /valuate test [itemlink] - Test parsing an item (shift-click item to link)",
                 "  /valuate debug - Toggle debug mode (shows tooltip text being parsed)",
                 "  /valuate profile - Measure scan, scoring and tooltip-parse timings",
@@ -11968,6 +11977,13 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif command == "selftest" then
         Valuate:RunSelfTest()
+    elseif command == "uicheck" then
+        -- The half no gate can see: real fonts, real anchors, real screen positions.
+        if ns.RunUICheck then
+            ns.RunUICheck()
+        else
+            print("|cFFFF0000[Valuate]|r ui/UICheck.lua did not load.")
+        end
     elseif command == "pulse" then
         -- Preview the minimap upgrade-pulse animation.
         if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end
