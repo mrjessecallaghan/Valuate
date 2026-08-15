@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.155.0a] - 2026-08-15 — and what did each of them actually do?
+
+### Added
+Hover the **Running:** line at the top of Settings and it says what every switched-on
+automation last did:
+
+> **repair** — 4 Min ago
+>   *nothing was damaged*
+> **rescue gear from junk** — 30 Sec ago
+>   *items were still in transit; left it*
+> **sell junk** — no occasion yet
+
+Two things were being thrown away here. The line truncates at three, so with more than that on,
+the answer to *"which of these are running?"* was itself abbreviated. And **every automation
+records an outcome when it runs — including when it decides to do nothing**, which was the whole
+point of the heartbeat: a feature whose correct behaviour is silence is otherwise
+indistinguishable from one that is broken. Those outcomes reached exactly one place, `/valuate
+report`, a chat command you have to know exists.
+
+"Ran, and did nothing, because X" and "has had no occasion to run" are shown as **different
+things**, because they are. The first is a working automation; the second is one that has not
+met a merchant, a quest, or a drop yet.
+
+### Added — quest turn-in can finally speak
+It was the only automation with no voice of its own. It shared the reward beat, which fires on
+the *reward* screen — so the report could say a reward had been taken but never that a quest had
+been advanced. The interesting case is the other branch: standing on a progress screen for a
+quest you cannot complete yet, where doing nothing is correct and looks exactly like being
+broken. It now says which.
+
+### Changed — one table instead of two that must agree
+`ns.AUTOMATION_LABELS` now carries each automation's heartbeat key beside its label. Keeping
+them in separate tables keyed the same way is the shape that has drifted **five times** in this
+project, and the drift here would have been the quietest yet: a wrong beat key does not error.
+`GetAutomationHeartbeat` returns nil, the panel says *"no occasion yet"*, and that is precisely
+what a genuinely idle automation looks like — so the one line that exists to tell you whether
+something is working would confidently report that it never had.
+
+`tools/options.js` now checks both halves: every automation has a beat, and **every beat named is
+one that `MarkAutomation` actually records**. It is the same failure as `autoRoll`/`autoRollLoot`
+two releases ago, except worse, because the label still appears and reads as informed.
+
+### Technical
+New gate `heartbeat.js` — 94 checks running the real table and the real lookup, including that no
+two automations share a beat, and that the list comes back in the same order every time (its
+source is `pairs()`, so an unsorted list would reshuffle between openings of the panel).
+
+The Settings harness's tooltip mock **discarded every line it was given**. Several controls put
+their only explanation in a tooltip, so that mock let a gate assert hovering does not error while
+proving nothing about what it says. It records now.
+
+And `sort-needs-tiebreaker` caught the new comparator immediately: labels are unique only because
+nobody has written the same one twice, where the option key is unique by construction.
+
+
 ## [0.154.0a] - 2026-08-15 — nothing acts while the bags are moving
 
 ### Fixed

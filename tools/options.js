@@ -327,6 +327,44 @@ if (labels) {
   const automations = keys.filter(
     (k) => /^(auto|notify)/.test(k) && !NOT_A_PREFERENCE[k] && !NOT_A_RUNNING_AUTOMATION[k]
   );
+  /*
+   * The other half of that table: the beat each automation writes to.
+   *
+   * A wrong beat key is silent in the worst way. It does not error - GetAutomationHeartbeat
+   * returns nil, the UI says "not yet this session", and that is exactly what an automation
+   * which is genuinely idle looks like. So the one line that exists to tell you whether
+   * something is working would confidently say it has never run.
+   *
+   * This is the same failure as autoRoll/autoRollLoot, which this file caught minutes after
+   * both were written. That one was a key that did not exist; a beat key that does not exist
+   * is worse, because the label still shows up and reads as informed.
+   */
+  const recorded = new Set(
+    [...core.matchAll(/MarkAutomation\(\s*["'](\w+)["']/g)].map((m) => m[1])
+  );
+  const beats = [...labels[1].matchAll(/^\s*(\w+)\s*=.*?beat\s*=\s*["'](\w+)["']/gm)];
+  const missingBeat = automations.filter(
+    (k) => labelled.has(k) && !beats.some((b) => b[1] === k)
+  );
+  if (missingBeat.length) {
+    console.error(
+      "Automations in ns.AUTOMATION_LABELS with no beat:\n  " + missingBeat.join("\n  ") +
+        "\n\nEvery automation has to be able to say what it last did, including when what it\n" +
+        "did was nothing. Add beat = \"<key>\" and a MarkAutomation call on every exit path."
+    );
+    process.exit(1);
+  }
+  const phantom = beats.filter((b) => !recorded.has(b[2]));
+  if (phantom.length) {
+    console.error(
+      "Beat keys nothing ever records:\n  " +
+        phantom.map((b) => `${b[1]} -> "${b[2]}"`).join("\n  ") +
+        "\n\nGetAutomationHeartbeat returns nil for these, so the UI reports 'not yet this\n" +
+        "session' forever - which is indistinguishable from an automation that is idle."
+    );
+    process.exit(1);
+  }
+
   const unlisted = automations.filter((k) => !labelled.has(k));
   if (unlisted.length) {
     console.error(

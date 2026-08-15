@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.154.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.155.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1144,7 +1144,7 @@ module.exports = [
     from: "        if #on == 0 then", to: "        if false then" },
   { gate: "options", file: "Valuate.lua",
     label: "an automation drops out of the running list and nothing notices",
-    from: '    autoRollLoot = "roll on loot",', to: "" },
+    from: "    autoRollLoot            = { label = \"roll on loot\",                  beat = \"autoRoll\" },", to: "" },
 
   // ---- nothing acts while items are in transit (v0.154.0a) -----------------
   // The delete and sell paths have refused mid-swap since the transit bug. EquipBestSet did
@@ -1188,4 +1188,40 @@ module.exports = [
     label: "an unreachable-by-test acting path drops out of the rule entirely",
     from: "-- valuate-lint-ignore: acting-paths-wait-for-transit  re-verifies each slot instead, below",
     to: "-- (exemption removed)" },
+  // ---- what each automation last did (v0.155.0a) ---------------------------
+  // The heartbeat was recorded from the beginning and readable only through /valuate
+  // report. Every step between an option being on and its outcome appearing is a table
+  // lookup that returns nil rather than failing, so every one of them can break quietly.
+
+  // The join itself: option key -> beat -> outcome. Point an automation at a beat nothing
+  // records and the UI says 'no occasion yet' forever, which is what an idle automation
+  // looks like - so the wrong answer is indistinguishable from the right one.
+  { gate: "heartbeat", file: "Valuate.lua",
+    label: "an automation is pointed at a beat nothing records, and reads as merely idle",
+    from: 'beat = "autoRepair" },', to: 'beat = "autoRepairs" },' },
+
+  // Two automations on one beat: switching on the second would report the first's outcome.
+  { gate: "heartbeat", file: "Valuate.lua",
+    label: "two automations share a beat, so one reports the other\u2019s outcome",
+    from: 'beat = "junkSell" },', to: 'beat = "junkCleanup" },' },
+
+  // The tiebreaker. pairs() feeds this, so equal labels would reshuffle between openings.
+  { gate: "heartbeat", file: "Valuate.lua",
+    scope: { start: "function Valuate:ActiveAutomationDetail(", end: "\n    return out" },
+    label: "the running list reorders itself between openings of the panel",
+    from: "table.sort(out, function(a, b)", to: "local _ = (function(a, b)" },
+
+  // And the hover has to SHOW the outcome, not merely the fact that something ran. A
+  // healthy automation's usual answer is 'did nothing, and here is why' - the why is the
+  // entire reason this stopped being a chat command.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "the hover reports that an automation ran but not what it concluded",
+    from: 'GameTooltip:AddLine("      " .. a.outcome, 0.55, 0.75, 0.55, true)',
+    to: 'GameTooltip:AddLine("      ran", 0.55, 0.75, 0.55, true)' },
+
+  // 'has not run yet' and 'ran, and did nothing' look identical if the first is blank.
+  { gate: "settingstest", file: "ui/Settings.lua",
+    label: "an automation that has had no occasion to run shows a blank instead of saying so",
+    from: 'GameTooltip:AddDoubleLine(a.label, "no occasion yet",',
+    to: 'GameTooltip:AddDoubleLine(a.label, "",' },
 ];

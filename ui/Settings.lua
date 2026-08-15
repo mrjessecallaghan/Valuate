@@ -260,14 +260,67 @@ local function CreateSettingsPanel(parent)
             activeLine:SetText("|cFFAAAAAANo automation is running. Everything below is off " ..
                 "until you switch it on.|r")
         elseif #on <= 3 then
-            activeLine:SetText("|cFF00FF00Running:|r " .. table.concat(on, ", "))
+            activeLine:SetText("|cFF00FF00Running:|r " .. table.concat(on, ", ") ..
+                " |cFF666666(hover)|r")
         else
-            activeLine:SetText(string.format("|cFF00FF00Running:|r %s |cFFAAAAAAand %d more|r",
+            -- Spelt out here, where the line is visibly incomplete and the hover is the only
+            -- way to see the rest. Above, the list is already whole and the hint is quieter:
+            -- it offers detail rather than the missing half.
+            activeLine:SetText(string.format(
+                "|cFF00FF00Running:|r %s |cFFAAAAAAand %d more - hover for what each last did|r",
                 table.concat(on, ", ", 1, 3), #on - 3))
         end
     end
     RefreshActiveLine()
     ns.RefreshSettingsActiveLine = RefreshActiveLine
+
+    -- Hover it for the rest of the list, and for what each one last did.
+    --
+    -- Two things were being thrown away here. The line truncates at three, so with more than
+    -- that switched on the answer to "which of these are running?" was itself abbreviated -
+    -- and every automation records an outcome when it acts, INCLUDING when it decides to do
+    -- nothing, which was the entire point of the heartbeat. Those outcomes reached exactly
+    -- one place: /valuate report, a chat command you have to know exists.
+    --
+    -- A FontString cannot take mouse events, so the hover lives on a frame laid over it.
+    local activeHover = CreateFrame("Frame", nil, col1)
+    activeHover:SetPoint("TOPLEFT", activeLine, "TOPLEFT", 0, 0)
+    activeHover:SetPoint("BOTTOMRIGHT", activeLine, "BOTTOMRIGHT", 0, 0)
+    activeHover:EnableMouse(true)
+    activeHover:SetScript("OnEnter", function(self)
+        if not ns.ShowTooltipSafe(self, "ANCHOR_BOTTOMRIGHT") then return end
+        local detail = Valuate.ActiveAutomationDetail and Valuate:ActiveAutomationDetail() or {}
+        if #detail == 0 then
+            GameTooltip:AddLine("Nothing is running", 1, 1, 1)
+            GameTooltip:AddLine("Every automation is off until you switch it on. " ..
+                "The sections below are grouped by what they touch.", 0.8, 0.8, 0.8, true)
+            GameTooltip:Show()
+            return
+        end
+        GameTooltip:AddLine("Running now", 1, 1, 1)
+        GameTooltip:AddLine("What each one last did, this session.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine(" ")
+        for _, a in ipairs(detail) do
+            if a.ago then
+                -- The outcome is the interesting half. "did nothing, and here is why" is the
+                -- usual answer for a healthy automation, and the one worth showing.
+                GameTooltip:AddDoubleLine(
+                    a.label,
+                    string.format("%s ago", SecondsToTime(math.max(1, math.floor(a.ago)))),
+                    0.9, 0.9, 0.9, 0.6, 0.6, 0.6)
+                if a.outcome then
+                    GameTooltip:AddLine("      " .. a.outcome, 0.55, 0.75, 0.55, true)
+                end
+            else
+                -- Distinct from "ran and did nothing". This one has had no occasion to run:
+                -- no merchant visited, no quest handed in, nothing looted yet.
+                GameTooltip:AddDoubleLine(a.label, "no occasion yet",
+                    0.7, 0.7, 0.7, 0.5, 0.5, 0.5)
+            end
+        end
+        GameTooltip:Show()
+    end)
+    activeHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     -- Display & Formatting Section Header
     local displayHeader = CreateSectionHeader(col1, 1, "Display & Formatting", activeLine)

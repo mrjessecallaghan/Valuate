@@ -7503,35 +7503,72 @@ end
 -- would drift the same way, silently, the first time an automation was added.
 --
 -- Returns a sorted array of labels, so two calls in a row cannot disagree about the order.
+-- Each automation, the name it goes by, and the heartbeat it writes to.
+--
+-- The beat is here rather than in a second table keyed the same way. Two tables that must
+-- agree is the shape that has drifted five times in this project already, and the drift is
+-- always silent: a wrong beat key does not error, it just reports 'not yet this session'
+-- forever, which is indistinguishable from an automation that is genuinely idle.
+--
+-- tools/options.js checks both halves: every automation appears here, and every beat named
+-- here is one that MarkAutomation actually records somewhere.
 ns.AUTOMATION_LABELS = {
-    autoRelease = "release on death",
-    autoLeaveBattleground = "leave finished battlegrounds",
-    autoQueuePvP = "re-queue PvP",
-    autoQueueDungeon = "re-queue dungeons",
-    autoAcceptBattleground = "take battleground invites",
-    autoEquipOnLevelUp = "equip on level-up",
-    autoEquipUpgrades = "equip upgrades as they drop",
-    autoUnjunkProtected = "rescue gear from junk",
-    autoLearnAppearances = "collect appearances",
-    autoDeleteJunk = "delete junk",
-    autoSellJunk = "sell junk",
-    autoRepair = "repair",
-    autoRollLoot = "roll on loot",
-    autoAcceptQuests = "accept quests",
-    autoQuestTurnIn = "turn in quests",
-    autoQuestReward = "pick quest rewards",
-    notifyDungeonNoUpgrades = "suggest leaving spent dungeons",
-    notifyBagUpgrade = "prompt on bag upgrades",
+    autoRelease             = { label = "release on death",              beat = "autoRelease" },
+    autoLeaveBattleground   = { label = "leave finished battlegrounds",  beat = "bgLeave" },
+    autoQueuePvP            = { label = "re-queue PvP",                  beat = "queuePvP" },
+    autoQueueDungeon        = { label = "re-queue dungeons",             beat = "queueDungeon" },
+    autoAcceptBattleground  = { label = "take battleground invites",     beat = "bgAccept" },
+    autoEquipOnLevelUp      = { label = "equip on level-up",             beat = "levelEquip" },
+    autoEquipUpgrades       = { label = "equip upgrades as they drop",   beat = "autoEquip" },
+    autoUnjunkProtected     = { label = "rescue gear from junk",         beat = "unjunk" },
+    autoLearnAppearances    = { label = "collect appearances",           beat = "wardrobe" },
+    autoDeleteJunk          = { label = "delete junk",                   beat = "junkCleanup" },
+    autoSellJunk            = { label = "sell junk",                     beat = "junkSell" },
+    autoRepair              = { label = "repair",                        beat = "autoRepair" },
+    autoRollLoot            = { label = "roll on loot",                  beat = "autoRoll" },
+    autoAcceptQuests        = { label = "accept quests",                 beat = "questAccept" },
+    autoQuestTurnIn         = { label = "turn in quests",                beat = "questTurnIn" },
+    autoQuestReward         = { label = "pick quest rewards",            beat = "questReward" },
+    notifyDungeonNoUpgrades = { label = "suggest leaving spent dungeons", beat = "dungeonLeave" },
+    notifyBagUpgrade        = { label = "prompt on bag upgrades",        beat = "upgradeNotify" },
 }
 
 function Valuate:ActiveAutomations()
     local options = Valuate:GetOptions()
     local on = {}
-    for key, label in pairs(ns.AUTOMATION_LABELS) do
-        if options[key] then on[#on + 1] = label end
+    for key, entry in pairs(ns.AUTOMATION_LABELS) do
+        if options[key] then on[#on + 1] = entry.label end
     end
     table.sort(on)
     return on
+end
+
+-- The same list, with what each one last did.
+--
+-- Every automation here records an outcome when it runs, INCLUDING when it decides to do
+-- nothing - that was the whole point of the heartbeat, because a feature whose correct
+-- behaviour is silence is otherwise indistinguishable from one that is broken. Until now
+-- those outcomes were written down and readable only through /valuate report, which you
+-- have to know exists.
+--
+-- Returns a sorted array of { label, ago, outcome }; ago is nil if it has not run yet.
+function Valuate:ActiveAutomationDetail()
+    local options = Valuate:GetOptions()
+    local out = {}
+    for key, entry in pairs(ns.AUTOMATION_LABELS) do
+        if options[key] then
+            local ago, outcome = Valuate:GetAutomationHeartbeat(entry.beat)
+            out[#out + 1] = { key = key, label = entry.label, ago = ago, outcome = outcome }
+        end
+    end
+    -- Tie-broken on the option key, which is unique by construction where the label is only
+    -- unique by nobody having written the same one twice yet. The order arriving here is
+    -- pairs() order, so a tie would reshuffle the list between openings of the panel.
+    table.sort(out, function(a, b)
+        if a.label ~= b.label then return a.label < b.label end
+        return a.key < b.key
+    end)
+    return out
 end
 
 function Valuate:BuildTodoList()
@@ -8757,8 +8794,18 @@ function Valuate:AutoAdvanceQuestProgress()
     if not (options.autoQuestReward and options.autoQuestTurnIn) then
         return
     end
+    -- The one automation with no voice of its own.
+    --
+    -- Turn-in shared the questReward beat, which fires on the reward screen - so the
+    -- report could say a reward was taken but never that the quest was advanced, and
+    -- the common failure here is the OTHER branch: standing on a progress screen for a
+    -- quest you cannot complete yet, where the correct behaviour is to do nothing and
+    -- the broken behaviour looks identical.
     if IsQuestCompletable and IsQuestCompletable() then
+        Valuate:MarkAutomation("questTurnIn", "advanced to the reward screen")
         CompleteQuest()
+    else
+        Valuate:MarkAutomation("questTurnIn", "quest not completable yet; waited")
     end
 end
 
@@ -10240,6 +10287,11 @@ function Valuate:PrintReport()
         { key = "autoRoll",      label = "Loot roll" },
         { key = "autoRepair",    label = "Auto-repair" },
         { key = "questReward",   label = "Quest reward taken" },
+        -- Turn-in shared questReward until it was given its own, so the report could say a
+        -- reward had been taken but never that a quest was advanced - and the interesting
+        -- case is the other branch, standing on a progress screen for a quest you cannot
+        -- complete yet, where doing nothing is correct and looks like being broken.
+        { key = "questTurnIn",   label = "Quest turn-in" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
         { key = "wardrobe",      label = "Wardrobe collecting" },
         { key = "autoRelease",   label = "Auto-release" },

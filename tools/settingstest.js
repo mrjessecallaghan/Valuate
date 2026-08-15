@@ -100,12 +100,26 @@ function IsShiftKeyDown() return __shift end
 function IsControlKeyDown() return __ctrl end
 function IsAltKeyDown() return __alt end
 
+-- Blizzard's, roughly: the real one returns "5 Mins" / "2 Hrs". Nothing here asserts on the
+-- exact wording, only that a duration reaches the reader in some readable form.
+function SecondsToTime(s)
+    if s < 60 then return math.floor(s) .. " Sec" end
+    if s < 3600 then return math.floor(s / 60) .. " Min" end
+    return math.floor(s / 3600) .. " Hr"
+end
+
+-- The tooltip RECORDS what it is told, rather than swallowing it. Several controls here
+-- put their only explanation in a tooltip, and a mock that discards the text lets a gate
+-- assert that hovering does not error while proving nothing about what it says.
+__tooltipLines = {}
 GameTooltip = CreateFrame("Frame")
 function GameTooltip:SetOwner() end
-function GameTooltip:AddLine() end
-function GameTooltip:ClearLines() end
+function GameTooltip:AddLine(text) table.insert(__tooltipLines, tostring(text)) end
+function GameTooltip:ClearLines() __tooltipLines = {} end
 function GameTooltip:IsOwned() return false end
-function GameTooltip:AddDoubleLine() end
+function GameTooltip:AddDoubleLine(left, right)
+    table.insert(__tooltipLines, tostring(left) .. "\t" .. tostring(right))
+end
 
 -- ---- the addon's own API, stubbed for this gate ------------------------------
 ` + defaults[0] + `
@@ -148,14 +162,29 @@ Valuate.LoadSettingsSnapshot = function() end
 Valuate.HasSettingsSnapshot = function() return false end
 Valuate.ShowConfirmDialog = function() end
 Valuate.GetProfessionOverrideChoices = function() return {} end
+-- Both readers of the same STORE, so they cannot disagree here about what is on. The real
+-- pair is proven against the real ns.AUTOMATION_LABELS in tools/heartbeat.js - this file
+-- loads only ui/, so the functions themselves live somewhere it cannot reach.
+local function activeKeys()
+    local on = {}
+    if STORE.autoRepair then on[#on + 1] = { "autoRepair", "repair" } end
+    if STORE.autoSellJunk then on[#on + 1] = { "autoSellJunk", "sell junk" } end
+    if STORE.autoRollLoot then on[#on + 1] = { "autoRollLoot", "roll on loot" } end
+    if STORE.autoDeleteJunk then on[#on + 1] = { "autoDeleteJunk", "delete junk" } end
+    table.sort(on, function(a, b) return a[2] < b[2] end)
+    return on
+end
 Valuate.ActiveAutomations = function()
     local on = {}
-    if STORE.autoRepair then on[#on + 1] = "repair" end
-    if STORE.autoSellJunk then on[#on + 1] = "sell junk" end
-    if STORE.autoRollLoot then on[#on + 1] = "roll on loot" end
-    if STORE.autoDeleteJunk then on[#on + 1] = "delete junk" end
-    table.sort(on)
+    for _, a in ipairs(activeKeys()) do on[#on + 1] = a[2] end
     return on
+end
+Valuate.ActiveAutomationDetail = function()
+    local out = {}
+    for _, a in ipairs(activeKeys()) do
+        out[#out + 1] = { key = a[1], label = a[2] }
+    end
+    return out
 end
 
 -- Records the option key each checkbox initialises itself from.
@@ -533,6 +562,61 @@ ok(one:find("repair", 1, true) ~= nil, "and names it, rather than only counting"
 STORE.autoRepair = false
 ns.RefreshSettingsActiveLine()
 eq(activeText():find("repair", 1, true), nil, "switching it back off updates the line")
+
+-- ---- hovering it says what each one last DID --------------------------------------------
+-- The line truncates at three, and every automation records an outcome when it runs -
+-- including when it decides to do nothing, which was the whole point of the heartbeat.
+-- Both were being thrown away: the rest of the list had nowhere to appear, and the outcomes
+-- reached only /valuate report, a chat command you have to know exists.
+STORE.autoRepair, STORE.autoSellJunk = true, true
+ns.RefreshSettingsActiveLine()
+
+-- Find the hover by what it SAYS, not by where it sits. A FontString cannot take OnEnter,
+-- so this has to be a frame laid over the line - but which frame that is, and how it is
+-- anchored, is layout detail this gate has no business pinning. What it must pin is that
+-- some mouse-enabled thing exists whose hover produces this content.
+local hover
+for _, f in ipairs(__frames) do
+    if f.__mouse and f.__scripts and f.__scripts.OnEnter then
+        __tooltipLines = {}
+        local fine = pcall(f.__scripts.OnEnter, f)
+        if fine and table.concat(__tooltipLines, "\\n"):find("Running now", 1, true) then
+            hover = f
+        end
+    end
+end
+ok(hover ~= nil, "the running line has a mouse-enabled frame over it")
+
+if hover then
+    __tooltipLines = {}
+    hover.__scripts.OnEnter(hover)
+    local text = table.concat(__tooltipLines, "\\n")
+    ok(text:find("repair", 1, true) ~= nil, "hovering lists an automation that is on")
+    ok(text:find("sell junk", 1, true) ~= nil, "and the others alongside it")
+    ok(text:find("no occasion yet", 1, true) ~= nil,
+       "one that has not run says so, rather than showing a blank")
+
+    -- The distinction the hover exists for. "ran, and did nothing, because X" and "has had
+    -- no occasion to run" look identical from outside and mean opposite things.
+    Valuate.ActiveAutomationDetail = function()
+        return {
+            { key = "autoRepair", label = "repair", ago = 42, outcome = "nothing was damaged" },
+        }
+    end
+    __tooltipLines = {}
+    hover.__scripts.OnEnter(hover)
+    text = table.concat(__tooltipLines, "\\n")
+    ok(text:find("nothing was damaged", 1, true) ~= nil,
+       "one that HAS run shows the outcome it recorded, not just that it ran")
+
+    -- Nothing on at all: the hover must not present an empty list as if it were an answer.
+    Valuate.ActiveAutomationDetail = function() return {} end
+    __tooltipLines = {}
+    hover.__scripts.OnEnter(hover)
+    text = table.concat(__tooltipLines, "\\n")
+    ok(text:find("Nothing is running", 1, true) ~= nil,
+       "with everything off the hover says so plainly")
+end
 
 return failures, checks
 `,
