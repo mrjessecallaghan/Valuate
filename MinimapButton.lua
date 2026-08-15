@@ -195,6 +195,16 @@ local function CreateMinimapButton()
                 GameTooltip:AddLine("|cFF" .. colour .. label .. "|r", 1, 1, 1)
             end
 
+            -- Whether the scale doing all this scoring is built on numbers nobody published.
+            --
+            -- The picker says so on hover, the list marks it, the editor repeats it and the
+            -- login summary raises it - and this is the surface people actually LOOK at, the
+            -- one that already answers "which spec, what score, anything waiting". A scale
+            -- that is a guess belongs in that same glance.
+            if scale.Inferred then
+                GameTooltip:AddLine("|cFFFF8833? weights are a guess|r", 1, 1, 1)
+            end
+
             if Valuate.CountEquippableUpgrades then
                 local count, _, bankCount = Valuate:CountEquippableUpgrades(scaleName)
                 if count > 0 then

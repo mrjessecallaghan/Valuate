@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.152.0a] - 2026-08-15 - the guess reaches the glance
+
+### Added
+The minimap tooltip already answers the three things worth knowing at a glance: which spec is
+active, what your gear scores, and whether anything is waiting in your bags. It did not say
+whether the scale doing all that scoring was built on numbers nobody ever published.
+
+Four surfaces marked a guessed scale - the picker on hover, the list, the editor, the login
+summary - and every one of them needs you to go and LOOK. This is the surface people actually
+glance at, so it belongs in the same glance.
+
+### Technical
+The minimap gate stubbed GameTooltip:AddLine to swallow every line, so the hover handler - the
+most looked-at code in the addon, with several branches and a pcall wrapped round the lot -
+had no coverage at all. It records now, and the assertions cover the guessed case, the
+researched case, and a missing scale, which must say so rather than hovering blank.
+
+That is the third gate this week whose tooltip stub was quietly discarding the thing it was
+meant to be checking.
+
 ## [0.151.0a] - 2026-08-15 — the manual had stopped keeping up
 
 ### Fixed

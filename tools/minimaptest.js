@@ -69,7 +69,8 @@ function GetCursorPosition() return __cursor[1], __cursor[2] end
 GameTooltip = CreateFrame("Frame")
 function GameTooltip:SetOwner() end
 function GameTooltip:SetText() end
-function GameTooltip:AddLine() end
+__tipLines = {}
+function GameTooltip:AddLine(text) __tipLines[#__tipLines + 1] = tostring(text) end
 function GameTooltip:AddDoubleLine() end
 function GameTooltip:Show() end
 function GameTooltip:Hide() end
@@ -188,6 +189,38 @@ eq(btn:IsShown(), false, "a snapshot that hides the button hides it now, not aft
 OPTIONS.minimapButtonHidden = false
 Valuate:ApplyMinimapButtonOptions()
 eq(btn:IsShown(), true, "and one that shows it takes effect just as immediately")
+
+-- ---- the hover says what the scale IS -------------------------------------------------
+-- The picker says it on hover, the list marks it, the editor repeats it and the login summary
+-- raises it. This is the surface people actually look at - so a scale built on weights nobody
+-- ever published belongs in that same glance.
+local button
+for _, f in ipairs(__frames) do
+    if f.__scripts and f.__scripts.OnEnter and f.vText then button = f end
+end
+ok(button ~= nil, "the minimap button has a hover handler")
+
+local function hoverWith(scale)
+    Valuate.GetPrimaryScale = function() return scale, "Test" end
+    __tipLines = {}
+    if button then pcall(button.__scripts.OnEnter, button) end
+    return table.concat(__tipLines, " | ")
+end
+
+local guessed = hoverWith({ DisplayName = "Guessy", Inferred = true, Color = "FFFFFF",
+                            Values = { Agility = 1.0 } })
+ok(guessed:find("guess", 1, true) ~= nil,
+   "hovering with a guessed scale says so - this is the glance, not a panel you opened")
+
+local solid = hoverWith({ DisplayName = "Solid", Color = "FFFFFF", Values = { Agility = 1.0 } })
+eq(solid:find("guess", 1, true), nil,
+   "and a researched scale says nothing of the sort - a caveat on everything is a caveat on nothing")
+
+-- The handler is pcall'd because it runs on every pass of the mouse. That must not turn a
+-- missing scale into a silent empty tooltip.
+local none = hoverWith(nil)
+ok(none:find("No active scale", 1, true) ~= nil,
+   "with no scale at all it says so rather than hovering blank")
 
 return failures, checks
 `,

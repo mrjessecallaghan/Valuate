@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.151.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.152.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1122,4 +1122,14 @@ module.exports = [
   { gate: "tocsync", file: "tools/tocsync.js",
     label: "the manual-drift check never actually compares anything",
     from: "if (missing.length > autoCmds.length / 2) {", to: "if (missing.length > -1) {" },
+
+  // ---- the guess reaches the glance (v0.152.0a) ----------------------------
+  // Four surfaces already say it, and all four need you to go and look. This is the one
+  // people actually glance at.
+  { gate: "minimaptest", file: "MinimapButton.lua",
+    label: "the glance never mentions that the scale is a guess",
+    from: "            if scale.Inferred then", to: "            if false then" },
+  { gate: "minimaptest", file: "MinimapButton.lua",
+    label: "every scale is called a guess, so the mark stops meaning anything",
+    from: "            if scale.Inferred then", to: "            if true then" },
 ];

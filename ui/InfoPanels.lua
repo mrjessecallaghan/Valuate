@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.151.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.152.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.151.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.152.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -493,8 +493,8 @@ local function CreateChangelogPanel(parent)
         "• GUESSED WEIGHTS ARE MARKED. Six specs have no published stat priority, so\n" ..
         "   theirs were read off their descriptions. The template picker, the scale\n" ..
         "   list and the editor all say so now, rather than offering a guess with the\n" ..
-        "   same confidence as a fact - and the login summary raises it if the scale\n" ..
-        "   doing your scoring is one of them.\n" ..
+        "   same confidence as a fact - and the minimap tooltip and login summary both\n" ..
+        "   raise it if the scale doing your scoring is one of them.\n" ..
         "• Spec tooltips show what a spec will CHASE - its description and the top\n" ..
         "   stats it weights, with the numbers.\n" ..
         "• /valuate help is GROUPED into six topics; /valuate help gear (or auto,\n" ..
