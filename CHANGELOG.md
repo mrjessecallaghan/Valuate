@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.170.0a] - 2026-08-15 — what a tab click cost
+
+### Fixed
+**Opening the Enhance tab parsed a tooltip for every recipe you know. Every time.**
+
+Collecting reads a tooltip per recipe — `ClearLines`, a setter, then the full stat parser — and
+an enchanter with a filled book has a few hundred. The tab rebuilds on **every arrival,
+including a re-click**, which is deliberate: a profession window that was shut last time makes
+a stale list worse than none. Those two facts multiplied.
+
+Correct, and needlessly expensive on a path a person clicks. Stats are now read once per
+recipe and remembered.
+
+Keyed on the recipe's **name**, not its index — the index moves when the profession window is
+filtered or collapsed, and a cache keyed on a moving number hands back another recipe's stats
+rather than missing.
+
+### Fixed — and it clears when the book changes
+A cache that never clears is a worse bug than the one it fixes: a recipe you just learned would
+stay invisible until you logged out, which reads as the feature not seeing it at all.
+
+Cleared on `TRADE_SKILL_SHOW`, `TRADE_SKILL_UPDATE`, `CRAFT_SHOW`, `CRAFT_UPDATE` and
+`LEARNED_SPELL_IN_TAB` — both APIs, both their update events. A window *opening* is when it
+first has contents; an *update* is what fires when you learn something with it already open.
+
+A **failed** read is not remembered. The usual reason a parse returns nothing is a tooltip that
+was not ready — a moment, not a fact about the recipe — and caching it would strand the enchant
+in *"could not read its stats"* for the session with nothing to explain why.
+
+### Technical
+`enhance.js` now counts tooltip parses, in the spirit of `hotpath.js`: every other check asks
+whether the answer is right, these ask what it cost.
+
+Two assertions had to be tightened before they held. "The cache clears on the right events"
+passed while only *registering* them — a handler that ignores the event it asked for is the
+same defect with an extra step, so the gate drives the handler now. And "a failed read is not
+cached" passed on the row simply being present: a cached failure stored as an empty table comes
+back looking like a perfectly good read of an enchant that grants nothing. It checks the stats.
+
+
 ## [0.169.0a] - 2026-08-15 — I shipped the same layout bug twice
 
 ### Fixed

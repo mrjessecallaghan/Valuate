@@ -251,7 +251,24 @@ end
 -- oddities, and it is the thing every other number in this addon is built on. A second parser
 -- would drift from it, and the drift would show up as enchants scored on a different basis
 -- from the gear they go on - the one comparison this panel exists to make.
-local function StatsFromTooltip(setter, index)
+-- Read once per recipe, not once per tab click.
+--
+-- The tab rebuilds on every arrival including a re-click - deliberately, because a profession
+-- window that was shut last time makes a stale list worse than none. That meant one full
+-- tooltip parse per recipe every time, and an enchanter with a filled book has a few hundred
+-- of them. Correct, and needlessly expensive on a path a person clicks.
+--
+-- Safe to cache because an enchant's stats do not change. Keyed on NAME rather than index:
+-- the index moves when the profession window is filtered or collapsed, and a cache keyed on a
+-- moving number returns another recipe's stats rather than a miss.
+local statsCache = {}
+
+function ns.ResetEnhanceCache()
+    statsCache = {}
+end
+
+local function StatsFromTooltip(setter, index, name)
+    if name and statsCache[name] then return statsCache[name] end
     if not Valuate.GetPrivateTooltip or not Valuate.ParseStatsFromTooltip then return nil end
     local tip = Valuate:GetPrivateTooltip()
     if not tip or type(tip[setter]) ~= "function" then return nil end
@@ -262,6 +279,11 @@ local function StatsFromTooltip(setter, index)
         return Valuate:ParseStatsFromTooltip("ValuatePrivateTooltip")
     end)
     if not ok then return nil end
+
+    -- Only a real read is remembered. A FAILED one is not cached, because the usual reason is
+    -- that the tooltip was not ready yet - and caching that would make one bad moment
+    -- permanent for the session.
+    if name and stats then statsCache[name] = stats end
     -- An EMPTY table is not the same as a failure to read. The caller distinguishes them:
     -- one is "this enhancement grants no weighted stats", the other is "I could not tell".
     return stats
@@ -305,7 +327,7 @@ function ns.CollectEnhancements()
         end
 
         local stats = StatsFromTooltip(
-            source == "craft" and "SetCraftSpell" or "SetTradeSkillItem", index)
+            source == "craft" and "SetCraftSpell" or "SetTradeSkillItem", index, name)
         if not stats then
             unreadable[#unreadable + 1] = { name = name, why = "could not read its stats" }
             return
@@ -628,7 +650,26 @@ end
 local capture = CreateFrame("Frame")
 capture:RegisterEvent("MERCHANT_SHOW")
 capture:RegisterEvent("TRAINER_SHOW")
+
+-- The stats cache is cleared whenever the book could have changed.
+--
+-- Without this, learning a recipe leaves it scored from whatever was cached before it existed
+-- - or, more often, absent until you log out. That reads as the feature not seeing your new
+-- enchant at all, which is a far worse failure than the re-reading the cache exists to avoid.
+--
+-- Both apis, and both of their update events: a window OPENING is when it first has contents,
+-- and an UPDATE is what fires when you learn something with it already open.
+capture:RegisterEvent("TRADE_SKILL_SHOW")
+capture:RegisterEvent("TRADE_SKILL_UPDATE")
+capture:RegisterEvent("CRAFT_SHOW")
+capture:RegisterEvent("CRAFT_UPDATE")
+capture:RegisterEvent("LEARNED_SPELL_IN_TAB")
+
 capture:SetScript("OnEvent", function(_, event)
+    if event ~= "MERCHANT_SHOW" and event ~= "TRAINER_SHOW" then
+        ns.ResetEnhanceCache()
+        return
+    end
     -- Deferred by a tick. Both frames populate their lists AFTER the event fires, so reading
     -- immediately gets zero items and writes nothing - which looks exactly like a vendor with
     -- nothing worth noting.

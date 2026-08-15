@@ -343,6 +343,107 @@ GetTrainerServiceInfo = function(i) return SERVICES[i][1] end
 GetTrainerServiceCost = function() return 3000 end
 eq(ns.CaptureTrainer(1000), 1, "a trainer's enchants are noted and its rank-ups are not")
 
+-- ---- what a tab click COSTS ----------------------------------------------------------------------
+-- Every other check here asks whether the answer is right. This one asks what it cost, because
+-- nothing else can - and this path is exposed to a number the addon does not control.
+--
+-- Collecting parses a TOOLTIP per recipe: ClearLines, then a setter, then the full stat parser.
+-- An enchanter with a filled book has a few hundred, and the Enhance tab rebuilds on every
+-- arrival INCLUDING a re-click, because a profession window that was shut last time makes a
+-- stale list worse than none. So one click was one tooltip parse per recipe, every time.
+GetNumCrafts = function() return #CRAFTS end
+GetCraftInfo = function(i) CURRENT_NAME = CRAFTS[i][1] return CRAFTS[i][1], nil, CRAFTS[i][2] end
+GetNumTradeSkills = function() return #TRADES end
+GetTradeSkillInfo = function(i) CURRENT_NAME = TRADES[i][1] return TRADES[i][1], TRADES[i][2] end
+
+local parses = 0
+local realParse = Valuate.ParseStatsFromTooltip
+Valuate.ParseStatsFromTooltip = function(...)
+    parses = parses + 1
+    return realParse(...)
+end
+
+ns.ResetEnhanceCache()
+parses = 0
+ns.CollectEnhancements()
+local cold = parses
+ok(cold > 0, "the first collection reads tooltips (" .. cold .. ")")
+
+parses = 0
+for _ = 1, 5 do ns.CollectEnhancements() end
+eq(parses, 0,
+   "five more collections read NONE - an enchant's stats do not change, so re-reading them " ..
+   "on every tab click is work nobody asked for")
+
+-- The cache has to CLEAR when the book changes, or learning a recipe leaves it invisible
+-- until you log out - which reads as the feature not seeing it at all.
+ns.ResetEnhanceCache()
+parses = 0
+ns.CollectEnhancements()
+eq(parses, cold, "and clearing it makes them readable again")
+
+-- ...and it clears on the events that mean the book CHANGED, not just on demand.
+--
+-- Wired to both apis and both of their update events. A window OPENING is when it first has
+-- contents; an UPDATE is what fires when you learn something with it already open. Miss either
+-- and a newly-learned enchant stays invisible until you log out, which reads as the feature
+-- not seeing it at all - a far worse failure than the re-reading the cache avoids.
+local watcher
+for _, f in ipairs(__frames) do
+    if f.__events and f.__events["MERCHANT_SHOW"] then watcher = f end
+end
+ok(watcher ~= nil, "the capture frame is reachable")
+if watcher then
+    for _, e in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE",
+                         "CRAFT_SHOW", "CRAFT_UPDATE", "LEARNED_SPELL_IN_TAB" }) do
+        ok(watcher.__events[e], "the cache is cleared on " .. e)
+    end
+
+    -- Driven, not merely registered. A handler that ignores the event it asked for is the
+    -- same defect with an extra step.
+    ns.CollectEnhancements()
+    parses = 0
+    ns.CollectEnhancements()
+    eq(parses, 0, "warm before the event")
+    Valuate.ParseStatsFromTooltip = function(...) parses = parses + 1 return realParse(...) end
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    parses = 0
+    ns.CollectEnhancements()
+    ok(parses > 0, "and cold after it, so a recipe you just learned is read")
+end
+
+-- A FAILED read is not remembered.
+--
+-- The usual reason a parse comes back nil is that the tooltip was not ready yet - a moment,
+-- not a fact about the recipe. Caching it makes that moment permanent for the session, and the
+-- enchant then sits in "could not read its stats" forever with nothing to explain why.
+ns.ResetEnhanceCache()
+Valuate.ParseStatsFromTooltip = function() return nil end
+local _, failedFirst = ns.CollectEnhancements()
+local sawFailure = false
+for _, u in ipairs(failedFirst) do
+    if u.why and u.why:find("stats", 1, true) then sawFailure = true end
+end
+ok(sawFailure, "a recipe whose stats will not parse is reported as unreadable")
+
+Valuate.ParseStatsFromTooltip = function() return STATS_BY_NAME[CURRENT_NAME] end
+local recovered = ns.CollectEnhancements()
+ok(recovered[8] ~= nil and #recovered[8] > 0,
+   "and is read properly on the next attempt, rather than being stuck as unreadable")
+
+-- Its STATS, not merely its presence. A cached failure stored as an empty table comes back
+-- looking like a perfectly good read of an enchant that grants nothing - present, scoreable,
+-- and worth zero. Checking the row exists cannot tell those apart.
+local best
+for _, e in ipairs(recovered[8] or {}) do
+    if e.name == "Enchant Boots - Greater Assault" then best = e end
+end
+ok(best ~= nil, "the boot enchant is back")
+eq(best and best.stats and best.stats.Agility, 32,
+   "with its real stats, not the empty table a cached failure would have left")
+
+Valuate.ParseStatsFromTooltip = realParse
+
 -- ---- a client that has neither api does not error ------------------------------------------------
 GetMerchantNumItems = nil
 GetNumTrainerServices = nil

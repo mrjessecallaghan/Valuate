@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.169.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.170.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1595,4 +1595,25 @@ module.exports = [
     from: "            if fs and text and text ~= \"\" and (not fs.IsShown or fs:IsShown()) then",
     to: "            if fs then" },
 
+  // ---- one tooltip read per recipe, not per click (v0.170.0a) --------------
+  // The Enhance tab rebuilds on every arrival including a re-click, deliberately. That meant
+  // a full tooltip parse per recipe every time, and an enchanter with a filled book has a
+  // few hundred. Correct, and needlessly expensive on a path a person clicks.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "every tab click re-reads a tooltip for every recipe you know",
+    from: "    if name and statsCache[name] then return statsCache[name] end", to: "" },
+
+  // The far worse failure: a cache that never clears. A recipe you just learned stays
+  // invisible until you log out, which reads as the feature not seeing it at all.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "the cache never clears, so a newly learned enchant never appears",
+    scope: { start: 'capture:SetScript("OnEvent"', end: "    local now =" },
+    from: "        ns.ResetEnhanceCache()", to: "" },
+
+  // A FAILED read must not be remembered - the usual cause is a tooltip that was not ready,
+  // and caching that makes one bad moment permanent for the session.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a failed read is cached, making one bad moment permanent",
+    from: "    if name and stats then statsCache[name] = stats end",
+    to: "    if name then statsCache[name] = stats or {} end" },
 ];

@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.169.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.170.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.169.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.170.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -483,6 +483,7 @@ local function CreateChangelogPanel(parent)
         "   merchant or trainer - so a blank means 'I have not seen this for sale',\n" ..
         "   not that it is not sold. Those notes are shared across your characters and\n" ..
         "   capped at 400. /valuate enhancecheck says what this client will tell me.\n" ..
+        "   Recipe stats are read once and remembered, and re-read when you learn one.\n" ..
         "• FIXED: 'Upgrade at level 24' for gear you could already wear. Ascension\n" ..
         "   scales gear to your level, so the item template's level is not a fact about\n" ..
         "   you - the requirement is now read from the tooltip, which the client draws\n" ..
