@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.166.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.167.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.166.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.167.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,11 +474,12 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
-        "• GROUNDWORK for an Enhancements tab: /valuate enhancecheck reports which\n" ..
-        "   enchant data sources this client exposes, and the engine behind the tab now\n" ..
-        "   collects from both profession APIs, ranks best-first while still listing the\n" ..
-        "   rest, and gives proc and movement effects a value rather than scoring them\n" ..
-        "   zero - marked as an estimate, because that is what it is.\n" ..
+        "• NEW: an Enhance tab. One row per slot you are WEARING, showing the best\n" ..
+        "   enchant available then the next best then the one after - because second\n" ..
+        "   best still beats an empty slot, and is often the one you can afford. Read\n" ..
+        "   live from your own profession windows, so open them first. Scores marked\n" ..
+        "   with ~ are partly a judgement rather than your stat weights.\n" ..
+        "• /valuate enhancecheck reports which enchant data sources this client exposes.\n" ..
         "• FIXED: 'Upgrade at level 24' for gear you could already wear. Ascension\n" ..
         "   scales gear to your level, so the item template's level is not a fact about\n" ..
         "   you - the requirement is now read from the tooltip, which the client draws\n" ..

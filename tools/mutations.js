@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.166.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.167.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1520,4 +1520,35 @@ module.exports = [
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "the list comes back in whatever order the profession window happened to use",
     from: "        if a.score ~= b.score then return a.score > b.score end", to: "        if false then return false end" },
+  // ---- the Enhance tab (v0.167.0a) -----------------------------------------
+  // "I have not been shown any" and "you have already done every slot" are opposite
+  // states that both produce an empty list. This project has said the same thing for both
+  // three times now (see CLAUDE.md), so it is the assertion the panel exists to hold.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "never having looked reads as having already enhanced everything",
+    from: "            if not any then", to: "            if false then" },
+
+  // The ordering argument. Hiding the runners-up undoes the whole point: a +8 armour
+  // enchant beats an empty slot even when it is nowhere near the best available.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "only the winner is shown, so second-best-but-affordable disappears",
+    from: "                for i = 2, math.min(#ranked, ALTERNATIVES + 1) do",
+    to: "                for i = 2, 1 do" },
+
+  // An enchant for gear you are not wearing is a shopping catalogue, not a to-do list.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "slots with nothing equipped in them are offered enhancements anyway",
+    from: "            local wanted = worn ~= nil and #ranked > 0",
+    to: "            local wanted = #ranked > 0" },
+
+  // A judgement-derived number must not sit unlabelled beside a measured one.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "an estimated score is presented as though it were measured",
+    from: "                    top.estimated and \"|cFFFFCC66~\" or \"|cFFFFFFFF\", top.score))",
+    to: "                    \"|cFFFFFFFF\", top.score))" },
+
+  // What could not be read is never dropped: it would make the list look complete.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "enhancements nobody could classify are silently discarded",
+    from: "        if unreadable and #unreadable > 0 then", to: "        if false then" },
 ];

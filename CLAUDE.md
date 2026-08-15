@@ -445,6 +445,7 @@ callback either reschedule or be genuinely final.
 | `BestEquipment.lua` | Best Equipment tab (**keeps the frame pool** — see below) |
 | `Settings.lua` | Settings tab + `CheckColumnAnchors` |
 | `Enhance.lua` | Item enhancements read LIVE from the client; /valuate enhancecheck probes what it exposes |
+| `EnhancePanel.lua` | The Enhance tab — per-worn-slot enhancement options, best first then the rest |
 | `UICheck.lua` | /valuate uicheck — walks the live window for text or frames drawn outside where they belong |
 | `TodoPanel.lua` | The To Do tab — renders `Valuate:BuildTodoList`, one clickable row per item |
 | `InfoPanels.lua` | Instructions / About / Changelog |

@@ -42,6 +42,8 @@ const run = load([
   "ui/ScaleEditor.lua",
   "ui/BestEquipment.lua",
   "ui/Settings.lua",
+  "ui/Enhance.lua",
+  "ui/EnhancePanel.lua",
   "ui/TodoPanel.lua",
   "ui/InfoPanels.lua",
   "ui/CharacterWindow.lua",
@@ -189,7 +191,7 @@ eq(__reveals, 1, "returning to a tab you left DOES play its arrival again")
 --
 -- Written against the whole set rather than the four, because the next tab added by hand
 -- would be the fifth and this gate should not need editing to notice.
-local EXPECTED_TABS = { "scales", "settings", "changelog", "about", "instructions", "bestEquipment", "todo" }
+local EXPECTED_TABS = { "scales", "settings", "changelog", "about", "instructions", "bestEquipment", "todo", "enhance" }
 local buttons = ns.ValuateUIFrame.tabs.buttons
 ok(buttons ~= nil, "the tab buttons are reachable from outside the builder")
 

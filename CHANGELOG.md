@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.167.0a] - 2026-08-15 — the Enhance tab
+
+### Added
+**An "Enhance" tab.** One row per slot you are *wearing*, showing what could still go on it —
+the best available, then the next best, then the one after that.
+
+Scoped to equipped gear on purpose. An enhancement list for items you are not wearing is a
+shopping catalogue; this is a to-do list. A slot with options but nothing equipped in it does
+not get a row.
+
+**The runners-up stay on screen.** That is the whole ordering argument: a +8 Armour enchant
+beats an empty slot even when it is nowhere near the best available, and on a levelling
+character it is frequently the only one you can afford. Hiding everything behind the winner
+would undo the point.
+
+**Estimated scores are marked with a `~`.** A number partly derived from someone's judgement
+about what a movement-speed proc is worth does not get to sit silently in the same column as
+one derived from your own stat weights.
+
+Two filters: *only slots without one* (on by default), and a profession cycle — all,
+enchanting, crafted. Both are session-scoped rather than saved: a filter you flick while
+reading a panel is a way of reading it, not a preference. Persisted, you would open the tab a
+week later, see a filtered view you had forgotten setting, and go looking for a bug.
+
+### Added — and it says which kind of empty it is
+*"I have not been shown any yet"* and *"you have already enhanced every slot"* are opposite
+states that both produce an empty list. The panel distinguishes them, and the first says so
+plainly — the data is read live from your own profession windows, so an empty tab usually
+means those windows have not been open, and it points at `/valuate enhancecheck`.
+
+This is the mistake this project has now made three separate times in three files, so it is
+the assertion the panel's gate exists to hold.
+
+### Added — what could not be read
+Enhancements whose slot or stats could not be worked out get their own section and are
+**named**. `"Arcanum of Torment"` is a head enchant that reads as nothing at all. Dropping
+those would make the list above look complete when it is not.
+
+### Still missing
+Where to buy a recipe and for how much. Nothing on this machine knows, and capturing it live
+from merchant and trainer windows is the next piece.
+
+
 ## [0.166.0a] - 2026-08-15 — the enhancement engine
 
 The collecting, scoring and ranking behind the Enhancements tab. **Still not the tab** — but

@@ -309,6 +309,13 @@ local function CreateTabSystem(mainFrame, contentFrame)
                     -- Staggered column reveal, same flourish as Best Equipment.
                     if ns.RevealSettingsColumns then ns.RevealSettingsColumns() end
                 end
+            elseif tabName == "enhance" then
+                -- Rebuilt on every arrival, like To Do and for a stronger reason: the data
+                -- is read from profession windows that were probably not open last time.
+                if ns.RefreshEnhancePanel then ns.RefreshEnhancePanel() end
+                if isSwitch then
+                    Anim.setHeight(ns.ValuateUIFrame, MIN_WINDOW_HEIGHT, true)
+                end
             elseif tabName == "todo" then
                 -- OUTSIDE the isSwitch guard, like the Settings lines above and for the same
                 -- reason: a to-do list is only useful if it is current. Re-clicking the tab
@@ -480,6 +487,11 @@ local function CreateTabSystem(mainFrame, contentFrame)
     bestEquipmentPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
     bestEquipmentPanel:Hide()
 
+    local enhancePanel = CreateFrame("Frame", nil, contentFrame)
+    enhancePanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
+    enhancePanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
+    enhancePanel:Hide()
+
     local todoPanel = CreateFrame("Frame", nil, contentFrame)
     todoPanel:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, 0)
     todoPanel:SetPoint("BOTTOMRIGHT", contentFrame, "BOTTOMRIGHT", 0, 0)
@@ -499,7 +511,8 @@ local function CreateTabSystem(mainFrame, contentFrame)
     local instructionsTab = CreateTab("instructions", "Instructions", instructionsPanel, nil, aboutTab)
     local bestEquipmentTab =
         CreateTab("bestEquipment", "Best Equipment", bestEquipmentPanel, nil, instructionsTab)
-    local todoTab = CreateTab("todo", "To Do", todoPanel, nil, bestEquipmentTab)
+    local enhanceTab = CreateTab("enhance", "Enhance", enhancePanel, nil, bestEquipmentTab)
+    local todoTab = CreateTab("todo", "To Do", todoPanel, nil, enhanceTab)
 
     -- The count, on the tab.
     --
@@ -528,6 +541,7 @@ local function CreateTabSystem(mainFrame, contentFrame)
         settingsPanel = settingsPanel,
         bestEquipmentPanel = bestEquipmentPanel,
         todoPanel = todoPanel,
+        enhancePanel = enhancePanel,
         selectTab = SelectTab,
         -- The buttons themselves, so a gate can check they were all built the same way.
         -- Four of the six used to be hand-copied and quietly lacked the accent bar that
@@ -595,6 +609,9 @@ function Valuate:ShowUI()
 
             -- Create to-do panel
             ns.CreateTodoPanel(tabs.todoPanel)
+
+            -- Create enhancements panel
+            ns.CreateEnhancePanel(tabs.enhancePanel)
         end
         
         -- Show first, then refresh: the best-equipment panel skips rebuilding

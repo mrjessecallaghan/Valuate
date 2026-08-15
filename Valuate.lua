@@ -11031,6 +11031,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "enhancetab", since = "0.167.0a",
+        gate = "tools/enhancepanel.js",
+        title = "The Enhance tab lists real enchants for the gear you have on",
+        steps = "Open the Enhance tab with no profession window open and read what it says. Then open Enchanting (or a crafting profession) and click the tab again.",
+        expect = "Closed: it says it has not been shown any yet, NOT that there are none. Open: one row per worn slot that has options, best first, with the runners-up still listed beneath.",
+        broke = "The data is read live from GetNumCrafts and GetNumTradeSkills, and 3.3.5 splits them - Enchanting is behind the CRAFT api, everything else behind TradeSkill. If enchants never appear but crafted armor kits do, the craft half is not being read on this client. The gate proves the panel against a stubbed collector; only the client can show whether Ascension answers those apis at all, or names its enchants in a way the slot patterns recognise. Anything in the 'could not read' section is the honest signal for the second of those.",
+    },
+    {
         id = "scaledlevel", since = "0.164.0a",
         gate = "tools/scaledlevel.js",
         title = "Scaled gear is not filed under a level you have passed",
