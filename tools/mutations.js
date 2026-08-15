@@ -103,6 +103,7 @@ const SPEC_TIP = {
 // what the picker only said once.
 const PLAN_AUTO = { start: "function Valuate:PlanAutoScale(", end: "\nfunction Valuate:CommitAutoScale" };
 const BE_EMPTY = { start: "        if #activeScales == 0 then", end: "\n        if noScalesTextFrame then" };
+const ABOUT = { start: "local function CreateAboutPanel(", end: "\n-- ========================================" };
 const COMMIT_AUTO = { start: "function Valuate:CommitAutoScale(", end: "\n-- Everything that can" };
 const FROM_TEMPLATE = { start: "function ValuateUI_CreateScaleFromTemplate(", end: "\nfunction ValuateUI_NewScale" };
 const EDITOR_SUMMARY = { start: "local function UpdateEditorSummary(", end: "\n    ns.UpdateScaleEditorSummary" };
@@ -157,7 +158,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.126.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.127.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -740,4 +741,20 @@ module.exports = [
   { gate: "firstrun", file: "ui/BestEquipment.lua", scope: BE_EMPTY,
     label: "the empty screen is blank - the panel just looks broken",
     from: "noScalesTextFrame:Show()", to: "noScalesTextFrame:Hide()" },
+
+  // ---- the About panel measuring itself (v0.127.0a) ------------------------
+  // The fixed 400px was not an approximation, it was the reason the feature list went a year
+  // stale: the panel warned that adding to the list would clip it, so nobody added.
+  { gate: "aboutfits", file: "ui/InfoPanels.lua", scope: ABOUT,
+    label: "the panel goes back to a constant height, so any content 'fits' forever",
+    from: "local measured = math.abs(currentY) + 20", to: "local measured = 400" },
+  { gate: "aboutfits", file: "ui/InfoPanels.lua", scope: ABOUT,
+    label: "the feature list drops back to the version that was a year behind the addon",
+    from: '"• Make me a scale - builds one from the gear you are already wearing\\n" ..', to: "" },
+
+  // The harness's own measurement. A GetStringHeight that ignores its text turns every
+  // layout assertion in the project into a count of how many font strings exist.
+  { gate: "aboutfits", file: "tools/luaharness.js",
+    label: "string height stops depending on the string, and layout gates measure nothing",
+    from: "return lines * 12", to: "return 12" },
 ];

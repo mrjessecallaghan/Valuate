@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.127.0a] - 2026-08-15 — the About panel could not grow, so it did not
+
+### Fixed
+The About panel's feature list was a year behind the addon — no wizard, no queue automations,
+no bank-aware best-in-slot, none of this month's work. Its own comment said why:
+
+    -- NOTE: this panel has a FIXED 400px height and no scroll frame, so keep this
+    -- list to roughly its current length or it will overflow the panel.
+
+**The container was the cause.** Every feature added since was left off rather than risk
+clipping the Discord and Ko-fi lines underneath — the list did exactly what it was told and
+rotted without anyone making a mistake. Fixing the text and leaving the constraint would have
+guaranteed the same drift again.
+
+So the panel now sizes itself from what it built. `currentY` had been tracking the real
+height the whole time and was thrown away at the end in favour of the hardcoded 400. The list
+is updated too, and can now be extended without a warning attached.
+
+### Fixed — the harness was measuring nothing
+Writing the gate for this turned up something worse. The test harness's `GetStringHeight`
+returned a **flat 12** regardless of the string, so "does this panel's content fit" was
+counting how many font strings existed, not how much they said. A feature list could triple
+in length without moving the number.
+
+It now models line count and wrapping from the actual text. Rough on purpose — real font
+metrics are not available headlessly, and pretending otherwise would be its own kind of lie —
+but enough to make *twice the text is taller* true. **No existing gate changed behaviour**,
+which is the reassuring half: 58 gates were robust to a measurement that had been fictional.
+
+### Technical
+Three mutations survived the first pass and each named a real weakness:
+
+- The frame height and the reported height were the same arithmetic written twice, so
+  breaking one left the other correct — the panel could clip while still reporting it fitted.
+  Computed once now.
+- "Does it fit" is satisfied by *any* sufficiently small number, including one that ignores
+  the text. The gate needed a **lower** bound as well as an upper one.
+- That bound has to sit above what the tautology produces, not merely above zero: a flat
+  12-per-string harness lands at 224, so 200 would have passed it. It is 300.
+
+### Investigated, nothing to fix
+Three other things were measured first and left alone, because they turned out to be fine:
+UI text never names a button that does not exist (5 references, all valid); tooltip coverage
+looked like 45% but the gaps were an artefact of how far my heuristic scanned — the real
+controls all explain themselves; and Equip All's "would change N slots" preview already
+mirrors exactly what the equip path skips, bank items included.
+
 ## [0.126.0a] - 2026-08-15 — the first screen you ever see
 
 ### Fixed

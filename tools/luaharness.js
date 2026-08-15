@@ -225,7 +225,31 @@ function CreateFrame(frameType, name, parent, template)
     function f:GetStringWidth()
         return #(self.__text or "") * 6
     end
-    function f:GetStringHeight() return 12 end
+    -- Height that responds to the TEXT, because a constant makes every layout assertion a
+    -- tautology. aboutfits.js asked "does this panel's content fit the window" against a flat
+    -- 12, so it was measuring how many font strings existed rather than how much they said -
+    -- and a feature list could triple in length without moving the number.
+    --
+    -- A rough model, deliberately: one line per newline, plus wrapping at the width the
+    -- caller set. Real font metrics are not available here and pretending otherwise would be
+    -- its own kind of lie, so this is only good enough to make "twice the text is taller"
+    -- true. Gates that need exact pixels belong in the client, not here.
+    function f:GetStringHeight()
+        local text = self.__text
+        if type(text) ~= "string" or text == "" then return 0 end
+        -- Colour codes occupy no width on screen.
+        local visible = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local width = self.__width
+        local perLine = (type(width) == "number" and width > 0) and math.floor(width / 6) or 80
+        if perLine < 8 then perLine = 8 end
+        local lines = 0
+        -- The appended newline makes the pattern also yield the text after the final one.
+        for segment in (visible .. "\\n"):gmatch("([^\\n]*)\\n") do
+            local len = #segment
+            lines = lines + math.max(1, math.ceil(len / perLine))
+        end
+        return lines * 12
+    end
     function f:SetFont(...) self.__font = {...} return true end
     function f:GetFont() return self.__font and self.__font[1] end
     function f:CopyFontObject(o) self.__copiedFrom = o end

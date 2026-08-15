@@ -298,15 +298,24 @@ local function CreateAboutPanel(parent)
     
     -- Features list
     local features = CreateText(
-        -- NOTE: this panel has a FIXED 400px height and no scroll frame, so keep this
-        -- list to roughly its current length or it will overflow the panel.
+        -- The panel now sizes itself from its content, so this list may grow. It could not
+        -- before, and that is why it had drifted past the wizard, the queue automations and
+        -- the whole of this month's work.
+        "• Make me a scale - builds one from the gear you are already wearing\n" ..
+        "• 101 class/spec templates, including Conquest of Azeroth's 21 classes\n" ..
         "• Per-character profiles - independent scales and settings\n" ..
         "• Customizable stat weight scales, with stat banning for hybrid builds\n" ..
         "• Real-time tooltip scores, comparisons and 'Best for' markers\n" ..
         "• Best Equipment panel - best-in-slot per scale, deltas, Equip All\n" ..
+        "• Bank-aware: banked gear counts as best-in-slot, and is marked as unreachable\n" ..
         "• Weapon sets - 2H, 1H+Shield, 1H+Off-Hand and Dual Wield tracked separately\n" ..
-        "• Opt-in automation: quest rewards, loot rolls, upgrade prompt\n" ..
+        "• Upgrade arrows in your bags, and a login summary of what needs doing\n" ..
+        "• Opt-in automation: quest rewards, loot rolls, upgrade prompt, level-up equip\n" ..
+        "• Battlegrounds and dungeons: auto-release, auto-queue, auto-leave\n" ..
+        "• Dungeon loot check - offers to leave once nothing left is an upgrade\n" ..
         "• Junk auto-delete and merchant sell/repair, with hard protections\n" ..
+        "• A separate scale for battlegrounds, applied automatically as you zone\n" ..
+        "• Search boxes on Settings and the template picker\n" ..
         "• Import/Export for sharing scales (carries weapon-set config)\n" ..
         "• Support for Ascension-specific stats (PvE Power, PvP Power, etc.)\n" ..
         "• Character window integration and a minimap button",
@@ -334,7 +343,26 @@ local function CreateAboutPanel(parent)
     kofiText:SetJustifyH("LEFT")
     kofiText:SetText("◆ Support: |cFFFF5E5Ehttps://ko-fi.com/jessecallaghan|r")
     kofiText:SetTextColor(unpack(COLORS.textBody))
-    
+    currentY = currentY - kofiText:GetStringHeight()
+
+    -- Sized from what was actually built, rather than a hardcoded 400.
+    --
+    -- The fixed height was not just an approximation, it was the REASON this panel went
+    -- stale. Its own comment warned "keep this list to roughly its current length or it will
+    -- overflow", so every feature added since was left off rather than risk clipping the
+    -- Discord and Ko-fi lines - and the list drifted a year behind the addon while doing
+    -- exactly what it was told.
+    --
+    -- currentY has been tracking the real height the whole time and was thrown away at the
+    -- end. Using it means the list can grow, and aboutfits.js fails loudly if it ever grows
+    -- past the window instead of quietly clipping.
+    -- Computed once. Two copies of the same arithmetic can be changed one at a time, and a
+    -- mutation proved it: breaking the frame's height left the reported height correct, so
+    -- the panel could clip while still reporting that it fitted.
+    local measured = math.abs(currentY) + 20
+    contentFrame:SetHeight(measured)
+    container.contentHeight = measured
+
     return container
 end
 
@@ -423,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.126.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.127.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -432,10 +460,12 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.126.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.127.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
+        "• The About tab's feature list is current again - it had been a year behind\n" ..
+        "   because the panel could not grow. It sizes itself now.\n" ..
         "• FIXED: Best Equipment used to tell brand-new users to 'activate a scale'\n" ..
         "   before they had made one. It now tells you to make one, and points at\n" ..
         "   the button that does it.\n" ..
