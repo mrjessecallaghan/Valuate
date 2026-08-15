@@ -819,6 +819,11 @@ local DEFAULT_OPTIONS = {
     autoQueueDungeon = false,
     autoAcceptBattleground = false,
     autoEquipOnLevelUp = false,
+    -- Put an upgrade on the moment it lands in your bags, instead of asking. Off by default:
+    -- it changes your gear without a press, which is the most consequential thing any
+    -- automation here does. Goes through EquipBestSet, so it inherits the combat guard, the
+    -- slot locks and the bind-intent marking rather than growing thinner copies of them.
+    autoEquipUpgrades = false,
     -- Hit past the cap does nothing, so it should score nothing. ON by default: this is a
     -- game rule rather than a preference, and scoring capped hit at full weight is simply
     -- wrong. See GetHitState - it refuses to act when it cannot work out the conversion.
@@ -5950,6 +5955,37 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
         end
     end
 
+    -- Just put it on.
+    --
+    -- Everything needed for this has existed for a while: the scan knows what beats what,
+    -- EquipBestSet has the combat guard, the lock check and the bind-intent marking, and the
+    -- popup has been asking you to press one button. This removes the button.
+    --
+    -- OFF by default, like every automation here, and it goes through EquipBestSet rather
+    -- than reaching for EquipItemByName - so it inherits every refusal that path already
+    -- makes rather than growing a second, thinner copy of them.
+    --
+    -- It still SAYS what it did. An automation that moves your gear silently is
+    -- indistinguishable from a bug the first time it surprises you, and the whole argument
+    -- of this addon is that a confident action with no explanation is not evidence.
+    if options.autoEquipUpgrades and pendingEquipScale and Valuate.EquipBestSet then
+        if InCombatLockdown and InCombatLockdown() then
+            -- Not deferred to the end of combat on purpose: your bags will have changed by
+            -- then, and acting on a decision made several fights ago is its own surprise.
+            Valuate:MarkAutomation("autoEquip", "in combat; left it for you")
+        else
+            local equipped = Valuate:EquipBestSet(pendingEquipScale)
+            Valuate:MarkAutomation("autoEquip",
+                equipped and ("equipped " .. count .. " upgrade(s)") or "EquipBestSet refused")
+            if equipped then
+                print(string.format(
+                    "|cFF00FF00[Valuate]|r Equipped %d upgrade(s) for %s. " ..
+                    "|cFFAAAAAA/valuate autoequip turns this off.|r", count, label))
+            end
+            return
+        end
+    end
+
     if (options.notifyBagUpgradeStyle or "dialog") == "chat" then
         -- Chat-only: same detection, no popup. For players who want to know without
         -- a dialog stealing focus mid-fight.
@@ -9992,6 +10028,7 @@ function Valuate:PrintReport()
         -- why". A feature whose correct behaviour is silence is otherwise indistinguishable
         -- from one that is broken.
         { key = "dungeonLeave",  label = "Dungeon leave check" },
+        { key = "autoEquip",     label = "Auto-equip upgrades" },
     }
     print("  |cFFAAAAAALast run this session:|r")
     for _, hb in ipairs(HEARTBEATS) do
@@ -11377,6 +11414,7 @@ SlashCmdList["VALUATE"] = function(msg)
         print("  /valuate hit - What the scoring assumes about your hit, and how much cap is left")
         print("  /valuate hitcap - Toggle scoring hit at zero once you are capped")
         print("  /valuate hittarget <0-3> - What you are assumed to fight (0 same level, 3 a boss)")
+        print("  /valuate autoequip - Toggle putting upgrades on as they drop, without asking")
         print("  /valuate where - Which dungeons hold an upgrade you could actually wear")
         print("  /valuate dungeon - What this addon knows about the dungeon you are in, boss by boss")
         print("  /valuate autoleavedungeon - Toggle asking to leave once nothing left is an upgrade")
@@ -11780,6 +11818,16 @@ SlashCmdList["VALUATE"] = function(msg)
         -- prompt if there is anything to equip.
         if Valuate.ScanBestEquipment then Valuate:ScanBestEquipment() end
         Valuate:CheckBagUpgradeNotify("loot", true)
+    elseif command == "autoequip" then
+        local options = Valuate:GetOptions()
+        options.autoEquipUpgrades = not options.autoEquipUpgrades
+        print("|cFF00FF00Valuate|r: Auto-equip upgrades as they drop " ..
+            (options.autoEquipUpgrades and "|cFF00FF00on|r" or "|cFFFF0000off|r"))
+        if options.autoEquipUpgrades then
+            print("  |cFFFFAA00It will change your gear without asking|r - including binding a " ..
+                "BoE you loot, which cannot be undone. It refuses in combat and respects " ..
+                "locked slots.")
+        end
     elseif command == "where" then
         -- Which dungeons hold something you could wear and would want.
         --

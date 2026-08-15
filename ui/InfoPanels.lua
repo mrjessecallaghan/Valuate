@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.144.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.145.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.144.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.145.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,10 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• NEW: AUTO-EQUIP UPGRADES. Off by default. Puts an upgrade on the moment it\n" ..
+        "   lands in your bags instead of asking - it refuses in combat, respects\n" ..
+        "   locked slots, and says what it did. It can BIND a BoE you loot, which\n" ..
+        "   cannot be undone, so it stays opt-in.\n" ..
         "• NEW: /valuate where - which dungeons hold an upgrade you could actually\n" ..
         "   wear, and WHICH SLOTS each one would improve, best first.\n" ..
         "   wear, best first. Filtered by the item's real level requirement, so it\n" ..

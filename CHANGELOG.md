@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.145.0a] - 2026-08-15 — it just puts the upgrade on
+
+### Added
+The upgrade prompt has been asking you to press one button. This removes the button.
+
+With **auto-equip upgrades** on, an item that beats what you are wearing goes on the moment it
+lands in your bags. Off by default, and it will stay that way: it changes your gear with no
+press, and it can **bind a BoE you just looted**, which cannot be undone.
+
+Everything it needs already existed — the scan knows what beats what, and `EquipBestSet` has
+the combat guard, the slot locks and the bind-intent marking. So it goes through that path
+rather than reaching for `EquipItemByName` itself, and **inherits every refusal that path
+already makes** instead of growing a second, thinner copy of them.
+
+Two deliberate choices:
+
+- **It says what it did.** An automation that moves your gear silently is indistinguishable
+  from a bug the first time it surprises you.
+- **In combat it steps aside rather than queueing.** Deferring to the end of the fight sounds
+  helpful, but your bags will have changed by then, and acting on a decision made several
+  fights ago is its own surprise. It records why it stood down, visible in `/valuate report`.
+
+### Technical
+The options gate caught it immediately: a command alone is *reachable* but not *findable*, and
+the rule added in v0.124.0a requires a Settings control for anything a user holds an opinion
+about. It has one, with the BoE warning on the control rather than only in chat.
+
 ## [0.144.0a] - 2026-08-15 — naming the slot instead of counting it
 
 ### Fixed

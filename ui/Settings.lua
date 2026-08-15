@@ -2256,6 +2256,8 @@ local function CreateSettingsPanel(parent)
     local MISC_TOGGLES = {
         { key = "autoEquipOnLevelUp", label = "Equip upgrades when you level",
           tip = "On level-up, equips anything you are carrying that just became wearable and beats what you have on. Waits a few seconds first, so the rescan that levelling triggers has finished - equipping before that would put your current gear back on and announce it as a success." },
+        { key = "autoEquipUpgrades", label = "Equip upgrades as they drop",
+          tip = "Puts an upgrade on the moment it lands in your bags, instead of asking. This changes your gear without a press - including BINDING a BoE you loot, which cannot be undone. It refuses in combat and respects locked slots, because it goes through the same Equip All path rather than a thinner copy of it." },
         { key = "autoLearnAppearances", label = "Learn appearances automatically",
           tip = "Adds looted items to your wardrobe without asking." },
         { key = "todoOnLogin", label = "Summarise what needs doing at login",

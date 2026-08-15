@@ -178,7 +178,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.144.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: 0.145.0a", to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1041,4 +1041,11 @@ module.exports = [
   { gate: "dungeonloot", file: "Valuate.lua", scope: WHERE,
     label: "the slots are computed and thrown away, so a dungeon says nothing about WHY to go",
     from: "if not slots[slotName] then slots[slotName] = true end", to: "local _ = slotName" },
+
+  // ---- auto-equip upgrades (v0.145.0a) --------------------------------------
+  // The most consequential automation here: it changes your gear with no press, and can bind
+  // a BoE you just looted. Every mutation is a guard removed.
+  { gate: "options", file: "Valuate.lua",
+    label: "the automation that changes your gear without asking defaults to ON",
+    from: "    autoEquipUpgrades = false,", to: "    autoEquipUpgrades = true," },
 ];
