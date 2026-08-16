@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.177.1a] - 2026-08-16 — HOTFIX: the Enhance tab's scroll bar threw on build
+
+### Fixed
+**v0.177.0a set the scroll bar's value one line before installing its handler, so the
+template's own handler ran instead and took the window with it:**
+
+```
+attempt to call method 'SetVerticalScroll' (a nil value)
+  ui\EnhancePanel.lua:251: in function `CreateEnhancePanel'
+```
+
+`UIPanelScrollBarTemplate` ships an `OnValueChanged` that calls `SetVerticalScroll` straight
+on the slider's **parent** — it is written for a bar parented to the scroll frame it drives.
+This bar is parented to the panel instead, because a child of a scroll frame gets clipped to
+it and the bar sits outside its right edge. `SetScript` replaces, so our handler makes that
+assumption irrelevant — but only from the moment it is installed, and `SetValue(0)` was called
+one line earlier.
+
+Same shape of failure as v0.176.0a: something threw *inside a panel builder*, so the rest of
+the build never ran.
+
+**Why no gate caught it — and the harness gap is the actual finding.** Two of them, both the
+same mistake in different clothes:
+
+- the mock's `SetValue` only stored the number. It never called `OnValueChanged`, so every
+  such handler in this addon was unreachable from a gate.
+- **every mocked frame had `SetVerticalScroll`**, so a plain Frame answered it as happily as
+  a real scroll frame — and the template handler, which is only dangerous *because* its parent
+  usually is not a scroll frame, ran clean.
+
+That is the second time in two days a too-generous mock let a real crash through: yesterday a
+FontString had `SetScript`, today a Frame scrolls. `SetValue` now runs the handler, scroll
+methods exist only on `ScrollFrame`s, and `UIPanelScrollBarTemplate` carries the real
+template's handler. With the fix reverted the gate reproduces the client's error.
+
 ## [0.177.0a] - 2026-08-16 — every slot, and what should be on it
 
 ### Changed

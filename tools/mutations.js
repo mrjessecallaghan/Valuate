@@ -1634,6 +1634,17 @@ module.exports = [
     from: "    { pattern = \"scope\",      slots = { 18 } },",
     to: "    { pattern = \"scope\",      slots = { 17 } }," },
 
+  // The scroll bar's own handler must REPLACE the template's, not chain onto it.
+  //
+  // UIPanelScrollBarTemplate's OnValueChanged calls SetVerticalScroll on the slider's parent,
+  // which here is the panel. HookScript keeps it alive alongside ours, so the first SetValue
+  // throws inside the panel builder - which is what v0.177.0a shipped, by a different route:
+  // calling SetValue one line before SetScript.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the scroll bar chains the template's handler instead of replacing it, and throws",
+    from: "    scrollBar:SetScript(\"OnValueChanged\", function(_, value)",
+    to: "    scrollBar:HookScript(\"OnValueChanged\", function(_, value)" },
+
   // Seventeen rows do not fit the window. They used to run off the bottom of it.
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
     label: "the scroll range is always zero, so rows past the fold are unreachable",

@@ -246,12 +246,22 @@ function ns.CreateEnhancePanel(parent)
     local scrollBar = CreateFrame("Slider", nil, panel, "UIPanelScrollBarTemplate")
     scrollBar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 4, -16)
     scrollBar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 4, 16)
-    scrollBar:SetMinMaxValues(0, 0)
-    scrollBar:SetValueStep(20)
-    scrollBar:SetValue(0)
+    -- THE HANDLER FIRST, before anything that can move the value.
+    --
+    -- UIPanelScrollBarTemplate ships its own OnValueChanged, and that one assumes the slider's
+    -- parent IS the scroll frame - it calls SetVerticalScroll straight on it. This slider is
+    -- parented to the panel, because a child of the scroll frame gets clipped to it and the
+    -- bar sits outside its right edge.
+    --
+    -- SetScript REPLACES, so once ours is installed the template's is gone and the assumption
+    -- never applies. Until then it is live, and v0.177.0a called SetValue(0) one line too
+    -- early: the template's handler ran, hit a plain Frame, and threw inside the panel builder.
     scrollBar:SetScript("OnValueChanged", function(_, value)
         scrollFrame:SetVerticalScroll(value)
     end)
+    scrollBar:SetMinMaxValues(0, 0)
+    scrollBar:SetValueStep(20)
+    scrollBar:SetValue(0)
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local _, maxScroll = scrollBar:GetMinMaxValues()
         local newValue = math.max(0, math.min(maxScroll, self:GetVerticalScroll() - delta * 30))

@@ -210,7 +210,20 @@ function CreateFrame(frameType, name, parent, template)
     function f:GetVerticalScroll() return self.__vScroll or 0 end
     function f:SetMinMaxValues(lo, hi) self.__min, self.__max = lo, hi end
     function f:GetMinMaxValues() return self.__min or 0, self.__max or 0 end
-    function f:SetValue(v) self.__value = v end
+    -- SetValue RUNS the handler, because in the client it does.
+    --
+    -- A mock that only stored the number made every OnValueChanged handler in this addon
+    -- unreachable from a gate: whatever it did, right or wrong, nothing here ever called it.
+    -- v0.177.0a shipped a scroll bar that threw the moment its value was set, past 71 gates.
+    function f:SetValue(v)
+        local changed = (self.__value ~= v)
+        self.__value = v
+        local handler = self.__scripts and self.__scripts.OnValueChanged
+        -- Fired even when the value did not change, matching a first SetValue on a fresh
+        -- slider - which is exactly the call that broke.
+        if handler and (changed or not self.__valueSet) then handler(self, v) end
+        self.__valueSet = true
+    end
     function f:GetValue() return self.__value or 0 end
     function f:SetValueStep(s) self.__valueStep = s end
     function f:SetOrientation(o) self.__orientation = o end
@@ -293,6 +306,39 @@ function CreateFrame(frameType, name, parent, template)
     function f:IsEventRegistered(ev)
         return (self.__events and self.__events[ev]) and true or false
     end
+    -- A TEMPLATE BRINGS ITS OWN HANDLERS, and this one brings an assumption with it.
+    --
+    -- UIPanelScrollBarTemplate's OnValueChanged calls SetVerticalScroll straight on the
+    -- slider's PARENT - it is written for a bar parented to the scroll frame it drives. Park a
+    -- bar beside the scroll frame instead (which you must, if it is not to be clipped by it)
+    -- and the first SetValue throws, unless your own handler has already replaced it.
+    --
+    -- Modelled here rather than assumed away: without it the harness builds templated frames
+    -- as blank ones, so the window between CreateFrame and SetScript - the window v0.177.0a
+    -- fell into - does not exist in a gate at all.
+    if template == "UIPanelScrollBarTemplate" then
+        f.__scripts.OnValueChanged = function(selfRef, value)
+            selfRef:GetParent():SetVerticalScroll(value)
+        end
+    end
+
+    -- ONLY A SCROLLFRAME SCROLLS.
+    --
+    -- Every mocked frame had these, so a plain Frame answered SetVerticalScroll as happily as
+    -- the real thing - and the template handler above, which is only dangerous BECAUSE its
+    -- parent is usually not a scroll frame, ran clean against it.
+    --
+    -- The second time in two days that a too-generous mock let a real crash through: a
+    -- FontString had SetScript, and now a Frame scrolls. The rule is the same both times -
+    -- a mock that answers calls the client would refuse is not a lenient test, it is a
+    -- test of a client that does not exist.
+    if frameType ~= "ScrollFrame" then
+        f.SetScrollChild = nil
+        f.GetScrollChild = nil
+        f.SetVerticalScroll = nil
+        f.GetVerticalScroll = nil
+    end
+
     table.insert(__frames, f)
     return f
 end
