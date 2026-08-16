@@ -1581,14 +1581,27 @@ local function CreateSettingsPanel(parent)
             end
         end)
 
-        text:SetScript("OnEnter", function(self)
+        -- The hover lives on a FRAME laid over the label, not on the label.
+        --
+        -- A FontString has no SetScript in this client - only frames take mouse events - and
+        -- calling it errors, which aborts the rest of the panel build. That is what shipped
+        -- in v0.176.0a: the Settings column lost its last rows and every panel built after
+        -- this one never appeared at all.
+        --
+        -- The "Running:" line at the top of this very file already does it this way, with a
+        -- comment saying exactly this. Knowing the rule is not the same as following it.
+        local hover = CreateFrame("Frame", nil, col2)
+        hover:SetPoint("TOPLEFT", text, "TOPLEFT", 0, 0)
+        hover:SetPoint("BOTTOMRIGHT", text, "BOTTOMRIGHT", 0, 0)
+        hover:EnableMouse(true)
+        hover:SetScript("OnEnter", function(self)
             if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
                 GameTooltip:AddLine(label, 1, 1, 1)
                 GameTooltip:AddLine(tip, 0.8, 0.8, 0.8, true)
                 GameTooltip:Show()
             end
         end)
-        text:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        hover:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
         columnHeights[2] = columnHeights[2] + 32 + ELEMENT_SPACING
         return text

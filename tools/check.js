@@ -408,6 +408,7 @@ const STRUCTURAL_RULES = [
   "sort-needs-tiebreaker",
   "no-bank-in-destructive-path",
   "acting-paths-wait-for-transit",
+  "fontstring-is-not-a-frame",
   "pairs-list-needs-sort",
 ];
 
@@ -982,6 +983,37 @@ for (const file of files) {
       `LINT   ${rel}:${lineNo}  [no-bank-in-destructive-path] ${fnName} references '${offender[0]}'. The bank snapshot must never reach a delete/sell/free-slot path - deletion is irreversible and "keep N slots free" is a promise about BAGS.`
     );
     lintFailures++;
+  }
+
+  // --- fontstring-is-not-a-frame -----------------------------------------
+  // A FontString has no SetScript, HookScript, EnableMouse or RegisterEvent. Calling one
+  // errors, and an error inside a panel builder aborts the REST of the build - so the cost
+  // is never the one hover you wanted, it is the rest of the column and every panel
+  // constructed after it.
+  //
+  // That is not hypothetical: v0.176.0a shipped `label:SetScript("OnEnter", ...)` and took
+  // out the last rows of Settings plus the To Do, Enhance and Best Equipment panels. It
+  // passed every gate because the harness builds font strings out of CreateFrame and so
+  // handed them methods the client does not.
+  //
+  // The harness no longer does. This rule is the cheaper half of the same guard: it names
+  // the line without needing the panel to be built at all.
+  const FS_LOCALS = /^\s*local\s+(\w+)\s*=\s*[\w.]+:CreateFontString/gm;
+  const fontStrings = new Set();
+  let fsm;
+  while ((fsm = FS_LOCALS.exec(src))) fontStrings.add(fsm[1]);
+
+  if (fontStrings.size) {
+    const FRAME_ONLY = /\b(\w+):(SetScript|HookScript|EnableMouse|RegisterEvent)\s*\(/g;
+    let fom;
+    while ((fom = FRAME_ONLY.exec(masked))) {
+      if (!fontStrings.has(fom[1])) continue;
+      const lineNo = src.slice(0, fom.index).split(/\r?\n/).length;
+      console.error(
+        `LINT   ${rel}:${lineNo}  [fontstring-is-not-a-frame] '${fom[1]}' is a FontString and has no ${fom[2]}. Calling it errors, and an error here aborts the rest of the panel build - the cost is every control after this one, not just this hover. Put the handler on a mouse-enabled Frame laid over the text.`
+      );
+      lintFailures++;
+    }
   }
 
   // --- acting-paths-wait-for-transit -------------------------------------

@@ -134,9 +134,23 @@ function CreateFrame(frameType, name, parent, template)
     -- pair any layout check has to walk. Returning a loose frame here (what this used to
     -- do) made CheckColumnAnchors see an empty column and report a clean bill of health
     -- while the client printed six overlap warnings.
+    -- A FontString is NOT a frame, and the difference that matters is mouse handling.
+    --
+    -- Everything here is built from CreateFrame, so font strings inherited SetScript and
+    -- EnableMouse - which the client does not give them. Calling SetScript on a label
+    -- therefore passed every gate and then errored on load in v0.176.0a, aborting the
+    -- Settings panel mid-build and taking every panel constructed after it with it.
+    --
+    -- Removed rather than made to no-op: a silent no-op would still let the code ship and
+    -- simply lose the hover. Erroring here is the same failure the client gives, at the only
+    -- point where it is cheap.
     function f:CreateFontString(name, layer, template)
         local fs = CreateFrame("FontString", name, self, template)
         fs.__layer = layer
+        fs.SetScript = nil
+        fs.HookScript = nil
+        fs.EnableMouse = nil
+        fs.RegisterEvent = nil
         table.insert(self.__regions, fs)
         return fs
     end

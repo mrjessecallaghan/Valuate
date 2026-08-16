@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.176.1a] - 2026-08-15 — HOTFIX: v0.176.0a broke the UI
+
+### Fixed
+**v0.176.0a attached a tooltip handler to a FontString, which errored on load and took most
+of the window with it.**
+
+```
+Interface\AddOns\Valuate\ui\Settings.lua:1584: attempt to call method 'SetScript' (a nil value)
+```
+
+A FontString is not a frame. It has no `SetScript`, and calling it throws — inside a panel
+builder, which means the *rest* of the build never runs. The visible damage was much wider
+than one missing hover: the last rows of Settings vanished, and the To Do, Enhance and Best
+Equipment panels were never constructed at all, so only some tabs appeared.
+
+The handler now lives on a mouse-enabled Frame laid over the label. **The "Running:" line at
+the top of that same file already did it that way, with a comment saying a FontString cannot
+take mouse events.** Knowing the rule is not the same as following it.
+
+### Fixed — why no gate caught it
+The harness builds every font string out of `CreateFrame`, so they inherited `SetScript`,
+`HookScript`, `EnableMouse` and `RegisterEvent` — methods the client does not give them. The
+broken line therefore passed all 71 gates and 329 mutations.
+
+Those four are now removed from mocked font strings rather than made to no-op: a silent no-op
+would still let the code ship and merely lose the hover. With the fix reverted, the gate
+reproduces the client's error verbatim, naming the same file and method.
+
+### Added
+`fontstring-is-not-a-frame` — a lint rule, the cheaper half of the same guard. It names the
+line without needing the panel built at all.
+
+A sweep of every UI file found **no other instance**.
+
+
 ## [0.176.0a] - 2026-08-15 — the context scales get controls
 
 ### Added
