@@ -1880,6 +1880,22 @@ module.exports = [
     from: "            if not scale then return value .. \" (missing)\" end",
     to: "            if not scale then return NONE end" },
 
+  // ---- a locked slot survives a scan (v0.177.3a) ---------------------------
+  // Locking a slot and pressing Scan emptied it. Every assignment site guards on
+  // `if not locks[slotId]` and every one of them was right; the reset that ran before them
+  // kept only the padlock. The bug was not in the code that mentions locks.
+  { gate: "locktest", file: "Valuate.lua",
+    label: "a locked slot is emptied by the next scan, which is the opposite of a lock",
+    from: "                if isLocked and previous[slotId] then", to: "                if false then" },
+
+  // The other direction. "Preserve everything" also keeps the locked slot, and freezes
+  // best-in-slot at whatever the first scan of the session found - a lock on every slot,
+  // shown nowhere.
+  { gate: "locktest", file: "Valuate.lua",
+    label: "every slot is preserved, so a scan never updates anything again",
+    from: "        local locks = previous and previous.locks",
+    to: "        local locks = previous and setmetatable({}, { __index = function() return true end })" },
+
   // ---- fail closed on an unreadable item (v0.177.2a) -----------------------
   // The bug that sold an upgrade. An item whose stats could not be read lost the upgrade
   // protection AND the best-in-slot protection at once, because an item the scan cannot read

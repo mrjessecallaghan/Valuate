@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.177.3a] - 2026-08-16 — HOTFIX: locking a slot and scanning emptied it
+
+### Fixed
+**A locked slot was cleared by the next scan — the exact opposite of what a lock is for.**
+
+The reset at the top of `ScanBestEquipment` replaced each scale's table wholesale and copied
+only `.locks` back:
+
+```lua
+local locks = bestEquipment[scaleName] and bestEquipment[scaleName].locks
+bestEquipment[scaleName] = {}          -- the locked slot's item died here
+if locks then bestEquipment[scaleName].locks = locks end
+```
+
+Every assignment site downstream then reads `if not locks[slotId]` before writing, so the
+locked slot was cleared and deliberately never refilled. **Five guards, all working exactly as
+written, all protecting a slot that had been emptied a few hundred lines earlier.**
+
+The reset now carries the locked slots' **contents** across as well as the flags. Unlocked
+slots are still cleared — "preserve everything" would also keep the locked slot, and would
+freeze best-in-slot at whatever the first scan of the session found: a lock on every slot,
+shown nowhere. `activeWeaponSet` is deliberately not carried, since a stale one would name a
+set that no longer matches the slots beside it.
+
+**Why nothing caught it, and what changed.** The reset lived inside `ScanBestEquipment` — 600
+lines needing a client, bags, tooltips and scales — which is the part of the file no gate can
+reach. It is now `ns.ResetScanResults`, a function that takes the store and the scale list, so
+it can be tested without a scan at all. New gate `locktest.js`: 16 checks over locked and
+unlocked slots, a lock on an empty slot, a lock set to `false`, two scales, weapons, and bad
+input. Reverting the fix fails 5 of them by name.
+
+The shape is worth stating plainly: **the bug was not in the code that mentions locks.**
+Everything that mentions locks was correct. It was in the one line that did not.
+
 ## [0.177.2a] - 2026-08-16 — HOTFIX: auto-sell could sell an upgrade
 
 ### Fixed

@@ -4680,6 +4680,38 @@ function Valuate:ScanBankContents()
     return true
 end
 
+-- Clears the previous scan's results, keeping locked slots EXACTLY as they were.
+--
+-- The reset used to carry only the lock flags across, and that is what emptied a locked slot
+-- on every scan. Every assignment site in ScanBestEquipment reads `if not locks[slotId]`
+-- before writing, so a locked slot is never filled in - which is right, and is precisely why
+-- its contents have to survive this reset. They did not: the per-scale table was replaced
+-- wholesale and only `.locks` was copied back, so all five of those guards were carefully
+-- protecting a slot that had been emptied a few hundred lines earlier.
+--
+-- A lock means "keep what is here". Keeping only the padlock is the opposite of that.
+--
+-- Its own function so it can be tested without a scan. As part of ScanBestEquipment - 600
+-- lines needing a full client, bags, tooltips and scales - it was in the one part of this
+-- file no gate could reach, which is how it survived.
+function ns.ResetScanResults(store, scaleNames)
+    if type(store) ~= "table" then return end
+    for _, scaleName in ipairs(scaleNames or {}) do
+        local previous = store[scaleName]
+        local locks = previous and previous.locks
+        store[scaleName] = {}
+        if locks then
+            store[scaleName].locks = locks
+            -- Key by key, so pairs() order never reaches anything user-visible.
+            for slotId, isLocked in pairs(locks) do
+                if isLocked and previous[slotId] then
+                    store[scaleName][slotId] = previous[slotId]
+                end
+            end
+        end
+    end
+end
+
 -- Scans all equipped items and items in bags to find the best item for each slot per scale
 -- Stores results in ValuateBestEquipment[scaleName][slotId] = {itemLink, score, itemName}
 -- Items the character can't equip yet (too high level / unlearned proficiency) are
@@ -4707,16 +4739,7 @@ function Valuate:ScanBestEquipment()
         return
     end
     
-    -- Initialize/clear storage for each scale (reset previous scan data, but preserve locks)
-    for _, scaleName in ipairs(activeScales) do
-        -- Save locks before clearing
-        local locks = bestEquipment[scaleName] and bestEquipment[scaleName].locks
-        bestEquipment[scaleName] = {}  -- Always reset to clear previous scan results
-        -- Restore locks
-        if locks then
-            bestEquipment[scaleName].locks = locks
-        end
-    end
+    ns.ResetScanResults(bestEquipment, activeScales)
     
     -- First pass: Count all items by item ID (equipped + bags)
     local itemCounts = {}  -- itemId -> count
