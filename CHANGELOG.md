@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.177.2a] - 2026-08-16 — HOTFIX: auto-sell could sell an upgrade
+
+### Fixed
+**An item whose stats could not be read lost every protection at once and was sold.**
+
+The upgrade protection read the item's stats and, if it got nothing back, fell straight
+through to "not protected":
+
+```lua
+local stats = Valuate:GetStatsForTooltipSetter("SetBagItem", bag, slot)
+if stats then ... end   -- and nothing at all when stats was nil
+```
+
+`GetStatsForTooltipSetter` returns nil for two unrelated reasons: the item genuinely has no
+stats, or **the read did not work** — the client has not cached the item, the tooltip had not
+populated, the parse found nothing it recognised. The second is routine, and it is at its
+worst in the first seconds after a login, which is exactly when you zone into a city and open
+a merchant.
+
+**The protections are not independent.** The best-in-slot check above it fails for the *same*
+cause: an item the scan could not read is not in the scan. So one failed read silenced two
+protections, and the item was sold with nothing recorded about what it was.
+
+It now **fails closed**: an item that could be worn and could not be evaluated is kept, and
+says which — "could not read its stats", or "the client has not cached it yet". Genuine junk
+still sells, because a cloth's missing stats and missing equip slot are facts about the cloth
+rather than a failed read. Old bags still sell too.
+
+**The gate asserted the bug.** It required unreadable gear to come back deletable, and
+justified it in a comment: *"correct only because everything else already said no"*. That
+reasoning was wrong in exactly the way described above, and it is why this shipped. The
+assertion now requires the opposite, with four cases: unreadable gear, uncached item, cloth,
+bag.
+
+### Added
+- **`/valuate sellpreview`** — what auto-sell *would* sell, and what it is keeping and why.
+  Auto-delete has had a preview since the beginning; auto-sell never did, and selling is the
+  path that actually took something. Works away from a merchant, and sells nothing.
+
 ## [0.177.1a] - 2026-08-16 — HOTFIX: the Enhance tab's scroll bar threw on build
 
 ### Fixed

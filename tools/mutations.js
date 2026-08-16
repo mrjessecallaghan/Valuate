@@ -1091,7 +1091,10 @@ module.exports = [
   // ---- rescuing gear from the junk pile (v0.147.0a) ------------------------
   // Writes to ANOTHER ADDON'S state, and the direction is the dangerous part: marking
   // something as junk is a judgement about worth that this addon has no business making.
+  // Scoped: v0.177.2a gave the SELL path the same line, so an unscoped anchor lands on
+  // whichever comes first in the file rather than on the one this gate exercises.
   { gate: "deletetest", file: "Valuate.lua",
+    scope: { start: "function Valuate:AutoUnjunkProtected", end: "\n-- opts is `true` for the chatty on-demand form" },
     label: "it un-junks everything, including genuine junk, refilling the pile you emptied",
     from: "                    local protected, why = IsProtectedFromDelete(bag, slot, link)", to: "                    local protected, why = true, \"x\"" },
   { gate: "deletetest", file: "Valuate.lua",
@@ -1876,4 +1879,76 @@ module.exports = [
     label: "a nomination whose scale is gone reads as if nothing was ever chosen",
     from: "            if not scale then return value .. \" (missing)\" end",
     to: "            if not scale then return NONE end" },
+
+  // ---- fail closed on an unreadable item (v0.177.2a) -----------------------
+  // The bug that sold an upgrade. An item whose stats could not be read lost the upgrade
+  // protection AND the best-in-slot protection at once, because an item the scan cannot read
+  // is not in the scan - five protections agreeing is not five protections when one failure
+  // silences all of them.
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "gear whose stats could not be read falls through every protection and is sold",
+    from: "            local reason = ns.UnreadableGearReason and ns.UnreadableGearReason(link)",
+    to: "            local reason = nil" },
+
+  // The other direction, which is what makes the rule survivable: genuine junk still sells.
+  // Protecting everything unreadable would switch the feature off in all but name, and a
+  // feature that silently does nothing gets turned back on by someone who thinks it is broken.
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "everything unreadable is protected, so auto-sell quietly stops selling junk",
+    from: "    if equipLoc and equipLoc ~= \"\" and equipLoc ~= \"INVTYPE_BAG\" then",
+    to: "    if true then" },
+
+  // "Not cached yet" is the constant case, not the rare one: it is most of your bags for the
+  // first seconds after a login, which is when you zone into a city and open a merchant.
+  { gate: "deletetest", file: "Valuate.lua",
+    label: "an item the client has not cached yet is treated as not-gear and sold",
+    from: "    if not name then return \"the client has not cached it yet\" end", to: "" },
+
+  // ---- the LootCollector filter (v0.1.0) -----------------------------------
+  // This one hides rows from someone else's list, so every mutation here is asymmetric: the
+  // failure is a worldforged upgrade that silently never appeared, and the only evidence of
+  // it is an absence you cannot notice.
+
+  // The whole design in one line. An item we could not evaluate stays on screen.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "an item that could not be evaluated is hidden rather than shown",
+    from: "    if verdict == ns.UNKNOWN or verdict == nil then return true end",
+    to: "    if false then return true end" },
+
+  // Mystic scrolls and vendors are not gear. Filtering them by stat weights empties tabs that
+  // have nothing to do with this addon, which reads as a broken addon rather than a filter.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "non-gear rows are filtered by stat weights, emptying the mystic and vendor tabs",
+    from: "    if not isGear then return true end", to: "    if false then return true end" },
+
+  // The two filter modes have to differ, or one of the three button states does nothing.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "'My Stats' filters exactly like 'Upgrades', so one button state is dead",
+    from: "    if mode == \"stats\" and verdict == \"stats\" then return true end", to: "" },
+
+  // Unreadable stats are not a verdict. Treating them as one bakes "rubbish" into the memo for
+  // an item whose only problem was that the client had not answered yet.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "stats that could not be read are recorded as a judgement about the item",
+    from: "    if score == nil then return ns.UNKNOWN end",
+    to: "    if score == nil then return \"worthless\" end" },
+
+  // Zero is a real answer - the scale has no weight on anything the item carries.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "an item your scale scores at zero counts as something it values",
+    from: "    if score <= 0 then return \"worthless\" end",
+    to: "    if score < 0 then return \"worthless\" end" },
+
+  // "Not cached yet" is not "not gear". Answering false here is permanent: the row is judged
+  // furniture and never looked at again.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "an uncached item is declared not-gear instead of not-yet-known",
+    from: "    if not cached then return nil end", to: "    if not cached then return false end" },
+
+  // One cycle function for the button and the slash command. Break it and a state is
+  // unreachable from the button while the command can still set it.
+  { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
+    label: "the button cycle skips a mode, so one filter state cannot be reached by clicking",
+    from: "    if mode == \"upgrades\" then return \"stats\" end",
+    to: "    if mode == \"upgrades\" then return \"off\" end" },
 ];

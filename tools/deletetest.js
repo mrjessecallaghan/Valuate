@@ -50,6 +50,18 @@ if (!m) {
   process.exit(1);
 }
 
+// The fail-closed helper, sliced from the same file rather than restated here. An item whose
+// stats could not be read used to fall straight through every protection below; this is what
+// stops it, and it is the fix for an upgrade that got sold.
+const u = lua.match(/^function ns\.UnreadableGearReason\(([\s\S]*?)\nend\n/m);
+if (!u) {
+  console.error(
+    "  SLICE  could not find `function ns.UnreadableGearReason` in Valuate.lua - " +
+      "the fail-closed protection was renamed or removed, so this gate is testing nothing"
+  );
+  process.exit(1);
+}
+
 const run = load([]);
 
 run(
@@ -80,9 +92,13 @@ local function clear()
             return false
         end,
     }
+    -- Readable, equippable and cached, so the fail-closed branch stays out of the way until
+    -- a test asks for it. Index 9 is equipLoc.
+    GetItemInfo = function() return "Test Item", nil, nil, nil, nil, nil, nil, nil, "INVTYPE_CHEST" end
 end
 
-` + extra + "\n" + m[0] + `
+local ns = {}
+` + extra + "\n" + u[0] + "\n" + m[0] + `
 
 local LINK = "|cff0070dd|Hitem:1234::::::::80:::::|h[Test Item]|h|r"
 
@@ -97,6 +113,46 @@ clear()
 prot, reason = IsProtectedFromDelete(1, 1, nil)
 eq(prot, true, "a missing link is protected")
 eq(reason, "no link", "a missing link says why")
+
+-- ---- FAIL CLOSED, which it did not, and an upgrade got sold ---------------------------------
+--
+-- GetStatsForTooltipSetter returns nil for two unrelated reasons: the item genuinely has no
+-- stats, or the read did not work - not cached, tooltip not populated, parse found nothing.
+-- Treating both as "not an upgrade" dropped the item through EVERY protection, because an item
+-- the scan cannot read is also not in the scan, so best-in-slot missed it too.
+--
+-- The direction matters more than the rule. Keeping a grey breastplate costs a bag slot;
+-- selling an upgrade costs the upgrade, and the only evidence is that it is gone.
+clear()
+Valuate.GetStatsForTooltipSetter = function() return nil end
+prot, reason = IsProtectedFromDelete(1, 1, LINK)
+eq(prot, true, "gear whose stats could not be read is KEPT, not sold")
+eq(reason, "could not read its stats", "and says that is why, rather than claiming it is junk")
+
+-- The client has not cached it. Constant for the first seconds after a login - which is when
+-- you zone into a city and open a merchant. Nothing is known about the item, including whether
+-- it is the best thing you own.
+clear()
+Valuate.GetStatsForTooltipSetter = function() return nil end
+GetItemInfo = function() return nil end
+prot, reason = IsProtectedFromDelete(1, 1, LINK)
+eq(prot, true, "an item the client has not cached is kept")
+eq(reason, "the client has not cached it yet", "and names that specifically")
+
+-- ...but genuine junk still sells, or the feature is off in all but name. A cloth has no equip
+-- slot and no stats, and both of those are the truth about it rather than a failed read.
+clear()
+Valuate.GetStatsForTooltipSetter = function() return nil end
+GetItemInfo = function() return "Linen Cloth", nil, nil, nil, nil, nil, nil, nil, "" end
+prot, reason = IsProtectedFromDelete(1, 1, LINK)
+eq(prot, false, "a cached item with no equip slot is still sellable")
+
+-- A bag is equippable and is not gear a stat scale ranks. Clearing out old ones stays possible.
+clear()
+Valuate.GetStatsForTooltipSetter = function() return nil end
+GetItemInfo = function() return "Small Bag", nil, nil, nil, nil, nil, nil, nil, "INVTYPE_BAG" end
+prot, reason = IsProtectedFromDelete(1, 1, LINK)
+eq(prot, false, "an old bag is still sellable")
 
 -- 1. Quest item, reported as a quest item.
 clear()
@@ -175,14 +231,19 @@ ok(lastUpgradeOpts ~= nil, "IsUpgradeForAnyScale was actually consulted")
 eq(lastUpgradeOpts and lastUpgradeOpts.includeInactive, true,
    "the upgrade check includes inactive scales")
 
--- No stats: the branch must not call the upgrade check at all, since scoring nil stats is
--- meaningless. It falls through to deletable, which is correct only because everything
--- else already said no.
+-- No stats: the upgrade check is not called, because scoring nil stats is meaningless.
+--
+-- THIS ASSERTION USED TO SAY false - that unreadable gear falls through to deletable - and
+-- justified it with "correct only because everything else already said no". That reasoning was
+-- wrong, and it is the reason an upgrade got sold. Everything else said no for the SAME cause:
+-- an item the scan cannot read is not in the scan, so the best-in-slot check missed it too.
+-- Five protections agreeing is not five protections when one failure silences all of them.
 clear()
 Valuate.GetStatsForTooltipSetter = function() return nil end
 Valuate.IsUpgradeForAnyScale = function(self, link, stats, opts) lastUpgradeOpts = opts return true end
 prot = IsProtectedFromDelete(1, 1, LINK)
-eq(prot, false, "no stats means the upgrade branch is skipped")
+eq(lastUpgradeOpts, nil, "no stats means the upgrade check is not called with nothing to score")
+eq(prot, true, "and the item is kept rather than falling through to deletable")
 eq(lastUpgradeOpts, nil, "the upgrade check is not consulted without stats")
 
 -- A THROWING client API must not take the addon down. Both container calls are pcall'd

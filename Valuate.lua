@@ -9173,6 +9173,29 @@ end
 -- Hard protections that the user CANNOT switch off. Anything Valuate considers gear
 -- you want, a quest item, or part of a WoW equipment set is never a delete candidate.
 -- Returns true plus a reason when the item must be kept.
+-- Why an item whose stats could not be read must not be sold or deleted.
+--
+-- Returns a reason when the item is - or might be - something you could wear, and nil when it
+-- is plainly not: a cloth, an ore, a grey trinket with no equip slot. Those last are what the
+-- junk features exist to clear, and protecting them would switch auto-sell off in all but
+-- name.
+--
+-- The nil-name case is the important one and it is NOT "not gear". GetItemInfo returns nothing
+-- at all for an item the client has not cached, which on a fresh login is most of your bags
+-- for the first few seconds - and the merchant window is a thing you open right after zoning.
+-- Nothing is known about that item, including whether it is the best thing you own.
+function ns.UnreadableGearReason(link)
+    if not link then return "no link" end
+    local name, _, _, _, _, _, _, _, equipLoc = GetItemInfo(link)
+    if not name then return "the client has not cached it yet" end
+    -- Bags are equippable and are not gear a stat scale ranks, so clearing out old ones stays
+    -- possible.
+    if equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_BAG" then
+        return "could not read its stats"
+    end
+    return nil
+end
+
 local function IsProtectedFromDelete(bag, slot, link)
     if not link then return true, "no link" end
 
@@ -9224,11 +9247,30 @@ local function IsProtectedFromDelete(bag, slot, link)
     end
 
     -- An upgrade for any scale, even if it never made it into the scan results.
+    --
+    -- FAILS CLOSED, which it did not until v0.177.2a and which is why an upgrade got sold.
+    --
+    -- GetStatsForTooltipSetter returns nil for two completely different reasons: the item
+    -- genuinely has no stats (a grey cloth), or the read did not work - the client has not
+    -- cached the item, the tooltip had not populated, the parse found nothing it recognised.
+    -- The old code treated both as "not an upgrade" and fell through to `return false`, so an
+    -- unreadable item lost this protection entirely.
+    --
+    -- It lost the best-in-slot protection above at the same time and for the same reason: an
+    -- item the scan could not read is not IN the scan. Two protections, one cause, and the
+    -- result is sold with no record of what it was.
+    --
+    -- So: an item that could be worn and could not be evaluated is KEPT. The cost is a piece
+    -- of grey armour that survives a sell run; the cost the other way is an upgrade you never
+    -- saw, gone.
     if Valuate.GetStatsForTooltipSetter and Valuate.IsUpgradeForAnyScale then
         local stats = Valuate:GetStatsForTooltipSetter("SetBagItem", bag, slot)
         if stats then
             local isUpgrade = Valuate:IsUpgradeForAnyScale(link, stats, { includeInactive = true })
             if isUpgrade then return true, "an upgrade" end
+        else
+            local reason = ns.UnreadableGearReason and ns.UnreadableGearReason(link)
+            if reason then return true, reason end
         end
     end
 
@@ -9834,19 +9876,34 @@ function Valuate:AutoUnjunkProtected(verbose)
     return freed
 end
 
-function Valuate:AutoSellJunk(verbose)
+-- opts is `true` for the chatty on-demand form, or { preview = true } to report what WOULD be
+-- sold and sell nothing. The preview exists because auto-delete has had one since the
+-- beginning and auto-sell never did - and selling is the path that actually took an upgrade.
+function Valuate:AutoSellJunk(opts)
+    local verbose = (opts == true) or (type(opts) == "table" and opts.verbose)
+    local preview = (type(opts) == "table" and opts.preview) or false
+    if preview then verbose = true end
+
     local options = Valuate:GetOptions()
-    if not MerchantFrame or not MerchantFrame:IsShown() then
+    -- A preview answers "what would this do", which is a question worth asking away from a
+    -- merchant - and mostly asked after something got sold that should not have been.
+    if not preview and (not MerchantFrame or not MerchantFrame:IsShown()) then
         if verbose then print("|cFFFF8800[Valuate]|r No merchant window open.") end
         return 0
     end
-    if equipmentSwapPending or recentEquipmentChange then return 0 end
+    if equipmentSwapPending or recentEquipmentChange then
+        if verbose then
+            print("|cFFFF8800[Valuate]|r Not while gear is still moving - try again in a moment.")
+        end
+        return 0
+    end
 
     local AdiBags, junkModule = ResolveAdiBagsJunk()
     local maxQuality = options.autoDeleteMaxQuality or 2
     local valueSource = options.autoDeleteValueSource or "vendor"
 
     local queue, count = {}, 0
+    local kept = {}
     for bag = 0, 4 do
         local numSlots = GetContainerNumSlots(bag) or 0
         for slot = 1, numSlots do
@@ -9870,18 +9927,38 @@ function Valuate:AutoSellJunk(verbose)
                    and IsItemJunk(AdiBags, junkModule, itemId, quality)
                    and quality and quality <= maxQuality then
                     -- Same hard protections as deleting: never sell best-in-slot,
-                    -- weapon-set members, future upgrades, quest or equipment-set items.
-                    local protected = IsProtectedFromDelete(bag, slot, link)
+                    -- weapon-set members, future upgrades, quest or equipment-set items,
+                    -- nor anything whose stats could not be read at all.
+                    local protected, why = IsProtectedFromDelete(bag, slot, link)
                     if not protected then
                         count = count + 1
                         queue[#queue + 1] = {
                             bag = bag, slot = slot, link = link,
                             value = unit * stackCount,
                         }
+                    elseif preview then
+                        -- The kept list is the more useful half of a preview. "It sold
+                        -- nothing" is not an answer to "why did it sell that".
+                        kept[#kept + 1] = { link = link, why = why or "protected" }
                     end
                 end
             end
         end
+    end
+
+    if preview then
+        print(string.format("|cFF00FF00[Valuate]|r Sell preview: %d item(s) WOULD be sold, " ..
+            "%d kept.", count, #kept))
+        for i = 1, math.min(count, 15) do
+            print("  |cFFFF5555sell|r  " .. queue[i].link)
+        end
+        if count > 15 then print(string.format("  ...and %d more", count - 15)) end
+        for i = 1, math.min(#kept, 15) do
+            print("  |cFF00FF00keep|r  " .. kept[i].link .. " |cFFAAAAAA- " .. kept[i].why .. "|r")
+        end
+        if #kept > 15 then print(string.format("  ...and %d more kept", #kept - 15)) end
+        print("|cFFAAAAAANothing was sold. Toggle the feature with /valuate sell.|r")
+        return count
     end
 
     if count == 0 then
@@ -12230,6 +12307,7 @@ SlashCmdList["VALUATE"] = function(msg)
                 "  |cFFFF8800/valuate deletepreview - What auto-delete WOULD remove. Run this first.|r",
                 "  /valuate deletenow - Delete junk now, honouring Keep Free Slots",
                 "  /valuate keepfree <n> - Bag slots auto-delete tries to keep free",
+                "  |cFFFF8800/valuate sellpreview - What auto-sell WOULD sell, and what it is keeping and why.|r",
                 "  /valuate sellnow - Sell junk now",
             } },
             { key = "queue", title = "Battlegrounds and queues", lines = {
@@ -12851,6 +12929,10 @@ SlashCmdList["VALUATE"] = function(msg)
         print("|cFF00FF00Valuate|r: Auto sell junk at merchants " .. (options.autoSellJunk and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"))
     elseif command == "sellnow" then
         Valuate:AutoSellJunk(true)
+    elseif command == "sellpreview" then
+        -- Sells nothing, and works away from a merchant. Lists what would go and what is
+        -- being kept, with the reason - the half that answers "why did it sell that".
+        Valuate:AutoSellJunk({ preview = true })
     elseif command == "repair" then
         local options = Valuate:GetOptions()
         options.autoRepair = not options.autoRepair
