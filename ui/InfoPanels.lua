@@ -451,7 +451,7 @@ local function CreateChangelogPanel(parent)
     local versionSpacing = 30
     local paragraphSpacing = 10
     
-    -- Version 0.175.0a (Current) - see CHANGELOG.md for the release-by-release detail.
+    -- Version 0.177.0a (Current) - see CHANGELOG.md for the release-by-release detail.
     --
     -- This panel had drifted seventeen releases behind the .toc, which is worse than
     -- having no changelog: it reads as "nothing has happened since 0.17.2a". It is now
@@ -460,7 +460,7 @@ local function CreateChangelogPanel(parent)
     --
     -- Deliberately a SUMMARY, not one entry per patch. The full history lives in
     -- CHANGELOG.md; what belongs here is what a user would notice.
-    local vCurrentHeader = CreateVersionHeader("Version 0.175.0a (Current) - what is new since 0.17.2a", currentY)
+    local vCurrentHeader = CreateVersionHeader("Version 0.177.0a (Current) - what is new since 0.17.2a", currentY)
     currentY = currentY - lineHeight - paragraphSpacing
 
     local vCurrentText = CreateChangeText(
@@ -474,6 +474,11 @@ local function CreateChangelogPanel(parent)
         -- Trimming entries would buy a few releases and break again. table.concat has no
         -- such limit, so the list can keep growing.
         table.concat({
+        "• NEW: the Enhance tab now lists EVERY slot of the gear you are wearing, with\n" ..
+        "   what should go on it beside each one. A row that has nothing to offer says\n" ..
+        "   which of the reasons it is: already enhanced, nothing goes there, none shown\n" ..
+        "   to me yet, nothing equipped, or nothing you can apply at this item level.\n" ..
+        "   Tick 'Only slots with something to do' for the old shorter view.\n",
         "• NEW: a scale per place. Pick one for PvP, one for dungeons and optionally one\n" ..
         "   for outdoors, in Settings under Battlegrounds & Dungeons (or /valuate\n" ..
         "   pvpscale / dungeonscale / normalscale). The addon switches as you zone and\n" ..
@@ -549,11 +554,10 @@ local function CreateChangelogPanel(parent)
         "   stats it weights, with the numbers.\n" ..
         "• /valuate help is GROUPED into six topics; /valuate help gear (or auto,\n" ..
         "   clean, queue, check, start) shows one group instead of 74 lines.\n" ..
-        "• The wizard explains itself when it cannot build a scale, and says when a\n" ..
-        "   match is weak - which is normal while levelling - instead of showing a\n" ..
-        "   blank line.\n" ..
-        "• Best Equipment tells a brand-new character to MAKE a scale, rather than to\n" ..
-        "   activate one they do not have yet.\n" ..
+        "• A character with no scale yet is told what to DO about it: the wizard says\n" ..
+        "   when it cannot build one and when a match is weak - normal while levelling -\n" ..
+        "   and Best Equipment says to make a scale rather than to activate one that\n" ..
+        "   does not exist. Neither shows a blank line any more.\n" ..
         "• /valuate selfverify checks the dungeon loot table against YOUR client -\n" ..
         "   whether the harvested item ids exist on this server at all.\n" ..
             "   addon tracks which bosses are still alive and asks whether to leave once",

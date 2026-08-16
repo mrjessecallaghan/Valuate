@@ -106,6 +106,32 @@ try {
   // No README, or it doesn't state a version: not a sync failure.
 }
 
+// CHANGELOG's newest entry vs .toc version.
+//
+// The gap that let v0.176.0a AND v0.176.1a both ship with the .toc still reading 0.175.0a.
+// Everything else here compares the hand-maintained files to the .toc, and they all agreed -
+// because the release forgot the .toc, so all three stayed wrong together. The CHANGELOG is
+// the one file a release cannot skip, which makes it the right thing to check the .toc against
+// rather than the other way round.
+//
+// The version the client reports is the .toc's. Getting it wrong means a bug report names a
+// build that never had the bug, which is worse than no version at all.
+try {
+  const tocVersion = (toc.match(/^##\s*Version:\s*(\S+)/m) || [])[1];
+  const changelog = fs.readFileSync(path.join(ADDON_ROOT, "CHANGELOG.md"), "utf8");
+  const newest = (changelog.match(/^##\s*\[([^\]]+)\]/m) || [])[1];
+
+  if (tocVersion && newest && tocVersion !== newest) {
+    console.error(
+      `MISMATCH  CHANGELOG's newest entry is ${newest}, .toc says ${tocVersion}. ` +
+        "The .toc is the version the client reports and every bug report quotes."
+    );
+    ok = false;
+  }
+} catch (e) {
+  // No CHANGELOG: not a sync failure.
+}
+
 /*
  * The /valuate verify checklist.
  *

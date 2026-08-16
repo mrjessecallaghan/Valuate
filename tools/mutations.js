@@ -27,6 +27,17 @@
  */
 "use strict";
 
+// The .toc's version, READ rather than written down here.
+//
+// One mutation needs it as an anchor, and it is the single thing in this file that changes
+// every release. Hardcoded, it goes stale the moment the version is bumped and the mutation
+// reports UNAPPLIED - "this is testing nothing" - on exactly the releases nobody is looking
+// at it. It did, for v0.176 and v0.177.
+const TOC_VERSION =
+  (require("fs")
+    .readFileSync(require("path").join(__dirname, "..", "Valuate.toc"), "utf8")
+    .match(/^##\s*Version:\s*(\S+)/m) || [])[1];
+
 const SCALED = {
   start: "function Valuate:GetScaledStatsForItem",
   end: "\n-- Why is this item not my best-in-slot?",
@@ -178,7 +189,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: 0.175.0a", to: "## Version: 0.199.0a" },
+    from: "## Version: " + TOC_VERSION, to: "## Version: 0.199.0a" },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -1531,9 +1542,12 @@ module.exports = [
   // "I have not been shown any" and "you have already done every slot" are opposite
   // states that both produce an empty list. This project has said the same thing for both
   // three times now (see CLAUDE.md), so it is the assertion the panel exists to hold.
+  // Read ONCE and used twice - the banner and the no-rows message - so one mutation proves
+  // both. Two copies of the test would be two chances for half the panel to answer the
+  // opposite question.
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
     label: "never having looked reads as having already enhanced everything",
-    from: "            if not any then", to: "            if false then" },
+    from: "        local anyKnown = false", to: "        local anyKnown = true" },
 
   // The ordering argument. Hiding the runners-up undoes the whole point: a +8 armour
   // enchant beats an empty slot even when it is nowhere near the best available.
@@ -1542,11 +1556,96 @@ module.exports = [
     from: "                for i = 2, math.min(#ranked, ALTERNATIVES + 1) do",
     to: "                for i = 2, 1 do" },
 
+  // ---- a row per slot, and seven states (v0.177.0a) --------------------------
+  // The panel used to draw a row only where it had something to offer, which meant four
+  // completely different situations - already done, takes none, none collected, nothing worn -
+  // all rendered identically: absent. Each of these mutations collapses one state into
+  // another, which is the failure the redesign exists to prevent.
+
   // An enchant for gear you are not wearing is a shopping catalogue, not a to-do list.
-  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
     label: "slots with nothing equipped in them are offered enhancements anyway",
-    from: "            local wanted = worn ~= nil and #ranked > 0",
-    to: "            local wanted = #ranked > 0" },
+    from: "    if not info.hasItem then return \"empty\" end",
+    to: "    if false then return \"empty\" end" },
+
+  // "Nothing goes here" and "I have not been shown any" are opposite claims. Reporting a
+  // trinket as the latter sends you looking for something that cannot exist.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a slot no enhancement fits reads as one I have simply never been shown",
+    from: "    if not ns.ENHANCEABLE_SLOTS[info.slotId] then return \"none\" end",
+    to: "    if false then return \"none\" end" },
+
+  // Derived from the pattern table on purpose: a second hand-written list is a second thing
+  // to forget, and forgetting it makes the panel offer a buckle to a slot it calls unenchantable.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "the enhanceable-slot set is empty, so every slot claims nothing goes on it",
+    from: "    for _, slotId in ipairs(entry.slots) do ns.ENHANCEABLE_SLOTS[slotId] = true end",
+    to: "" },
+
+  // An enchanted slot is finished. Calling it a recommendation puts a job on a done thing.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a slot that already has an enchant is recommended one anyway",
+    from: "    if info.hasEnchant then return \"enhanced\" end",
+    to: "    if false then return \"enhanced\" end" },
+
+  // Filtered and blocked both leave an empty list, and only one is a fact about your gear.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a slot the profession filter is hiding blames your item level instead",
+    from: "    if (info.shown or 0) <= 0 then return \"filtered\" end",
+    to: "    if false then return \"filtered\" end" },
+
+  // Counted before the filter, or a crafted-only view reports an enchanter's slots as never
+  // having been seen - sending you to open a window you already opened.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the profession filter makes slots report they have never been shown any options",
+    from: "                known = #all,", to: "                known = #ranked," },
+
+  // The filter itself.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the profession filter does nothing at all",
+    from: "            if ns.EnhanceFilters.source ~= \"all\" then", to: "            if false then" },
+
+  // Only two of the seven states are jobs.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a slot waiting only on better gear does not count as anything to do",
+    from: "    return state == \"recommend\" or state == \"blocked\"",
+    to: "    return state == \"recommend\"" },
+
+  // A badge that reads seventeen forever is a decoration.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the tab badge counts rows drawn rather than jobs outstanding",
+    from: "        if ns.SetTabCount then ns.SetTabCount(\"enhance\", actionable) end",
+    to: "        if ns.SetTabCount then ns.SetTabCount(\"enhance\", shown) end" },
+
+  // The 'only what I can act on' filter, which is the one control that hides slots.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the 'only slots with something to do' tick hides nothing",
+    from: "            if not (ns.EnhanceFilters.onlyActionable and not ns.EnhanceStateIsActionable(state)) then",
+    to: "            if true then" },
+
+  // Two patterns whose absence only became visible once every slot had a row: both were read
+  // out of the profession window correctly and then filed under "couldn't read these".
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a belt buckle is sent to the wrong slot",
+    from: "    { pattern = \"buckle\",     slots = { 6 } },",
+    to: "    { pattern = \"buckle\",     slots = { 7 } }," },
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "a scope is sent to the wrong slot",
+    from: "    { pattern = \"scope\",      slots = { 18 } },",
+    to: "    { pattern = \"scope\",      slots = { 17 } }," },
+
+  // Seventeen rows do not fit the window. They used to run off the bottom of it.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the scroll range is always zero, so rows past the fold are unreachable",
+    from: "        local range = math.max(0, contentHeight - scrollFrame:GetHeight())",
+    to: "        local range = 0" },
+
+  // "already enhanced" is the whole of what the item link supports. Dropping the words leaves
+  // a slot that is done looking like one being recommended something.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "a finished slot does not say it is finished",
+    from: "                        prefix = \"|cFF888888already enhanced|r  ·  \"",
+    to: "                        prefix = \"\"" },
 
   // A judgement-derived number must not sit unlabelled beside a measured one.
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",

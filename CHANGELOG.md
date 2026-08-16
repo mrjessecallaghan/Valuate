@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.177.0a] - 2026-08-16 — every slot, and what should be on it
+
+### Changed
+**The Enhance tab now draws a row for every equipment slot, not only the ones it had
+something to offer for.**
+
+The old panel showed three rows on a typical character and the emptiness carried no
+information at all. A slot you had already enchanted, a slot no enhancement can go on, a slot
+whose options had never been read out of a profession window, and a slot you were wearing
+nothing in were all rendered the same way: absent. Reading it told you what it had found and
+nothing whatsoever about what it had missed.
+
+Every slot is listed now, each row answers for itself, and the answers are seven distinct
+things rather than "shown" and "not shown":
+
+- **a recommendation** — nothing on it, and here is the best thing you can apply, with the
+  runners-up still beside it. Second best beats an empty slot.
+- **already enhanced** — it has one. Never "you already have the best one": the item link
+  says an enchant is present, not which, so the row offers what it *would* pick and says so.
+- **nothing goes here** — no enhancement has ever matched this slot.
+- **none shown to me yet** — it takes one, but no profession window has been opened. A
+  different sentence from the one above, and the difference is the point.
+- **hidden by the profession filter** — the options exist and you are looking at a filtered
+  view. Not "none shown to me yet", which would send you to open a window you already opened.
+- **waiting on better gear** — options exist and every one needs a higher item level.
+- **nothing equipped**.
+
+Also on each row: the item you are actually wearing there, in its quality colour.
+
+A coverage line summarises the lot — *"17 slots: 1 to enhance · 3 waiting on better gear · 9
+already done · 4 empty"* — listing only the categories that happened. The tab badge counts
+**jobs**, not rows; with a row per slot a row count would read seventeen forever.
+
+### Added
+- **Belt buckles and scopes.** Both were being read out of the profession window correctly
+  and then filed under "couldn't read these" for want of a slot pattern — visible only once
+  every slot had a row of its own. The waist and ranged slots now take enhancements.
+- **The panel scrolls.** Seventeen rows do not fit; the old three did.
+- **`.toc` version is checked against the CHANGELOG.** v0.176.0a and v0.176.1a both shipped
+  with the `.toc` still reading 0.175.0a — the README and in-game changelog were checked
+  against the `.toc`, and all three agreed because the release forgot all three together.
+
+### Fixed
+- The worn-item line and the recommendation column overlapped: the left column was 200px wide
+  from x=12 and the right one began at x=110, so a long item name was drawn straight through
+  the enchant being offered.
+- "I have not been shown any enhancements yet" lived in the no-rows message, which with a row
+  per slot became unreachable. It is a banner now, so the one sentence that tells you how to
+  fix an empty panel is shown when the panel is empty.
+
 ## [0.176.1a] - 2026-08-15 — HOTFIX: v0.176.0a broke the UI
 
 ### Fixed

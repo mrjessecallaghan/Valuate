@@ -207,7 +207,27 @@ local SLOT_PATTERNS = {
     -- earlier would claim every two-handed and off-hand recipe as a main-hand one.
     { pattern = "weapon",     slots = { 16, 17 } },
     { pattern = "staff",      slots = { 16 } },
+    -- Two slots this table simply never covered, found by listing every slot on the panel
+    -- instead of only the ones that already had options: a belt buckle adds a socket to the
+    -- waist and a scope goes on a ranged weapon. Both were being read out of the profession
+    -- window correctly and then filed under "couldn't read these" for want of a pattern.
+    --
+    -- Safe at the bottom because neither word appears in any pattern above and no pattern
+    -- above appears in a buckle or scope name, so the order carries no risk either way.
+    { pattern = "buckle",     slots = { 6 } },
+    { pattern = "scope",      slots = { 18 } },
 }
+
+-- Which slots any enhancement could land on, DERIVED from the table above rather than written
+-- out again beside it. A second hand-maintained list is a second thing to forget: adding
+-- "buckle" above and not adding Waist here would make the panel say the belt slot takes
+-- nothing while simultaneously offering it a buckle.
+--
+-- Membership only, so pairs order never reaches the screen.
+ns.ENHANCEABLE_SLOTS = {}
+for _, entry in ipairs(SLOT_PATTERNS) do
+    for _, slotId in ipairs(entry.slots) do ns.ENHANCEABLE_SLOTS[slotId] = true end
+end
 
 -- KNOWN GAP, stated rather than papered over.
 --
@@ -533,6 +553,59 @@ function ns.RankForSlot(bySlot, slotId, scale, scaleName, wornLevel)
         return (a.entry.name or "") < (b.entry.name or "")
     end)
     return out
+end
+
+-- What is this slot's situation, in one word.
+--
+-- The panel now draws a row for EVERY slot rather than only the ones with something to offer,
+-- which turns "is there a row here" into a question the row itself has to answer. Five answers,
+-- and the whole point is that they are five and not two - the previous panel collapsed all of
+-- these into "shown" or "not shown", so a slot that takes no enhancement, a slot whose options
+-- you have not learned yet and a slot you are wearing nothing in all looked identical: absent.
+--
+--   "empty"      nothing equipped. Cannot enhance what you are not wearing.
+--   "none"       this slot takes no enhancement I have ever had a pattern for.
+--   "unknown"    it takes one, but I have not been shown any yet. NOT the same as "none",
+--                and the distinction is the one this project has got wrong three times.
+--   "enhanced"   already has one on it.
+--   "filtered"   options exist and the profession filter is hiding them. NOT "unknown":
+--                that one sends you to open a profession window you already opened.
+--   "blocked"    nothing on it, options exist, but every one needs a higher item level.
+--   "recommend"  nothing on it, and here is what to put on.
+--
+-- A TABLE, not six positional arguments. Three of them are booleans and three are counts, so
+-- positionally there are several wrong orders that type-check perfectly and silently answer a
+-- different question.
+--
+--   slotId, hasItem, hasEnchant, known (before filtering), shown (after), usable (of shown)
+--
+-- Pure: no globals, no client. Everything it needs is an argument, so the gate can walk every
+-- branch without a profession window.
+function ns.EnhanceSlotState(info)
+    info = info or {}
+    if not info.hasItem then return "empty" end
+    -- Asked before "have I seen any", because a slot with no pattern will never have any and
+    -- reporting it as "not shown any yet" invites you to go and look for something that does
+    -- not exist.
+    if not ns.ENHANCEABLE_SLOTS[info.slotId] then return "none" end
+    if (info.known or 0) <= 0 then return "unknown" end
+    -- Before both of the checks below: an enchanted slot is done regardless of what the filter
+    -- is hiding or what your item level allows, and either of those words would read as a
+    -- problem to go and solve.
+    if info.hasEnchant then return "enhanced" end
+    -- Before "blocked", because the filter has already emptied the list the item-level count
+    -- was taken from - so a filtered-out slot would otherwise report itself as blocked, which
+    -- is a statement about your gear rather than about the button you just pressed.
+    if (info.shown or 0) <= 0 then return "filtered" end
+    if (info.usable or 0) <= 0 then return "blocked" end
+    return "recommend"
+end
+
+-- Only "recommend" and "blocked" are things to go and do; the rest are statements of fact.
+-- Used for the tab's count and the coverage line, so that a character with every slot enchanted
+-- reads as finished rather than as seventeen outstanding jobs.
+function ns.EnhanceStateIsActionable(state)
+    return state == "recommend" or state == "blocked"
 end
 
 -- ---------------------------------------------------------------------------------------
