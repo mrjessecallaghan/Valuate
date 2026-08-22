@@ -214,6 +214,7 @@ function CreateFrame(frameType, name, parent, template)
     function f:SetClampedToScreen(c) self.__clamped = c end
     function f:SetToplevel(t) self.__toplevel = t end
     function f:SetFrameStrata(s) self.__strata = s end
+    function f:GetFrameStrata() return self.__strata or "MEDIUM" end
     function f:SetFrameLevel(l) self.__frameLevel = l end
     function f:GetFrameLevel() return self.__frameLevel or 1 end
     function f:SetHitRectInsets(...) self.__hitRect = {...} end

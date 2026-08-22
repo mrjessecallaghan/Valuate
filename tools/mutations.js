@@ -1938,6 +1938,56 @@ module.exports = [
     label: "an item the client has not cached yet is treated as not-gear and sold",
     from: "    if not name then return \"the client has not cached it yet\" end", to: "" },
 
+  // ---- the LootCollector hook (v0.2.0) -------------------------------------
+  // The half that can hang a client. Both guards below are invisible in a small fixture and
+  // neither is provable by reading, which is why the gate runs the real loop and counts.
+
+  // A repaint that fires whether or not anything resolved rebuilds the list, re-queues what is
+  // still unreadable, drains to nothing new, and asks for another repaint. Forever.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the driver repaints even when nothing resolved, which never terminates",
+    from: "    if resolved > 0 then", to: "    if true then" },
+
+  // Same shape one level down: an item the client has no data for goes back in the queue on
+  // every pass, for as long as the window is open.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "an item the client never answers for is retried forever",
+    from: "    return memo[link] == nil and (attempts[link] or 0) < MAX_ATTEMPTS",
+    to: "    return memo[link] == nil" },
+
+  // The budget itself. Without it, thousands of tooltip builds run inside one repaint.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the pass has no time budget, so a large database is evaluated inside one repaint",
+    from: "                elseif spent or (debugprofilestop() - start) > PASS_BUDGET_MS then",
+    to: "                elseif false then" },
+
+  // Their table is reused and wiped on every rebuild, so handing back a copy hands back a view
+  // of something about to be emptied.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the filter rewrites rows even when it is switched off",
+    from: "        if ns.mode == \"off\" or type(rows) ~= \"table\" then return rows end",
+    to: "        if type(rows) ~= \"table\" then return rows end" },
+
+  // A stat scale has no opinion about mystic scrolls or vendors, and emptying those tabs reads
+  // as a broken addon rather than as a filter.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the Mystic Scrolls and vendor tabs get filtered by stat weights too",
+    from: "        if selfRef.currentFilter ~= \"eq\" then return rows end", to: "" },
+
+  // Checked BEFORE the memo is read, by both paths into it. Below the lookup it never ran for
+  // anything already memoised, which is every item you had looked at.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "switching spec keeps every verdict computed for the other one",
+    from: "    if scaleName and scaleName ~= memoScale then", to: "    if false then" },
+
+  // Their cache is keyed on their own filter state, which our button is not part of.
+  // Scoped: SetMode invalidates too, and an unscoped anchor lands on whichever comes first
+  // rather than on the driver path this gate drives.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    scope: { start: "local function Repaint()", end: "local resolved = 0" },
+    label: "the repaint reuses their cache, handing back the rows built before evaluation",
+    from: "    if Viewer.InvalidateFilterCache then Viewer:InvalidateFilterCache() end", to: "" },
+
   // ---- the LootCollector filter (v0.1.0) -----------------------------------
   // This one hides rows from someone else's list, so every mutation here is asymmetric: the
   // failure is a worldforged upgrade that silently never appeared, and the only evidence of

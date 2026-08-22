@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.179.0a] - 2026-08-16 — the LootCollector hook gets a gate, and it finds a bug
+
+### Added
+- **`tools/lchook.js`** — 36 checks over the half of `Valuate-LootCollector` that could hurt
+  you. Its pure decision logic already had a gate; the hook into LootCollector's Viewer, which
+  budgets and queues and repaints, had none, and that is the part that can hang a client.
+
+  It runs the real `Score.lua` and `Filter.lua` against a mocked LootCollector, a mocked
+  Valuate, and **a clock the test drives** — a real timer would make every budget assertion a
+  race, and what is being tested is precisely what happens when time runs out mid-pass.
+
+  The two assertions it exists for are the loop guards, neither of which is provable by
+  reading: a driver pass that resolves nothing must not ask for a repaint (a repaint rebuilds
+  the list, re-queues what is still unreadable, and asks again — forever), and an item the
+  client never answers for must stop being retried. Seven mutations hold them.
+
+### Fixed
+- **Switching spec kept every verdict computed for the other one.** Each verdict is one set of
+  stat weights applied to an item, so an answer from your other spec is not stale — it is an
+  answer to a different question. The check for it sat *below* the memo lookup, so it never
+  ran for anything already memoised, which is every item you had looked at. Both paths into
+  the memo now go through one `SyncScale` first — the filter pass reads the memo directly, so
+  guarding only `Evaluate` would have fixed half of it.
+
+  Found by the new gate on its first run, which is the entire argument for writing it.
+
+### Internal
+- **A gate assertion of mine was decorative and the mutation run said so.** The retry-bound
+  check measured the queue *after* the driver had run — and the driver drains the queue every
+  time, bound or no bound, so "the queue is empty now" was true with `MAX_ATTEMPTS` deleted
+  entirely. It measures the queue after a filter pass and before the driver now, which is the
+  only place the bound is visible.
+- The harness grew `GetFrameStrata`, which the client has and it did not.
+
 ## [0.178.0a] - 2026-08-16 — the in-game checklist catches up
 
 ### Added
