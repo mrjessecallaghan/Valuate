@@ -2381,6 +2381,36 @@ module.exports = [
     from: "    for _ in pairs(attempts) do stuck = stuck + 1 end", to: "",
     label: "items the client never answers for are not counted, so a stuck list has no cause" },
 
+  // ---- which integrations are actually running (v0.195.0a) -----------------
+  // Four addons extend this one and each fails silently. The pairing with the HOST is the whole
+  // design: an integration is only interesting when the thing it extends is present.
+
+  // THE STATE WORTH ACTING ON. Host here, integration not - your bags stop sorting and nothing
+  // says why.
+  { gate: "integrations", file: "Valuate.lua",
+    from: "        elseif hostHere then state = \"MISSING\"",
+    to: "        elseif hostHere then state = \"idle\"",
+    label: "a missing integration is reported as idle, so a broken one looks deliberate" },
+
+  // ...and the opposite, which is how a report becomes one you stop reading: warning about an
+  // addon you never installed, for a host you never installed.
+  { gate: "integrations", file: "Valuate.lua",
+    from: "        else state = \"idle\" idle = idle + 1 end",
+    to: "        else state = \"MISSING\" idle = idle + 1 end",
+    label: "integrations for hosts you never installed are reported as missing" },
+
+  // Idle ones are COUNTED, not listed. Naming four addons you have never heard of buries the
+  // one line that mattered.
+  { gate: "integrations", file: "Valuate.lua",
+    from: "        if row.state ~= \"idle\" then", to: "        if true then",
+    label: "every idle integration is listed by name, burying the one that matters" },
+
+  // An orphan is odd and harmless. Colouring it as a failure sends someone to fix nothing.
+  { gate: "integrations", file: "Valuate.lua",
+    from: "                print(string.format(\"  |cFFAAAAAA%s is loaded but %s is not, so it is doing \" ..",
+    to: "                print(string.format(\"  |cFFFF4040%s is NOT loaded but %s is not, so it is doing \" ..",
+    label: "an integration with nothing to extend is coloured as a failure" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

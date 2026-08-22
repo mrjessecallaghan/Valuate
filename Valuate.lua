@@ -10645,6 +10645,92 @@ function ns.HeartbeatState(ago, enabled)
     return "idle"
 end
 
+-- ============================================================================
+-- Which integrations are actually running
+-- ============================================================================
+--
+-- Four addons extend this one, and each fails silently. If Valuate-AdiBags does not load - a
+-- Lua error, an unticked box at the character screen, a folder that got renamed - you keep
+-- AdiBags and lose the Valuate filter inside it, with nothing anywhere saying so. The bags
+-- simply stop sorting the way they used to and you assume you changed something.
+--
+-- The pairing is the point: an integration is only interesting when its HOST is present.
+-- Reporting "Valuate-TSM: not loaded" to someone who has never installed TSM is crying wolf,
+-- and a report that cries wolf is one you stop reading - which costs you the line that
+-- mattered.
+ns.INTEGRATIONS = {
+    { addon = "Valuate-AdiBags",      host = "AdiBags",          gives = "bag sorting by scale" },
+    { addon = "Valuate-PassLoot",     host = "PassLoot",         gives = "loot rules from your scale" },
+    { addon = "Valuate-TSM",          host = "TradeSkillMaster", gives = "upgrade columns in shopping" },
+    { addon = "Valuate-LootCollector",host = "LootCollector",    gives = "filtering discoveries to upgrades" },
+}
+
+-- Returns { { addon, host, gives, state }, ... } and how many are idle.
+--
+-- state is one of:
+--   "working"   host and integration both loaded
+--   "MISSING"   the host is here and the integration is NOT - the only one worth acting on
+--   "idle"      the host is not installed, so the integration has nothing to extend
+--   "orphan"    the integration loaded with no host, which is odd and harmless
+--
+-- Sorted by the declaration order above rather than by state, so the same integration is on the
+-- same line every time and the list can be read at a glance rather than re-parsed.
+function ns.IntegrationStatus()
+    local rows, idle = {}, 0
+    local function loaded(name)
+        if type(IsAddOnLoaded) ~= "function" then return false end
+        local ok, isLoaded = pcall(IsAddOnLoaded, name)
+        return (ok and isLoaded) and true or false
+    end
+
+    for _, entry in ipairs(ns.INTEGRATIONS) do
+        local hostHere, addonHere = loaded(entry.host), loaded(entry.addon)
+        local state
+        if hostHere and addonHere then state = "working"
+        elseif hostHere then state = "MISSING"
+        elseif addonHere then state = "orphan"
+        else state = "idle" idle = idle + 1 end
+        rows[#rows + 1] = {
+            addon = entry.addon, host = entry.host, gives = entry.gives, state = state,
+        }
+    end
+    return rows, idle
+end
+
+function Valuate:PrintIntegrations()
+    local rows, idle = ns.IntegrationStatus()
+    local shown = 0
+
+    for _, row in ipairs(rows) do
+        if row.state ~= "idle" then
+            shown = shown + 1
+            if row.state == "working" then
+                print(string.format("  |cFF00FF00%s|r - %s", row.addon, row.gives))
+            elseif row.state == "MISSING" then
+                -- The one worth acting on, and the only one coloured as a problem.
+                print(string.format("  |cFFFF4040%s is NOT loaded|r, but %s is - you are " ..
+                    "missing %s.", row.addon, row.host, row.gives))
+                print("        |cFFAAAAAACheck it is ticked at the character-select AddOns " ..
+                      "list, and that /console scriptErrors 1 shows nothing on login.|r")
+            else
+                print(string.format("  |cFFAAAAAA%s is loaded but %s is not, so it is doing " ..
+                    "nothing.|r", row.addon, row.host))
+            end
+        end
+    end
+
+    if shown == 0 then
+        print("  |cFFAAAAAANone of the four integration hosts is installed, so nothing here " ..
+              "applies to you.|r")
+    elseif idle > 0 then
+        -- Counted, not listed. Naming addons you have never installed is the noise this
+        -- section exists to avoid.
+        print(string.format("  |cFFAAAAAA%d other integration(s) idle - their host addon is " ..
+            "not installed.|r", idle))
+    end
+    return shown, idle
+end
+
 function Valuate:PrintReport()
     local options = Valuate:GetOptions()
     local scales = Valuate:GetScales()
@@ -10653,6 +10739,10 @@ function Valuate:PrintReport()
     local fmt = "%." .. decimals .. "f"
 
     print("|cFF00FF00[Valuate]|r Report  |cFFAAAAAA(v" .. (Valuate.version or "?") .. ")|r")
+
+    -- Integrations first, because an absent one explains a whole category of "it stopped
+    -- doing that" and no amount of reading the sections below would reveal it.
+    if Valuate.PrintIntegrations then Valuate:PrintIntegrations() end
 
     if #activeScales == 0 then
         print("  |cFFFF8800No active scales.|r Activate one in the Scales tab.")

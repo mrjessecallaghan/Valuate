@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.195.0a] - 2026-08-16 — `/valuate report` says which integrations are actually running
+
+### Added
+- **An integration section at the top of `/valuate report`.**
+
+  Four addons extend this one — AdiBags, PassLoot, TSM, LootCollector — and **each of them
+  fails silently.** If `Valuate-AdiBags` does not load (a Lua error, an unticked box at the
+  character screen, a renamed folder) you keep AdiBags and lose the Valuate filter inside it,
+  with nothing anywhere saying so. Your bags stop sorting the way they used to and you assume
+  you changed something.
+
+  It goes first in the report, because an absent integration explains a whole category of "it
+  stopped doing that" and no amount of reading the sections below would reveal it.
+
+  **The pairing with the host is the entire design.** An integration is only interesting when
+  the thing it extends is present:
+
+  | | |
+  |---|---|
+  | host + integration | working — confirmed, so silence is not the only signal |
+  | host, no integration | **MISSING** — the one state worth acting on, with what you are losing and where to look |
+  | no host | idle — counted, never named |
+  | integration, no host | orphan — one grey line, because nothing is broken |
+
+  Reporting *"Valuate-TSM: not loaded"* to someone who has never installed TSM is crying wolf,
+  and a report that cries wolf is one you stop reading — which costs you the line that mattered.
+  Half the 29 assertions in the new gate are about **staying quiet**.
+
+### Internal
+- `ns.INTEGRATIONS` rather than a file-local: `Valuate.lua` is within twenty of Lua's **200
+  top-level locals**, past which it stops compiling and the addon silently does not load. The
+  `top-level-local-budget` rule caught the new local on the first run, which is exactly the
+  moment it is cheap to fix.
+
 ## [0.194.0a] - 2026-08-16 — `/vlc status` says whether the LootCollector filter is working
 
 ### Added
