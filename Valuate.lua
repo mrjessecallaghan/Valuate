@@ -7825,6 +7825,34 @@ function Valuate:BuildTodoList()
         end
     end
 
+    -- Upgrades you already own and cannot reach from here.
+    --
+    -- The bank is the one place this addon knows about that Equip All cannot touch, so a
+    -- better item can sit there indefinitely with nothing saying so: the bank-visit message
+    -- only fires while you are standing at it, which is the one moment you do not need
+    -- telling. This list is the surface that answers what you should go and DO.
+    --
+    -- Below the equippable upgrades on purpose. Both are gear you own and are not wearing;
+    -- one needs a click and the other needs a trip across the city, and a list that ranked
+    -- the trip first is a list you learn to skim.
+    --
+    -- Same `if` guard as the sockets below, and for the reason written there: an `and`
+    -- expression adjusts to a SINGLE value, so the third return - the only one wanted here -
+    -- would silently be nil and this item could never appear.
+    local bankUpgrades = 0
+    if Valuate.CountEquippableUpgrades and primaryName then
+        local _, _, inBank = Valuate:CountEquippableUpgrades(primaryName)
+        bankUpgrades = inBank or 0
+    end
+    if bankUpgrades > 0 then
+        table.insert(items, {
+            kind = "bank",
+            text = string.format("%d upgrade%s waiting in your bank", bankUpgrades,
+                bankUpgrades == 1 and "" or "s"),
+            detail = "Equip All cannot reach the bank, so these need withdrawing first",
+            command = "/valuate bank",
+        })
+    end
     -- Guarded with an `if`, NOT `local _, n = Valuate.X and Valuate:X()`. Lua adjusts an
     -- `and` expression to a SINGLE value, so the second return - the count, which is the
     -- whole point - silently becomes nil and these two items could never appear. Written

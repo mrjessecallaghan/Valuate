@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.192.0a] - 2026-08-16 — the To Do list knows about your bank
+
+### Added
+- **"3 upgrades waiting in your bank"** is now a to-do item.
+
+  The bank is the one place this addon knows about that **Equip All cannot reach**, so a better
+  item can sit there indefinitely with nothing saying so. The information already existed — a
+  bank-visit message and the bag-upgrade notify both report it — but the bank-visit message only
+  fires *while you are standing at the bank*, which is the one moment you do not need telling.
+
+  The To Do tab is the surface that answers "what should I go and do", and it was the one place
+  this never appeared.
+
+  It sits **below** the upgrades you can equip right now, on purpose. Both are gear you own and
+  are not wearing; one needs a click and the other needs a trip across the city, and a list that
+  ranked the trip first is a list you learn to skim. Its own colour, too — falling through to
+  neutral would file it with "something unclassified" when it is specific and actionable.
+
+  With no active scale it says nothing: bank contents are only upgrades *relative* to something,
+  and this list already refuses to rank anything without one.
+
+### Internal
+- Six assertions and four mutations. One survived the first run and was a fair catch: the
+  assertion checked the **count** and never that the text said **where**. "3 upgrades" on a list
+  you opened to find out what to do next tells you nothing you did not already suspect — the
+  word that makes the line worth a row is the location.
+- The count is read with an `if` guard rather than `local x = Valuate.X and Valuate:X()`. Lua
+  adjusts an `and` expression to a single value, so the third return — the only one wanted here
+  — would silently be nil and the item could never appear. That exact mistake was made once
+  already in this function; the warning comment beside the socket count is what caught it.
+
 ## [0.191.0a] - 2026-08-16 — the weapon-set panel admits what a lock overrides
 
 ### Fixed

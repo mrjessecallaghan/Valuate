@@ -156,6 +156,7 @@ function ns.CreateTodoPanel(parent)
         scale    = { 1.00, 0.82, 0.00 },  -- your weights are wrong; everything below depends on it
         guess    = { 1.00, 0.55, 0.10 },  -- your weights were never published, only inferred
         upgrade  = { 0.35, 0.90, 0.35 },  -- free, immediate, already in your bags
+        bank     = { 0.70, 0.55, 0.95 },  -- yours already, but not from here - needs a trip
         sockets  = { 0.45, 0.70, 1.00 },  -- needs materials
         enchants = { 0.45, 0.70, 1.00 },  -- needs materials
     }

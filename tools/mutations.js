@@ -2284,6 +2284,36 @@ module.exports = [
     from: "    if type(be) ~= \"table\" or type(be.locks) ~= \"table\" then return nil end",
     to: "    if type(be) ~= \"table\" then return nil end\n    be.locks = be.locks or { [16] = true }" },
 
+  // ---- upgrades waiting in your bank (v0.192.0a) ---------------------------
+  // The bank is the one place this addon knows about that Equip All cannot reach, so a better
+  // item can sit there indefinitely with nothing saying so.
+
+  { gate: "todotest", file: "Valuate.lua",
+    label: "upgrades sitting in your bank never appear on the to-do list",
+    from: "    if bankUpgrades > 0 then", to: "    if false then" },
+
+  // THE `and` TRAP, which the sockets block below already carries a warning about: an `and`
+  // expression adjusts to a SINGLE value, so the third return - the only one wanted here -
+  // becomes nil and the item can never appear. Written that way once already in this function.
+  { gate: "todotest", file: "Valuate.lua",
+    from: "        local _, _, inBank = Valuate:CountEquippableUpgrades(primaryName)",
+    to: "        local inBank = Valuate.CountEquippableUpgrades and Valuate:CountEquippableUpgrades(primaryName)",
+    label: "the bank count is read as a single return and is always nil" },
+
+  // The bank contents are only upgrades RELATIVE to a scale, and this list already refuses to
+  // rank anything without one.
+  { gate: "todotest", file: "Valuate.lua",
+    from: "    if Valuate.CountEquippableUpgrades and primaryName then",
+    to: "    if Valuate.CountEquippableUpgrades then",
+    label: "a bank upgrade count is claimed with no active scale to judge against" },
+
+  // Ordered below what you can equip right now: a list that puts the trip across the city
+  // first is a list you learn to skim.
+  { gate: "todotest", file: "Valuate.lua",
+    from: "            text = string.format(\"%d upgrade%s waiting in your bank\", bankUpgrades,",
+    to: "            text = string.format(\"%d upgrade%s\", bankUpgrades,",
+    label: "the bank item does not say where the upgrades are" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -148,6 +148,51 @@ SOCKETS, ENCHANTS = 0, 0
 CAN_ENHANCE, BARE = 0, 0
 eq(#Valuate:BuildTodoList(), 0, "a count of zero produces no line at all")
 
+-- ---- upgrades you own and cannot reach from here -----------------------------------------------
+-- The bank is the one place this addon knows about that Equip All cannot touch, so a better item
+-- can sit there indefinitely with nothing saying so - the bank-visit message only fires while you
+-- are standing at it, which is the one moment you do not need telling.
+BANK_UPGRADES = 0
+function Valuate:CountEquippableUpgrades() return 0, "", BANK_UPGRADES end
+
+DRIFT, SOCKETS, ENCHANTS, UPGRADES = nil, 0, 0, nil
+CAN_ENHANCE, BARE = 0, 0
+BANK_UPGRADES = 3
+local bankOnly = Valuate:BuildTodoList()
+eq(kinds(bankOnly), "bank", "upgrades in the bank are a to-do of their own")
+ok(bankOnly[1].text:find("3", 1, true) ~= nil, "and it says how many")
+-- ...and WHERE, which is the entire value of the line. "3 upgrades" on a list you opened to
+-- find out what to do next tells you nothing you did not already suspect; the word that makes
+-- it actionable is the location.
+ok(bankOnly[1].text:find("bank", 1, true) ~= nil,
+   "and where they are, which is the only reason this line is worth a row")
+ok(bankOnly[1].detail and bankOnly[1].detail:find("Equip All", 1, true) ~= nil,
+   "with the reason they are not simply equipped for you")
+
+BANK_UPGRADES = 0
+eq(#Valuate:BuildTodoList(), 0, "and none in the bank is no line at all")
+
+-- BELOW the equippable upgrades. Both are gear you own and are not wearing; one needs a click
+-- and the other needs a trip across the city, and a list that ranked the trip first is a list
+-- you learn to skim.
+UPGRADES = { { itemLink = "[Chest]", slotName = "Chest", gain = 40 } }
+BANK_UPGRADES = 2
+eq(kinds(Valuate:BuildTodoList()), "upgrade,bank",
+   "what you can equip now comes before what needs a trip")
+UPGRADES, BANK_UPGRADES = nil, 0
+
+-- No active scale means no count worth making: the bank contents are only upgrades RELATIVE to
+-- something, and this list already refuses to rank anything without one.
+BANK_UPGRADES = 4
+local realPrimary = Valuate.GetPrimaryScale
+Valuate.GetPrimaryScale = function() return nil, nil end
+local noScale = Valuate:BuildTodoList()
+local sawBank = false
+for _, item in ipairs(noScale) do if item.kind == "bank" then sawBank = true end end
+ok(not sawBank, "with no active scale it does not claim a bank upgrade count")
+Valuate.GetPrimaryScale = realPrimary
+BANK_UPGRADES = 0
+
 -- ---- the order IS the argument -----------------------------------------------
 -- A stale scale first, because the upgrades below it are chosen BY that scale.
 DRIFT = "Auto - Str/Crit"
