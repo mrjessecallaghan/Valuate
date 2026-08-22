@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.201.0a] - 2026-08-22 — something had to check the checkers
+
+### Fixed
+**A gate had been silently broken for weeks, and nothing could see it.**
+
+Eighty-three gates guard twenty Lua files. Nothing guarded the eighty JavaScript files doing
+the guarding — and a gate that is quietly wrong is worse than no gate, because it reports OK
+and the thing it named goes unwatched while everybody believes it is watched.
+
+In `tools/mutations.js`, the expression that reads the version out of the `.toc` had lost both
+of its backslashes to this shell — the same stripping that has bitten this project perhaps
+nine times. Every other time it produced a syntax error and stopped the work on the spot. This
+time it produced a *valid* pattern that matches the letter `d` rather than a digit, so it
+matched no version string that has ever existed.
+
+That would have been survivable if it threw. It did not: the result fed an `||` fallback, so
+every run quietly substituted a hardcoded version — the exact thing that function was written
+to stop doing, with its own comment recording that the literal had already drifted into
+uselessness **twice**. It had come back, invisibly. A fallback is not an error, so nothing
+reported it.
+
+It derives from the `.toc` again, through `split()` — which has no escapes to lose — and an
+unreadable version now **throws** instead of substituting a number nobody chose.
+
+### Added
+**`tools/toolsource.js` — the gate on the gates.** Three things it will not let happen again:
+
+| | |
+|---|---|
+| **a stripped backslash** | the class above, found across every tool. Only the high-confidence shape is flagged: a bare class letter with a quantifier, inside something unambiguously a regex rather than a division. |
+| **a gate that is never run** | `gates.js` discovers by finding an `@gate` line in the first 2000 bytes. A gate whose header grows past that window, or whose marker gets reworded, is dropped from the run with no error and no mention — the total ticks down by one where nobody is counting. Every file must now be a discovered gate or named as infrastructure. There is no third category. |
+| **a mutation aimed at a gate that does not exist** | it can only ever report *caught*: the runner fails to spawn the file, and a non-zero exit is exactly what caught means. |
+
+Two design notes, both learned by getting them wrong on the first run:
+
+- **It skips inside strings.** A gate that prints a pattern in its own error message is
+  *quoting* a pattern, not using one — and the files most likely to hold such a quote are the
+  ones discussing this very bug. Reading inside strings made the gate fire first and loudest
+  on its own documentation.
+- **Its three mutations deliberately aim at files it does not load.** `toolsource` requires
+  `mutations.js` and nothing else, so a mutation that made some gate throw on require would
+  exit non-zero without the scanner ever running — *caught*, for a reason that proves nothing.
+
+84 gates, 480 mutations.
+
 ## [0.200.0a] - 2026-08-16 — the self-test stops claiming more than it examined
 
 ### Fixed

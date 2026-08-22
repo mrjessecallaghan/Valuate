@@ -42,8 +42,24 @@ const TOC_VERSION =
 // Pinned at a literal, this mutation twice drifted into being equivalent as the checklist
 // caught up - each time reporting SURVIVED for a rule that was working perfectly.
 const FAR_FUTURE_VERSION = (function () {
-  const parts = String(TOC_VERSION || "0.0.0a").match(/^(d+).(d+)./);
-  return parts ? parts[1] + "." + (Number(parts[2]) + 60) + ".0a" : "0.999.0a";
+  // No pattern here on purpose. This constant was once derived from the .toc and silently
+  // stopped being derived: the shell ate both backslashes out of the expression that read the
+  // version, leaving one that matches the LETTER d rather than a digit - so it matched no
+  // version string that has ever existed. That fed an || fallback, so every run quietly
+  // substituted a hardcoded number, which is the exact thing the comment above says this
+  // function exists to prevent. A fallback is not an error, so nothing reported it.
+  //
+  // split() has no escapes to lose, and an unreadable version now THROWS instead of
+  // substituting a number nobody chose. tools/toolsource.js watches for the rest of the class.
+  const parts = String(TOC_VERSION || "").split(".");
+  const minor = Number(parts[1]);
+  if (parts.length < 2 || !Number.isFinite(minor)) {
+    throw new Error(
+      "mutations.js cannot read a minor version out of Valuate.toc (" + TOC_VERSION + "). " +
+        "FAR_FUTURE_VERSION has to sit far past the checklist or its mutation proves nothing."
+    );
+  }
+  return parts[0] + "." + (minor + 60) + ".0a";
 })();
 const SCALED = {
   start: "function Valuate:GetScaledStatsForItem",
@@ -2831,4 +2847,30 @@ module.exports = [
     label: "the button cycle skips a mode, so one filter state cannot be reached by clicking",
     from: "    if mode == \"upgrades\" then return \"stats\" end",
     to: "    if mode == \"upgrades\" then return \"off\" end" },
+// ---- the gates themselves (v0.201.0a) ------------------------------------
+  // Nothing checked the eighty JavaScript files doing the checking, and one of them had been
+  // quietly broken for weeks. Each of these breaks tools/toolsource.js in one of the three
+  // ways it exists to notice.
+  //
+  // Deliberately aimed at files toolsource does NOT load. It requires mutations.js and
+  // nothing else, so a mutation that made a gate throw on require would exit non-zero
+  // without the scanner ever running - "caught" for a reason that proves nothing.
+  { gate: "toolsource", file: "tools/genloot.js",
+    label: "a pattern loses its backslashes and matches letters instead of digits, silently",
+    from: "const ADDONS = path.resolve(__dirname, \"..\", \"..\");",
+    to: "const stripped = /^(d+)./;\nconst ADDONS = path.resolve(__dirname, \"..\", \"..\");" },
+
+  // gates.js discovers by reading the first 2000 bytes for an @gate line. Lose it and the
+  // gate is dropped from every run with no error and no mention - the total ticks down by
+  // one where nobody is counting.
+  { gate: "toolsource", file: "tools/hotpath.js",
+    label: "a gate stops being discovered, so it never runs again and nothing says so",
+    from: " * @gate A bag repaint stays cheap",
+    to: " * A bag repaint stays cheap" },
+
+  // A mutation aimed at a gate that does not exist can only ever report "caught": the runner
+  // fails to spawn the file, and a non-zero exit is exactly what "caught" means.
+  { gate: "toolsource", file: "tools/mutations.js",
+    label: "a mutation names a gate that does not exist, so it can only ever look caught",
+    from: "gate: \"contrast\"", to: "gate: \"nosuchgate\"" },
 ];
