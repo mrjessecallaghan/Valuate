@@ -2519,6 +2519,78 @@ module.exports = [
     to: "  return false",
     label: "a refusal gives no reason, so a rule that never fires cannot be diagnosed" },
 
+  // ---- grouping future upgrades (v0.198.0a) --------------------------------
+  // Never mutation-tested. This is the report behind "is this worth carrying for another eight
+  // levels", and the same future-upgrade data is a PROTECTION in two destructive paths - the
+  // delete guard and the AdiBags surplus marking - so a wrong answer here reads as a tidy plan
+  // while an item you will want at 60 goes in a bin.
+
+  // Keyed on the LINK, so an item wanted by three scales is one line naming three rather than
+  // three lines. Keyed on anything per-scale and the list triples in length.
+  { gate: "futuretest", file: "Valuate.lua",
+    from: "                    local entry = seen[f.itemLink]", to: "                    local entry = nil",
+    label: "an item wanted by three scales is listed three times" },
+
+  // The LOWEST requirement wins when two scales disagree: it is the same item, and the earlier
+  // level is the true answer to when you can wear it.
+  { gate: "futuretest", file: "Valuate.lua",
+    from: "                    if (f.reqLevel or 0) < entry.level then entry.level = f.reqLevel or 0 end",
+    to: "                    if (f.reqLevel or 0) > entry.level then entry.level = f.reqLevel or 0 end",
+    label: "the highest requirement is reported, so the item looks further away than it is" },
+
+  // Above your level is a promise the addon can keep; at or below it is something a level will
+  // never fix - an unmet proficiency, most often - and belongs in the other list entirely.
+  { gate: "futuretest", file: "Valuate.lua",
+    from: "        if entry.level > playerLevel then", to: "        if entry.level >= playerLevel then",
+    label: "an item you can already reach is filed as a future one, promising a level that will not help" },
+
+  // ...and the same boundary the other way.
+  { gate: "futuretest", file: "Valuate.lua",
+    from: "        if entry.level > playerLevel then", to: "        if true then",
+    label: "everything is filed as a future upgrade, including what a level cannot fix" },
+
+  // pairs() is not an order and these names reach the screen beside an item.
+  { gate: "futuretest", file: "Valuate.lua",
+    scope: { start: "local function GroupFutureUpgrades", end: "function Valuate:PrintFutureUpgrades" },
+    from: "        table.sort(names)", to: "",
+    label: "the scale names beside an item reshuffle between runs" },
+
+  // No data means no plan, rather than an empty plan presented as one.
+  { gate: "futuretest", file: "Valuate.lua",
+    from: "    if not bestEquipment or not activeScales then return {}, {} end", to: "",
+    label: "a character with no scan data still gets a future-upgrade plan" },
+
+  // ---- importing a scale (v0.198.0a) ---------------------------------------
+  // Never mutation-tested. Importing writes into your scale table, and a scale is an hour of
+  // tuning that nothing else on the character can reconstruct.
+
+  // THE OVERWRITE GUARD. Without it, pasting a tag whose name you already use silently replaces
+  // the scale you have been refining, with no prompt and nothing to undo it.
+  { gate: "importtest", file: "ImportExport.lua",
+    from: "    if alreadyExists and not overwrite then", to: "    if false then",
+    label: "importing a scale silently replaces one of the same name" },
+
+  // ...and the other direction: refusing WITH overwrite makes the confirm button do nothing,
+  // which reads as the import being broken.
+  { gate: "importtest", file: "ImportExport.lua",
+    from: "    if alreadyExists and not overwrite then", to: "    if alreadyExists then",
+    label: "confirming an overwrite still refuses, so the import appears broken" },
+
+  // A tag this addon cannot read must not half-import. The parse is the gate, and it returns a
+  // CODE - every one of which is truthy, which is the trap the library wrapper exists for.
+  // Scoped: the same guard shape appears in the multi-tag path, and an unscoped anchor lands
+  // on whichever comes first rather than on the single import this gate drives.
+  { gate: "importtest", file: "ImportExport.lua",
+    scope: { start: "function Valuate:ImportScale", end: "function Valuate:ParseMultipleScaleTags" },
+    from: "    if not scaleName then", to: "    if false then",
+    label: "an unreadable tag is imported anyway, writing nil into your scale table" },
+
+  // A version error and a malformed tag are different problems with different fixes: one means
+  // "this came from a newer Valuate", the other means "this text is not a tag".
+  { gate: "importtest", file: "ImportExport.lua",
+    from: "        if versionMessage then", to: "        if false then",
+    label: "a tag from a newer version is reported as malformed, sending you to fix the wrong thing" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

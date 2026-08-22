@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.198.0a] - 2026-08-16 — the unproven gates, measured and closed
+
+### Internal
+A gate that passes tells you the code does something. It does not tell you the gate would
+**notice** if the code stopped. Measuring that across the whole suite found **22 Lua-executing
+gates with no mutation holding them down** — including several guarding paths that can lose you
+gear.
+
+Ranked by consequence and worked from the top:
+
+- **Future upgrades** (6 mutations). This is the report behind *"is this worth carrying for
+  another eight levels"* — and the same data is a **protection in two destructive paths**, the
+  delete guard and the AdiBags surplus marking. A wrong answer here reads as a tidy plan while
+  an item you will want at 60 goes in a bin. Held down now: de-duplication keyed on the item
+  link, the **lowest** requirement winning when two scales disagree, and the boundary between
+  *"you will get this at 42"* and *"a level will never fix this"* — an unmet weapon proficiency
+  belongs in the second list, and mixing them makes the addon promise something it cannot keep.
+- **Importing a scale** (4). Importing writes into your scale table, and a scale is an hour of
+  tuning nothing else on the character can reconstruct. The overwrite guard is held in **both**
+  directions: without it, pasting a tag whose name you already use silently replaces your work;
+  inverted, confirming an overwrite refuses and the import looks broken. A version error and a
+  malformed tag stay distinct, because they send you to fix different things.
+- **The PassLoot verdict** and **surplus marking** were done in the two releases before this.
+
+Everything caught on the first run except one anchor of mine that was scoped too narrowly to
+reach the line it named — which is its own small lesson: a mutation reporting UNAPPLIED is
+indistinguishable from one that never existed.
+
+`DecideRollType` was left alone deliberately: it is already held down under `rollaction`, and a
+second copy attributed to `rolltest` would raise the count without protecting anything new.
+
 ## [0.197.0a] - 2026-08-16 — the cross-addon check finds its own blind spot
 
 ### Fixed
