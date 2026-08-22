@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.196.0a] - 2026-08-16 — the surplus-gear guards are proven, and its memo gets tested at all
+
+### Internal
+**`ComputeSurplusGear` had 16 assertions and zero mutations**, so not one of them had ever been
+shown to fail on a broken guard. That function decides whether an item is marked junk in
+AdiBags — and Valuate reads AdiBags' junk classification when deciding what to sell and what to
+**delete**. Every `return false` in it stands between your gear and a bin.
+
+Ten mutations now. Seven of the eight guards were caught on the first run, which says the
+existing assertions were real; the eighth turned out to be genuinely equivalent, and pointed at
+something worse.
+
+- **The memo had no test at all.** Only the decision was covered, never the caller that caches
+  it — including the rule its own comment describes: an **uncached item's answer must not be
+  stored**, because storing that "no" makes it permanent for the session. The item finishes
+  loading and is never reconsidered, which is the feature silently doing nothing for exactly the
+  items that were slow to arrive. That is now asserted in both directions, along with the option
+  switch actually skipping the computation — this runs per item per bag repaint.
+- **One equivalence recorded rather than faked.** `if not link then return false end` inside
+  `ComputeSurplusGear` changes no answer: `GetItemInfo` returns everything or nothing, so `link`
+  and `equipLoc` are nil together and the check below already covers it. The line stays — it
+  states a different intent from the one beneath it, and the memo depends on that distinction —
+  but it is written down as untested. Third time this project has recorded an equivalent instead
+  of pretending; see `PriceKeepsRow` and the note filter.
+
+### Notes
+Two structural risks checked and found sound, recorded so they are not re-investigated: the
+**bank cache** is rebuilt per scan and bounded by your actual bank, not accumulated; and the
+**local budget** in `Valuate.lua` has roughly twenty of headroom, with the lint rule warning
+well before the 200 at which the file would stop compiling.
+
 ## [0.195.0a] - 2026-08-16 — `/valuate report` says which integrations are actually running
 
 ### Added

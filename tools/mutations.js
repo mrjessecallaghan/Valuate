@@ -2411,6 +2411,76 @@ module.exports = [
     to: "                print(string.format(\"  |cFFFF4040%s is NOT loaded but %s is not, so it is doing \" ..",
     label: "an integration with nothing to extend is coloured as a failure" },
 
+  // ---- marking gear as surplus (v0.196.0a) ---------------------------------
+  // ComputeSurplusGear had 16 assertions and ZERO mutations, so none of them had ever been
+  // shown to fail on a broken guard. Its output marks an item as junk in AdiBags, and Valuate
+  // reads AdiBags' junk classification when deciding what to sell and what to DELETE - so
+  // every `return false` below is a protection standing between your gear and a bin.
+
+  // No trustworthy best-in-slot data means no conclusions at all.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if not bestDataUsable then return false end", to: "",
+    label: "gear is marked surplus before any usable best-in-slot data exists" },
+
+  // You built that set deliberately, and nothing in it has to be best-in-slot for you to want it.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if equipmentSetItems[itemId] then return false end", to: "",
+    label: "gear in one of your saved equipment sets is marked surplus" },
+
+  // The memo, which had no test at all until v0.196.0a - only the decision inside it did.
+
+  // Storing an uncached item's answer makes the "no" permanent for the session: the item
+  // finishes loading and is never reconsidered, which is the feature silently doing nothing for
+  // exactly the items that were slow to arrive.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if GetItemInfo(itemId) then", to: "	if true then",
+    label: "an uncached item's answer is remembered, so it is never reconsidered" },
+
+  // ...and the other direction: never memoising re-derives every answer on every bag repaint.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if cached ~= nil then return cached end", to: "",
+    label: "the memo is never read, so every bag repaint re-derives every item" },
+
+  // Off means off, and means not computing either - this runs per item per repaint.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if not self.db or not self.db.profile.markNonBestAsJunk then return false end", to: "",
+    label: "gear is marked surplus with the option switched off" },
+
+  // NOT MUTATED: `if not link then return false end` inside ComputeSurplusGear. GetItemInfo
+  // returns everything or nothing, so link and equipLoc are nil together and the equipLoc guard
+  // below already covers it - removing the link check changes no answer. It stays because it
+  // states a different intent ("not cached yet, decide later") from the one below it ("not
+  // gear"), and because the memo above depends on that distinction being real. Third time this
+  // project has recorded an equivalent rather than pretending to test it; see PriceKeepsRow.
+
+  // Valuate must actually hold a best for the slot. Without one, this item's absence from the
+  // best list means nothing whatsoever.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if not SlotHasBest(equipLoc) then return false end", to: "",
+    label: "an item is called surplus for a slot Valuate holds no best for" },
+
+  // The quality ceiling is the user's stated limit on how far this may reach.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if not quality or quality > maxQuality then return false end",
+    to: "	if not quality or quality > 99 then return false end",
+    label: "the quality ceiling is ignored, so epics can be marked surplus" },
+
+  // ...and an unknown quality is not a low one.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "	if not quality or quality > maxQuality then return false end",
+    to: "	if quality and quality > maxQuality then return false end",
+    label: "an item whose quality could not be read is treated as junk-eligible" },
+
+  // Best-in-slot keeps it, which is the single most important line in the function.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "		if type(best) == \"table\" and next(best) then return false end", to: "",
+    label: "your best-in-slot item is marked surplus" },
+
+  // Not equippable yet, but will be. Marking it now bins it before you reach the level.
+  { gate: "surplustest", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    from: "		if type(future) == \"table\" and next(future) then return false end", to: "",
+    label: "an item you cannot use yet but will is marked surplus" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -38,6 +38,7 @@ if (!fs.existsSync(SRC)) {
   process.exit(0);
 }
 
+const NL = String.fromCharCode(10);
 const lua = fs.readFileSync(SRC, "utf8");
 // CRLF-tolerant: the integration addons ship with Windows line endings and tab
 // indentation, unlike the core, so a slice anchored on "\nend\n" finds nothing.
@@ -49,6 +50,24 @@ if (!m) {
   );
   process.exit(1);
 }
+// Sliced by walking lines, not by regex: these files ship CRLF, and an escape written
+// through the shell has been lost every time it was tried today.
+const srcLines = lua.split(NL);
+const callerStart = srcLines.findIndex(function (l) {
+  return l.indexOf("function mod:IsSurplusGear(") === 0;
+});
+let callerEnd = callerStart;
+const CR = String.fromCharCode(13);
+while (callerEnd < srcLines.length &&
+       srcLines[callerEnd].split(CR).join("") !== "end") callerEnd++;
+if (callerStart < 0 || callerEnd >= srcLines.length) {
+  console.error(
+    "  SLICE  could not find function mod:IsSurplusGear in Valuate-AdiBags.lua - " +
+      "the memoisation is untested"
+  );
+  process.exit(1);
+}
+const caller = [srcLines.slice(callerStart, callerEnd + 1).join(NL)];
 
 const run = load([]);
 
@@ -56,6 +75,12 @@ run(
   `
 local failures, checks = {}, 0
 local function ok(cond, what) checks = checks + 1 if not cond then table.insert(failures, what) end end
+local function eq(got, want, what)
+    checks = checks + 1
+    if got ~= want then
+        table.insert(failures, what .. " (got " .. tostring(got) .. ", wanted " .. tostring(want) .. ")")
+    end
+end
 
 -- The upvalues the sliced function reads. Declared here because the slice does not carry
 -- them; each is a guard, and each gets switched off one at a time below.
@@ -83,7 +108,7 @@ Valuate = {
     IsItemExcludedFromEvaluation = function(_, link) return excluded end,
 }
 
-` + m[0] + `
+` + "surplusCache = {}" + NL + m[0] + NL + caller[0] + `
 
 local function reset()
     bestDataUsable = true
@@ -162,6 +187,58 @@ ok(mod:ComputeSurplusGear(ITEM) == false, "a ceiling of grey excludes white")
 -- A missing quality is an unknown, and an unknown must say no.
 reset(); itemQuality = nil
 ok(mod:ComputeSurplusGear(ITEM) == false, "unknown quality: says no")
+
+-- ---- the memo, which had no test at all --------------------------------------------------------
+-- Only the decision was covered; the caller that caches it was not. This is where the feature
+-- either works quietly or silently does nothing, and the two are indistinguishable from outside.
+--
+-- Driven through the fixture's own itemKnown flag rather than by overriding GetItemInfo: the
+-- first version of this block reached around the fixture and inherited whatever state the checks
+-- above had left behind, which is how a test ends up asserting the wrong baseline.
+reset()
+mod.db.profile.markNonBestAsJunk = true
+
+local computes = 0
+local realCompute = mod.ComputeSurplusGear
+mod.ComputeSurplusGear = function(self, id) computes = computes + 1 return realCompute(self, id) end
+
+-- A decided answer is remembered, or every bag repaint re-derives it for every item.
+surplusCache = {}
+computes = 0
+eq(mod:IsSurplusGear(ITEM), true, "a surplus item is reported as surplus")
+mod:IsSurplusGear(ITEM)
+eq(computes, 1, "and computed once, then remembered")
+
+-- AN UNCACHED ITEM IS NOT REMEMBERED. GetItemInfo returns nothing for one, so the answer is
+-- "not yet" rather than "no" - and storing it makes the no permanent for the session. The item
+-- would finish loading and never be reconsidered, which is the feature silently doing nothing
+-- for exactly the items that were slow to arrive.
+reset()
+surplusCache = {}
+computes = 0
+itemKnown = false
+eq(mod:IsSurplusGear(ITEM), false, "an item the client has not cached is not surplus")
+mod:IsSurplusGear(ITEM)
+eq(computes, 2, "and the answer is NOT remembered, so it is asked again")
+
+-- ...and once it loads, the real answer comes through rather than a stale no.
+itemKnown = true
+eq(mod:IsSurplusGear(ITEM), true, "once the item loads, the real answer is reached")
+
+-- ---- the switch --------------------------------------------------------------------------------
+-- Off means off, and means not computing either: this runs per item per bag repaint.
+reset()
+surplusCache = {}
+computes = 0
+mod.db.profile.markNonBestAsJunk = false
+eq(mod:IsSurplusGear(ITEM), false, "with the option off nothing is surplus")
+eq(computes, 0, "and nothing is even computed, on a path that runs per item per repaint")
+mod.db.profile.markNonBestAsJunk = true
+
+-- No item, no answer. Called from a filter that sees whatever is in the bag.
+eq(mod:IsSurplusGear(nil), false, "no item id is not surplus")
+
+mod.ComputeSurplusGear = realCompute
 
 return failures, checks
 `,
