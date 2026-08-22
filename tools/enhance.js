@@ -405,11 +405,50 @@ if watcher then
     parses = 0
     ns.CollectEnhancements()
     eq(parses, 0, "warm before the event")
+
+    -- LEARNING SOMETHING, end to end. The event clears the stats cache and re-reads the book
+    -- in the same breath, so a recipe you just learned is in the snapshot immediately rather
+    -- than the next time you happen to open the Enhance tab with the window still up.
+    --
+    -- This asserts the OUTCOME. It used to assert the mechanism - that the cache went cold -
+    -- which stopped being true the moment the event started re-reading, even though the thing
+    -- the user cares about got better rather than worse.
     Valuate.ParseStatsFromTooltip = function(...) parses = parses + 1 return realParse(...) end
-    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    STATS_BY_NAME["Enchant Gloves - Major Strength"] = { Strength = 40 }
+    CRAFTS[#CRAFTS + 1] = { "Enchant Gloves - Major Strength", "" }
     parses = 0
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    ok(parses > 0, "the event re-reads the book cold, rather than only marking it stale")
+
+    local afterLearn = ns.CollectEnhancements()
+    local foundNew = false
+    for _, e in ipairs(afterLearn[10] or {}) do
+        if e.name == "Enchant Gloves - Major Strength" then foundNew = true end
+    end
+    ok(foundNew, "and the recipe you just learned is there, without opening the tab first")
+
+    -- WHAT THE CACHE RESET IS ACTUALLY FOR, which is not the case above.
+    --
+    -- statsCache is keyed on the recipe's NAME, so something newly learned is a cache MISS and
+    -- would be read whether or not the cache was cleared - the assertion above passed with the
+    -- reset deleted entirely. What the reset protects is a name ALREADY cached whose stats have
+    -- changed: a server that retunes an enchant, or a tooltip that parsed partially the first
+    -- time and reads properly now.
+    STATS_BY_NAME["Enchant Boots - Greater Assault"] = { Agility = 999 }
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    local reread = ns.CollectEnhancements()
+    local changed
+    for _, e in ipairs(reread[8] or {}) do
+        if e.name == "Enchant Boots - Greater Assault" then changed = e end
+    end
+    eq(changed and changed.stats and changed.stats.Agility, 999,
+       "a recipe whose stats CHANGED is re-read, not served from a cache keyed on its name")
+
+    -- Put the fixture back: a later check reads this same enchant and expects its real value.
+    -- A test that quietly leaves the world different is a test that breaks its neighbours.
+    STATS_BY_NAME["Enchant Boots - Greater Assault"] = { Agility = 32 }
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
     ns.CollectEnhancements()
-    ok(parses > 0, "and cold after it, so a recipe you just learned is read")
 end
 
 -- A FAILED read is not remembered.

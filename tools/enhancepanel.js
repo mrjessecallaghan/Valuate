@@ -192,7 +192,12 @@ ok(said:find("not been shown any", 1, true) ~= nil,
    "it says it has not been shown any yet, rather than that there are none")
 ok(said:find("enhancecheck", 1, true) ~= nil,
    "pointing at the command that says what this client will tell it")
-ok(said:find("profession windows", 1, true) ~= nil, "and at where they come from")
+ok(said:find("Enchanting or a crafting profession", 1, true) ~= nil,
+   "and at where they come from")
+-- The promise the snapshot makes. Opening the window used to be necessary AND not sufficient:
+-- you had to keep it open and then click through to this tab, which is nobody's instinct.
+ok(said:find("just opening it is enough", 1, true) ~= nil,
+   "telling you that opening it once is the whole job, because now it is")
 ok(rowFor("Head") ~= nil, "including ones with nothing collected for them")
 ok(rowFor("Trinket 1") ~= nil, "and ones no enhancement can go on")
 

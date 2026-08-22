@@ -529,13 +529,35 @@ function ns.CreateEnhancePanel(parent)
 
         -- Shown whatever the rows say, because it is the answer to "why is every slot blank"
         -- and no per-slot line can carry it.
+        -- Where this came from, and how long ago.
+        --
+        -- A snapshot is not live data and must never be presented as though it were: if you
+        -- learned an enchant on another character, or unlearned a profession, or the client
+        -- simply named something differently that day, the list is a record of what was true
+        -- once. Saying WHEN is the whole difference between a cache and a claim.
         if not anyKnown then
             hint:SetText("I have not been shown any enhancements yet.\n\n" ..
-                "They are read from your own profession windows while they are open - open " ..
-                "Enchanting or a crafting profession and come back. Run /valuate enhancecheck " ..
-                "to see what this client will tell me.")
+                "Open Enchanting or a crafting profession once - just opening it is enough, " ..
+                "and I will remember what it said. Run /valuate enhancecheck to see what " ..
+                "this client will tell me.")
         else
-            hint:SetText("")
+            local books = ns.SnapshotBooks and ns.SnapshotBooks() or {}
+            if #books > 0 then
+                local names = {}
+                for i = 1, math.min(#books, 4) do
+                    names[#names + 1] = string.format("%s (%d)", books[i].name, books[i].count)
+                end
+                if #books > 4 then
+                    names[#names + 1] = string.format("and %d more", #books - 4)
+                end
+                local age = ns.SnapshotAge and ns.SnapshotAge() or nil
+                hint:SetText(string.format("Read from %s%s.  |cFF888888Open the window again " ..
+                    "any time to refresh it.|r",
+                    table.concat(names, ", "),
+                    age and (", " .. ns.DescribeAge(age)) or ""))
+            else
+                hint:SetText("")
+            end
         end
 
         local listHeight = 1

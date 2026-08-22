@@ -10765,6 +10765,7 @@ function Valuate:PrintReport()
         { key = "questTurnIn",   label = "Quest turn-in" },
         { key = "contextScale",  label = "Scale for where you are" },
         { key = "vendorNotes",   label = "Vendor/trainer notes" },
+        { key = "enhanceBooks",  label = "Profession books read" },
         { key = "bankSnapshot",  label = "Bank snapshot" },
         { key = "wardrobe",      label = "Wardrobe collecting" },
         { key = "autoRelease",   label = "Auto-release" },

@@ -1880,6 +1880,54 @@ module.exports = [
     from: "            if not scale then return value .. \" (missing)\" end",
     to: "            if not scale then return NONE end" },
 
+  // ---- the profession snapshot (v0.181.0a) ---------------------------------
+  // The missing half of the Enhance tab: the apis only answer while their window is open, so
+  // until this the tab worked exactly once, in one order nobody would think to try.
+
+  // A window that has opened but not populated reports zero rows for a tick. Storing that
+  // replaces a good book with an empty one, and the feature looks like it forgot your
+  // professions - worse than being a tick late.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "a half-open window wipes the book it had already remembered",
+    from: "            if #entries > 0 or #unreadable > 0 then", to: "            if true then" },
+
+  // Merging would leave an unlearned profession on offer forever with nothing to explain it.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "re-reading a book merges with the old one instead of replacing it",
+    from: "                snap.books[bookName] = {",
+    to: "                snap.books[bookName] = snap.books[bookName] or {" },
+
+  // Reading only the api that answered first would silently drop the other one.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "only the first answering profession api is read, dropping the other",
+    from: "    for _, source in ipairs(BOOK_SOURCES) do",
+    to: "    for _, source in ipairs({ BOOK_SOURCES[1] }) do" },
+
+  // A schema left in place is a half-read snapshot presented as a whole one.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "a snapshot written by another schema is read as though it were current",
+    from: "       or ValuateEnhanceSnapshot.schema ~= ns.ENHANCE_SNAPSHOT_SCHEMA then",
+    to: "       or false then" },
+
+  // Oldest out first. Evicting the newest throws away the book you just opened.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "eviction discards the book you just read instead of the stalest one",
+    from: "        if aa ~= bb then return aa < bb end", to: "        if aa ~= bb then return aa > bb end" },
+
+  // The age is what turns a cache into a claim. Rounding three days down to "just now" is the
+  // failure - the number exists to make you distrust old data.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "a book read days ago reads as fresh",
+    from: "    if seconds < 60 then return \"just now\" end",
+    to: "    if seconds < 86400 then return \"just now\" end" },
+
+  // Sorted, because two professions can name the same enhancement and pairs() would pick a
+  // different winner - and a different "could not read" order - between sessions.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    scope: { start: "function ns.CollectEnhancements()", end: "\nfunction ns.RankForSlot" },
+    label: "book order is whatever pairs() felt like, so the list reshuffles between sessions",
+    from: "    table.sort(names)", to: "" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

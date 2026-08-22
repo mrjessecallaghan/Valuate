@@ -358,19 +358,195 @@ end
 -- `unreadable` is the whole reason this returns two things. An enhancement whose slot cannot
 -- be worked out, or whose stats will not parse, is still one you might want - and dropping it
 -- would make the panel look complete when it is not. It goes in its own section instead.
-function ns.CollectEnhancements()
-    local bySlot, unreadable = {}, {}
-    local seen = {}
+-- ---------------------------------------------------------------------------------------
+-- Remembering what a profession window showed
+-- ---------------------------------------------------------------------------------------
+--
+-- THE MISSING HALF OF THIS FEATURE. GetNumCrafts and GetNumTradeSkills only answer while
+-- their window is open, so until now the Enhance tab worked exactly once: with Enchanting
+-- open, you had to then open Valuate and click through to the tab without closing it. Any
+-- other order - the obvious order - showed "I have not been shown any enhancements yet",
+-- which is true and useless.
+--
+-- So the book is read when it opens and written down. The tab then works from the snapshot
+-- wherever you are, and refreshes it whenever a window happens to be open.
+--
+-- PER CHARACTER, because your professions are. Per BOOK within that, keyed on the profession's
+-- own name, so re-reading Enchanting replaces the Enchanting entries rather than merging with
+-- them - otherwise unlearning a profession would leave its enchants on offer forever, with
+-- nothing on screen to explain why.
+--
+-- INDEX AND LINK ARE DROPPED. Both are only meaningful while the window is open: the index
+-- moves the moment the list is filtered or collapsed, so a stored one points at a different
+-- recipe. Everything the ranking needs - name, slots, stats, requirement, which api - is a
+-- fact about the enchant and keeps.
+ns.ENHANCE_SNAPSHOT_SCHEMA = 1
 
-    local function consider(name, source, index, link)
+-- Bounded, though neither bound should ever be reached by a real character. A saved-variables
+-- file that grows without a ceiling is a problem nobody notices until it is one.
+ns.SNAPSHOT_BOOK_CAP = 12
+ns.SNAPSHOT_ENTRY_CAP = 800
+
+-- Fixed order, shared by the reader and the trim tie-break.
+local BOOK_SOURCES = { "craft", "tradeskill" }
+
+function ns.GetEnhanceSnapshot()
+    -- Discard once on a schema change rather than migrating. The entries are re-read the next
+    -- time you open the window, so the cost of throwing them away is one profession window.
+    if type(ValuateEnhanceSnapshot) ~= "table"
+       or ValuateEnhanceSnapshot.schema ~= ns.ENHANCE_SNAPSHOT_SCHEMA then
+        ValuateEnhanceSnapshot = { schema = ns.ENHANCE_SNAPSHOT_SCHEMA, books = {} }
+    end
+    ValuateEnhanceSnapshot.books = ValuateEnhanceSnapshot.books or {}
+    return ValuateEnhanceSnapshot
+end
+
+-- What the book on this api is called, or nil when it is not answering.
+--
+-- The EMPTINESS is the test, not whether the name function exists: on 3.3.5 both apis are
+-- present at all times and the closed one reports zero rows. A name is still asked for,
+-- because "Enchanting" and "Leatherworking" are what the panel says out loud, and a fallback
+-- is used when the client will not say - an unnamed book is still worth remembering.
+function ns.BookNameFor(source)
+    if source == "craft" then
+        if type(GetNumCrafts) ~= "function" or (GetNumCrafts() or 0) <= 0 then return nil end
+        local ok, name = pcall(GetCraftName)
+        if ok and type(name) == "string" and name ~= "" then return name end
+        return "Enchanting"
+    end
+    if type(GetNumTradeSkills) ~= "function" or (GetNumTradeSkills() or 0) <= 0 then return nil end
+    local ok, name = pcall(GetTradeSkillLine)
+    if ok and type(name) == "string" and name ~= "" and name ~= "UNKNOWN" then return name end
+    return "Crafting"
+end
+
+-- Read every book that is currently answering into the snapshot.
+--
+-- EVERY one, not the first. Only one profession window opens at a time in practice, so this
+-- usually stores exactly one book - but "in practice" is a guess about a custom client, and
+-- reading whichever api answered first would silently drop the other if that guess is wrong.
+-- Reading both costs nothing when one of them reports zero rows, which is the normal case.
+--
+-- Returns the book names stored (in a fixed order) and how many entries in total.
+--
+-- WRITES NOTHING ON AN EMPTY READ. A window that has opened but not populated reports zero
+-- rows for a tick, and storing that would replace a good book with an empty one - the feature
+-- would then look like it had forgotten your professions, which is worse than being a tick
+-- late. A book that yields only UNREADABLE rows is still stored: "I saw these and could not
+-- classify them" is information, and the panel shows it.
+function ns.SnapshotOpenBook(now)
+    now = now or (type(time) == "function" and time()) or 0
+    local snap = ns.GetEnhanceSnapshot()
+    local stored, total = {}, 0
+
+    -- Fixed order, so two books read in the same second are written in the same order every
+    -- time and the eviction tie-break below cannot flip between sessions.
+    for _, source in ipairs(BOOK_SOURCES) do
+        local bookName = ns.BookNameFor(source)
+        if bookName then
+            local entries, unreadable = ns.ReadOpenBook(source)
+            if #entries > 0 or #unreadable > 0 then
+                if #entries > ns.SNAPSHOT_ENTRY_CAP then
+                    for i = #entries, ns.SNAPSHOT_ENTRY_CAP + 1, -1 do entries[i] = nil end
+                end
+                snap.books[bookName] = {
+                    at = now, source = source,
+                    entries = entries, unreadable = unreadable,
+                }
+                stored[#stored + 1] = bookName
+                total = total + #entries
+            end
+        end
+    end
+
+    if #stored > 0 then ns.TrimSnapshotBooks(snap) end
+    return stored, total
+end
+
+-- Oldest book out first, once there are more than the cap. Sorted by name on a tie so two
+-- books written in the same second cannot evict each other differently between sessions.
+function ns.TrimSnapshotBooks(snap)
+    local names = {}
+    for name in pairs(snap.books or {}) do names[#names + 1] = name end
+    if #names <= ns.SNAPSHOT_BOOK_CAP then return 0 end
+
+    table.sort(names, function(a, b)
+        local aa, bb = snap.books[a].at or 0, snap.books[b].at or 0
+        if aa ~= bb then return aa < bb end
+        return a < b
+    end)
+    local dropped = 0
+    for i = 1, #names - ns.SNAPSHOT_BOOK_CAP do
+        snap.books[names[i]] = nil
+        dropped = dropped + 1
+    end
+    return dropped
+end
+
+-- "3 days ago", not a timestamp nobody can convert in their head.
+--
+-- Rounded DOWN at every step and never to "just now" past a minute, because the number exists
+-- to make you distrust old data: rounding 23 hours up to "a day ago" is fine, rounding 3 days
+-- down to "recently" is the failure this line guards against.
+function ns.DescribeAge(seconds)
+    seconds = tonumber(seconds) or 0
+    if seconds < 60 then return "just now" end
+    if seconds < 3600 then
+        local m = math.floor(seconds / 60)
+        return m .. (m == 1 and " minute ago" or " minutes ago")
+    end
+    if seconds < 86400 then
+        local h = math.floor(seconds / 3600)
+        return h .. (h == 1 and " hour ago" or " hours ago")
+    end
+    local d = math.floor(seconds / 86400)
+    return d .. (d == 1 and " day ago" or " days ago")
+end
+
+-- What is remembered, newest first, for the panel to say out loud.
+-- Returns { { name, source, at, count }, ... }.
+function ns.SnapshotBooks()
+    local snap = ns.GetEnhanceSnapshot()
+    local out = {}
+    for name, book in pairs(snap.books) do
+        out[#out + 1] = {
+            name = name, source = book.source, at = book.at or 0,
+            count = #(book.entries or {}),
+        }
+    end
+    -- Newest first, name-broken. pairs() order is undefined and this reaches the screen.
+    table.sort(out, function(a, b)
+        if a.at ~= b.at then return a.at > b.at end
+        return a.name < b.name
+    end)
+    return out
+end
+
+-- "read 3 days ago" rather than a timestamp nobody can convert in their head. Age in seconds
+-- from the NEWEST book: the panel's claim is about the freshest thing it knows, and quoting
+-- the oldest would make a book you just read look stale.
+function ns.SnapshotAge(now)
+    local books = ns.SnapshotBooks()
+    if #books == 0 then return nil end
+    now = now or (type(time) == "function" and time()) or 0
+    return math.max(0, now - (books[1].at or 0))
+end
+
+-- Read ONE open book into a flat list of entries, plus what it could not classify.
+--
+-- Split out of CollectEnhancements so the reading happens once, when the window is open, and
+-- the result can be written down. Both halves of the work here need the live window: the slot
+-- comes from the recipe's name, and the stats come from a tooltip built against its index -
+-- which is why an index is never stored, only used.
+function ns.ReadOpenBook(source)
+    local entries, unreadable, seen = {}, {}, {}
+
+    local function consider(name, index)
         if type(name) ~= "string" or name == "" then return end
-        -- Recipes appear in both lists on some clients, and a header row repeats its
-        -- children's names. Keyed on name+source so the same enchant learned twice is one
-        -- entry, while a genuinely different recipe of the same name from the other api
-        -- is not silently swallowed.
-        local key = name .. "\001" .. source
-        if seen[key] then return end
-        seen[key] = true
+        -- Recipes appear twice on some clients, and a header row repeats its children's
+        -- names. Keyed on the name so the same enchant read twice is one entry.
+        if seen[name] then return end
+        seen[name] = true
 
         local slots = ns.EnhancementSlots(name)
         if not slots then
@@ -385,38 +561,71 @@ function ns.CollectEnhancements()
             return
         end
 
-        local entry = {
-            name = name, slots = slots, stats = stats, reqLevel = reqLevel,
-            source = source, index = index, link = link,
+        -- No index and no link: both are only meaningful while this window is open. The index
+        -- moves the moment the list is filtered or collapsed, so a stored one points at a
+        -- different recipe - which would be a wrong answer rather than a missing one.
+        entries[#entries + 1] = {
+            name = name, slots = slots, stats = stats, reqLevel = reqLevel, source = source,
         }
-        for _, slotId in ipairs(slots) do
-            bySlot[slotId] = bySlot[slotId] or {}
-            local list = bySlot[slotId]
-            list[#list + 1] = entry
-        end
     end
 
-    -- Enchanting, via the Craft window.
-    if type(GetNumCrafts) == "function" and type(GetCraftInfo) == "function" then
-        for i = 1, (GetNumCrafts() or 0) do
-            local ok, name, _, craftType = pcall(GetCraftInfo, i)
-            -- A header is a category label, not something you can make. Its name is often a
-            -- slot word too, so letting one through would put "Enchant Boots" in the list as
-            -- if it were an enchant in its own right.
-            if ok and name and craftType ~= "header" then
-                consider(name, "craft", i, ns.SafeLink(GetCraftItemLink, i))
+    if source == "craft" then
+        -- Enchanting, via the Craft window.
+        if type(GetNumCrafts) == "function" and type(GetCraftInfo) == "function" then
+            for i = 1, (GetNumCrafts() or 0) do
+                local ok, name, _, craftType = pcall(GetCraftInfo, i)
+                -- A header is a category label, not something you can make. Its name is often
+                -- a slot word too, so letting one through would put "Enchant Boots" in the
+                -- list as if it were an enchant in its own right.
+                if ok and name and craftType ~= "header" then consider(name, i) end
+            end
+        end
+    else
+        -- Leatherworking, Tailoring, Blacksmithing, Engineering - anything that makes an
+        -- attachable enhancement rather than casting one.
+        if type(GetNumTradeSkills) == "function" and type(GetTradeSkillInfo) == "function" then
+            for i = 1, (GetNumTradeSkills() or 0) do
+                local ok, name, skillType = pcall(GetTradeSkillInfo, i)
+                if ok and name and skillType ~= "header" then consider(name, i) end
             end
         end
     end
 
-    -- Leatherworking, Tailoring, Blacksmithing, Engineering - anything that makes an
-    -- attachable enhancement rather than casting one.
-    if type(GetNumTradeSkills) == "function" and type(GetTradeSkillInfo) == "function" then
-        for i = 1, (GetNumTradeSkills() or 0) do
-            local ok, name, skillType = pcall(GetTradeSkillInfo, i)
-            if ok and name and skillType ~= "header" then
-                consider(name, "tradeskill", i, ns.SafeLink(GetTradeSkillItemLink, i))
+    return entries, unreadable
+end
+
+-- Everything this character knows, from every book that has ever been read.
+--
+-- Refreshes whatever window happens to be open first, so having one open is still the most
+-- current answer - it is simply no longer the only one.
+function ns.CollectEnhancements()
+    ns.SnapshotOpenBook()
+
+    local snap = ns.GetEnhanceSnapshot()
+    local bySlot, unreadable, seen = {}, {}, {}
+
+    -- Book order is SORTED, not pairs(). Two professions can name the same enhancement, and
+    -- which one wins would otherwise change between sessions - along with the order of the
+    -- "could not read" list, which is on screen.
+    local names = {}
+    for name in pairs(snap.books) do names[#names + 1] = name end
+    table.sort(names)
+
+    for _, bookName in ipairs(names) do
+        local book = snap.books[bookName] or {}
+        for _, entry in ipairs(book.entries or {}) do
+            local key = (entry.name or "") .. "\001" .. (entry.source or "")
+            if not seen[key] then
+                seen[key] = true
+                for _, slotId in ipairs(entry.slots or {}) do
+                    bySlot[slotId] = bySlot[slotId] or {}
+                    local list = bySlot[slotId]
+                    list[#list + 1] = entry
+                end
             end
+        end
+        for _, u in ipairs(book.unreadable or {}) do
+            unreadable[#unreadable + 1] = u
         end
     end
 
@@ -789,6 +998,20 @@ capture:RegisterEvent("LEARNED_SPELL_IN_TAB")
 capture:SetScript("OnEvent", function(_, event)
     if event ~= "MERCHANT_SHOW" and event ~= "TRAINER_SHOW" then
         ns.ResetEnhanceCache()
+        -- ...and WRITE THE BOOK DOWN, which is the point of the events now rather than a side
+        -- effect. Deferred a tick for the same reason the vendor capture is: both windows
+        -- populate their list AFTER the event fires, and reading immediately gets zero rows.
+        -- SnapshotOpenBook refuses to store an empty read, so a tick early is harmless and a
+        -- tick late is correct.
+        local after = ns.ValuateAfter or (Valuate and Valuate.After)
+        local function readBook()
+            local book, count = ns.SnapshotOpenBook()
+            if book and count > 0 and Valuate.MarkAutomation then
+                Valuate:MarkAutomation("enhanceBooks",
+                    string.format("%s: %d enhancement(s) remembered", book, count))
+            end
+        end
+        if type(after) == "function" then after(0.2, readBook) else readBook() end
         return
     end
     -- Deferred by a tick. Both frames populate their lists AFTER the event fires, so reading

@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.181.0a] - 2026-08-16 — the Enhance tab remembers your professions
+
+### Added
+- **A profession book read once is remembered.** This is the missing half of the Enhance tab
+  and almost certainly why it has looked empty. `GetNumCrafts` and `GetNumTradeSkills` only
+  answer *while their window is open*, so the tab worked in exactly one order: open
+  Enchanting, then open Valuate, then reach the tab — without closing anything. Any other
+  order, including every obvious one, said *"I have not been shown any enhancements yet"*,
+  which was true and useless.
+
+  Now the book is read when the window opens and written down. **Just opening it is enough**
+  — the tab works from there wherever you are, and refreshes whenever a window happens to be
+  open. Learning a recipe re-reads the book on the spot, so it appears without visiting the
+  tab at all.
+
+- **The panel says where its data came from and when**: *"Read from Enchanting (34),
+  Leatherworking (12), 2 hours ago."* A snapshot is not live data, and saying *when* is the
+  whole difference between a cache and a claim. The age rounds **down** at every step and
+  never reads "just now" past a minute — the number exists to make you distrust old data.
+
+- **`/valuate report` gains a "Profession books read" heartbeat**, so a book that was read
+  silently is still something you can check on.
+
+### Details worth knowing
+- **Stored per character, per book, keyed on the profession's own name.** Re-reading
+  Enchanting *replaces* the Enchanting entries rather than merging — otherwise unlearning a
+  profession would leave its enhancements on offer forever with nothing to explain why.
+- **The recipe index is never stored.** It is a position in a list that reorders when filtered
+  or collapsed, so a stored one points at a *different* recipe later — a wrong answer rather
+  than a missing one. Only what stays true is kept: name, slot, stats, requirement.
+- **An empty read never overwrites a good book.** A window answers its row *count* before its
+  rows, so for a tick it looks like a profession with nothing in it. Storing that would make
+  the addon look like it had forgotten your professions.
+- Both profession APIs are read, not just whichever answered first. Only one window opens at a
+  time in practice — but "in practice" is a guess about a custom client, and being wrong about
+  it would silently drop a whole profession.
+- Bounded at 12 books and 800 entries each, oldest evicted first.
+
+### Internal
+- New gate `enhancesnapshot.js` (44 checks, 7 mutations). Two of its assertions were rewritten
+  after the mutation run showed them decorative: the empty-read check was proving a *different*
+  guard (nothing-open, which is refused earlier) instead of the real case of a half-populated
+  window, and the book-ordering check used two books, where `pairs()` lands on sorted order
+  often enough to pass without the sort existing. It uses eight now.
+- One assertion in `enhance.js` was updated rather than fixed: it asserted the stats cache went
+  *cold* after a profession event, which stopped being true once the event started re-reading
+  the book immediately. It asserts the outcome now — that the recipe you just learned is there.
+
 ## [0.180.0a] - 2026-08-16 — a suite outside the gate run is a suite that stops being run
 
 ### Added
