@@ -536,6 +536,82 @@ GetNumTrainerServices = nil
 eq(ns.CaptureMerchant(1000), 0, "no merchant api means nothing written, not an error")
 eq(ns.CaptureTrainer(1000), 0, "and the same for trainers")
 
+-- ---- reading the notes back ---------------------------------------------------------------------
+-- The capture half of this feature always worked and the recall half never existed: a note only
+-- reached the screen when its recipe happened to be the top recommendation on an Enhance row, so
+-- walking past sixty vendors built a store you could not look at.
+ValuateVendorNotes = nil
+local store = ns.GetVendorNotes()
+store["Formula: Enchant Cloak - Greater Agility"] = { cost = 30000, seller = "Alara", where = "Dalaran", at = 300 }
+store["Pattern: Icescale Leg Armor"] = { cost = 0, seller = "Braeg", where = "Ironforge", at = 200 }
+store["Formula: Enchant Boots - Assault"] = { cost = 12000, seller = "Alara", where = "Dalaran", at = 100 }
+
+local list, total, matched = ns.SearchVendorNotes(nil, 20)
+eq(total, 3, "every note is counted")
+eq(matched, 3, "and with no search term, all of them match")
+
+-- THE TRAP. __schema lives in the same table as the notes, so an unfiltered walk lists it as a
+-- recipe called "__schema" that you saw at a vendor for nothing.
+eq(store.__schema ~= nil, true, "the schema marker really is in the same table")
+for _, n in ipairs(list) do
+    ok(n.name ~= "__schema", "the schema marker is never listed as a recipe")
+end
+
+-- Newest first: "where did I just see that" is the question this answers.
+eq(list[1].name, "Formula: Enchant Cloak - Greater Agility", "the most recent note is first")
+eq(list[3].name, "Formula: Enchant Boots - Assault", "and the oldest is last")
+
+-- Ties break on NAME. Two notes taken at the same vendor share a timestamp far more often than
+-- not, and an order that reshuffles between openings is one you cannot read twice.
+store["Zed Recipe"] = { cost = 1, seller = "V", where = "W", at = 300 }
+store["Alpha Recipe"] = { cost = 1, seller = "V", where = "W", at = 300 }
+local tied = ns.SearchVendorNotes(nil, 20)
+local seenAlpha, seenZed
+for i, n in ipairs(tied) do
+    if n.name == "Alpha Recipe" then seenAlpha = i end
+    if n.name == "Zed Recipe" then seenZed = i end
+end
+ok(seenAlpha and seenZed and seenAlpha < seenZed,
+   "notes sharing a timestamp are ordered by name, the same way every time")
+
+-- Searching narrows, and is case-insensitive - you are typing from memory, not copying.
+local found = ns.SearchVendorNotes("enchant boots", 20)
+eq(#found, 1, "a search narrows to what matches")
+eq(found[1].name, "Formula: Enchant Boots - Assault", "and finds it regardless of case")
+
+local none, allTotal, noMatch = ns.SearchVendorNotes("nothing like this", 20)
+eq(#none, 0, "a search that matches nothing returns nothing")
+eq(noMatch, 0, "and says so")
+eq(allTotal, 5, "while still reporting how many are held, so the store looks alive")
+
+-- The cap is on what is SHOWN, not on what is counted: a list that quietly truncated would
+-- read as "that is all of them".
+local capped, capTotal, capMatched = ns.SearchVendorNotes(nil, 2)
+eq(#capped, 2, "the display is capped")
+eq(capMatched, 5, "but the match count is the real one, so the caller can say what it hid")
+eq(capTotal, 5, "and so is the total")
+
+-- ---- the line you actually read -------------------------------------------------------------------
+eq(ns.FormatVendorNote({ seller = "Alara", where = "Dalaran", cost = 0 }), "Alara, Dalaran",
+   "a free recipe names the seller and the place, with no price")
+ok(ns.FormatVendorNote({ seller = "Alara", where = "Dalaran", cost = 30000 }):find("Alara, Dalaran", 1, true) == 1,
+   "a priced one leads with the same thing")
+ok(ns.FormatVendorNote({ seller = "Alara", cost = 0 }) == "Alara",
+   "a note with no place still names who sold it")
+ok(ns.FormatVendorNote({ cost = 0 }):find("someone", 1, true) ~= nil,
+   "and one with neither says so rather than rendering an empty line")
+eq(ns.FormatVendorNote(nil), "", "no note at all is an empty string, not an error")
+
+-- ---- what it says when there is nothing -------------------------------------------------------------
+-- The distinction this project keeps having to make: never having looked is not the same as
+-- there being none, and the message has to say which and how to change it.
+ValuateVendorNotes = nil
+__printed = {}
+eq(ns.PrintVendorNotes(nil), 0, "an empty store reports nothing found")
+local said = table.concat(__printed, "\\n")
+ok(said:find("not noted any", 1, true) ~= nil, "saying it has not noted any yet")
+ok(said:find("merchant or a trainer", 1, true) ~= nil, "and how notes get taken at all")
+
 return failures, checks
 `,
   "enhance",

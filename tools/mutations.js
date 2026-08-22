@@ -2314,6 +2314,46 @@ module.exports = [
     to: "            text = string.format(\"%d upgrade%s\", bankUpgrades,",
     label: "the bank item does not say where the upgrades are" },
 
+  // ---- reading the vendor notes back (v0.193.0a) ---------------------------
+  // The capture half always worked and the recall half never existed - a note only reached the
+  // screen when its recipe happened to be the top recommendation on an Enhance row.
+
+  // NOT MUTATED: the `name ~= "__schema"` half of the note filter. The marker is a NUMBER, so
+  // the `type(note) == "table"` test beside it already excludes it, and removing the name
+  // check changes nothing today. It stays in the source because it states the intent and
+  // would become load-bearing the moment that marker grew into a table - the same call this
+  // project already made for PriceKeepsRow, and the same reason.
+
+  // Newest first: "where did I just see that" is the question this answers.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    scope: { start: "function ns.SearchVendorNotes", end: "function ns.FormatVendorNote" },
+    from: "        if a.at ~= b.at then return a.at > b.at end", to: "        if a.at ~= b.at then return a.at < b.at end",
+    label: "the oldest note is listed first, so the one you just took is last" },
+
+  // Ties break on name, or the order reshuffles between openings - and two notes from one
+  // vendor share a timestamp far more often than not.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    scope: { start: "function ns.SearchVendorNotes", end: "function ns.FormatVendorNote" },
+    from: "        return a.name < b.name", to: "        return false",
+    label: "notes sharing a timestamp come back in a different order each time" },
+
+  // The cap is on what is SHOWN. A count capped alongside it would make a truncated list read
+  // as "that is all of them".
+  { gate: "enhance", file: "ui/Enhance.lua",
+    from: "    local matched = #out", to: "    local matched = math.min(#out, limit or #out)",
+    label: "the match count is capped with the display, hiding that anything was left out" },
+
+  // Case-insensitive: you are typing from memory, not copying.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    from: "            if not needle or name:lower():find(needle, 1, true) then",
+    to: "            if not needle or name:find(needle, 1, true) then",
+    label: "searching only matches the exact case you happened to type" },
+
+  // Never having looked is not the same as there being none.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    from: "    if total == 0 then", to: "    if false then",
+    label: "an empty note store says nothing at all, rather than how notes get taken" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -12452,6 +12452,7 @@ SlashCmdList["VALUATE"] = function(msg)
                 "  |cFFFF8800/valuate deletepreview - What auto-delete WOULD remove. Run this first.|r",
                 "  /valuate deletenow - Delete junk now, honouring Keep Free Slots",
                 "  /valuate keepfree <n> - Bag slots auto-delete tries to keep free",
+                "  /valuate notes [text] - Where you saw a recipe, and what it cost",
                 "  |cFFFF8800/valuate sellpreview - What auto-sell WOULD sell, and what it is keeping and why.|r",
                 "  /valuate sellnow - Sell junk now",
             } },
@@ -12637,6 +12638,17 @@ SlashCmdList["VALUATE"] = function(msg)
         end
     elseif command == "selftest" then
         Valuate:RunSelfTest()
+    elseif command:match("^notes") then
+        -- Reads back what the merchant/trainer capture has written down. The capture half of
+        -- this feature has always worked; until now a note only reached the screen if its
+        -- recipe happened to be the top recommendation on an Enhance row.
+        --
+        -- The term is taken from msg rather than from command: the search is case-insensitive
+        -- either way, but what gets echoed back to you should be what you typed.
+        local term = strtrim(strmatch(msg or "", "^%s*[Nn][Oo][Tt][Ee][Ss]%s+(.+)$") or "")
+        if ns.PrintVendorNotes then
+            ns.PrintVendorNotes(term ~= "" and term or nil)
+        end
     elseif command == "enhancecheck" then
         -- What can this client actually tell us about enhancements? Live-only data means
         -- coverage depends entirely on which APIs exist here, and one of them is custom

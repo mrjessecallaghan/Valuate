@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.193.0a] - 2026-08-16 — `/valuate notes` reads the vendor notes back
+
+### Added
+- **`/valuate notes [text]`** — where you saw a recipe, and what it cost.
+
+  The addon has been writing these down since v0.168.0a: stand at a merchant or a trainer and
+  it notes any recipe on offer, with the seller, the place and the price. Passive, account-wide,
+  nothing bought or learned. **The capture half always worked and the recall half never
+  existed** — a note only reached the screen when its recipe happened to be the *top
+  recommendation* on an Enhance row, so walking past sixty vendors built a store you could not
+  look at.
+
+  Your original ask was *"also can learn from vendors where and what cost"*. This is the second
+  half of that sentence, five releases late.
+
+  ```
+  /valuate notes                 every note, most recent first
+  /valuate notes boots           only the ones whose name contains "boots"
+  ```
+
+  Newest first, because *"where did I just see that"* is the question it answers. Ties break on
+  name — two notes taken at one vendor share a timestamp far more often than not, and an order
+  that reshuffles between openings is one you cannot read twice. Twenty shown at a time, and it
+  says how many it held back rather than letting a truncated list read as "that is all of them".
+
+  With nothing noted it says so **and** how notes get taken, rather than looking broken.
+
+### Internal
+- 26 assertions and five mutations, plus one deliberately not written: the
+  `name ~= "__schema"` half of the note filter is **equivalent today**, because the marker is a
+  number and the `type(note) == "table"` test beside it already excludes it. The line stays —
+  it states the intent and would become load-bearing the moment that marker grew into a table —
+  but it is recorded as untested in both the source and `mutations.js` rather than counted as
+  covered. Same call this project already made for `PriceKeepsRow`, for the same reason.
+- The command was first written as `command == "notes"`, which cannot take an argument: in this
+  dispatcher `command` is the whole lowercased message. It matches a prefix now, like every
+  other command that takes one, and reads the search term from the **original** message so what
+  is echoed back is what you typed.
+
 ## [0.192.0a] - 2026-08-16 — the To Do list knows about your bank
 
 ### Added

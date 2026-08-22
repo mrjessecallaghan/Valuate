@@ -1169,6 +1169,108 @@ function ns.LookupVendorNote(name)
     return note.cost, note.seller, note.where
 end
 
+-- ---------------------------------------------------------------------------------------
+-- Reading the notes back
+-- ---------------------------------------------------------------------------------------
+--
+-- The capture half of this feature has always worked and the recall half never existed. A note
+-- only reached the screen when its recipe happened to be the top recommendation on an Enhance
+-- row, so walking past sixty vendors built a store you could not look at - which is a store
+-- that may as well not be there.
+--
+-- The original ask was "can learn from vendors where and what cost". This is the second half
+-- of that sentence.
+
+-- Notes matching `term`, newest first. Returns the list and the total held.
+--
+-- The `__schema` key lives in the same table as the notes. The type test below is what
+-- actually excludes it - the marker is a number - so the name test beside it is belt and
+-- braces, kept because it states the intent and would start mattering the moment that marker
+-- grew into a table. Mutation-tested and confirmed equivalent today, deliberately not
+-- claimed as covered.
+--
+-- SORTED, with the name breaking ties: pairs() order is undefined and this reaches the screen,
+-- and two notes taken at the same vendor share a timestamp far more often than not.
+function ns.SearchVendorNotes(term, limit)
+    local notes = ns.GetVendorNotes()
+    local needle = (type(term) == "string" and term ~= "") and term:lower() or nil
+
+    local out, total = {}, 0
+    for name, note in pairs(notes) do
+        if name ~= "__schema" and type(note) == "table" then
+            total = total + 1
+            if not needle or name:lower():find(needle, 1, true) then
+                out[#out + 1] = {
+                    name = name, cost = note.cost or 0,
+                    seller = note.seller, where = note.where, at = note.at or 0,
+                }
+            end
+        end
+    end
+
+    table.sort(out, function(a, b)
+        if a.at ~= b.at then return a.at > b.at end
+        return a.name < b.name
+    end)
+
+    local matched = #out
+    if limit and limit > 0 then
+        for i = #out, limit + 1, -1 do out[i] = nil end
+    end
+    return out, total, matched
+end
+
+-- One note as a line you can read at a glance.
+--
+-- The seller and the place are what you actually need; the price is the part most likely to be
+-- wrong, since reputation discounts move it and the note records what YOU were charged. Shown
+-- anyway, and shown as a price rather than a number, because "3g" answers "can I afford this"
+-- and 30000 does not.
+function ns.FormatVendorNote(note)
+    if type(note) ~= "table" then return "" end
+    local where = note.seller or "someone"
+    if note.where then where = where .. ", " .. note.where end
+    local price = ""
+    if (note.cost or 0) > 0 then
+        price = " - " .. (GetCoinTextureString and GetCoinTextureString(note.cost)
+                          or (note.cost .. "c"))
+    end
+    return where .. price
+end
+
+-- /valuate notes [search]
+function ns.PrintVendorNotes(term)
+    local list, total, matched = ns.SearchVendorNotes(term, 20)
+
+    if total == 0 then
+        print("|cFF00FF00[Valuate]|r I have not noted any recipes yet.")
+        print("|cFFAAAAAANotes are taken automatically while you stand at a merchant or a " ..
+              "trainer - nothing is opened, bought or learned. Walk past a few and they will " ..
+              "collect.|r")
+        return 0
+    end
+
+    if matched == 0 then
+        print(string.format("|cFF00FF00[Valuate]|r Nothing noted matches '%s'. %d note(s) held.",
+            tostring(term), total))
+        return 0
+    end
+
+    print(string.format("|cFF00FF00[Valuate]|r %d of %d note(s)%s, most recent first:",
+        matched, total, term and (" matching '" .. tostring(term) .. "'") or ""))
+    for _, note in ipairs(list) do
+        print("  " .. note.name .. " |cFFAAAAAA" .. ns.FormatVendorNote(note) .. "|r")
+    end
+    if matched > #list then
+        print(string.format("  |cFFAAAAAA...and %d more. Narrow it with /valuate notes <text>.|r",
+            matched - #list))
+    end
+    -- Account-wide, unlike almost everything else this addon saves. Worth saying, because a
+    -- note your enchanter took is the reason your warrior knows where that vendor is.
+    print("|cFFAAAAAAShared across every character on this account.|r")
+    return matched
+end
+
 -- The only thing in this file that does anything on its own.
 --
 -- Passive by design: it writes down what is already on screen in front of you and never
