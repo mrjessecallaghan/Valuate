@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.197.0a] - 2026-08-16 — the cross-addon check finds its own blind spot
+
+### Fixed
+**`api.js` checked three integration addons and there are four.** It holds a hardcoded list, and
+`Valuate-LootCollector` was added without extending it — so from the day that addon was written,
+its calls into Valuate went unchecked. A method renamed here would have broken it silently, at
+loot time or on a bag repaint, with no gate objecting.
+
+That is precisely the failure this file exists to prevent, one level up.
+
+The list is **discovered** now: any sibling folder named `Valuate-*` is an integration by
+construction, so the next one is covered the day it exists rather than the day somebody
+remembers. 34 calls across 4 addons, up from 30 across 3.
+
+Verified by adding a call to a method that does not exist and confirming the gate fails and
+names the file — rather than trusting a larger number.
+
+### Also fixed — a version check that was reading the wrong line
+The in-game "what is new" heading shipped this release saying **v0.196.0a** while the `.toc`
+said 0.197.0a, and `tocsync` passed. Its pattern looked for `Version X (Current)` anywhere in
+the file, and there is a **Lua comment two lines above the real header** carrying the same
+words. Bumping the comment while leaving the header alone satisfied it completely.
+
+So the one heading a user actually reads could sit any number of versions behind, with a gate
+confirming it was fine. It matches inside a quoted string now — a comment cannot contain one,
+the header always does. Verified by reverting the header and watching it fail.
+
+That is the third version-drift hole this project has had (`README`, `CHANGELOG`, and now the
+panel heading), and all three were the same mistake: checking a copy of the number rather than
+the one on screen.
+
+### Internal
+- **The PassLoot upgrade verdict had zero mutations.** Five now, one per branch. A verdict of
+  true means PassLoot performs whatever action you configured — Need, Greed, pass, announce — so
+  a branch answering the wrong way acts on your behalf in a group. All five were caught on the
+  first run, which says those assertions were already real; the one worth naming is the
+  historical bug its own comment records, where a never-scanned character **matched everything**.
+- The equality boundary is covered too: an item scoring *exactly* what you already have is not
+  an upgrade, and treating it as one churns your gear every time a sidegrade drops.
+
 ## [0.196.0a] - 2026-08-16 — the surplus-gear guards are proven, and its memo gets tested at all
 
 ### Internal

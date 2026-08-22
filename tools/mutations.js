@@ -2481,6 +2481,44 @@ module.exports = [
     from: "		if type(future) == \"table\" and next(future) then return false end", to: "",
     label: "an item you cannot use yet but will is marked surplus" },
 
+  // ---- the PassLoot upgrade verdict (v0.197.0a) ----------------------------
+  // Never mutation-tested. A verdict of true means PassLoot performs whatever action you
+  // configured on that item - Need, Greed, pass, announce - so a branch that answers the wrong
+  // way acts on your behalf in a group.
+
+  // THE HISTORICAL BUG, recorded in a comment beside the caller: this used to return TRUE, so a
+  // character who had never scanned matched EVERYTHING.
+  { gate: "passloottest", file: "../Valuate-PassLoot/Valuate.lua",
+    from: "    return false, \"no scan data at all - run /valuate scan\"",
+    to: "    return true, \"no scan data at all - run /valuate scan\"",
+    label: "a character who has never scanned matches every item" },
+
+  // Same shape one level down: scanned, but never for THIS scale.
+  { gate: "passloottest", file: "../Valuate-PassLoot/Valuate.lua",
+    from: "    return false, \"this scale has never been scanned - run /valuate scan\"",
+    to: "    return true, \"this scale has never been scanned - run /valuate scan\"",
+    label: "a scale that has never been scanned matches every item" },
+
+  // Nothing tracked for the slot means anything beats it - an empty slot is the one case where
+  // "no baseline" genuinely is an upgrade rather than an unknown.
+  { gate: "passloottest", file: "../Valuate-PassLoot/Valuate.lua",
+    from: "    return true, \"nothing tracked for this slot, so anything is an upgrade\"",
+    to: "    return false, \"nothing tracked for this slot, so anything is an upgrade\"",
+    label: "an empty slot never matches, so the first item for it is passed over" },
+
+  // Strictly greater. An equal score is not an upgrade, and treating it as one churns your gear
+  // for nothing every time a sidegrade drops.
+  { gate: "passloottest", file: "../Valuate-PassLoot/Valuate.lua",
+    from: "  if itemScore > bestScore then", to: "  if itemScore >= bestScore then",
+    label: "an item scoring exactly what you already have counts as an upgrade" },
+
+  // The reason travels with the verdict. A rule that fires or does not with no explanation is
+  // one you cannot configure.
+  { gate: "passloottest", file: "../Valuate-PassLoot/Valuate.lua",
+    from: "  return false, string.format(\"%s does not beat the baseline %s\", tostring(itemScore), tostring(bestScore))",
+    to: "  return false",
+    label: "a refusal gives no reason, so a rule that never fires cannot be diagnosed" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

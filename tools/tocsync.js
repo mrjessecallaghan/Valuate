@@ -306,7 +306,15 @@ try {
 
   if (tocVersion && /Version\s+\d+\.\d+/.test(panel)) {
     // "(Current)" marks the entry the panel presents as newest.
-    const current = panel.match(/Version\s+(\d+\.\d+\.\d+[a-z]?)\s*\(Current\)/);
+    //
+    // Matched inside a QUOTED STRING, not anywhere in the file. There is a Lua comment two
+    // lines above the real header carrying the same words, and the old pattern matched that
+    // first - so bumping the comment while leaving the header alone passed cleanly, and the
+    // in-game "what is new" heading sat one version behind with nothing objecting. Which is
+    // exactly what happened in v0.197.0a.
+    //
+    // A comment cannot contain a double quote followed by that text; the header always does.
+    const current = panel.match(/"Version\s+(\d+\.\d+\.\d+[a-z]?)\s*\(Current\)/);
     if (!current) {
       console.error(
         "  CHANGELOG  ui/InfoPanels.lua has no \"Version X (Current)\" entry - " +

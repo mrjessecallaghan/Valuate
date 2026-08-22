@@ -92,7 +92,28 @@ if (missing.length) {
  * caller degrades instead of erroring - it does not mean the name may be wrong.
  */
 const ADDONS_DIR = path.resolve(ADDON_ROOT, "..");
-const INTEGRATIONS = ["Valuate-AdiBags", "Valuate-PassLoot", "Valuate-TSM"];
+
+// DISCOVERED, not listed.
+//
+// This was a hardcoded array of three, and a fourth integration was added without anyone
+// remembering to extend it - so Valuate-LootCollector's calls into Valuate went unchecked from
+// the day it was written. Exactly the failure this file exists to prevent, one level up: a
+// method renamed here would have broken it silently, at loot time, with no gate objecting.
+//
+// Any sibling folder named Valuate-* is an integration by construction, so the next one is
+// covered the day it exists rather than the day somebody remembers.
+const INTEGRATIONS = (function () {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(ADDONS_DIR, { withFileTypes: true });
+  } catch (e) {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isDirectory() && e.name.startsWith("Valuate-"))
+    .map((e) => e.name)
+    .sort();
+})();
 
 const CALL_RE = /\bValuate[:.]([A-Za-z_]\w*)\s*\(/g;
 const crossMissing = [];
