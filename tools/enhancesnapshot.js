@@ -338,6 +338,61 @@ canDo, bare = ns.CountEnhanceTodo()
 eq(canDo, 0, "with no active scale there is nothing to rank, so nothing is claimed")
 eq(bare, 0, "in either column")
 
+-- ---- advice that names YOUR professions ---------------------------------------------------------
+-- "Open Enchanting or a crafting profession" is useless to a miner-skinner, and worse than
+-- useless: it implies the feature would work if they went and did something, when for them it
+-- never will. Four different characters, four different sentences.
+reset()
+
+local SKILLS = nil
+ns.KnownProfessions = function() return SKILLS end
+
+-- 1. BLIND. GetSkillLineInfo returns nothing when the skill headers are collapsed - the same
+-- quirk the Settings overrides exist for. An empty read means "I could not see", and saying
+-- "you have none" on the back of it would be a confident lie.
+SKILLS = nil
+local text = ns.EnhanceAdviceText()
+ok(text:find("crafting profession", 1, true) ~= nil,
+   "with the skill list unreadable it falls back to the generic advice")
+eq(text:find("None of your professions", 1, true), nil,
+   "and never concludes you have none from a read that failed")
+
+-- 2. HAS THEM, NONE READ. Name them, and only the ones that make something wearable.
+SKILLS = { Leatherworking = true, Blacksmithing = true, Mining = true, Cooking = true }
+text = ns.EnhanceAdviceText()
+ok(text:find("Leatherworking", 1, true) ~= nil, "it names the profession you actually have")
+ok(text:find("Blacksmithing", 1, true) ~= nil, "and the second one")
+eq(text:find("Mining", 1, true), nil, "not the gathering one, which makes nothing wearable")
+eq(text:find("Cooking", 1, true), nil, "nor the one that makes food")
+eq(text:find("Enchanting", 1, true), nil, "and not a profession you do not have")
+
+-- 3. HAS THEM, ALREADY READ. A different answer from "go and open something", and the only
+-- honest one: everything it could read has been read and still came to nothing.
+SKILLS = { Leatherworking = true }
+CRAFT_BOOK = "Leatherworking"
+TRADES = { "Nothing Useful" }
+TRADE_BOOK = "Leatherworking"
+ns.SnapshotOpenBook()
+TRADES = {}
+text = ns.EnhanceAdviceText()
+ok(text:find("already read", 1, true) ~= nil,
+   "once the book has been read it stops telling you to open it")
+ok(text:find("Leatherworking", 1, true) ~= nil, "still naming which")
+
+-- 4. HAS NONE. Say so, and say what it means, rather than sending them on an errand that
+-- cannot help. And hedge, because detection is the thing that can be wrong here.
+reset()
+ns.KnownProfessions = function() return SKILLS end
+SKILLS = { Mining = true, Skinning = true, Cooking = true }
+text = ns.EnhanceAdviceText()
+ok(text:find("None of your professions", 1, true) ~= nil,
+   "a character with no enhancing profession is told so plainly")
+ok(text:find("someone else", 1, true) ~= nil, "and where the enchants would have to come from")
+ok(text:find("collapsed", 1, true) ~= nil,
+   "with the one way this detection is known to be wrong named, not hidden")
+eq(text:find("just opening it is enough", 1, true), nil,
+   "and is never sent to open a book that cannot contain one")
+
 return failures, checks
 `,
   "enhancesnapshot",

@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.184.0a] - 2026-08-16 — the empty Enhance tab gives advice you can act on
+
+### Changed
+- **"Open Enchanting or a crafting profession" is useless to a miner-skinner**, and worse than
+  useless: it implies the feature would work if they went and did something, when for that
+  character it never will. The addon already scans your skill lines for the auto-roll feature,
+  so the empty tab now answers with **your** professions:
+
+  | your character | what it says |
+  |---|---|
+  | Leatherworking + Blacksmithing, neither read | *"Open Leatherworking or Blacksmithing once — just opening it is enough."* |
+  | Leatherworking, already read | *"I have already read Leatherworking and found nothing in it that goes on gear yet."* |
+  | Mining + Skinning + Cooking | *"None of your professions makes anything that goes on gear — this tab can only read your own book, so enchants would have to come from someone else."* |
+  | skill list unreadable | the old generic sentence |
+
+  Only professions that make something **wearable** are listed. Alchemy and Cooking make
+  consumables and Jewelcrafting makes gems — that is the socket feature, not this one — so
+  sending you to open one of those would waste a trip and teach you to ignore the next hint.
+
+- **A failed read is never reported as "you have none".** `GetSkillLineInfo` returns nothing
+  when the skill headers are collapsed — the exact quirk the profession overrides in Settings
+  exist for — so an empty read means *"I could not see"*. When the answer really is "none",
+  the message names that possibility rather than hiding it.
+
+- **`/valuate enhancecheck` and the tab say the same sentence**, from the same function, so the
+  two cannot end up giving different advice about the same character.
+
+### Internal
+- 71 checks in `enhancesnapshot.js` now, three mutations on the advice: an unreadable skill
+  list read as "none", gathering professions offered as places to look, and being told to open
+  a book that has already been read.
+
 ## [0.183.0a] - 2026-08-16 — the To Do list and the Enhance tab stop disagreeing
 
 ### Fixed

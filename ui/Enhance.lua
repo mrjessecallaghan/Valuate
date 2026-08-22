@@ -182,8 +182,10 @@ end
 function ns.PrintEnhanceMemory()
     local books = ns.SnapshotBooks and ns.SnapshotBooks() or {}
     if #books == 0 then
-        print("  |cFFAAAAAANothing remembered yet. Open Enchanting or a crafting profession " ..
-              "once - just opening it is enough, and I will keep what it says.|r")
+        -- The same sentence the panel uses, from the same function, so the two cannot end up
+        -- giving different advice about the same character.
+        print("  |cFFAAAAAANothing remembered yet. " ..
+              (ns.EnhanceAdviceText and ns.EnhanceAdviceText() or "") .. "|r")
         return 0
     end
 
@@ -530,6 +532,88 @@ function ns.DescribeAge(seconds)
     end
     local d = math.floor(seconds / 86400)
     return d .. (d == 1 and " day ago" or " days ago")
+end
+
+-- Which professions actually make something that goes ON gear.
+--
+-- Not "crafting professions": Alchemy and Cooking make consumables, and Jewelcrafting makes
+-- gems, which are the socket feature rather than this one. Telling someone to open a book that
+-- cannot contain an enhancement is advice that wastes a trip and teaches them to ignore the
+-- next hint.
+--
+-- Written out with what each contributes, because the list is a claim about this server and
+-- the next person to read it should be able to check it rather than trust it.
+ns.ENHANCING_PROFESSIONS = {
+    { name = "Enchanting",     makes = "enchants" },
+    { name = "Leatherworking", makes = "armour kits and leg armour" },
+    { name = "Blacksmithing",  makes = "belt buckles and weapon chains" },
+    { name = "Engineering",    makes = "scopes and glove tinkers" },
+    { name = "Tailoring",      makes = "spellthread and embroidery" },
+    { name = "Inscription",    makes = "shoulder inscriptions" },
+}
+
+-- What to tell someone whose Enhance tab is empty.
+--
+-- "Open Enchanting or a crafting profession" is useless to a miner-skinner, and worse than
+-- useless: it implies the feature would work if they went and did something, when for them it
+-- never will. So this answers with THEIR professions, or says plainly that none of them makes
+-- anything that goes on gear.
+--
+-- Returns:
+--   unread  professions they have that make enhancements and are NOT in the snapshot yet
+--   have    all of theirs that make enhancements, read or not
+--   blind   true when the skill list could not be read at all
+--
+-- BLIND IS NOT "NONE". GetSkillLineInfo returns nothing when the skill headers are collapsed -
+-- the same quirk the profession overrides in Settings exist for - so an empty read means "I
+-- could not see", and saying "you have none" on the back of it would be a confident lie.
+function ns.EnhanceAdvice()
+    local known = ns.KnownProfessions and ns.KnownProfessions() or nil
+    if type(known) ~= "table" or next(known) == nil then
+        return {}, {}, true
+    end
+
+    local snap = ns.GetEnhanceSnapshot()
+    local unread, have = {}, {}
+    -- Fixed order from the table above, so the sentence reads the same way every time rather
+    -- than reshuffling with pairs().
+    for _, prof in ipairs(ns.ENHANCING_PROFESSIONS) do
+        if known[prof.name] then
+            have[#have + 1] = prof
+            if not snap.books[prof.name] then unread[#unread + 1] = prof end
+        end
+    end
+    return unread, have, false
+end
+
+-- The sentence itself, so the panel and any future caller cannot word it differently.
+function ns.EnhanceAdviceText()
+    local unread, have, blind = ns.EnhanceAdvice()
+
+    if blind then
+        return "Open Enchanting or a crafting profession once - just opening it is enough, " ..
+               "and I will remember what it says."
+    end
+
+    if #unread > 0 then
+        local names = {}
+        for _, p in ipairs(unread) do names[#names + 1] = p.name end
+        return string.format("Open %s once - just opening it is enough, and I will remember " ..
+            "what it says.", table.concat(names, " or "))
+    end
+
+    if #have > 0 then
+        -- Everything they could read has been read, and it still came to nothing. That is a
+        -- real answer and a different one from "go and open something".
+        local names = {}
+        for _, p in ipairs(have) do names[#names + 1] = p.name end
+        return string.format("I have already read %s and found nothing in %s that goes on " ..
+            "gear yet.", table.concat(names, " and "), #have == 1 and "it" or "them")
+    end
+
+    return "None of your professions makes anything that goes on gear - this tab can only " ..
+           "read your own book, so enchants would have to come from someone else. If you do " ..
+           "have one, its skill header may be collapsed; Settings has a manual override."
 end
 
 -- What is remembered, newest first, for the panel to say out loud.

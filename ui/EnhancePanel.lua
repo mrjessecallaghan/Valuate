@@ -536,10 +536,13 @@ function ns.CreateEnhancePanel(parent)
         -- simply named something differently that day, the list is a record of what was true
         -- once. Saying WHEN is the whole difference between a cache and a claim.
         if not anyKnown then
+            -- The advice names THEIR professions, or says plainly that none of them makes
+            -- anything that goes on gear. "Open a crafting profession" is useless to a
+            -- miner-skinner, and worse than useless: it implies the feature would work if
+            -- they went and did something, when for them it never will.
             hint:SetText("I have not been shown any enhancements yet.\n\n" ..
-                "Open Enchanting or a crafting profession once - just opening it is enough, " ..
-                "and I will remember what it said. Run /valuate enhancecheck to see what " ..
-                "this client will tell me.")
+                (ns.EnhanceAdviceText and ns.EnhanceAdviceText() or "") ..
+                "\n\nRun /valuate enhancecheck to see what this client will tell me.")
         else
             local books = ns.SnapshotBooks and ns.SnapshotBooks() or {}
             if #books > 0 then

@@ -1976,6 +1976,28 @@ module.exports = [
     label: "a to-do count is produced with no scale to rank against",
     from: "    if not scaleName then return 0, 0 end", to: "" },
 
+  // ---- advice that names your professions (v0.184.0a) ----------------------
+  // "Open Enchanting or a crafting profession" is useless to a miner-skinner, and worse than
+  // useless: it implies the feature would work if they went and did something.
+
+  // A failed read is not "you have none". The skill list returns nothing when its headers are
+  // collapsed, which is the exact quirk the Settings overrides exist for.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "an unreadable skill list is reported as having no professions at all",
+    from: "        return {}, {}, true", to: "        return {}, {}, false" },
+
+  // Only professions that make something wearable. Sending someone to open Cooking is the
+  // failure this list exists to prevent.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "gathering and consumable professions are offered as places to find enhancements",
+    from: "        if known[prof.name] then", to: "        if true then" },
+
+  // Once a book is read, telling you to open it again is noise that outlives its usefulness.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "it keeps telling you to open a book it has already read",
+    from: "            if not snap.books[prof.name] then unread[#unread + 1] = prof end",
+    to: "            unread[#unread + 1] = prof" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

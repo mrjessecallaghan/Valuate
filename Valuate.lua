@@ -10097,6 +10097,10 @@ local function GetKnownProfessions()
     return out
 end
 
+-- Published so the Enhance tab can name YOUR professions rather than guessing at a generic
+-- "open a crafting profession", which is useless advice to a miner-skinner.
+ns.KnownProfessions = GetKnownProfessions
+
 -- The list offered in Settings, and whether each is auto-detected right now.
 function Valuate:GetProfessionOverrideChoices()
     local detected = {}
