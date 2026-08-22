@@ -2614,6 +2614,35 @@ module.exports = [
     from: "            if panel:IsShown() then active = label end", to: "",
     label: "the report never says which tab it actually measured" },
 
+  // ---- the self-test verdict (v0.200.0a) -----------------------------------
+  // Three blocks inside RunSelfTest depend on the state of the character running it, each was
+  // skipped silently, and the verdict still printed PASSED. "Self-test PASSED (42 checks)" is
+  // the sentence somebody repeats back to you, and it was true and misleading at once.
+
+  { gate: "selftestverdict", file: "Valuate.lua",
+    from: "    local missing = #skipped > 0 and string.format(\", %d group(s) not run\", #skipped) or \"\"",
+    to: "    local missing = \"\"",
+    label: "the headline claims a clean pass while whole groups were never run" },
+
+  // Naming them is what makes each one fixable: equip something, load AdiBags, pick a scale.
+  { gate: "selftestverdict", file: "Valuate.lua",
+    from: "        lines[#lines + 1] = \"not run: \" .. what", to: "",
+    label: "the skipped groups are counted but never named, so none of them can be acted on" },
+
+  // The count belongs on the FAILING line too. You fix what it named, run it again, and read
+  // the next result as the whole picture.
+  { gate: "selftestverdict", file: "Valuate.lua",
+    from: "        lines[1] = string.format(\"Self-test: %d passed, %d FAILED%s.\", pass or 0, fail, missing)",
+    to: "        lines[1] = string.format(\"Self-test: %d passed, %d FAILED.\", pass or 0, fail)",
+    label: "a failing run hides that groups were skipped as well" },
+
+  // A skip is not a failure. Wording it as one sends someone to fix what is not broken, and a
+  // diagnostic that cries wolf stops being read.
+  { gate: "selftestverdict", file: "Valuate.lua",
+    from: "        lines[#lines + 1] = \"not run: \" .. what",
+    to: "        lines[#lines + 1] = \"FAILED: \" .. what",
+    label: "a group that could not run is reported as a failure" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

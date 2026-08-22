@@ -10962,6 +10962,36 @@ end
 -- present + callable, key data structures well-formed, tooltip parsing alive. It
 -- doesn't prove behaviour is correct, but it catches a broken build the moment you
 -- reload - a missing method, a nil'd option, a parser that stopped returning stats.
+-- The claim the self-test makes, kept apart from the checks that produce it.
+--
+-- RunSelfTest needs a client, a character and a bag of gear, so it has never been executed by a
+-- gate - 60-odd checks whose OUTPUT nothing has ever read back. The verdict is the part that can
+-- be wrong in a way you would act on, so it lives out here where it can be tested with three
+-- numbers and no client at all.
+--
+-- Returns plain lines. Colour is the caller's business; a test should not have to parse escape
+-- codes to find out what was claimed.
+function ns.SelfTestVerdict(pass, fail, skipped)
+    skipped = skipped or {}
+    local lines = {}
+
+    -- The count of what was NOT run belongs in the headline, not in a footnote below it. A
+    -- character with no AdiBags and no scale skips two whole groups, and "PASSED (42 checks)"
+    -- is the sentence they would repeat back to you.
+    local missing = #skipped > 0 and string.format(", %d group(s) not run", #skipped) or ""
+    if (fail or 0) == 0 then
+        lines[1] = string.format("Self-test PASSED (%d checks%s).", pass or 0, missing)
+    else
+        lines[1] = string.format("Self-test: %d passed, %d FAILED%s.", pass or 0, fail, missing)
+    end
+
+    -- Named, because every one of these is fixable: equip something, load AdiBags, pick a scale.
+    for _, what in ipairs(skipped) do
+        lines[#lines + 1] = "not run: " .. what
+    end
+    return lines
+end
+
 function Valuate:RunSelfTest()
     local pass, fail = 0, 0
     local function check(ok, label, detail)
@@ -10972,6 +11002,19 @@ function Valuate:RunSelfTest()
             print("|cFFFF5555  FAIL|r " .. label .. (detail and (" - " .. detail) or ""))
         end
     end
+
+    -- What this run could NOT examine, and why.
+    --
+    -- Three blocks here depend on the state of the character running them: the item API needs
+    -- something equipped, the junk sanity needs AdiBags loaded, and the scan helpers need an
+    -- active scale. Each was silently skipped, and the verdict still said PASSED - so a fresh
+    -- character with no AdiBags could be told everything was fine while a third of the checks
+    -- never ran.
+    --
+    -- Not a failure and not coloured as one: nothing is broken, and the honest answer is a
+    -- smaller claim rather than a red one.
+    local skipped = {}
+    local function skip(what) skipped[#skipped + 1] = what end
 
     print("|cFF00FF00[Valuate]|r Self-test (v" .. (Valuate.version or "?") .. ")...")
 
@@ -11221,6 +11264,7 @@ function Valuate:RunSelfTest()
         runs("GetItemUnitValue runs", function() Valuate:GetItemUnitValue(chestLink, "vendor") end)
         runs("GetBestForInfo runs", function() Valuate:GetBestForInfo(chestLink) end)
     else
+        skip("item API - nothing equipped in the chest slot")
         print("|cFFAAAAAA  (skipped item-API checks - no chest equipped)|r")
     end
 
@@ -11235,6 +11279,9 @@ function Valuate:RunSelfTest()
             if AdiBags and AdiBags.GetModule then
                 junkModule = AdiBags:GetModule("Junk", true)
             end
+        end
+        if not AdiBags then
+            skip("AdiBags junk classification - AdiBags is not loaded")
         end
         if AdiBags then
             check(junkModule ~= nil, "AdiBags Junk module resolves",
@@ -11306,16 +11353,22 @@ function Valuate:RunSelfTest()
     -- Non-destructive exercise of the scan-dependent helpers.
     do
         local sc, sn = Valuate:GetPrimaryScale()
+        if not sn then skip("scan helpers - no active scale to run them against") end
         if sn then
             local okc, err = pcall(function() Valuate:CountEquippableUpgrades(sn) end)
             check(okc, "CountEquippableUpgrades runs", (not okc) and tostring(err) or nil)
         end
     end
 
-    if fail == 0 then
-        print(string.format("|cFF00FF00[Valuate]|r Self-test PASSED (%d checks).", pass))
-    else
-        print(string.format("|cFFFF5555[Valuate]|r Self-test: %d passed, %d FAILED.", pass, fail))
+    -- Built by ns.SelfTestVerdict so the claim can be tested without a client; this end just
+    -- colours it.
+    local verdict = ns.SelfTestVerdict(pass, fail, skipped)
+    for i, line in ipairs(verdict) do
+        if i == 1 then
+            print((fail == 0 and "|cFF00FF00[Valuate]|r " or "|cFFFF5555[Valuate]|r ") .. line)
+        else
+            print("|cFFFF8800  " .. line .. "|r")
+        end
     end
     return fail == 0
 end
@@ -11574,6 +11627,30 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "selftestskips", since = "0.200.0a",
+        gate = "tools/selftestverdict.js",
+        title = "The self-test says what it could NOT check",
+        steps = "Run /valuate selftest on a character with no active scale, or with AdiBags disabled. Read the last line.",
+        expect = "It still passes, and the headline says how many groups were not run - each named below it, as 'not run' rather than as a failure.",
+        broke = "Three blocks inside the self-test depend on the state of the character running it: the item API needs something equipped, the junk sanity needs AdiBags loaded, the scan helpers need an active scale. Each was skipped silently while the verdict said PASSED. The gate proves the sentence against three numbers; only the client can show whether the SKIPS are the ones you would expect - if it reports groups not run on a fully equipped character with AdiBags loaded and a scale active, one of those three detections is wrong on this client, and the named group tells you which.",
+    },
+    {
+        id = "integrationreport", since = "0.195.0a",
+        gate = "tools/integrations.js",
+        title = "The report says which of the four integrations are running",
+        steps = "Run /valuate report and read the first section. Then disable one integration at the character-select AddOns list, log back in, and run it again.",
+        expect = "Each installed host is listed with its integration confirmed. The disabled one is called out in red, naming what you lose. Integrations whose host you do not have are counted, never named.",
+        broke = "The pairing is read through IsAddOnLoaded on both names. What only the client can show is whether Ascension answers that call for these folder names at all - a custom launcher that renames or bundles addons would report everything as idle, which reads as 'nothing here applies to you' and would be wrong rather than merely unhelpful. If the section says that while your bags are visibly sorting by scale, the detection is broken and not the integration.",
+    },
+    {
+        id = "settingssurvive", since = "0.190.0a",
+        gate = "tools/optiondefaults.js",
+        title = "A setting you changed survives a relog",
+        steps = "Turn OFF something that defaults on - the login summary, or Need on unlearned recipes. Log out fully to character select, log back in, and check it.",
+        expect = "Still off. Then check a setting you never touched has sensible defaults, and that a brand-new alt starts with everything at its default rather than blank.",
+        broke = "Every login backfills whatever the character has not saved, so new options reach old characters. The failure it guards is the backfill overwriting a key that is already there, which would revert every choice you have made at each login - and options that default to TRUE are the ones at risk, because a clumsy check reads a deliberate false as 'missing'. The gate walks every true-by-default option against a mocked table. Only a real log out and back in proves the saved variables round-trip at all, which is the half no harness can reach.",
     },
     {
         id = "enhancescaled", since = "0.189.0a",

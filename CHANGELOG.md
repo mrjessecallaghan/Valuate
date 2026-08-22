@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.200.0a] - 2026-08-16 — the self-test stops claiming more than it examined
+
+### Fixed
+**`/valuate selftest` printed PASSED while whole groups of checks had never run.**
+
+Three blocks inside it depend on the state of the character running it:
+
+| block | needs |
+|---|---|
+| item-API checks | something equipped in the chest slot |
+| AdiBags junk sanity | AdiBags loaded |
+| scan helpers | an active scale |
+
+Each was skipped **silently**, and the verdict still said PASSED. A fresh character with no
+AdiBags could be told everything was fine while a third of the checks never happened — and
+*"Self-test PASSED (42 checks)"* is the sentence somebody repeats back to you. True, and
+misleading at once.
+
+The count of what was **not run** is in the headline now, not a footnote, and every skipped group
+is named — because each one is fixable: equip something, load AdiBags, pick a scale. It appears
+on a **failing** run too: you fix what was named, run it again, and take the next result as the
+whole picture.
+
+A skipped group is deliberately **not** a failure and is never worded as one. Nothing is broken;
+the honest answer is a smaller claim rather than a red one. Sending someone to fix a thing that
+is not wrong is how a diagnostic stops being read.
+
+### Added
+- **Three new `/valuate verify` checks**, for the client-dependent half of the last eleven
+  releases: a setting you changed **surviving a relog** (only a real log-out proves the saved
+  variables round-trip), the integration report naming what is loaded (only the client shows
+  whether `IsAddOnLoaded` answers for these folder names on Ascension), and the self-test
+  naming what it skipped. 73 checks now, 0 behind the .toc.
+
+### Internal
+- `RunSelfTest` needs a client, a character and a bag of gear, so **no gate has ever executed
+  it** — sixty-odd checks whose output nothing has ever read back. The verdict is the part that
+  can be wrong in a way somebody acts on, so it is now `ns.SelfTestVerdict`, tested with three
+  numbers and no client: 18 checks, 4 mutations.
+- The assertions were first written into `heartbeat.js` purely because it was open. That gate is
+  about automation heartbeats; the verdict has nothing to do with it. Backed out and given its
+  own file — a test filed in the wrong place is one nobody finds when the subject changes.
+
 ## [0.199.0a] - 2026-08-16 — the UI check says which tab it actually looked at
 
 ### Fixed
