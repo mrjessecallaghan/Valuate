@@ -2354,6 +2354,33 @@ module.exports = [
     from: "    if total == 0 then", to: "    if false then",
     label: "an empty note store says nothing at all, rather than how notes get taken" },
 
+  // ---- saying whether the filter works (v0.194.0a) -------------------------
+  // Everything this addon does is invisible when it works and equally invisible when it does
+  // not. A status line that flagged nothing would be one more thing that looks fine.
+
+  // THE MOST LIKELY REASON IT IS "NOT FILTERING", and the one the panel cannot tell you
+  // because with no scale it never draws at all.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    from: "    add(\"Active scale\", scaleName or \"NONE - nothing to rank by\", scaleName ~= nil)",
+    to: "    add(\"Active scale\", scaleName or \"NONE - nothing to rank by\", true)",
+    label: "having no active scale is reported as though it were fine" },
+
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    from: "    add(\"Hook installed\", hooked and \"yes\" or \"no\", hooked == true)",
+    to: "    add(\"Hook installed\", hooked and \"yes\" or \"no\", true)",
+    label: "a hook that never installed is reported as though it were fine" },
+
+  // The memo is the honest measure of whether it has judged anything at all.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    from: "    add(\"Verdicts remembered\", tostring(memoCount), true)",
+    to: "    add(\"Verdicts remembered\", \"0\", true)",
+    label: "the verdict count is always zero, so working and idle look identical" },
+
+  // A large number here explains a list that never narrows, which is otherwise unexplainable.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    from: "    for _ in pairs(attempts) do stuck = stuck + 1 end", to: "",
+    label: "items the client never answers for are not counted, so a stuck list has no cause" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.194.0a] - 2026-08-16 — `/vlc status` says whether the LootCollector filter is working
+
+### Added
+- **`/vlc status`** in `Valuate-LootCollector`.
+
+  This is the least verifiable thing in the set. **Everything it does is invisible when it works
+  — rows that are not there — and equally invisible when it does not.** A hook that never
+  installed, a button that never got built, a scale that was never picked, and a filter doing
+  nothing all look exactly like *"there were no upgrades in that zone"*.
+
+  So it can say:
+
+  ```
+  LootCollector:        found
+  Hook installed:       yes
+  Button built:         yes
+  Active scale:         Dps
+  Filter:               Valuate: Upgrades
+  Verdicts remembered:  312
+  Still to evaluate:    0
+  Gave up on:           4
+  ```
+
+  Every number was already held; nothing could ask for them. The two that answer real questions:
+  **verdicts remembered** is the honest measure of whether it has judged anything at all — zero,
+  with the filter on and the window open, means evaluation is not reaching anything — and **gave
+  up on** counts items the client never answers for, which is the only thing that explains a
+  list that never narrows.
+
+  A broken row is flagged rather than merely stated, because a status line that reports a
+  failure in the same colour as a success is one nobody reads twice. It also says out loud that
+  only the equipment tab is filtered, so checking from the Mystic Scrolls tab and seeing no
+  change is the expected result rather than a fault.
+
+### Internal
+- 65 checks in `lchook.js`, 11 mutations. One survived the first run for a structural reason
+  worth naming: the *"hook installed"* flag was only ever asserted in a fixture where the hook
+  **is** installed, so a mutation reporting it as always-fine changed nothing. The gate now
+  captures a status report **before** the poll runs — which is exactly the state a real user is
+  in when it never finds LootCollector's window, and the only moment those flags can be
+  observed at all.
+
 ## [0.193.0a] - 2026-08-16 — `/valuate notes` reads the vendor notes back
 
 ### Added

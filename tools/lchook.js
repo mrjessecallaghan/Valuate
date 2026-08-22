@@ -145,6 +145,18 @@ end
 ok(watcher ~= nil, "the addon polls for LootCollector's window rather than assuming it exists")
 ok(driver ~= nil, "and keeps a background driver frame, hidden until there is work")
 
+-- Status BEFORE anything is installed. This is the state a real user is in when the poll
+-- never finds LootCollector's window, and it is the only moment the not-installed flags can
+-- be observed - asserted afterwards, the hook is always in and the mutation that reports
+-- everything as fine changes nothing.
+local preInstall = ns.StatusReport()
+local function preRow(label)
+    for _, row in ipairs(preInstall) do if row.label == label then return row end end
+end
+eq(preRow("Hook installed").ok, false, "before the poll runs, the hook is reported as NOT installed")
+eq(preRow("Hook installed").value, "no", "in words as well as colour")
+eq(preRow("Button built").ok, false, "and the button as not yet built")
+
 -- Driving the poll by hand is what half a second of play would do.
 watcher.__scripts.OnUpdate(watcher, 1)
 eq(ns.mode, "off", "the filter starts off, so installing the hook changes nothing by itself")
@@ -307,6 +319,66 @@ eq(ns.mode, "upgrades", "clicking it advances the cycle")
 eq(button.label:GetText(), "Valuate: Upgrades", "and the label follows")
 eq(Viewer.currentPage, 1,
    "changing the filter returns you to page one, not page three of a shorter list")
+
+-- ---- saying whether any of this is working ---------------------------------------------------
+-- This addon is the least verifiable thing in the set: everything it does is invisible when it
+-- works - rows that are not there - and equally invisible when it does not. A hook that never
+-- installed, a button that never got built, a scale that was never picked, and a filter doing
+-- nothing all look exactly like "there were no upgrades in that zone".
+--
+-- So the assertions are about the OK flags, not the words. A status line that reports a broken
+-- thing in the same colour as a working one is a status line nobody reads twice.
+local function statusBy(label)
+    for _, row in ipairs(ns.StatusReport()) do
+        if row.label == label then return row end
+    end
+end
+
+-- Everything healthy: hook in, button built, scale picked.
+ns.mode = "upgrades"
+ROWS = { rowFor("up") }
+Viewer.currentFilter = "eq"
+Viewer:GetFilteredDiscoveries()
+
+eq(statusBy("LootCollector").ok, true, "it reports finding LootCollector")
+eq(statusBy("Hook installed").ok, true, "and that the hook went in")
+eq(statusBy("Button built").ok, true, "and that the button exists")
+eq(statusBy("Active scale").ok, true, "and that there is a scale to rank by")
+ok(statusBy("Active scale").value:find("Dps", 1, true) ~= nil, "naming it")
+
+-- NO SCALE. The single most likely reason for "it is not filtering anything", and the one the
+-- panel itself cannot tell you because it never draws.
+SCALE_NAME = nil
+local noScale = statusBy("Active scale")
+eq(noScale.ok, false, "with no active scale the row is flagged, not merely stated")
+ok(noScale.value:find("NONE", 1, true) ~= nil, "and says so in words")
+SCALE_NAME = "Dps"
+
+-- The memo is the honest measure of whether it has done any work at all: zero verdicts with the
+-- filter on and a window open means evaluation is not reaching anything.
+ns.ResetMemo()
+eq(statusBy("Verdicts remembered").value, "0", "a fresh memo reports zero")
+Viewer:GetFilteredDiscoveries()
+ok(statusBy("Verdicts remembered").value ~= "0", "and it climbs once it has judged something")
+
+-- Items it gave up on. Not a failure in itself - the client genuinely never answers for some -
+-- but a large number explains a list that never narrows, which is otherwise unexplainable.
+ns.ResetMemo()
+WORLD["ghostly"] = { uncached = true }
+ROWS = { rowFor("ghostly") }
+for _ = 1, 5 do
+    Viewer:GetFilteredDiscoveries()
+    if ns.PendingCount() > 0 then driver.__scripts.OnUpdate(driver) end
+end
+ok(tonumber(statusBy("Gave up on").value) > 0,
+   "an item the client never answers for is counted as given up on")
+
+-- Every row has a label and a value, or the report prints blanks that read as broken state.
+for _, row in ipairs(ns.StatusReport()) do
+    ok(type(row.label) == "string" and row.label ~= "", "every status row has a label")
+    ok(type(row.value) == "string" and row.value ~= "",
+       "and a value: '" .. tostring(row.label) .. "'")
+end
 
 return failures, checks
 `,
