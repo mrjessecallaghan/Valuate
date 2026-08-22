@@ -92,6 +92,40 @@ end
 -- verdict rather than a report. It also must NOT open the window as the command form does -
 -- a diagnostic that changes what is on your screen in order to inspect it is measuring
 -- something you did not have.
+-- Which tabs this check actually SAW.
+--
+-- The walk only measures visible things - a hidden panel has no resolved rectangles, so there is
+-- nothing to measure and nothing that could be wrong yet. That is correct behaviour and it makes
+-- the summary a half-truth: "clean, 412 things measured" reads as a verdict on the window when
+-- it is a verdict on one tab. Someone runs it on Scales, sees clean, and believes the Enhance
+-- tab they have never opened is fine.
+--
+-- So the summary names what was covered and what was not. Returns the visible panel's name, how
+-- many panels exist, and how many were not open.
+--
+-- Names are derived from the tabs table's own keys, so a tab added later is counted without
+-- anyone remembering to list it here - the failure this whole section is about, one level up.
+function ns.UICheckCoverage()
+    local frame = ns.ValuateUIFrame
+    local tabs = frame and frame.tabs
+    if type(tabs) ~= "table" then return nil, 0, 0 end
+
+    local names, active, total = {}, nil, 0
+    for key, panel in pairs(tabs) do
+        -- Only the panel entries: the table also carries selectTab and the button list.
+        if type(panel) == "table" and panel.IsShown and key:find("Panel", 1, true) then
+            total = total + 1
+            local label = key:gsub("Panel$", "")
+            names[#names + 1] = label
+            if panel:IsShown() then active = label end
+        end
+    end
+    -- Sorted so a failure message names the same tab the same way every run; pairs() order over
+    -- the tabs table is undefined and this reaches the screen.
+    table.sort(names)
+    return active, total, math.max(0, total - (active and 1 or 0))
+end
+
 function ns.RunUICheck(quiet)
     if not ns.ValuateUIFrame or not ns.ValuateUIFrame:IsShown() then
         if quiet then return nil, 0 end
@@ -202,15 +236,38 @@ function ns.RunUICheck(quiet)
 
     -- ---- the report ----------------------------------------------------------------------
     if quiet then return #problems, examined end
+    -- What this run actually covered, said whether it passed or failed.
+    --
+    -- The walk measures only VISIBLE things, so it is a verdict on the tab you are looking at
+    -- and never on the window. "Clean, 412 things measured" read as the latter, which meant
+    -- someone could check from the Scales tab and believe the Enhance tab they had never opened
+    -- was fine. The number was true and the impression it gave was not.
+    local activeTab, totalTabs, unchecked = ns.UICheckCoverage()
+
     if #problems == 0 then
         print(string.format(
-            "|cFF00FF00[Valuate]|r UI check: |cFF00FF00clean|r - %d things measured against the real client.",
-            examined))
+            "|cFF00FF00[Valuate]|r UI check: |cFF00FF00clean|r - %d things measured against the real client%s.",
+            examined, activeTab and (" on the " .. activeTab .. " tab") or ""))
         print("  |cFFAAAAAAThis is the half the headless gates cannot see: real fonts, real anchors, " ..
               "real positions.|r")
+        if unchecked > 0 then
+            print(string.format("  |cFFFF8800%d other tab%s not open, so %s not measured|r " ..
+                "|cFFAAAAAA- open each one and run this again.|r",
+                unchecked, unchecked == 1 and " was" or "s were",
+                unchecked == 1 and "it was" or "they were"))
+        end
     else
-        print(string.format("|cFFFF8800[Valuate]|r UI check: %d problem%s in %d things measured.",
-            #problems, #problems == 1 and "" or "s", examined))
+        print(string.format("|cFFFF8800[Valuate]|r UI check: %d problem%s in %d things measured%s.",
+            #problems, #problems == 1 and "" or "s", examined,
+            activeTab and (" on the " .. activeTab .. " tab") or ""))
+        -- Said on a FAILING run too. A list of problems is just as much a statement about one
+        -- tab as a clean bill is, and it is the more dangerous of the two to over-read: you fix
+        -- what it named, run it again, and take the clean result as the window being sound.
+        if unchecked > 0 then
+            print(string.format("  |cFFFF8800%d other tab%s not open and %s not measured.|r",
+                unchecked, unchecked == 1 and " was" or "s were",
+                unchecked == 1 and "was" or "were"))
+        end
         -- Deduplicated: a pooled row that is wrong is wrong in every copy, and twenty
         -- identical lines say nothing the first one did not.
         local seen, shown = {}, 0

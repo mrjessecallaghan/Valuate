@@ -189,6 +189,70 @@ ns.RunUICheck()
 ok(table.concat(__printed, " "):find("none of the", 1, true) ~= nil,
    "no tab marked at all is reported - which is what four of six did until v0.156.0a")
 
+-- ---- what the check actually COVERED -------------------------------------------------------------
+-- The walk measures only visible things, so it is a verdict on the tab you are looking at and
+-- never on the window. "Clean, 412 things measured" read as the latter: someone could check from
+-- the Scales tab and believe the Enhance tab they had never opened was fine. The number was true
+-- and the impression it gave was not.
+--
+-- A FRESH ROOT, because everything above deliberately builds broken layout and RunUICheck walks
+-- the whole tree. Reusing that root meant this block always took the FAILING branch, and the
+-- mutation gutting the clean one survived - the assertion was reading a nearly identical
+-- sentence from the other side of the if.
+local cleanRoot = CreateFrame("Frame")
+cleanRoot:SetWidth(800)
+cleanRoot:SetHeight(600)
+cleanRoot:Show()
+ns.ValuateUIFrame = cleanRoot
+
+local panels = {}
+for _, name in ipairs({ "scales", "settings", "enhance", "todo", "about" }) do
+    local pane = CreateFrame("Frame", nil, cleanRoot)
+    pane:SetWidth(700)
+    pane:SetHeight(500)
+    pane:Hide()
+    panels[name] = pane
+end
+panels.enhance:Show()
+
+cleanRoot.tabs = {
+    scalesPanel = panels.scales, settingsPanel = panels.settings,
+    enhancePanel = panels.enhance, todoPanel = panels.todo, aboutPanel = panels.about,
+    -- The table also carries non-panel entries, which must not be counted as tabs.
+    selectTab = function() end,
+    buttons = { (function()
+        local btn = CreateFrame("Button", nil, cleanRoot)
+        btn:SetWidth(90) btn:SetHeight(24)
+        btn.accent = btn:CreateTexture(nil, "OVERLAY")
+        btn.accent:SetWidth(90) btn.accent:SetHeight(2)
+        btn.accent:Show()
+        return btn
+    end)() },
+}
+
+local active, total, unchecked = ns.UICheckCoverage()
+eq(active, "enhance", "the visible panel is named, so the report says which tab it judged")
+eq(total, 5, "the non-panel entries in the tabs table are not counted as tabs")
+eq(unchecked, 4, "and the ones that were never open are counted")
+
+__printed = {}
+ns.RunUICheck()
+local said = table.concat(__printed, "\\n")
+ok(said:find("clean", 1, true) ~= nil,
+   "the fixture produces a clean run, or the assertion below would prove the wrong branch")
+ok(said:find("enhance tab", 1, true) ~= nil, "the summary names the tab it measured")
+ok(said:find("open each one and run this again", 1, true) ~= nil,
+   "and a CLEAN result still says how many tabs it did not measure")
+
+-- No tabs table at all - an older core, or a window built by something else. It must not claim
+-- coverage it cannot describe, and must not error.
+cleanRoot.tabs = nil
+active, total, unchecked = ns.UICheckCoverage()
+eq(active, nil, "with no tabs table there is no tab to name")
+eq(unchecked, 0, "and nothing is claimed about what was missed")
+__printed = {}
+ok(pcall(ns.RunUICheck), "and the check still runs rather than erroring")
+
 return failures, checks
 `,
   "uicheck",

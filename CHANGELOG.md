@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.199.0a] - 2026-08-16 — the UI check says which tab it actually looked at
+
+### Fixed
+**`/valuate uicheck` reported a verdict on one tab and it read like a verdict on the window.**
+
+The walk measures only what is *visible* — a hidden panel has no resolved rectangles, so there
+is nothing to measure. That is correct behaviour, and it made the summary a half-truth: *"clean
+— 412 things measured against the real client"* is true, and someone running it from the Scales
+tab would reasonably conclude the Enhance tab they had never opened was fine.
+
+It now names the tab it measured and counts the ones it did not:
+
+```
+UI check: clean - 412 things measured against the real client on the enhance tab.
+4 other tabs were not open, so they were not measured - open each one and run this again.
+```
+
+Said on a **failing** run too. A list of problems is just as much a statement about one tab as a
+clean bill is, and it is the more dangerous of the two to over-read: you fix what it named, run
+it again, and take the clean result as the window being sound.
+
+The tab list is derived from the tabs table's own keys, so a tab added later is counted without
+anyone remembering to list it — which is the same failure this fix is about, one level up.
+
+### Internal
+Getting this tested took three attempts and each failure was mine, in the same direction:
+
+- The mutation anchor was **ambiguous** — both branches carry the line — so it reported
+  UNAPPLIED, which is indistinguishable from a mutation that does not exist.
+- Scoped to the clean branch, it then **survived**: the two branches print nearly identical
+  sentences, and the assertion was matching the failing one.
+- The fixture inherited every deliberately-broken frame from the checks above it, so the clean
+  branch was **never reachable**. It has its own root now — and making that root clean meant
+  building a window that genuinely passes, including a tab marked as current, which is itself
+  the point: a clean result is a real state rather than a default.
+
 ## [0.198.0a] - 2026-08-16 — the unproven gates, measured and closed
 
 ### Internal

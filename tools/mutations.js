@@ -2591,6 +2591,29 @@ module.exports = [
     from: "        if versionMessage then", to: "        if false then",
     label: "a tag from a newer version is reported as malformed, sending you to fix the wrong thing" },
 
+  // ---- what the UI check covered (v0.199.0a) -------------------------------
+  // The walk measures only VISIBLE things, so it judges the tab you are on and never the window.
+  // "Clean, 412 things measured" read as the latter.
+
+  // Scoped to the CLEAN branch: the failing branch carries the same line, deliberately, and an
+  // unscoped anchor lands on whichever comes first.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    scope: { start: "if #problems == 0 then", end: "\n    else" },
+    from: "        if unchecked > 0 then", to: "        if false then",
+    label: "a clean result never mentions the tabs it did not open" },
+
+  // Non-panel entries share the tabs table - selectTab and the button list - and counting them
+  // as tabs inflates the warning into nonsense.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    from: "        if type(panel) == \"table\" and panel.IsShown and key:find(\"Panel\", 1, true) then",
+    to: "        if type(panel) == \"table\" then",
+    label: "the tab count includes things that are not tabs" },
+
+  // Naming the tab is what turns a number into a verdict you can place.
+  { gate: "uicheck", file: "ui/UICheck.lua",
+    from: "            if panel:IsShown() then active = label end", to: "",
+    label: "the report never says which tab it actually measured" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the
