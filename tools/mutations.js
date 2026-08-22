@@ -2136,6 +2136,73 @@ module.exports = [
     from: "        if options.autoQuestTurnIn then\n            if options.chatMessages then",
     to: "        if true then\n            if options.chatMessages then" },
 
+  // ---- rolling on loot (v0.188.0a) -----------------------------------------
+  // The third thing this addon does on your behalf that cannot be taken back. A wrong Need
+  // costs someone else the item and costs you the reputation.
+
+  // THE ONE THAT MATTERS. Greed on a bad guess is a shrug; Need on one is a fight.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "Need is rolled on anything Need is offered on, wanted or not",
+    from: "    if wants and canNeed then return 1, \"Need\" end",
+    to: "    if canNeed then return 1, \"Need\" end" },
+
+  // Need is frequently not offered for something you cannot use yet - a recipe above your
+  // skill is exactly that - and Greed still wins it.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "an item you want but cannot Need on is passed instead of Greeded",
+    from: "    if canGreed then return 2, \"Greed\" end", to: "" },
+
+  // Rolls expire. One grace period, and no more: without the guard an item the client never
+  // caches defers forever and the roll is lost by inaction.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "an uncached item defers forever and the roll expires unanswered",
+    from: "    if link and not GetItemInfo(link) and not isRetry then",
+    to: "    if link and not GetItemInfo(link) then" },
+
+  // ...and the other direction: never waiting means rolling on stats that have not arrived.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "it rolls immediately on an item whose data has not arrived yet",
+    from: "        ValuateAfter(0.5, function() Valuate:AutoRollOnLoot(rollID, true) end)", to: "" },
+
+  // The feature switch.
+  // Scoped: ConfirmAutoLootRoll guards on the same option and the same line, so an unscoped
+  // anchor lands on whichever comes first rather than on the one this gate drives.
+  { gate: "rollaction", file: "Valuate.lua",
+    scope: { start: "function Valuate:AutoRollOnLoot", end: "-- Confirms the" },
+    label: "loot is rolled on with the feature switched off",
+    from: "    if not options.autoRollLoot or not rollID then return end", to: "    if not rollID then return end" },
+
+  // Both classification options default ON, so an unset one must not switch them off.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "the recipe check is skipped unless its option is explicitly enabled",
+    from: "    if link and options.autoRollRecipes ~= false then",
+    to: "    if link and options.autoRollRecipes then" },
+
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "the trade-good check is skipped unless its option is explicitly enabled",
+    from: "    if link and not isRecipe and options.autoRollTradeGoods ~= false then",
+    to: "    if link and not isRecipe and options.autoRollTradeGoods then" },
+
+  // Both use the same private tooltip, and the second call repoints it - so asking twice is
+  // not merely wasteful, it is a different answer about a different thing.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "a recipe is asked about again as a trade good, repointing the shared tooltip",
+    from: "    if link and not isRecipe and options.autoRollTradeGoods ~= false then",
+    to: "    if link and options.autoRollTradeGoods ~= false then" },
+
+  // Switched ON and unable to work is the case worth recording.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "a client with no roll API looks idle rather than saying it cannot work",
+    from: "        Valuate:MarkAutomation(\"autoRoll\", \"this client has no loot-roll API - cannot roll\")",
+    to: "" },
+
+  // A Greed on a learnable recipe reads as the feature failing unless it says Need was not on
+  // offer.
+  { gate: "rollaction", file: "Valuate.lua",
+    label: "a Greed forced by Need being unavailable is reported as a plain Greed",
+    from: "                reason = reason .. \", |cFFFF8800Need not offered|r\"\n            end\n        elseif isMaterial then",
+    to: "            end\n        elseif isMaterial then" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

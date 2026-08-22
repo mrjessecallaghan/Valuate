@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.188.0a] - 2026-08-16 — Need is only rolled on something you actually want
+
+### Added
+- **`tools/rollaction.js`** (26 checks, 10 mutations) for `Valuate:AutoRollOnLoot`.
+
+  The third thing this addon does on your behalf that cannot be taken back, after deleting an
+  item and taking a quest reward. **A wrong Greed is a shrug; a wrong Need costs someone else
+  the item and costs you the reputation**, and the game offers no way back from either.
+
+  `rolltest.js` proves the classification — what counts as a learnable recipe, what counts as a
+  useful trade good. Nothing proved what was *done* with those answers. That completes the set:
+  all three of this addon's irreversible actions now have the gap between "decided" and "did"
+  under test.
+
+  The two properties carrying the file:
+  - **Need requires both halves.** `wants and canNeed`. Need is frequently not offered for
+    something you cannot use yet — a recipe above your skill is exactly that — and Greed still
+    wins it, so falling back rather than passing matters.
+  - **An uncached item retries exactly once.** Rolls expire, so there is one grace period and no
+    more. Without the guard an item the client never caches would defer forever and the roll
+    would be lost by inaction — which looks identical to the addon being switched off.
+
+  Also: it always answers the roll (a pass is an answer), both classification options default
+  **on** so an unset one does not silently disable them, a recipe is never re-asked as a trade
+  good (they share one private tooltip and the second call repoints it), and a Greed forced by
+  Need being unavailable says so rather than reading as a failure.
+
+### Internal
+- `mutations.js` lost an escaped newline for the fifth time this session, this time in a
+  `scope` marker. The marker does not need one — a substring boundary is all a scope requires —
+  so it no longer has one. The durable rule, now that the pattern is unmistakable: **edit
+  `mutations.js` through a file, never through an inline shell escape.** Multi-line `from`
+  anchors written via a heredoc have survived every time; the same text written inline has
+  failed every time.
+
 ## [0.187.0a] - 2026-08-16 — suggesting a quest reward is not taking it
 
 ### Added
