@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.182.0a] - 2026-08-16 — the diagnostic tells the truth about the snapshot
+
+### Fixed
+- **`/valuate enhancecheck` described the old data model**, which made it actively misleading
+  one release after the snapshot landed. It probes the **live** APIs, and with no profession
+  window open every one of them answers zero — so someone running it because the tab looked
+  empty would read `0` and conclude the feature cannot see anything, while the snapshot behind
+  the tab was full. The number and the verdict were both true about the wrong question.
+
+  It now reports what is remembered, by book, with ages:
+
+  ```
+  yes  Enchanting (Craft api) (0 open right now)
+  Remembered from earlier:
+      Enchanting     - 34 enhancement(s), read 2 hours ago
+      Leatherworking - 12 enhancement(s), read 3 days ago
+  ```
+
+  Two specific changes beyond adding the list. The live count now says **"open right now"**, so
+  a zero beside it is not read as "nothing known". And **"Nothing at all — this is not a client
+  Valuate can read enhancements from"** is a hard statement that the feature cannot work here;
+  it is no longer said to someone whose snapshot is full.
+
+  With nothing stored at all, it says so *and* names the one action that fixes it.
+
+### Internal
+- Nine mutations now cover the snapshot, two of them this diagnostic. The "nothing at all"
+  verdict needed a fixture with **no live API but a book still remembered** to be provable —
+  and a second assertion that the verdict *is* still given when there is genuinely nothing,
+  since otherwise a deleted verdict would pass the first check.
+
 ## [0.181.0a] - 2026-08-16 — the Enhance tab remembers your professions
 
 ### Added

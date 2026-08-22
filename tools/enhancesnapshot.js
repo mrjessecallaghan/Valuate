@@ -245,6 +245,70 @@ eq(left, ns.SNAPSHOT_BOOK_CAP, "leaving exactly the cap")
 eq(snap.books["Book1"], nil, "the OLDEST goes first")
 ok(snap.books["Book" .. (ns.SNAPSHOT_BOOK_CAP + 5)] ~= nil, "and the newest stays")
 
+-- ---- the diagnostic must describe the CURRENT data model ---------------------------------------
+-- /valuate enhancecheck probes the live apis, and with no profession window open every one of
+-- them answers zero. Before the snapshot existed that was the whole truth. After it, a bare
+-- "0" and a verdict of "nothing at all" are both true about the wrong question - and this is
+-- the command people are told to run when the tab looks empty, so being misleading here sends
+-- them to exactly the wrong conclusion.
+reset()
+__printed = {}
+ns.PrintEnhanceProbe()
+local said = table.concat(__printed, "\\n")
+ok(said:find("Nothing remembered yet", 1, true) ~= nil,
+   "with nothing stored, the probe says so and says how to fix it")
+ok(said:find("just opening it is enough", 1, true) ~= nil, "naming the one action that helps")
+
+-- Now something IS remembered, with every window shut.
+CRAFTS = { "Enchant Boots - Greater Assault", "Enchant Cloak - Superior Agility" }
+ns.SnapshotOpenBook()
+CRAFTS = {}
+NOW = NOW + 7200
+
+__printed = {}
+ns.PrintEnhanceProbe()
+said = table.concat(__printed, "\\n")
+ok(said:find("Remembered from earlier", 1, true) ~= nil,
+   "with a window shut but a book stored, the probe reports the book")
+ok(said:find("Enchanting", 1, true) ~= nil, "by name")
+ok(said:find("2 hours ago", 1, true) ~= nil, "and says how old it is, so it is read as a record")
+
+-- THE VERDICT. "Nothing at all" is a hard statement that the feature cannot work here, and it
+-- must not be said to someone whose snapshot is full.
+eq(said:find("Nothing at all", 1, true), nil,
+   "and never says the client can tell it nothing while it is holding a full book")
+
+-- The live count says LIVE, so a zero beside it is not read as "nothing known".
+ok(said:find("open right now", 1, true) ~= nil,
+   "the live count is labelled as what is open, not as what is known")
+-- THE VERDICT, on a client whose apis are gone. "Nothing at all - this is not a client Valuate
+-- can read enhancements from" is a hard statement that the feature cannot work here, and it
+-- must not be said to someone whose snapshot is full. Rare, and the cheap branch to get right:
+-- a book read under one patch outlives an api that gets renamed under the next.
+local realCraft, realTrade = GetNumCrafts, GetNumTradeSkills
+local realCraftInfo, realTradeInfo = GetCraftInfo, GetTradeSkillInfo
+GetNumCrafts, GetNumTradeSkills = nil, nil
+GetCraftInfo, GetTradeSkillInfo = nil, nil
+
+__printed = {}
+ns.PrintEnhanceProbe()
+said = table.concat(__printed, "\\n")
+eq(said:find("Nothing at all", 1, true), nil,
+   "with no live api but a book remembered, it does not declare the client useless")
+ok(said:find("Remembered from earlier", 1, true) ~= nil, "it reports the book instead")
+
+-- ...and it DOES say it on a client that can tell it nothing and has nothing stored, or the
+-- check above would pass on a verdict that had simply been deleted.
+reset()
+__printed = {}
+ns.PrintEnhanceProbe()
+said = table.concat(__printed, "\\n")
+ok(said:find("Nothing at all", 1, true) ~= nil,
+   "and still says it when there is genuinely nothing, live or remembered")
+
+GetNumCrafts, GetNumTradeSkills = realCraft, realTrade
+GetCraftInfo, GetTradeSkillInfo = realCraftInfo, realTradeInfo
+
 return failures, checks
 `,
   "enhancesnapshot",

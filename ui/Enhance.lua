@@ -132,7 +132,7 @@ function ns.PrintEnhanceProbe()
 
     print("|cFF00FF00[Valuate]|r What this client can tell me about enhancements:")
     for _, s in ipairs(available) do
-        print(string.format("  |cFF00FF00yes|r  %s |cFFAAAAAA(%d right now)|r", s.label, s.count))
+        print(string.format("  |cFF00FF00yes|r  %s |cFFAAAAAA(%d open right now)|r", s.label, s.count))
     end
     for _, s in ipairs(missing) do
         print(string.format("  |cFFFF4040no|r   %s", s.label))
@@ -162,10 +162,39 @@ function ns.PrintEnhanceProbe()
               "which means only ones you can already make.|r")
     end
 
-    if #available == 0 then
+    local remembered = ns.PrintEnhanceMemory()
+
+    if #available == 0 and remembered == 0 then
         print("  |cFFFF4040Nothing at all.|r This is not a client Valuate can read enhancements from.")
     end
     return #available, #missing
+end
+
+-- What is written down, said out loud by the same command.
+--
+-- Without this the probe actively misleads. It reports the LIVE apis, and with no profession
+-- window open every one of them answers zero - so the person who just ran it reads "0" and
+-- concludes the feature cannot see anything, while the snapshot behind the tab is full. The
+-- number and the verdict were both true about the wrong question.
+--
+-- Returns how many enhancements are remembered in total, which is what decides whether the
+-- "nothing at all" verdict above is honest.
+function ns.PrintEnhanceMemory()
+    local books = ns.SnapshotBooks and ns.SnapshotBooks() or {}
+    if #books == 0 then
+        print("  |cFFAAAAAANothing remembered yet. Open Enchanting or a crafting profession " ..
+              "once - just opening it is enough, and I will keep what it says.|r")
+        return 0
+    end
+
+    local total = 0
+    print("  |cFF00FF00Remembered from earlier:|r")
+    for _, book in ipairs(books) do
+        total = total + book.count
+        print(string.format("      %s |cFFAAAAAA- %d enhancement(s), read %s|r",
+            book.name, book.count, ns.DescribeAge((type(time) == "function" and time() or 0) - book.at)))
+    end
+    return total
 end
 
 -- ---------------------------------------------------------------------------------------

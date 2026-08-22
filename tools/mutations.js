@@ -1928,6 +1928,18 @@ module.exports = [
     label: "book order is whatever pairs() felt like, so the list reshuffles between sessions",
     from: "    table.sort(names)", to: "" },
 
+  // /valuate enhancecheck is the command people are told to run when the tab looks empty.
+  // Reporting only the LIVE apis - all of which answer zero with no window open - sends them
+  // to exactly the wrong conclusion while the snapshot behind the tab is full.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "the diagnostic reports only live windows, so a full snapshot reads as nothing",
+    from: "    local remembered = ns.PrintEnhanceMemory()", to: "    local remembered = 0" },
+
+  // "Nothing at all" is a hard statement that the feature cannot work on this client.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    label: "it declares the client useless while holding a book it read from that client",
+    from: "    if #available == 0 and remembered == 0 then", to: "    if #available == 0 then" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the
