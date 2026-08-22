@@ -1586,6 +1586,16 @@ module.exports = [
     to: "" },
 
   // An enchanted slot is finished. Calling it a recommendation puts a job on a done thing.
+  // Asked BEFORE the known-count check. Below it, an enchanted slot on a character whose
+  // professions have never been opened reported "none shown to me yet" - which reads as a job,
+  // on the one kind of slot that definitely is not one. A single-line anchor rather than a
+  // two-line swap, because a multi-line one in this file has silently lost its newline three
+  // times now and reported UNAPPLIED.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    scope: { start: "function ns.EnhanceSlotState(info)", end: "\n    if (info.shown or 0) <= 0" },
+    label: "an enchanted slot reads as one I have never been shown options for",
+    from: "    if info.hasEnchant then return \"enhanced\" end", to: "" },
+
   { gate: "enhancepanel", file: "ui/Enhance.lua",
     label: "a slot that already has an enchant is recommended one anyway",
     from: "    if info.hasEnchant then return \"enhanced\" end",
@@ -1939,6 +1949,32 @@ module.exports = [
   { gate: "enhancesnapshot", file: "ui/Enhance.lua",
     label: "it declares the client useless while holding a book it read from that client",
     from: "    if #available == 0 and remembered == 0 then", to: "    if #available == 0 then" },
+
+  // ---- the to-do list and the Enhance tab agree (v0.183.0a) -----------------
+  // Two panels in one window answered the same question differently: "Enchant 6 items" beside
+  // "1 to enhance". Both were right about different questions, and the pair read as a bug.
+
+  // A to-do you cannot act on is not a to-do. Counting bare slots as work is the old number.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "slots with no known enhancement are listed as work you can do",
+    from: "    if canEnhance > 0 then", to: "    if canEnhance + bareSlots > 0 then" },
+
+  // ...and the other direction: dropping them entirely hides real unenchanted gear.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "unenchanted slots vanish from the list entirely once nothing is known for them",
+    from: "    elseif bareSlots > 0 then", to: "    elseif false then" },
+
+  // The count comes from the Enhance tab's own logic, or the two drift apart again.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the to-do count stops coming from the Enhance tab and can disagree with it again",
+    from: "    if ns.CountEnhanceTodo then canEnhance, bareSlots = ns.CountEnhanceTodo() end",
+    to: "    canEnhance, bareSlots = 0, 0" },
+
+  // No scale means no ranking, so there is no honest count to put on a list.
+  { gate: "enhancesnapshot", file: "ui/Enhance.lua",
+    scope: { start: "function ns.CountEnhanceTodo()", end: "\n    local bySlot = ns.CollectEnhancements()" },
+    label: "a to-do count is produced with no scale to rank against",
+    from: "    if not scaleName then return 0, 0 end", to: "" },
 
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the

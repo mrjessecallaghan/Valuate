@@ -7843,17 +7843,34 @@ function Valuate:BuildTodoList()
         })
     end
 
-    local unenchanted = 0
-    if Valuate.FindMissingEnchants then
-        local _, n = Valuate:FindMissingEnchants()
-        unenchanted = n or 0
-    end
-    if unenchanted > 0 then
+    -- Enhancements, counted the way the Enhance tab counts them.
+    --
+    -- This used to report every unenchanted slot: "Enchant 6 items", while the Enhance tab in
+    -- the same window said "1 to enhance". Both were right about different questions, and
+    -- seeing the pair read as a bug in one of them. A to-do you cannot act on is not a to-do,
+    -- so the actionable number is the one on the list - and the rest are reported as what they
+    -- actually are, which is a reason to open a profession window rather than a job.
+    local canEnhance, bareSlots = 0, 0
+    if ns.CountEnhanceTodo then canEnhance, bareSlots = ns.CountEnhanceTodo() end
+
+    if canEnhance > 0 then
         table.insert(items, {
             kind = "enchants",
-            text = string.format("Enchant %d item%s", unenchanted, unenchanted == 1 and "" or "s"),
-            detail = nil,
+            text = string.format("Enhance %d item%s", canEnhance, canEnhance == 1 and "" or "s"),
+            detail = bareSlots > 0 and string.format(
+                "%d more slot%s bare, but nothing known for %s yet",
+                bareSlots, bareSlots == 1 and " is" or "s are",
+                bareSlots == 1 and "it" or "them") or nil,
             command = "/valuate enchants",
+        })
+    elseif bareSlots > 0 then
+        -- Still worth saying. Unenchanted gear is a real gap; it is just not one this addon
+        -- can hand you an answer to until it has seen a profession window.
+        table.insert(items, {
+            kind = "enchants",
+            text = string.format("%d slot%s unenchanted", bareSlots, bareSlots == 1 and "" or "s"),
+            detail = "Open Enchanting or a crafting profession once and I will remember what it offers",
+            command = "/valuate enhancecheck",
         })
     end
 

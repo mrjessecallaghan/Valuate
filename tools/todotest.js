@@ -74,6 +74,16 @@ function Valuate:RankAvailableUpgrades() return UPGRADES end
 function Valuate:FindEmptySockets() return nil, SOCKETS end
 function Valuate:FindMissingEnchants() return nil, ENCHANTS end
 
+-- The enchant item is built from the ENHANCE TAB's count, not from a count of bare slots.
+-- Two panels in one window used to answer this differently - "Enchant 6 items" beside "1 to
+-- enhance" - so they share a function now, and this fixture drives that function.
+--
+--   CAN_ENHANCE  slots with something you could actually put on right now
+--   BARE         slots with no enchant and nothing known for them, which is not a job yet
+CAN_ENHANCE, BARE = 0, 0
+local ns = {}
+ns.CountEnhanceTodo = function() return CAN_ENHANCE, BARE end
+
 -- Whether this character has ever been SCANNED, which every case below assumed silently.
 --
 -- The fixture had no notion of it: GetBestEquipment was not mocked at all, so the list was
@@ -108,13 +118,34 @@ local socketItem = Valuate:BuildTodoList()[1]
 ok(socketItem.text:find("3", 1, true) ~= nil, "and it reports how many")
 SOCKETS = 0
 
-ENCHANTS = 2
-eq(kinds(Valuate:BuildTodoList()), "enchants", "missing enchants alone is one item")
-ENCHANTS = 0
+CAN_ENHANCE = 2
+eq(kinds(Valuate:BuildTodoList()), "enchants", "enhanceable slots alone is one item")
+ok(Valuate:BuildTodoList()[1].text:find("2", 1, true) ~= nil, "and it reports how many")
+
+-- Bare slots with nothing known are NOT counted as work. This is the whole point of sharing
+-- the Enhance tab's number: a to-do you cannot act on is not a to-do, and 6 of them beside
+-- the tab saying 1 reads as a bug in one of the two.
+CAN_ENHANCE, BARE = 0, 5
+local bareOnly = Valuate:BuildTodoList()
+eq(kinds(bareOnly), "enchants", "bare slots with nothing known still get a line")
+ok(bareOnly[1].text:find("unenchanted", 1, true) ~= nil,
+   "but it says they are unenchanted rather than calling them work")
+eq(bareOnly[1].text:find("Enhance", 1, true), nil, "and never tells you to enhance them")
+ok(bareOnly[1].command:find("enhancecheck", 1, true) ~= nil,
+   "pointing at the thing that would turn them into work")
+
+-- With both, the actionable count leads and the rest is a footnote on the same line.
+CAN_ENHANCE, BARE = 2, 3
+local both = Valuate:BuildTodoList()[1]
+ok(both.text:find("Enhance 2", 1, true) ~= nil, "the actionable count is the headline")
+ok(both.detail and both.detail:find("3 more", 1, true) ~= nil,
+   "and the bare ones are a detail, not a second job")
+CAN_ENHANCE, BARE = 0, 0
 
 -- Zero must never produce a line. "Fill 0 empty sockets" is the failure that makes a list
 -- always non-empty and therefore never read.
 SOCKETS, ENCHANTS = 0, 0
+CAN_ENHANCE, BARE = 0, 0
 eq(#Valuate:BuildTodoList(), 0, "a count of zero produces no line at all")
 
 -- ---- the order IS the argument -----------------------------------------------
@@ -122,6 +153,7 @@ eq(#Valuate:BuildTodoList(), 0, "a count of zero produces no line at all")
 DRIFT = "Auto - Str/Crit"
 UPGRADES = { { itemLink = "[Chest]", slotName = "Chest", gain = 40 } }
 SOCKETS, ENCHANTS = 2, 1
+CAN_ENHANCE, BARE = 1, 0
 eq(kinds(Valuate:BuildTodoList()), "scale,upgrade,sockets,enchants",
    "stale scale, then upgrades, then sockets, then enchants")
 
@@ -159,11 +191,13 @@ Valuate.GetPrimaryScale = realPrimary
 
 -- ...and once scanned, it stops nagging. A blocker that never clears is noise.
 SCANNED = true
+CAN_ENHANCE, BARE = 0, 0
 eq(#Valuate:BuildTodoList(), 0, "a scanned character with nothing to do gets an empty list")
 
 -- ---- three upgrades, not seventeen -------------------------------------------
 DRIFT = nil
 SOCKETS, ENCHANTS = 0, 0
+CAN_ENHANCE, BARE = 0, 0
 UPGRADES = {}
 for i = 1, 17 do
     UPGRADES[i] = { itemLink = "[Item " .. i .. "]", slotName = "Slot " .. i, gain = 100 - i }
@@ -226,6 +260,7 @@ end
 -- shorter list rather than erroring out of the command entirely.
 Valuate.FindEmptySockets = nil
 Valuate.FindMissingEnchants = nil
+ns.CountEnhanceTodo = nil
 Valuate.GetAutoScaleDrift = nil
 local degraded
 ok(pcall(function() degraded = Valuate:BuildTodoList() end),
@@ -243,8 +278,10 @@ function Valuate:GetOptions() return OPTIONS end
 function Valuate:GetAutoScaleDrift() return DRIFT end
 function Valuate:FindEmptySockets() return nil, SOCKETS end
 function Valuate:FindMissingEnchants() return nil, ENCHANTS end
+ns.CountEnhanceTodo = function() return CAN_ENHANCE, BARE end
 
 DRIFT, SOCKETS, ENCHANTS = "Auto - Str/Crit", 2, 1
+CAN_ENHANCE, BARE = 1, 0
 UPGRADES = { { itemLink = "[Chest]", slotName = "Chest", gain = 40 } }
 todoAnnounced = false
 
@@ -257,6 +294,7 @@ saysAbout(select(2, Valuate:AnnounceTodo()), "Already", "saying why rather than 
 -- precisely the interruption this feature is supposed to avoid.
 todoAnnounced = false
 DRIFT, SOCKETS, ENCHANTS, UPGRADES = nil, 0, 0, nil
+CAN_ENHANCE, BARE = 0, 0
 eq(Valuate:AnnounceTodo(), false, "an empty list prints nothing")
 DRIFT = "Auto - Str/Crit"
 eq(Valuate:AnnounceTodo(), false, "and it does not start announcing later in the session")

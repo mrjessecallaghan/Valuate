@@ -309,6 +309,35 @@ ok(said:find("Nothing at all", 1, true) ~= nil,
 GetNumCrafts, GetNumTradeSkills = realCraft, realTrade
 GetCraftInfo, GetTradeSkillInfo = realCraftInfo, realTradeInfo
 
+-- ---- the count the to-do list shares -----------------------------------------------------------
+-- The Enhance tab and the To Do list used to answer the same question differently. They share
+-- this function now, so it is worth proving it answers what the tab shows rather than what the
+-- old to-do line counted.
+reset()
+Valuate.GetPrimaryScale = function() return { Values = { Agility = 1 } }, "Dps" end
+Valuate.CalculateItemScore = function(_, stats) return (stats and stats.Agility) or 0 end
+GetInventoryItemLink = function(_, slot)
+    if slot == 8 then return "|Hitem:100:0|h[Boots]|h" end       -- bare, and I know a boot enchant
+    if slot == 1 then return "|Hitem:200:0|h[Helm]|h" end        -- bare, nothing known for heads
+    if slot == 5 then return "|Hitem:300:555|h[Chest]|h" end     -- already enchanted
+    return nil
+end
+GetItemInfo = function() return "Item", nil, nil, 60 end
+
+CRAFTS = { "Enchant Boots - Greater Assault" }
+ns.SnapshotOpenBook()
+CRAFTS = {}
+
+local canDo, bare = ns.CountEnhanceTodo()
+eq(canDo, 1, "one slot has something that could go on it right now")
+eq(bare, 1, "and one is bare with nothing known - counted separately, not as work")
+
+-- No scale, no ranking, and therefore no honest number.
+Valuate.GetPrimaryScale = function() return nil, nil end
+canDo, bare = ns.CountEnhanceTodo()
+eq(canDo, 0, "with no active scale there is nothing to rank, so nothing is claimed")
+eq(bare, 0, "in either column")
+
 return failures, checks
 `,
   "enhancesnapshot",

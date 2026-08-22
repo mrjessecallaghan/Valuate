@@ -74,6 +74,17 @@ eq(state({ slotId = 13, hasItem = true }), "none",
    "a slot no enhancement can go on says so")
 eq(state({ slotId = 8, hasItem = true, known = 0 }), "unknown",
    "a slot that CAN take one but has none collected is a different answer")
+
+-- ...unless it is already done. "None shown to me yet" reads as a job, and a slot with an
+-- enchant on it is the one kind of slot that definitely is not one. Whether I happen to know
+-- of any enchants for that slot is a fact about ME, not about your gear.
+--
+-- This ordering shipped wrong: the known-count check came first, so an enchanted slot on a
+-- character whose professions had never been opened reported "none shown to me yet" for every
+-- slot including the finished ones. Found by counting - the to-do list claimed two slots
+-- needed attention when one of them was done.
+eq(state({ slotId = 8, hasItem = true, hasEnchant = true, known = 0 }), "enhanced",
+   "an enchanted slot is finished even when nothing is known for that slot")
 ok(ns.ENHANCEABLE_SLOTS[8] and not ns.ENHANCEABLE_SLOTS[13],
    "and the two are decided by the pattern table, not by a second hand-written list")
 

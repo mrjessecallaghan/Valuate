@@ -826,11 +826,16 @@ function ns.EnhanceSlotState(info)
     -- reporting it as "not shown any yet" invites you to go and look for something that does
     -- not exist.
     if not ns.ENHANCEABLE_SLOTS[info.slotId] then return "none" end
-    if (info.known or 0) <= 0 then return "unknown" end
-    -- Before both of the checks below: an enchanted slot is done regardless of what the filter
-    -- is hiding or what your item level allows, and either of those words would read as a
-    -- problem to go and solve.
+    -- BEFORE every complaint below it, including "I have not been shown any". A slot with an
+    -- enchant on it is finished, and whether I happen to know of any enchants for that slot is
+    -- a fact about me rather than about your gear.
+    --
+    -- This sat below the known-count check until v0.183.0a, so a slot you had already enchanted
+    -- reported "none shown to me yet" - which reads as a job, on the one kind of slot that is
+    -- definitely not one. Found by counting: the to-do list said two slots needed attention
+    -- when one of them was done.
     if info.hasEnchant then return "enhanced" end
+    if (info.known or 0) <= 0 then return "unknown" end
     -- Before "blocked", because the filter has already emptied the list the item-level count
     -- was taken from - so a filtered-out slot would otherwise report itself as blocked, which
     -- is a statement about your gear rather than about the button you just pressed.
@@ -844,6 +849,61 @@ end
 -- reads as finished rather than as seventeen outstanding jobs.
 function ns.EnhanceStateIsActionable(state)
     return state == "recommend" or state == "blocked"
+end
+
+-- How many worn slots you could enhance RIGHT NOW, and how many are bare with nothing known.
+--
+-- Exists because two panels in the same window were answering the same question differently.
+-- The To Do list counted slots with no enchant on them - "Enchant 6 items" - while the Enhance
+-- tab counted slots it could actually offer something for - "1 to enhance". Both numbers were
+-- correct about different questions, and the pair of them read as a bug in one or the other.
+--
+-- This is the Enhance tab's number, so the two now come from one place. A to-do you cannot act
+-- on is not a to-do; the bare-but-unknown slots are still reported, as the thing they are.
+--
+-- Returns actionable, bare. `bare` counts worn, enhanceable, unenchanted slots for which
+-- nothing is known - the ones that turn into work only once a profession window is opened.
+function ns.CountEnhanceTodo()
+    local scale, scaleName = nil, nil
+    if Valuate.GetPrimaryScale then scale, scaleName = Valuate:GetPrimaryScale() end
+    -- No scale, no ranking, and therefore no honest count. The Enhance tab refuses to draw in
+    -- this state for the same reason, and a to-do item built on it would be a number with
+    -- nothing behind it.
+    if not scaleName then return 0, 0 end
+
+    local bySlot = ns.CollectEnhancements()
+    local actionable, bare = 0, 0
+
+    for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
+        local worn = GetInventoryItemLink and GetInventoryItemLink("player", def.slotId)
+        local wornLevel = (worn and type(GetItemInfo) == "function")
+            and select(4, GetItemInfo(worn)) or nil
+        local ranked = ns.RankForSlot(bySlot, def.slotId, scale, scaleName, wornLevel)
+
+        local usable = 0
+        for _, r in ipairs(ranked) do
+            if not r.tooHigh then usable = usable + 1 end
+        end
+
+        local enchantId = worn and tonumber(worn:match("|?H?item:%d+:(%d+)") or "") or nil
+        -- No profession filter here: the To Do list is not a filtered view of anything, and
+        -- borrowing the panel's session filter would make a count change because of a button
+        -- pressed on a different tab.
+        local state = ns.EnhanceSlotState({
+            slotId = def.slotId,
+            hasItem = worn ~= nil,
+            hasEnchant = (enchantId or 0) > 0,
+            known = #ranked, shown = #ranked, usable = usable,
+        })
+
+        if ns.EnhanceStateIsActionable(state) then
+            actionable = actionable + 1
+        elseif state == "unknown" then
+            bare = bare + 1
+        end
+    end
+
+    return actionable, bare
 end
 
 -- ---------------------------------------------------------------------------------------

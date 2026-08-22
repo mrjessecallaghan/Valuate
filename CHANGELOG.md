@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.183.0a] - 2026-08-16 — the To Do list and the Enhance tab stop disagreeing
+
+### Fixed
+- **Two panels in the same window answered the same question differently.** The To Do list
+  counted slots with no enchant on them — *"Enchant 6 items"* — while the Enhance tab counted
+  slots it could actually offer something for — *"1 to enhance"*. Both numbers were correct
+  about different questions, and seeing the pair reads as a bug in one of them.
+
+  They share one function now, and it is the Enhance tab's number: **a to-do you cannot act on
+  is not a to-do**. Slots that are bare with nothing known are still reported — unenchanted
+  gear is a real gap — but as what they are, with the command that turns them into work:
+
+  ```
+  Enhance 2 items          3 more slots are bare, but nothing known for them yet
+  5 slots unenchanted      Open Enchanting or a crafting profession once...
+  ```
+
+- **A slot you had already enchanted could report "none shown to me yet".** The state machine
+  asked "have I been shown any enhancements for this slot" *before* "does it already have
+  one", so on a character whose professions had never been opened, every finished slot read as
+  an outstanding job. Whether Valuate happens to know of any enchants for a slot is a fact
+  about Valuate, not about your gear.
+
+  Found by counting rather than by looking: the new shared count claimed two slots needed
+  attention when one of them was done.
+
+### Internal
+- The count has its own assertions and four mutations, including both directions of the to-do
+  question — counting bare slots as work, and dropping them from the list entirely.
+- The ordering mutation is written with a single-line anchor and a `scope`. A multi-line
+  `from` in `mutations.js` has now silently lost its newline three times, each time reporting
+  UNAPPLIED — which is the failure mode where a mutation claims to protect something and does
+  not exist.
+
 ## [0.182.0a] - 2026-08-16 — the diagnostic tells the truth about the snapshot
 
 ### Fixed
