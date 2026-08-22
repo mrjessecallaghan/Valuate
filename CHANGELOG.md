@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.185.0a] - 2026-08-16 — the account-wide scale library gets a gate
+
+### Added
+- **`tools/librarytest.js`** (34 checks, 6 mutations) for the account-wide scale library.
+  It has been complete and working for a long time — save a scale, load it onto an alt,
+  `/valuate library` — but **none of its behaviour was gated**, only the existence of its
+  methods. It writes to a saved variable shared by every character on the account, which makes
+  it a poor place for an untested branch.
+
+  The trap it exists for is one the source already names in a comment:
+
+  > `ImportScale` returns `(resultCode, scaleName, errorMessage)`, and EVERY code is a truthy
+  > number — SUCCESS is 1, TAG_ERROR is 3. Returning it straight through would make callers
+  > read a failure as success.
+
+  A comment is not a test. Half the file is about the refusals, because a library that reports
+  success while importing nothing is a library you trust with the scale you spent an hour
+  tuning. Each refusal has to name its own reason: a missing entry names the entry so a typo
+  is visible, and a scale whose name cannot be serialised says *which character* is the problem
+  rather than "couldn't serialise that scale".
+
+### Internal
+Two of my own mistakes in writing it, both found by the mutation run rather than by reading:
+
+- **The fixture was tidier than the game.** A scale's internal key and its display name are the
+  same string on most scales, so filing an entry under the wrong one was invisible. The fixture
+  now uses a key of `FireMage_v2` with a display name of `Fire Mage`, and asserts the entry is
+  filed under the name you would actually search for.
+- **A defensive branch that could not fail.** The serialisation-refusal check was wrapped in
+  "if the refusal happened", with an else branch shrugging that the tag format must accept
+  braces. `IsValidScaleTagName` rejects `{`, `}` and `|`, so the refusal was never in doubt —
+  the conditional only hid whether the case was tested at all. It is unconditional now.
+- One mutation was attached to the wrong gate (`importtest`, which never calls the library) and
+  survived for that reason alone. Moved.
+
 ## [0.184.0a] - 2026-08-16 — the empty Enhance tab gives advice you can act on
 
 ### Changed

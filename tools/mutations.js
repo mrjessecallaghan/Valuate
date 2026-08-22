@@ -1998,6 +1998,47 @@ module.exports = [
     from: "            if not snap.books[prof.name] then unread[#unread + 1] = prof end",
     to: "            unread[#unread + 1] = prof" },
 
+  // ---- the account-wide scale library (v0.185.0a) --------------------------
+  // Writes to a saved variable shared by every character on the account, and none of its
+  // behaviour was gated - only the existence of its methods.
+
+  // THE TRAP THE SOURCE NAMES. ImportScale returns a result CODE and every code is truthy:
+  // SUCCESS is 1, ALREADY_EXISTS and TAG_ERROR are numbers too. Passing one straight through
+  // makes a failure read as a success, and the caller then tells you your scale is on this
+  // character when it is not.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "a failed library load reports success, because every result code is truthy",
+    from: "    if status == Valuate.ImportResult.SUCCESS then",
+    to: "    if status then" },
+
+  // A refusal that does not name the entry turns a typo into a mystery.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "a missing library entry is refused without saying which one",
+    from: "    if not tag then return false, \"no library entry called '\" .. tostring(entryName) .. \"'\" end",
+    to: "    if not tag then return false, \"not found\" end" },
+
+  // Deleting something that was not there is not a deletion.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "deleting an entry that does not exist reports success",
+    from: "    if lib[entryName] == nil then return false end", to: "" },
+
+  // pairs() is not an order, and this list reaches a menu.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "the library list reshuffles between openings",
+    from: "    table.sort(names)", to: "" },
+
+  // The entry is keyed on the DISPLAY name, which is what you would look for.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "entries are filed under the internal key rather than the name you see",
+    from: "    local entryName = scale.DisplayName or scaleName", to: "    local entryName = scaleName" },
+
+  // The reason is passed THROUGH. "Couldn't serialise that scale" is unactionable when the
+  // real problem is a brace in the name, which you can simply fix.
+  { gate: "librarytest", file: "ImportExport.lua",
+    label: "a serialisation failure is reported with a generic reason instead of the real one",
+    from: "    if not tag or tag == \"\" then return false, why or \"couldn't serialise that scale\" end",
+    to: "    if not tag or tag == \"\" then return false, \"couldn't serialise that scale\" end" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the
