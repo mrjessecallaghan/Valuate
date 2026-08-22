@@ -2039,6 +2039,62 @@ module.exports = [
     from: "    if not tag or tag == \"\" then return false, why or \"couldn't serialise that scale\" end",
     to: "    if not tag or tag == \"\" then return false, \"couldn't serialise that scale\" end" },
 
+  // ---- the bound on the only irreversible action (v0.186.0a) ---------------
+  // deletetest.js proves WHICH items may never be touched. These prove how many are destroyed,
+  // in what order, and that the preview predicts it. WoW has no undo and no buyback.
+
+  // THE BOUND. Two slots short of the target deletes two items, not the whole junk pile.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "auto-delete empties the whole junk pile instead of stopping at the free-slot target",
+    from: "        needed = keepFree - free", to: "        needed = #candidates" },
+
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "the loop ignores its own limit and deletes every candidate",
+    from: "        if removed >= needed then break end", to: "" },
+
+  // The gate that stops it running at all when the bags are fine.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "cleanup runs even when the bags are already at the target",
+    from: "    if not preview and free >= keepFree then", to: "    if false then" },
+
+  // "Delete now" means "run the normal cleanup immediately", not "empty my bags". This is the
+  // one place a reasonable person might have made an exception.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "on-demand cleanup ignores the free-slot bound and deletes everything it can",
+    from: "    local force = opts.force == true", to: "    local force = true" },
+
+  // A preview that deletes is not a preview.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "preview mode actually deletes",
+    from: "    local dryRun = preview or (options.autoDeleteDryRun == true)", to: "    local dryRun = false" },
+
+  // table.sort is not stable and equal vendor prices are the norm among junk, so without a
+  // total order the preview can rank a different item than the delete removes.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "equal-priced junk has no tie-break, so preview and delete can disagree",
+    from: "        if a.bag ~= b.bag then return a.bag < b.bag end", to: "" },
+
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "the most valuable junk is deleted first instead of last",
+    from: "        if a.value ~= b.value then return a.value < b.value end",
+    to: "        if a.value ~= b.value then return a.value > b.value end" },
+
+  // Bags shift between the scan and the delete: another addon, a stack merging.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "a slot whose contents changed since the scan is deleted anyway",
+    from: "            if nowLink ~= c.link or nowLocked then", to: "            if false then" },
+
+  // A locked slot is mid-move, mid-split, or waiting on the server.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "a locked slot is treated as ordinary junk",
+    from: "                if isJunk and slotLocked then", to: "                if false then" },
+
+  // The confirmation dialog exists to prevent exactly this kind of accident.
+  { gate: "deletelimit", file: "Valuate.lua",
+    label: "an item left on the cursor by a confirmation popup is counted as deleted",
+    from: "                if CursorHasItem and CursorHasItem() then\n                    ClearCursor()",
+    to: "                if false then\n                    ClearCursor()" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.186.0a] - 2026-08-16 — the only irreversible action gets its bound tested
+
+### Added
+- **`tools/deletelimit.js`** (38 checks, 10 mutations) for `Valuate:AutoDeleteJunk`.
+
+  `deletetest.js` has always proved the **protections** — which items may never be touched.
+  Nothing proved the other half: **how many are destroyed, in what order, and whether the
+  preview tells the truth about it.** WoW has no undo and no buyback for a deleted item, and
+  that arithmetic was the addon's largest untested surface.
+
+  Found by measuring rather than guessing: of 178 public methods, 65 were never named by any
+  gate. Most of those need a running client. This one did not.
+
+  What it now holds down:
+  - **It stops at the target.** Three slots short deletes three items, not the whole junk pile.
+  - **On-demand obeys the same bound.** `/valuate deletenow` means "run the normal cleanup
+    now", not "empty my bags" — the one place a reasonable person might have made an exception.
+  - **Preview destroys nothing**, and predicts exactly what the delete will do: the queue is
+    cheapest-first with **bag and slot** breaking ties, because `table.sort` is not stable and
+    equal vendor prices are the norm among junk.
+  - **The slot is re-checked immediately before the delete**, so a bag that shifted since the
+    scan is skipped rather than destroyed on a stale read.
+  - **The confirmation popup is never answered.** If one intercepts the delete the item is
+    still on the cursor; it is put back, and the skip is reported.
+
+### Internal
+**Four of the ten mutations survived the first run — every one of them my fixture being tidier
+than a real character's bags.** All four are worth naming, because each is a way a green test
+can mean nothing:
+
+- **Everything was in bag 0**, so the bag tie-break never decided anything and deleting it
+  changed no outcome. Two bags now, with the three cheapest items tied and spread across both.
+- **The free-slot gate deletes nothing either way** — with it removed, `needed` still comes out
+  at zero. "Nothing was deleted" proved nothing about the gate, so the assertion now checks the
+  heartbeat it records instead.
+- **The locked-slot check is invisible in a real delete**, because the re-verify catches a
+  locked slot too. It is only observable in the **preview**, which never re-verifies — so a
+  locked slot counted as deletable there is a preview promising what the delete refuses.
+- **The changed-slot race was modelled by a flag** that never fired. It counts reads now: the
+  scan reads each slot once, the delete reads a candidate again, and swapping on the second
+  read *is* the race.
+
 ## [0.185.0a] - 2026-08-16 — the account-wide scale library gets a gate
 
 ### Added
