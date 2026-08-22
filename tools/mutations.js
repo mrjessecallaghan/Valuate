@@ -2226,6 +2226,37 @@ module.exports = [
     label: "an unreadable item level becomes zero, demoting every enchant with a requirement",
     from: "    return stats and stats.ItemLevel or nil", to: "    return (stats and stats.ItemLevel) or 0" },
 
+  // ---- the option backfill (v0.190.0a) -------------------------------------
+  // Every login fills in whatever this character has not saved. One failure mode, severe and
+  // quiet: overwrite a key that is already there, and every choice you have made reverts.
+
+  // THE ONE THAT MATTERS. Options defaulting to false are unharmed by any version of this
+  // code; the dozen that default to TRUE are not. A truthiness test reads a deliberate false
+  // as "missing" and switches the feature back on at every login.
+  // Scoped: the same nil-check shape appears elsewhere, and an unscoped anchor lands on
+  // whichever comes first in the file rather than on the backfill this gate drives.
+  { gate: "optiondefaults", file: "Valuate.lua",
+    scope: { start: "local function ApplyOptionDefaults", end: "function Valuate:GetOptions" },
+    label: "a feature you switched off turns itself back on at the next login",
+    from: "        if options[key] == nil then", to: "        if not options[key] then" },
+
+  // ...and the other direction, or "never overwrite" would pass by doing nothing at all.
+  { gate: "optiondefaults", file: "Valuate.lua",
+    label: "nothing is ever filled in, so a new option never reaches an existing character",
+    from: "    for key, value in pairs(DEFAULT_OPTIONS) do", to: "    for key, value in pairs({}) do" },
+
+  // Handing out the default table itself lets one character write into DEFAULT_OPTIONS, and
+  // through it into every other character on the account.
+  { gate: "optiondefaults", file: "Valuate.lua",
+    label: "table defaults are shared, so two characters edit the same one",
+    from: "                options[key] = {}", to: "                options[key] = value" },
+
+  // A fresh character must end up with a populated table, not an empty one that every later
+  // reader then treats as "you turned everything off".
+  { gate: "optiondefaults", file: "Valuate.lua",
+    label: "a character with nothing saved gets an empty options table",
+    from: "        ApplyOptionDefaults(ValuateOptions)", to: "" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.190.0a] - 2026-08-16 — a setting you changed survives an update that adds settings
+
+### Added
+- **`tools/optiondefaults.js`** (34 checks, 4 mutations) for the option backfill.
+
+  Every login fills in whatever this character has not saved, so that code written against
+  "every key exists" is safe. Sound design, with one failure mode — severe and quiet: if the
+  backfill ever overwrote a key that was **already there**, every choice you have made would
+  revert at the next login, and nothing on screen would connect the two events.
+
+  **The dangerous direction is not the obvious one.** Most automations default to `false`, so a
+  clumsy backfill leaves them alone. But a dozen options default to **true** — the login
+  summary, rolling on recipes, hit-cap awareness — and for those, `if not options[key]` instead
+  of `if options[key] == nil` reads a deliberate `false` as "missing" and switches the feature
+  back on. You would turn something off, log out, and find it on again.
+
+  The assertion is **not written against a list**: it walks every option that defaults to true,
+  sets it false, and demands it stay false. An option added next year is covered the day it is
+  added.
+
+  Also held down: a genuinely missing option *is* filled (or "never overwrite anything" would
+  pass by doing nothing); a saved key this version has never heard of is left alone rather than
+  pruned; and table-valued defaults are handed out **fresh**, so one character cannot write into
+  `DEFAULT_OPTIONS` and through it into every other character on the account.
+
+### Notes
+Two things I went looking for this release turned out not to be problems, which is worth
+recording so nobody re-investigates them:
+
+- **`gates.js` does catch a bad option default.** Last release's clean run simply predated the
+  stranded mutation; the runner and `mutate.js` agree. Verified by breaking the default on
+  purpose and watching `options.js` fail inside the normal run.
+- **`MigrateToPerCharacter` needs no gate.** It only ensures two tables exist. The real logic
+  is in the backfill beside it, which is what this release covers instead.
+
 ## [0.189.0a] - 2026-08-16 — enchants are ranked against the item level you can SEE
 
 ### Fixed
