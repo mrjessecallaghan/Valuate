@@ -84,10 +84,31 @@ function restoreAll() {
   }
 }
 
-process.on("SIGINT", () => {
-  console.error("\ninterrupted - restoring sources");
+// EVERY way this process can end has to put the sources back.
+//
+// Ctrl-C was handled and a TIMEOUT was not, which is the one that actually happened: a run
+// killed at the two-minute mark left autoEquipUpgrades = true on disk - an automation that
+// changes your gear without a press, switched on by default - and the next commit would have
+// shipped it. That is how a mutation becomes a real bug, and it is worse than the bug it was
+// written to catch, because the file looks deliberately edited rather than damaged.
+//
+// SIGTERM is what a timeout or kill sends (exit 143). The exit hook is the backstop for
+// everything else, an uncaught throw included; it must stay synchronous, which writeFileSync
+// is.
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(sig, () => {
+    console.error(sig + " - restoring sources, please wait");
+    restoreAll();
+    process.exit(sig === "SIGINT" ? 130 : 143);
+  });
+}
+
+// Loud, not silent: a run that ended badly should say what it put back, so a modified-looking
+// tree is never a mystery.
+process.on("exit", () => {
+  if (originals.size === 0) return;
+  console.error("restoring " + originals.size + " source file(s) before exit");
   restoreAll();
-  process.exit(130);
 });
 
 /* Apply one mutation. Returns null on success, or a reason the mutation could not be made -

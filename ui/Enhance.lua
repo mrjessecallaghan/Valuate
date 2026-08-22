@@ -877,6 +877,31 @@ function ns.RankForSlot(bySlot, slotId, scale, scaleName, wornLevel)
     return out
 end
 
+-- The worn item's EFFECTIVE item level, as this client renders it for THIS character.
+--
+-- NOT GetItemInfo's index 4, which is the item TEMPLATE's number. On a server that scales gear
+-- to your level those two disagree, and the enchant list is one of the places that disagreement
+-- shows: an enchant reading "requires a level 60 or higher item" gets demoted below everything
+-- usable, marked as out of reach, on a chest piece the client is displaying as item level 60.
+--
+-- This is the same mistake that produced the "upgrade at level" bug in v0.164.0a, in a feature
+-- written after that fix. The lesson there was that the TOOLTIP is authoritative because the
+-- client renders it per character with scaling already applied, and GetItemInfo answers about
+-- the template. I reached for GetItemInfo anyway.
+--
+-- Read through the addon's OWN parser, which already lifts "Item Level N" into stats.ItemLevel,
+-- so there is no second parse to drift from the first.
+--
+-- NIL RATHER THAN A FALLBACK when the tooltip cannot be read. Falling back to GetItemInfo would
+-- be falling back to the bug; nil means "no constraint I could read", which RankForSlot already
+-- treats as permissive. An enchant wrongly offered is visible - it sits at the top and does not
+-- work. An enchant wrongly demoted is buried under worse ones with a reason that reads as fact.
+function ns.WornItemLevel(slotId)
+    if not Valuate.GetStatsForTooltipSetter then return nil end
+    local stats = Valuate:GetStatsForTooltipSetter("SetInventoryItem", slotId)
+    return stats and stats.ItemLevel or nil
+end
+
 -- What is this slot's situation, in one word.
 --
 -- The panel now draws a row for EVERY slot rather than only the ones with something to offer,
@@ -960,8 +985,7 @@ function ns.CountEnhanceTodo()
 
     for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
         local worn = GetInventoryItemLink and GetInventoryItemLink("player", def.slotId)
-        local wornLevel = (worn and type(GetItemInfo) == "function")
-            and select(4, GetItemInfo(worn)) or nil
+        local wornLevel = worn and ns.WornItemLevel(def.slotId) or nil
         local ranked = ns.RankForSlot(bySlot, def.slotId, scale, scaleName, wornLevel)
 
         local usable = 0

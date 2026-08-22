@@ -129,11 +129,20 @@ local WORN = {
 }
 GetInventoryItemLink = function(_, slotId) return WORN[slotId] end
 
--- Item level, index 4. Nil until the client has the item cached, which counts as "no
--- constraint I could read" rather than "level 0" - the difference between demoting nothing
--- and demoting everything.
+-- The worn item's EFFECTIVE level, from the TOOLTIP - which on a scaling server is a
+-- different number from GetItemInfo's index 4, and index 4 is the template's.
+--
+-- TEMPLATE_LEVEL is deliberately set to something the tooltip disagrees with, so a reader
+-- that went back to GetItemInfo would produce visibly wrong answers rather than the same
+-- ones. The fixture used to supply one number through both routes, which is exactly how
+-- this bug survived being written.
 local WORN_LEVEL = 60
-GetItemInfo = function() return "Item", nil, nil, WORN_LEVEL end
+local TEMPLATE_LEVEL = 1
+GetItemInfo = function() return "Item", nil, nil, TEMPLATE_LEVEL end
+Valuate.GetStatsForTooltipSetter = function(_, setter, slotId)
+    if setter ~= "SetInventoryItem" then return nil end
+    return WORN_LEVEL and { ItemLevel = WORN_LEVEL } or nil
+end
 
 Valuate.GetPrimaryScale = function() return { Values = { Agility = 1 } }, "Dps" end
 Valuate.CalculateItemScore = function(_, stats) return (stats and stats.Agility or 0) end
@@ -623,6 +632,48 @@ scrollBar:SetValue(select(2, scrollBar:GetMinMaxValues()))
 scroll:SetHeight(100000)
 ok(scrollBar:GetValue() <= 0, "a bar scrolled to the bottom is pulled back when the list fits")
 scroll:SetHeight(200)
+
+-- ---- THE SCALED ITEM LEVEL ------------------------------------------------------------------
+-- The bug this project already had once, in a feature written after the fix for it.
+--
+-- On a server that scales gear to your level, GetItemInfo's index 4 is the item TEMPLATE's
+-- number and the tooltip is what the client renders for THIS character. Reading the template
+-- demotes an enchant that says "requires a level 60 or higher item" on a chest the client is
+-- displaying as item level 60 - buried under worse options, with a reason that reads as fact.
+--
+-- TEMPLATE_LEVEL is 1 throughout this file, so any reader that went back to GetItemInfo would
+-- demote everything with a requirement.
+COLLECTED = {
+    [8] = {
+        { name = "Enchant Boots - Greater Assault", slots = { 8 }, stats = { Agility = 32 },
+          source = "craft", reqLevel = 60 },
+        { name = "Enchant Boots - Minor Agility", slots = { 8 }, stats = { Agility = 4 },
+          source = "craft", reqLevel = 1 },
+    },
+}
+WORN_LEVEL = 60
+ns.RefreshEnhancePanel()
+feet = rowFor("Feet")
+ok(feet:find("Greater Assault", 1, true) ~= nil,
+   "an enchant the SCALED item can take is the recommendation")
+eq(feet:find("needs item level", 1, true), nil,
+   "and nothing is marked out of reach, because the client says the item is level 60")
+
+-- The tooltip is unreadable: no constraint could be read, so nothing is demoted. Permissive on
+-- purpose - an enchant wrongly offered sits at the top and does not work, which you can see. An
+-- enchant wrongly demoted is buried under worse ones and looks like a considered ranking.
+WORN_LEVEL = nil
+ns.RefreshEnhancePanel()
+eq(rowFor("Feet"):find("needs item level", 1, true), nil,
+   "an unreadable item level demotes nothing, rather than falling back to the template number")
+WORN_LEVEL = 60
+
+-- ...and a genuinely low-level item still demotes, or the check has simply been switched off.
+WORN_LEVEL = 20
+ns.RefreshEnhancePanel()
+ok(rowFor("Feet"):find("needs item level 60", 1, true) ~= nil,
+   "gear the client really does show as low still demotes what it cannot take")
+WORN_LEVEL = 60
 
 -- ---- rows are pooled, not recreated ----------------------------------------------------------------
 local before = #__frames

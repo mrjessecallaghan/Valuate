@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.189.0a] - 2026-08-16 — enchants are ranked against the item level you can SEE
+
+### Fixed
+**The Enhance tab read the item template's level, not the one your client renders.** On a
+server that scales gear to your level those are different numbers, and the enchant list is
+where the difference shows: an enchant reading *"requires a level 60 or higher item"* was
+demoted below everything usable — marked out of reach — on a chest piece the tooltip was
+displaying as item level 60.
+
+It reads the tooltip now, through the addon's own parser, which already lifts `Item Level N`
+into `stats.ItemLevel`. No second parse to drift from the first.
+
+**This is the same mistake as the "upgrade at level" bug, in a feature written after that fix.**
+The lesson there was that the tooltip is authoritative *because the client renders it per
+character with scaling applied*, and `GetItemInfo` answers about the template. I reached for
+`GetItemInfo` anyway, three days later, in code whose whole subject is scaled gear.
+
+An unreadable item level returns **nil**, not the template's number — falling back to
+`GetItemInfo` would be falling back to the bug. Nil already means "no constraint I could read"
+and demotes nothing. The asymmetry is deliberate: an enchant wrongly *offered* sits at the top
+and visibly does not work; an enchant wrongly *demoted* is buried under worse ones behind a
+reason that reads as fact.
+
+### Tooling — a killed mutation run left broken code on disk
+**`tools/mutate.js` handled Ctrl-C and did not handle a timeout**, and a timeout is what
+happened. `SIGTERM` (exit 143) skipped the restore, so a run killed part-way left whichever
+source it had deliberately broken sitting in the working tree, looking like an edit somebody
+meant to make.
+
+It happened **twice today**, and both were caught by gates rather than by reading:
+
+| stranded in | mutation left behind | caught by |
+|---|---|---|
+| `Valuate.lua` | `autoEquipUpgrades = true` — gear equipped without a press, on by default | `options.js`: *every automation defaults to off* |
+| `ui/TodoPanel.lua` | list height summed from a fixed row height instead of the measured one | `todopanel.js`: *the list is at least as tall as the rows it holds* |
+
+The second is the v0.159.0a bug this project already fixed once. Both would have shipped in a
+commit that looked entirely ordinary.
+
+`SIGINT`, `SIGTERM` and `SIGHUP` all restore now, and a `process.on("exit")` hook is the
+backstop for everything else including an uncaught throw. It announces what it put back, so a
+tree that looks modified after a bad run is never a mystery. Verified by killing a real run
+with `SIGTERM` and confirming the tree came back clean — the same kill that stranded
+`autoEquipUpgrades` an hour earlier.
+
+### Internal
+- **The fixture supplied one number through both routes**, which is exactly how this survived
+  being written: a reader that went back to `GetItemInfo` produced identical answers. The
+  template level is now pinned to `1` while the tooltip says `60`, so the two routes cannot
+  agree by accident.
+- New verify check `enhancescaled`, because only the client can show whether Ascension puts the
+  **scaled** number on the `Item Level` line at all. If it carries the base level and shows
+  scaling some other way, this reads the wrong number again — and the tell is an enchant
+  demoted for a requirement your tooltip appears to meet.
+
 ## [0.188.0a] - 2026-08-16 — Need is only rolled on something you actually want
 
 ### Added

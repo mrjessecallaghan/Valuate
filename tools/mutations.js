@@ -38,6 +38,13 @@ const TOC_VERSION =
     .readFileSync(require("path").join(__dirname, "..", "Valuate.toc"), "utf8")
     .match(/^##\s*Version:\s*(\S+)/m) || [])[1];
 
+// Far enough ahead that no amount of checklist growth can bring it back to the boundary.
+// Pinned at a literal, this mutation twice drifted into being equivalent as the checklist
+// caught up - each time reporting SURVIVED for a rule that was working perfectly.
+const FAR_FUTURE_VERSION = (function () {
+  const parts = String(TOC_VERSION || "0.0.0a").match(/^(d+).(d+)./);
+  return parts ? parts[1] + "." + (Number(parts[2]) + 60) + ".0a" : "0.999.0a";
+})();
 const SCALED = {
   start: "function Valuate:GetScaledStatsForItem",
   end: "\n-- Why is this item not my best-in-slot?",
@@ -189,7 +196,7 @@ module.exports = [
   // survived for that reason, claiming to protect a rule it had drifted off the edge of.
   { gate: "verifytest", file: "Valuate.toc",
     label: "the checklist silently stops growing while the addon does not",
-    from: "## Version: " + TOC_VERSION, to: "## Version: 0.199.0a" },
+    from: "## Version: " + TOC_VERSION, to: "## Version: " + FAR_FUTURE_VERSION },
   { gate: "verifytest", file: "Valuate.lua",
     label: "two checks share one tick, so verifying either marks both done",
     from: 'id = "newstats", since = "0.72.0a"', to: 'id = "coaclass", since = "0.72.0a"' },
@@ -2202,6 +2209,22 @@ module.exports = [
     label: "a Greed forced by Need being unavailable is reported as a plain Greed",
     from: "                reason = reason .. \", |cFFFF8800Need not offered|r\"\n            end\n        elseif isMaterial then",
     to: "            end\n        elseif isMaterial then" },
+
+  // ---- the scaled item level (v0.189.0a) -----------------------------------
+  // The bug this project already had once, reappearing in a feature written after the fix.
+  // GetItemInfo index 4 is the item TEMPLATE's level; the tooltip is what the client renders
+  // for THIS character, and on a scaling server those are different numbers.
+
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "the enchant list reads the item template's level instead of the scaled one",
+    from: "    local stats = Valuate:GetStatsForTooltipSetter(\"SetInventoryItem\", slotId)",
+    to: "    local stats = { ItemLevel = select(4, GetItemInfo(GetInventoryItemLink(\"player\", slotId))) }" },
+
+  // Nil means "no constraint I could read", and RankForSlot already treats that as permissive.
+  // Zero would demote every enchant that carries a requirement at all.
+  { gate: "enhancepanel", file: "ui/Enhance.lua",
+    label: "an unreadable item level becomes zero, demoting every enchant with a requirement",
+    from: "    return stats and stats.ItemLevel or nil", to: "    return (stats and stats.ItemLevel) or 0" },
 
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the

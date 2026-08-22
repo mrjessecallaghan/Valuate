@@ -395,11 +395,11 @@ function ns.CreateEnhancePanel(parent)
         local counts = {}
         for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
             local worn = GetInventoryItemLink and GetInventoryItemLink("player", def.slotId)
-            -- The worn item's level, so an enchant needing more than it sorts below the ones
-            -- you can actually apply. Index 4 of GetItemInfo; nil when the item is not cached
-            -- yet, which counts as "no constraint I could read" rather than "level 0".
-            local wornLevel = (worn and type(GetItemInfo) == "function")
-                and select(4, GetItemInfo(worn)) or nil
+            -- The worn item's EFFECTIVE level, so an enchant needing more than it sorts
+            -- below the ones you can actually apply. Read from the tooltip rather than from
+            -- GetItemInfo, because on a scaling server those are different numbers - see
+            -- ns.WornItemLevel. Nil counts as "no constraint I could read", not "level 0".
+            local wornLevel = worn and ns.WornItemLevel(def.slotId) or nil
             local all = ns.RankForSlot(bySlot, def.slotId, scale, scaleName, wornLevel)
 
             -- Filtered and unfiltered are BOTH kept, and the difference between them is a

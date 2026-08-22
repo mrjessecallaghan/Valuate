@@ -11458,6 +11458,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "enhancescaled", since = "0.189.0a",
+        gate = "tools/enhancepanel.js",
+        title = "Enchants are ranked against the item level the client SHOWS you",
+        steps = "Find a worn piece whose tooltip item level is well above what the item is worth at its base - scaled gear, in other words. Open the Enhance tab and read that slot's row.",
+        expect = "Enchants with a high item-level requirement are offered normally. Nothing says 'needs item level N' for a number your tooltip already exceeds.",
+        broke = "The list used GetItemInfo's index 4, which is the TEMPLATE's item level, while your tooltip shows the scaled one - so an enchant needing a level 60 item was demoted on a chest the client displays as level 60, buried under worse options with a reason that reads as fact. It now reads the tooltip through the addon's own parser, the same way the v0.164.0a scaling fix did. What only the client can show: whether Ascension renders the scaled number on the 'Item Level' line at all. If that line carries the BASE level and the scaling is shown some other way, this reads the wrong number again - and the tell is an enchant demoted for a requirement your tooltip appears to meet.",
+    },
+    {
         id = "professionadvice", since = "0.184.0a",
         gate = "tools/enhancesnapshot.js",
         title = "The empty Enhance tab names YOUR professions",
