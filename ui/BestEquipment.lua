@@ -138,7 +138,39 @@ local function CreateBestEquipmentPanel(parent)
     end
     
     -- Equipment slot definitions (local to this function)
-    local EquipmentSlots = ns.EQUIP_SLOTS
+    -- What a weapon set is NOT describing, when you have pinned a weapon slot.
+--
+-- A lock says "keep what is here". The scan honours that for the slot itself, but the weapon
+-- SETS are recomputed from scratch every scan - they are a comparison between configurations,
+-- and a pinned slot is not part of any comparison. So the Main Hand row can show your locked
+-- axe while the set panel underneath claims this configuration's main hand is something else.
+--
+-- Both are true and they contradict each other on screen, which is the worst way to be right.
+-- Rather than fold locks into the set arithmetic - where a pinned 2H would have to invalidate
+-- the dual-wield set entirely, and "best set" would stop meaning anything - the sets keep
+-- saying what they mean and the tooltip says which half of it you have overridden.
+--
+-- Returns a sentence, or nil when neither weapon slot is locked.
+function ns.WeaponSetLockNote(be)
+    if type(be) ~= "table" or type(be.locks) ~= "table" then return nil end
+
+    local mh = be.locks[16] and (be[16] and be[16].itemName or "a weapon")
+    local oh = be.locks[17] and (be[17] and be[17].itemName or "something")
+
+    if mh and oh then
+        return string.format("Both weapon slots are locked (%s, %s), so this set describes " ..
+            "neither.", mh, oh)
+    elseif mh then
+        return string.format("Main Hand is locked to %s, so this set's main hand is not what " ..
+            "you are tracking.", mh)
+    elseif oh then
+        return string.format("Off Hand is locked to %s, so this set's off hand is not what " ..
+            "you are tracking.", oh)
+    end
+    return nil
+end
+
+local EquipmentSlots = ns.EQUIP_SLOTS
     
     -- Scan button at top
     local scanButton = CreateFrame("Button", nil, parent)
@@ -1377,6 +1409,15 @@ local function CreateBestEquipmentPanel(parent)
                                     if set.oh and set.oh.itemName then GameTooltip:AddLine("Off: " .. set.oh.itemName, 0.8, 0.8, 0.8) end
                                     GameTooltip:AddLine("Set total: " .. string.format(formatStr, set.total or 0), 0.7, 0.9, 0.7)
                                     GameTooltip:AddLine(isActive and "Currently active" or "Click to make this the active set", 0.6, 0.6, 0.6)
+                                    -- Said HERE, on the line that claims a main and an off
+                                    -- hand, because that claim is the one a lock contradicts.
+                                    -- The slot row above shows your pinned weapon; this panel
+                                    -- shows what the set would be. Both true, contradicting
+                                    -- each other on screen, which is the worst way to be right.
+                                    local lockNote = ns.WeaponSetLockNote and ns.WeaponSetLockNote(be)
+                                    if lockNote then
+                                        GameTooltip:AddLine(lockNote, 1, 0.82, 0.2, true)
+                                    end
                                     GameTooltip:Show()
                                 end
                             end)

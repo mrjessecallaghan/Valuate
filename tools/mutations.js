@@ -2257,6 +2257,33 @@ module.exports = [
     label: "a character with nothing saved gets an empty options table",
     from: "        ApplyOptionDefaults(ValuateOptions)", to: "" },
 
+  // ---- what a locked weapon slot overrides (v0.191.0a) ---------------------
+  // A lock pins a slot; weapon SETS are recomputed every scan, because a set is a comparison
+  // between configurations and a pinned slot is not part of any comparison. Both facts are
+  // true and they contradict each other on screen, which is the worst way to be right.
+
+  { gate: "bestequiptest", file: "ui/BestEquipment.lua",
+    label: "the weapon-set tooltip claims a main hand you have pinned to something else",
+    from: "    local mh = be.locks[16] and (be[16] and be[16].itemName or \"a weapon\")",
+    to: "    local mh = nil" },
+
+  { gate: "bestequiptest", file: "ui/BestEquipment.lua",
+    label: "a locked off hand goes unmentioned",
+    from: "    local oh = be.locks[17] and (be[17] and be[17].itemName or \"something\")",
+    to: "    local oh = nil" },
+
+  // Both locked reads as two separate half-truths unless it says the set describes NEITHER.
+  { gate: "bestequiptest", file: "ui/BestEquipment.lua",
+    label: "both slots locked reports only the main hand, so the off hand looks described",
+    from: "    if mh and oh then", to: "    if false then" },
+
+  // A weapon set has nothing to say about your chest, and a note that fired for any lock at
+  // all would appear on every tooltip for every scale the moment you pinned anything.
+  { gate: "bestequiptest", file: "ui/BestEquipment.lua",
+    label: "any locked slot at all produces a weapon-set note, including a locked chest",
+    from: "    if type(be) ~= \"table\" or type(be.locks) ~= \"table\" then return nil end",
+    to: "    if type(be) ~= \"table\" then return nil end\n    be.locks = be.locks or { [16] = true }" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the

@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.191.0a] - 2026-08-16 — the weapon-set panel admits what a lock overrides
+
+### Fixed
+**A locked weapon slot and the weapon-set panel contradicted each other, and both were right.**
+
+A lock pins a slot: v0.177.3a made the scan honour that. But weapon **sets** are recomputed
+from scratch every scan, because a set is a comparison between configurations and a pinned slot
+is not part of any comparison. So the Main Hand row could show your locked axe while the set
+panel underneath claimed this configuration's main hand was something else entirely — two true
+statements disagreeing on screen, which is the worst way to be right.
+
+This was flagged as a known limitation twice and left as a caveat. It is now a sentence on the
+tooltip that makes the claim:
+
+> *Main Hand is locked to Bonebiter, so this set's main hand is not what you are tracking.*
+
+Both slots locked says the set describes **neither** — as one statement, because two separate
+half-truths read as though the other slot were fine.
+
+**The sets were not changed.** Folding locks into the set arithmetic would mean a pinned
+two-hander invalidating the dual-wield set entirely, and "best set" would stop meaning anything.
+The sets keep saying what they mean; the tooltip says which half you have overridden.
+
+### Internal
+- The note has 12 assertions, covering every combination including a lock on an **empty** slot
+  (you can lock one, and it must not invent an item name), and a locked **chest** — which must
+  say nothing here, since a weapon set does not describe your chest. Four mutations.
+- The helper was first written into `ui/Enhance.lua`, which is about enchants and has no
+  business knowing what a weapon set is. Moved to `ui/BestEquipment.lua`, beside the panel that
+  uses it.
+
 ## [0.190.0a] - 2026-08-16 — a setting you changed survives an update that adds settings
 
 ### Added
