@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.202.0a] - 2026-08-22 — the Enhance tab admits sockets exist
+
+### Added
+**Empty sockets, on the row for the slot they are in.** The tab was asked to show *which item
+enhancement each slot should be getting right now* and answered only about enchants. An empty
+socket is exactly that question — stats you have already earned and are not wearing — and the
+addon already knew the answer per slot. The tab simply never asked.
+
+Each worn row now carries `2 empty sockets` beside the item, and the summary line adds the
+total with a pointer to `/valuate sockets`.
+
+Two things it deliberately does **not** do:
+
+- **Sockets are not a seventh enhance state.** A slot can be enchanted *and* have two bare
+  sockets, so they are a second axis. Folding them in would hide the enchant answer behind the
+  socket one.
+- **Sockets are not added to the actionable count.** The To Do list already carries *Fill N
+  empty sockets* as its own item, and counting them here too would put the same sockets in one
+  window twice — which is the exact bug v0.183.0a fixed between these two panels.
+
+### Fixed
+**"I could not look" and "there is nothing to find" were the same answer.** Both came back from
+`FindEmptySockets` as `nil, 0`. For the To Do list that never mattered: the entry is absent
+either way, and an absent line claims nothing. For a panel drawing one row per slot it matters
+a great deal — silence on a row reads as *that slot is fine*, and mid equipment swap that is
+the wrong answer delivered in the most reassuring possible way. The junk bug's shape exactly:
+two causes collapsing into one result, and the result being the comfortable one.
+
+`FindEmptySockets` now returns a **third value**: a reason, present only when nothing could be
+read. Existing callers take two values and are unaffected. The in-transit guard is *not*
+relaxed — it still refuses, it now says why — and every worn row prints `sockets not read`
+rather than falling quiet.
+
+### Internal
+- `ns.SocketsBySlot` keys the result by slot for a panel that draws rows that way. Read once
+  per refresh, never per row: each call walks every slot setting a tooltip.
+- New gate `tools/enhancesockets.js` (19 checks). Every assertion is **paired** — a reason must
+  appear when nothing could be read, and must *not* appear when the honest answer is zero. A
+  gate checking only the first half would pass an implementation that blamed a swap on every
+  fully-gemmed character.
+- `tools/sockets.js` gained the same pairing against the real function (39 checks).
+- Widening the return contract silently un-anchored the pre-existing mutation guarding *the
+  in-transit guard is never relaxed* — the most safety-critical one in this area. It reported
+  UNAPPLIED, was re-anchored, and is caught again. This is what that report is for.
+
+85 gates, 486 mutations.
+
 ## [0.201.0a] - 2026-08-22 — something had to check the checkers
 
 ### Fixed

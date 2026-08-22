@@ -960,6 +960,42 @@ function ns.EnhanceStateIsActionable(state)
     return state == "recommend" or state == "blocked"
 end
 
+-- Empty sockets keyed by slot, for a panel that draws one row per slot.
+--
+-- The Enhance tab was asked for "which item enhancement each slot should be getting right now",
+-- and answered only about enchants. An empty socket is exactly that question - stats you have
+-- already earned and are not wearing - and the addon already knew the answer per slot; the tab
+-- simply never asked.
+--
+-- Sockets are NOT folded into the enhance state. A slot can be enchanted and still have two
+-- bare sockets, so they are a second axis rather than a seventh state: making it one would hide
+-- the enchant answer behind the socket one, and the states are ordered as they are for reasons
+-- each written down beside them.
+--
+-- They are also kept out of the actionable COUNT. The To Do list already carries "Fill N empty
+-- sockets" as its own item, and adding them here would have the same sockets counted twice in
+-- one window - which is the exact bug v0.183.0a fixed between these two panels.
+--
+-- Returns map, total, blocked. `blocked` is a sentence when nothing could be read and nil when
+-- the answer is real, INCLUDING when the real answer is zero. A caller that treats those the
+-- same tells you a slot is finished at the one moment it cannot know.
+function ns.SocketsBySlot()
+    if not Valuate.FindEmptySockets then
+        return {}, 0, "the socket reader is not loaded"
+    end
+    -- Three values on their own line, deliberately. `local a, b, c = X and X()` is adjusted by
+    -- Lua to a SINGLE value, so b and c would silently be nil - the mistake the to-do list made
+    -- with this very function, caught there by a gate and commented at the call site.
+    local list, total, blocked = Valuate:FindEmptySockets()
+    if blocked then return {}, 0, blocked end
+
+    local map = {}
+    for _, entry in ipairs(list or {}) do
+        if entry and entry.slotId then map[entry.slotId] = entry.sockets or 0 end
+    end
+    return map, total or 0, nil
+end
+
 -- How many worn slots you could enhance RIGHT NOW, and how many are bare with nothing known.
 --
 -- Exists because two panels in the same window were answering the same question differently.

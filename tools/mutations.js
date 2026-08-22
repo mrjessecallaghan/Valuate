@@ -566,7 +566,8 @@ module.exports = [
     from: "return a.slotId < b.slotId", to: "return false" },
   { gate: "sockets", file: "Valuate.lua",
     label: "the in-transit guard is relaxed - tooltips read mid equipment swap",
-    from: "    if equipmentSwapPending then return nil, 0 end", to: "    if false then return nil, 0 end" },
+    from: "    if equipmentSwapPending then return nil, 0, \"" + "" + "an item is still being swapped\" end",
+    to: "    if false then return nil, 0, \"an item is still being swapped\" end" },
 
   // ---- the cross-path agreement check (v0.101.0a) --------------------------
   { gate: "selfverify", file: "Valuate.lua",
@@ -2873,4 +2874,44 @@ module.exports = [
   { gate: "toolsource", file: "tools/mutations.js",
     label: "a mutation names a gate that does not exist, so it can only ever look caught",
     from: "gate: \"contrast\"", to: "gate: \"nosuchgate\"" },
+// ---- sockets on the Enhance tab (v0.202.0a) ------------------------------
+  // Every one of these is the same failure wearing a different hat: "I could not look"
+  // quietly becoming "there is nothing to find". On a panel with a row per slot that reads
+  // as the slot being finished, which is the most reassuring way to be wrong.
+  { gate: "enhancesockets", file: "ui/Enhance.lua",
+    label: "a slot that could not be read goes silent, so the row reads as finished",
+    from: "    if blocked then return {}, 0, blocked end",
+    to: "    if blocked then return {}, 0, nil end" },
+
+  // Lua adjusts an `and` expression to ONE value, so total and blocked both become nil and
+  // the reason can never arrive. This is the exact mistake the to-do list made with this same
+  // function, which is why the call site carries a comment about it.
+  { gate: "enhancesockets", file: "ui/Enhance.lua",
+    label: "the reason is lost to Lua's single-value adjustment, so nothing is ever blocked",
+    from: "    local list, total, blocked = Valuate:FindEmptySockets()",
+    to: "    local list, total, blocked = Valuate.FindEmptySockets and Valuate:FindEmptySockets()" },
+
+  { gate: "enhancesockets", file: "ui/Enhance.lua",
+    label: "with no socket reader loaded the tab answers zero instead of saying it cannot tell",
+    from: "        return {}, 0, \"the socket reader is not loaded\"",
+    to: "        return {}, 0, nil" },
+
+  // map[nil] is a runtime error, and this runs while the window is drawing. One malformed
+  // entry taking the whole tab down is a far worse trade than dropping the entry.
+  { gate: "enhancesockets", file: "ui/Enhance.lua",
+    label: "an entry with no slot id errors the refresh and the tab stops drawing",
+    from: "        if entry and entry.slotId then map[entry.slotId] = entry.sockets or 0 end",
+    to: "        map[entry.slotId] = entry.sockets or 0" },
+
+  { gate: "enhancesockets", file: "ui/Enhance.lua",
+    label: "a missing socket count becomes nil, so the slot vanishes from the map entirely",
+    from: "map[entry.slotId] = entry.sockets or 0 end",
+    to: "map[entry.slotId] = entry.sockets end" },
+
+  // The source of the distinction, one layer down. Drop the reason here and every layer above
+  // is honest about a fact it can no longer obtain.
+  { gate: "sockets", file: "Valuate.lua",
+    label: "the swap guard stops saying why it refused, so mid-swap looks like a clean zero",
+    from: "    if equipmentSwapPending then return nil, 0, \"an item is still being swapped\" end",
+    to: "    if equipmentSwapPending then return nil, 0 end" },
 ];

@@ -181,7 +181,24 @@ EQUIPPED[5] = "chest"
 equipmentSwapPending = true
 ok(Valuate:FindEmptySockets() == nil, "mid equipment swap it reports nothing rather than reading")
 eq(select(2, Valuate:FindEmptySockets()), 0, "and totals zero rather than a stale count")
+
+-- "I could not look" and "there is nothing to find" were the SAME two return values, and a
+-- caller drawing a line per slot cannot tell them apart. Silence about a slot reads as that
+-- slot being fine, which is a claim - and mid-swap it is the wrong one.
+local _, _, blocked = Valuate:FindEmptySockets()
+ok(blocked ~= nil, "mid swap it says WHY it read nothing")
+ok(type(blocked) == "string" and blocked:find("swap", 1, true) ~= nil,
+   "and the reason names the swap, so the panel can print it rather than invent one")
 equipmentSwapPending = false
+
+-- The other half of the same distinction, and the half a mutation would otherwise sail
+-- through: a genuine zero must NOT carry a reason. Reporting one here would make every
+-- fully-gemmed character read as unreadable.
+for slot in pairs(EQUIPPED) do TOOLTIP_LINES[slot] = { "plain", "no sockets here" } end
+local list, total, why = Valuate:FindEmptySockets()
+eq(list, nil, "with every socket filled the list is nil")
+eq(total, 0, "and the total is zero")
+eq(why, nil, "and NOTHING is blamed - a real zero is an answer, not a failure to look")
 
 return failures, checks
 `,

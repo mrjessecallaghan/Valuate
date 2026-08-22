@@ -391,6 +391,11 @@ function ns.CreateEnhancePanel(parent)
         local anyKnown = false
         for _ in pairs(bySlot) do anyKnown = true break end
 
+        -- Read ONCE for the whole refresh, never per row. Each call walks every slot setting a
+        -- tooltip, and doing that seventeen times over would make opening this tab the most
+        -- expensive thing in the addon.
+        local socketsBySlot, socketTotal, socketsBlocked = ns.SocketsBySlot()
+
         local shown, actionable = 0, 0
         local counts = {}
         for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
@@ -441,7 +446,23 @@ function ns.CreateEnhancePanel(parent)
                 local style = STATE_STYLE[state] or STATE_STYLE.none
 
                 row.slotName:SetText(def.name)
-                row.worn:SetText(WornLabel(worn) or "|cFF666666nothing equipped|r")
+                -- The socket note rides on the WORN column, because it is a fact about the item
+                -- you are wearing rather than about anything being recommended for it.
+                --
+                -- Silence here would be a claim. When the sockets could not be read - mid-swap,
+                -- most often - every worn row says so, rather than quietly looking finished on
+                -- the one refresh that cannot know.
+                local wornText = WornLabel(worn) or "|cFF666666nothing equipped|r"
+                if worn then
+                    local n = socketsBySlot[def.slotId]
+                    if n and n > 0 then
+                        wornText = wornText .. string.format(
+                            "  |cFF66CCFF%d empty socket%s|r", n, n == 1 and "" or "s")
+                    elseif socketsBlocked then
+                        wornText = wornText .. "  |cFF666666sockets not read|r"
+                    end
+                end
+                row.worn:SetText(wornText)
 
                 -- A top only exists where there is something to rank, and "enhanced" is the
                 -- one state that can arrive without one - the slot is done, and the filter is
@@ -616,8 +637,20 @@ function ns.CreateEnhancePanel(parent)
                 parts[#parts + 1] = string.format("%d %s", n, item.label)
             end
         end
-        coverage:SetText(string.format("%d slots: %s", #(ns.EQUIP_SLOTS or {}),
-            #parts > 0 and table.concat(parts, "  ·  ") or "nothing read"))
+        -- Sockets are said SEPARATELY and are never added into the state counts. They are a
+        -- different question asked of the same slots, and the To Do list already carries them
+        -- as its own item - two panels in one window disagreeing about one number is exactly
+        -- what v0.183.0a was about.
+        local socketNote = ""
+        if socketsBlocked then
+            socketNote = "  |cFF666666·  sockets: " .. socketsBlocked .. "|r"
+        elseif socketTotal > 0 then
+            socketNote = string.format(
+                "  |cFF66CCFF·  %d empty socket%s|r |cFFAAAAAA(/valuate sockets)|r",
+                socketTotal, socketTotal == 1 and "" or "s")
+        end
+        coverage:SetText(string.format("%d slots: %s%s", #(ns.EQUIP_SLOTS or {}),
+            #parts > 0 and table.concat(parts, "  ·  ") or "nothing read", socketNote))
 
         subtitle:SetText(string.format(
             "Every slot of the gear you are wearing, scored by %s. Best first, then what is " ..

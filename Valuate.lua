@@ -8613,11 +8613,24 @@ local function CountEmptySockets(tooltipName)
     return found
 end
 
--- Returns { { slotId, slotName, itemLink, sockets }, ... } and the total, or nil.
+-- Returns { { slotId, slotName, itemLink, sockets }, ... }, the total, and - when nothing could
+-- be read at all - a reason.
+--
+-- The third value exists because the first two cannot tell "you have no empty sockets" apart
+-- from "I was not able to look". Both are nil, 0. For the to-do list that ambiguity is
+-- harmless: the entry does not appear either way, and an absent line claims nothing.
+--
+-- For a panel that draws a line PER SLOT it is not harmless. A row that says nothing about
+-- sockets during an equipment swap reads as "this slot is fine", which is a claim, and the
+-- wrong one. The same shape as the junk bug: two different causes collapsing into one answer,
+-- and the answer being the reassuring one.
+--
+-- Existing callers take two values and are unaffected by the third.
 function Valuate:FindEmptySockets()
-    if equipmentSwapPending then return nil, 0 end
+    -- The guard is NOT relaxed. It still refuses; it now says why it refused.
+    if equipmentSwapPending then return nil, 0, "an item is still being swapped" end
     local tooltip = Valuate.GetPrivateTooltip and Valuate:GetPrivateTooltip()
-    if not tooltip then return nil, 0 end
+    if not tooltip then return nil, 0, "no private tooltip to read with" end
 
     local out, total = {}, 0
     for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
@@ -11627,6 +11640,14 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "enhancesockets", since = "0.202.0a",
+        gate = "tools/enhancesockets.js",
+        title = "The Enhance tab counts your empty sockets",
+        steps = "Open the Enhance tab wearing at least one socketed item. Check the row for that slot, and the total on the summary line. Then equip something else and watch the same rows during the swap.",
+        expect = "Each socketed row says how many sockets are empty, and a slot you have fully gemmed says nothing at all. The total matches /valuate sockets. Mid-swap, rows say 'sockets not read' rather than going quiet.",
+        broke = "Empty sockets are found by reading the tooltip and matching lines that BEGIN with a socket name. Only this client can show whether Ascension words those lines the way the matcher expects - a server that renders them differently makes every row silently read as fully gemmed, which is the failure that looks like success. Check a slot you know is bare: if it reports nothing, the strings are wrong, not your gear. The gate proves the counting and the mid-swap wording against mocked tooltips; it cannot know what this server writes in one.",
     },
     {
         id = "selftestskips", since = "0.200.0a",
