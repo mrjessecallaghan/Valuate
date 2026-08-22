@@ -1938,6 +1938,39 @@ module.exports = [
     label: "an item the client has not cached yet is treated as not-gear and sold",
     from: "    if not name then return \"the client has not cached it yet\" end", to: "" },
 
+  // ---- Valuate-TSM, now inside the mutation run too (v0.180.0a) ------------
+  // Its 162 assertions had never been mutation-tested: the suite lived outside the gate run,
+  // so nothing here could name it as the gate that must fail.
+
+  // The circuit breaker. It exists because a client froze hard enough to need killing, and a
+  // breaker that does not break is worse than none - it is a reason not to look further.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Core.lua",
+    label: "a tripped integration keeps running, so the freeze it caught comes back",
+    from: "    return ns.tripped ~= nil or ns.Opts().disabled == true", to: "    return false" },
+
+  // Tripping twice would spam the same message every frame on a path already known to be slow.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Core.lua",
+    label: "it trips over and over on the same slow path instead of once",
+    from: "    if ns.tripped then return end", to: "" },
+
+  // The price ceiling. Your gold and a typed cap are both limits; the binding one is the
+  // LOWER. Taking the higher offers things you cannot buy, which is the point of the filter.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Search.lua",
+    label: "a cap above your gold wins, so it offers you what you cannot afford",
+    from: "        if manual > 0 and manual < purse then return manual end",
+    to: "        if manual > 0 and manual > purse then return manual end" },
+
+  // Nil is not zero. Hiding every row because the client could not say how much gold you have
+  // looks exactly like an empty auction house.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Search.lua",
+    label: "a failed gold lookup hides every row, which reads as an empty auction house",
+    from: "        if purse == nil then return nil end", to: "        if purse == nil then purse = 0 end" },
+
+  // NOT MUTATED: `price <= 0` in PriceKeepsRow. Zero is truthy in Lua, so a zero buyout reaches
+  // the comparison and is kept either way - the source says so, and adding the mutation here
+  // only re-proved it. It stays in the source because it states the domain fact and because a
+  // later change to the comparison would make it load-bearing with nothing to notice.
+
   // ---- the LootCollector hook (v0.2.0) -------------------------------------
   // The half that can hang a client. Both guards below are invisible in a small fixture and
   // neither is provable by reading, which is why the gate runs the real loop and counts.

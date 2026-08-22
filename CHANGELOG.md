@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.180.0a] - 2026-08-16 — a suite outside the gate run is a suite that stops being run
+
+### Added
+- **`tools/siblingsuites.js`** — `Valuate-TSM` ships its own headless suite, and it was not in
+  `node tools/gates.js`. So "all 74 gates pass" was a true sentence that quietly left out
+  **162 assertions**, covering the circuit breaker that stops the client freeze and the price
+  filter that decides what you can afford.
+
+  Nobody decides to stop running a suite like that. It falls out of the habit, and the first
+  sign is a bug in the thing it covered — the same failure as a stale checklist, which this
+  project has now had twice in two days. The gate finds each sibling's suite, runs it, and
+  folds the result into the one number that gets quoted.
+
+  **Absent is fine; broken is not.** A sibling that is not installed is skipped and named. One
+  that is installed but whose suite has gone missing **fails**, because that is coverage
+  evaporating with nothing to announce it. Verified by disabling the TSM circuit breaker and
+  confirming this gate exits non-zero.
+
+- **The TSM suite is now mutation-tested too**, which it never had been — living outside the
+  gate run meant nothing could name it as the gate that must fail. Four mutations: a tripped
+  integration that keeps running, a breaker that re-trips forever, a price cap above your gold
+  winning over your gold, and a failed gold lookup hiding every row.
+
+### Fixed
+- **A TSM assertion passed for the wrong reason.** "The first thing to trip is the one
+  reported" went through `Guard` — which returns early once disabled, so it never reached
+  `Trip` at all. The label stayed put because nothing tried to change it, and the assertion
+  held with the keep-the-first-label guard deleted outright. It now calls `Trip` directly,
+  twice, and checks both that the second is silent and that a *first* trip is not — so a
+  gutted `Trip` fails rather than passing both halves.
+
+### Notes
+- One mutation was written and then removed as genuinely equivalent: `price <= 0` in
+  `PriceKeepsRow`. Zero is truthy in Lua, so a zero buyout reaches the comparison and is kept
+  either way — the source already said so, and adding the mutation only re-proved it. The
+  reason is recorded in `mutations.js` where the next person will look.
+
 ## [0.179.0a] - 2026-08-16 — the LootCollector hook gets a gate, and it finds a bug
 
 ### Added
