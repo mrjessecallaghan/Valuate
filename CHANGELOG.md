@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.187.0a] - 2026-08-16 — suggesting a quest reward is not taking it
+
+### Added
+- **`tools/questaction.js`** (17 checks, 6 mutations) for `Valuate:AutoSelectBestQuestReward`.
+
+  `questtest.js` proves the **policy** — which reward should win and when to decline. Nothing
+  proved the **action** built on it, which is the same split that left auto-delete's bound
+  untested last release: the decision was covered, the thing that acts on the decision was not.
+
+  A quest reward is irreversible in a way even deletion is not — the other choices are gone the
+  moment the quest completes, and there is no buyback for a road not taken. **Two features share
+  one function**: one draws a highlight on the best reward, the other completes the quest. If
+  those ever cross, the addon finishes quests it was only asked to advise on, and you find out
+  afterwards. That is the assertion this file exists for.
+
+  Also held down: it never clicks Blizzard's reward button (doing so taints the quest frame and
+  the client then blocks "Complete Quest" outright), it takes nothing without an active scale,
+  it respects the policy's refusal to guess, and it prefers the reward that most **improves your
+  gear** over the one with the highest raw score.
+
+### Notes
+Three of my assertions were wrong about the addon rather than the other way round, and the gate
+said so on its first run. I had assumed equal-scoring rewards were refused as a tie. They are
+not: the policy takes the first, deliberately and deterministically, and the only case it
+declines is *more than one choice, none of which could be read at all*. Equal-scoring rewards
+are common — two pieces of the same armour type for one slot — and a coin flip that landed
+differently between reloads would be worse than a rule you can learn.
+
+The assertions now describe the addon that exists: ties are broken the same way every time, a
+single unreadable reward is still taken because there is no alternative, and nothing at all is
+taken when two unreadable rewards are offered.
+
 ## [0.186.0a] - 2026-08-16 — the only irreversible action gets its bound tested
 
 ### Added

@@ -2095,6 +2095,47 @@ module.exports = [
     from: "                if CursorHasItem and CursorHasItem() then\n                    ClearCursor()",
     to: "                if false then\n                    ClearCursor()" },
 
+  // ---- suggesting a quest reward is not taking it (v0.187.0a) --------------
+  // A quest reward is irreversible in a way even deletion is not: the other choices are gone
+  // the moment the quest completes, and there is no buyback for a road not taken.
+
+  // THE ONE THAT MATTERS. Two features share this function - one draws a highlight, the other
+  // completes the quest. Crossed, the addon completes quests it was only asked to advise on.
+  { gate: "questaction", file: "Valuate.lua",
+    label: "marking the best reward also takes it, with auto turn-in switched off",
+    from: "    if options.autoQuestTurnIn then\n        if options.chatMessages then\n            if bestScore then",
+    to: "    if true then\n        if options.chatMessages then\n            if bestScore then" },
+
+  // The feature switch itself.
+  { gate: "questaction", file: "Valuate.lua",
+    label: "quest rewards are chosen even with the feature switched off",
+    from: "    if not options.autoQuestReward then", to: "    if false then" },
+
+  // No scale, no weights, no opinion - and a guess here spends a choice you cannot get back.
+  { gate: "questaction", file: "Valuate.lua",
+    scope: { start: "function Valuate:AutoSelectBestQuestReward", end: "\n    local scored, links" },
+    label: "a reward is chosen with no active scale to score against",
+    from: "    if not scale then", to: "    if false then" },
+
+  // ChooseQuestReward returns nil when it should not guess.
+  { gate: "questaction", file: "Valuate.lua",
+    label: "the policy declining to choose is ignored and a reward is taken anyway",
+    from: "    if not bestIndex then return end", to: "    bestIndex = bestIndex or 1" },
+
+  // The reward that most improves your gear, not the biggest number in a vacuum: a strong
+  // weapon you will never beat your current best with should lose to a modest trinket that
+  // fills an empty slot.
+  { gate: "questaction", file: "Valuate.lua",
+    label: "the highest raw score wins over the reward that actually upgrades a slot",
+    from: "                delta = score - Valuate:GetUpgradeBaseline(link, scale, scaleName),",
+    to: "                delta = score," },
+
+  // Index 0 is the guaranteed reward on a quest with nothing to choose.
+  { gate: "questaction", file: "Valuate.lua",
+    label: "a quest with no reward choice is completed even with turn-in switched off",
+    from: "        if options.autoQuestTurnIn then\n            if options.chatMessages then",
+    to: "        if true then\n            if options.chatMessages then" },
+
   // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
   // How far there is to scroll depends on two numbers and only one of them changes when the
   // list does. The window animates to its tab height AFTER the refresh that computed the
