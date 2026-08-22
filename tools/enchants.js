@@ -135,6 +135,38 @@ eq(select(2, Valuate:FindMissingEnchants()), 9, "waist is not enchantable and is
 EQUIPPED = { [5] = link(0) }
 eq(select(2, Valuate:FindMissingEnchants()), 1, "slots you are wearing nothing in are skipped")
 
+-- ---- what could NOT be read ----------------------------------------------------------------
+-- Getting the per-item rule right was never enough. An unreadable slot was simply SKIPPED, so
+-- a character whose gear had not finished caching came back as "0 slots unenchanted" - the same
+-- two values as a character who has enchanted everything. The third return is the difference
+-- between an answer and a shrug, and it is the number the to-do panel's sentence rests on.
+for slot in pairs(EQUIPPED) do EQUIPPED[slot] = nil end
+TEXTURES = {}
+function GetInventoryItemTexture(_, slotId) return TEXTURES[slotId] end
+
+EQUIPPED[5] = link(3832)
+eq(select(3, Valuate:FindMissingEnchants()), 0,
+   "gear that reads cleanly leaves nothing unread")
+
+-- A link that is present but unparseable. Only an explicit zero means "no enchant"; nil means
+-- the field could not be read, and that must not silently become a clean bill.
+EQUIPPED[7] = "garbled, not a link"
+eq(select(3, Valuate:FindMissingEnchants()), 1, "a link whose enchant field is unreadable counts")
+eq(select(2, Valuate:FindMissingEnchants()), 0, "and is NOT reported as an unenchanted slot")
+
+-- Worn but not cached: no link yet, but the texture resolves. The ordinary state for the first
+-- seconds after a login, which is exactly when someone opens the panel.
+EQUIPPED[7] = nil
+TEXTURES[7] = "Interface/Icons/Something"
+eq(select(3, Valuate:FindMissingEnchants()), 1, "a worn item whose link has not cached counts")
+
+-- The PAIR that stops the rule from being "count every empty slot". An empty slot has no
+-- texture, and reporting it would mean a character wearing no bracers is permanently
+-- "still loading" - a note that never clears is one you stop reading.
+TEXTURES[7] = nil
+eq(select(3, Valuate:FindMissingEnchants()), 0,
+   "an EMPTY slot has no texture and is not counted - absent is not unread")
+
 return failures, checks
 `,
   "enchants",

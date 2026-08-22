@@ -7719,6 +7719,19 @@ end
 function Valuate:BuildTodoList()
     local items = {}
 
+    -- What this build could NOT look at, in sentences.
+    --
+    -- An empty to-do list is the most consequential thing this addon says: it is read as "you
+    -- are done". Two ways of arriving at empty already turn into items of their own - no scale,
+    -- and never scanned - because a list built on nothing must not look like a list with
+    -- nothing on it. This is the third way, and it is the one that comes and goes: a source
+    -- that could not be read on THIS refresh.
+    --
+    -- Deliberately not items. "A to-do you cannot act on is not a to-do", and an equipment
+    -- swap in flight is not something you can go and do. So it is reported as what it is,
+    -- beside the list rather than on it.
+    local unread = {}
+
     local drifted = Valuate.GetAutoScaleDrift and Valuate:GetAutoScaleDrift()
     if drifted then
         table.insert(items, {
@@ -7859,8 +7872,12 @@ function Valuate:BuildTodoList()
     -- that way first; the gate caught it before it shipped.
     local sockets = 0
     if Valuate.FindEmptySockets then
-        local _, n = Valuate:FindEmptySockets()
+        local _, n, blocked = Valuate:FindEmptySockets()
         sockets = n or 0
+        -- The third value, which exists precisely for this. Without it, "nothing to report"
+        -- and "could not look" are the same nil and the panel below tells you your gems are
+        -- up to date on the one refresh that never read them.
+        if blocked then unread[#unread + 1] = "empty sockets (" .. tostring(blocked) .. ")" end
     end
     if sockets > 0 then
         table.insert(items, {
@@ -7902,7 +7919,19 @@ function Valuate:BuildTodoList()
         })
     end
 
-    return items
+    -- The enchant numbers above come from CountEnhanceTodo. This asks the one question those
+    -- numbers cannot answer - were any of the slots unreadable - and it is a link read per
+    -- slot with no tooltips, the cheapest check in the addon. It decides whether the sentence
+    -- at the bottom of the panel is honest, which is worth a few string reads.
+    if Valuate.FindMissingEnchants then
+        local _, _, unreadable = Valuate:FindMissingEnchants()
+        if (unreadable or 0) > 0 then
+            unread[#unread + 1] = string.format("%d worn slot%s still loading",
+                unreadable, unreadable == 1 and "" or "s")
+        end
+    end
+
+    return items, unread
 end
 
 -- Making the PvP scale, rather than leaving you an empty slot to fill.
@@ -8686,22 +8715,39 @@ end
 
 -- Returns { { slotId, slotName, itemLink }, ... } and the count, or nil.
 function Valuate:FindMissingEnchants()
-    local out = {}
+    local out, unread = {}, 0
     for _, def in ipairs(ns.EQUIP_SLOTS or {}) do
         if ENCHANTABLE_SLOTS[def.slotId] then
             local link = GetInventoryItemLink("player", def.slotId)
             -- A nil enchant field means the link could not be read at all; that is not the
             -- same as "no enchant", and reporting it would send you to an enchanter for
             -- nothing. Only an explicit zero counts.
-            if link and LinkEnchantId(link) == 0 then
-                table.insert(out, { slotId = def.slotId, slotName = def.name, itemLink = link })
+            --
+            -- Getting that right per item was never enough. Every unreadable slot was simply
+            -- skipped, so a character whose gear had not finished caching came back as "0
+            -- slots unenchanted" - which is the same two values as a character who has
+            -- enchanted everything. The count of what could NOT be read is the third return,
+            -- and it is the difference between an answer and a shrug.
+            if link then
+                local enchantId = LinkEnchantId(link)
+                if enchantId == 0 then
+                    table.insert(out, { slotId = def.slotId, slotName = def.name, itemLink = link })
+                elseif enchantId == nil then
+                    unread = unread + 1
+                end
+            elseif GetInventoryItemTexture and GetInventoryItemTexture("player", def.slotId) then
+                -- Something IS worn here - the texture resolved - but its link has not cached
+                -- yet, which is the ordinary state for the first seconds after a login. An
+                -- EMPTY slot has no texture and is correctly not counted, so this separates
+                -- "not loaded" from "not wearing anything" without guessing at either.
+                unread = unread + 1
             end
         end
     end
 
     -- Character-sheet order, which is how ENCHANTABLE_SLOTS is iterated via ns.EQUIP_SLOTS,
     -- so no sort is needed and none can drift.
-    return #out > 0 and out or nil, #out
+    return #out > 0 and out or nil, #out, unread
 end
 
 -- What is my biggest upgrade right now?

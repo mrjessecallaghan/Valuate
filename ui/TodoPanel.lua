@@ -113,6 +113,40 @@ local function BuildRow(parent, index)
     return row
 end
 
+-- The sentence shown when the list is empty.
+--
+-- This is the most consequential sentence in the addon. An empty to-do list is not read as
+-- "no rows"; it is read as "you are done", and people act on it by not acting.
+--
+-- It used to be fixed text: "Nothing outstanding. Your gear, gems and enchants are all up to
+-- date for the scale you are using." Three specific claims, made whether or not any of the
+-- three had actually been read. Mid equipment swap the sockets are not read at all, and the
+-- panel cheerfully vouched for your gems.
+--
+-- So the claim now covers exactly what was examined, and no more. Note the wording: "among the
+-- things I could check" is narrower than the old sentence and is not an apology - nothing is
+-- broken, and a swap finishes on its own. Dressing a transient gap as a fault would send
+-- people looking for one.
+function ns.TodoEmptyText(unread)
+    local all = "Nothing outstanding. Your gear, gems and enchants are all up to date " ..
+        "for the scale you are using."
+    if type(unread) ~= "table" or #unread == 0 then return all end
+    return "Nothing outstanding among the things I could check just now - but " ..
+        table.concat(unread, ", ") .. " went unread, so this is not the whole picture. " ..
+        "Open this tab again in a moment."
+end
+
+-- Said on a NON-empty refresh too, and for the same reason the UI check says it: a list of
+-- three jobs is just as much a statement about partial coverage as a clean bill is, and it is
+-- the more dangerous of the two to over-read. You do the three things, come back, see nothing,
+-- and take that as the window being finished with you.
+--
+-- Returns nil when everything was read, so the ordinary refresh shows no extra furniture.
+function ns.TodoCoverageLine(unread)
+    if type(unread) ~= "table" or #unread == 0 then return nil end
+    return "Not read this refresh: " .. table.concat(unread, ", ") .. "."
+end
+
 function ns.CreateTodoPanel(parent)
     local panel = CreateFrame("Frame", nil, parent)
     panel:SetAllPoints(parent)
@@ -144,9 +178,22 @@ function ns.CreateTodoPanel(parent)
     empty:SetPoint("RIGHT", panel, "RIGHT", -PADDING, 0)
     empty:SetJustifyH("LEFT")
     empty:SetTextColor(unpack(COLORS.textBody))
-    empty:SetText("Nothing outstanding. Your gear, gems and enchants are all up to date " ..
-        "for the scale you are using.")
+    -- Set on every refresh by ns.TodoEmptyText, never here. A default written at build time is
+    -- a claim made before anything has been looked at, which is the whole bug.
+    empty:SetText("")
     empty:Hide()
+
+    -- What went unread, shown BELOW the rows on a non-empty refresh.
+    --
+    -- Its own font string rather than a row: "a to-do you cannot act on is not a to-do", and a
+    -- swap in flight is not something you can go and do. Putting it on the list would also put
+    -- it in the tab's count, which is a number about work.
+    local unreadNote = panel:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    unreadNote:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    unreadNote:SetPoint("RIGHT", panel, "RIGHT", -PADDING, 0)
+    unreadNote:SetJustifyH("LEFT")
+    unreadNote:SetTextColor(unpack(COLORS.textDim))
+    unreadNote:Hide()
 
     -- Per-kind accent colours. Keyed by the `kind` field BuildTodoList already sets, so a
     -- new kind appearing there shows up here in the neutral colour rather than erroring -
@@ -163,7 +210,13 @@ function ns.CreateTodoPanel(parent)
     local NEUTRAL = { 0.6, 0.6, 0.6 }
 
     local function Refresh()
-        local items = (Valuate.BuildTodoList and Valuate:BuildTodoList()) or {}
+        -- Two values, and NOT `Valuate.BuildTodoList and Valuate:BuildTodoList()`. Lua adjusts
+        -- an `and` expression to a single value, so the second - which is the entire point -
+        -- would silently be nil. Written that way first, here and in the to-do list itself,
+        -- and caught both times.
+        local items, unread = {}, nil
+        if Valuate.BuildTodoList then items, unread = Valuate:BuildTodoList() end
+        items = items or {}
 
         for i, item in ipairs(items) do
             local row = rowPool[i] or BuildRow(list, i)
@@ -203,6 +256,7 @@ function ns.CreateTodoPanel(parent)
         end
 
         if #items == 0 then
+            empty:SetText(ns.TodoEmptyText and ns.TodoEmptyText(unread) or "")
             empty:Show()
             list:SetHeight(1)
         else
@@ -213,6 +267,16 @@ function ns.CreateTodoPanel(parent)
                 total = total + rowPool[i]:GetHeight() + (i > 1 and ROW_GAP or 0)
             end
             list:SetHeight(total)
+        end
+
+        -- Only on the non-empty refresh: when the list is empty the sentence above already
+        -- carries it, and saying it twice on one screen reads as two different problems.
+        local note = ns.TodoCoverageLine and ns.TodoCoverageLine(unread) or nil
+        if note and #items > 0 then
+            unreadNote:SetText(note)
+            unreadNote:Show()
+        else
+            unreadNote:Hide()
         end
 
         -- Tell the tab, so the count is on it rather than only inside it.

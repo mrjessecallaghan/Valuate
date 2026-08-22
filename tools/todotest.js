@@ -71,8 +71,18 @@ function Valuate:GetPrimaryScale()
     return PRIMARY or {}, (PRIMARY and PRIMARY.DisplayName) or "Dps"
 end
 function Valuate:RankAvailableUpgrades() return UPGRADES end
-function Valuate:FindEmptySockets() return nil, SOCKETS end
-function Valuate:FindMissingEnchants() return nil, ENCHANTS end
+SOCKET_BLOCK, ENCHANT_UNREAD = nil, 0
+function Valuate:FindEmptySockets() return nil, SOCKETS, SOCKET_BLOCK end
+function Valuate:FindMissingEnchants() return nil, ENCHANTS, ENCHANT_UNREAD end
+
+-- Held so the block that REMOVES these two can put the very same functions back, rather than
+-- writing a second copy of them further down.
+--
+-- There was a second copy. It went stale the moment these gained a third return: everything
+-- after the restore silently went back to two-value mocks, and a block testing the third one
+-- indexed a nil. A duplicated fixture is a second thing to remember, and the half nobody
+-- re-reads is the copy.
+local REAL_SOCKETS, REAL_ENCHANTS = Valuate.FindEmptySockets, Valuate.FindMissingEnchants
 
 -- The enchant item is built from the ENHANCE TAB's count, not from a count of bare slots.
 -- Two panels in one window used to answer this differently - "Enchant 6 items" beside "1 to
@@ -321,8 +331,7 @@ function Valuate:GetOptions() return OPTIONS end
 -- Put back the helpers the degradation test above deliberately removed, or this block would
 -- be exercising the degraded path while claiming to test the normal one.
 function Valuate:GetAutoScaleDrift() return DRIFT end
-function Valuate:FindEmptySockets() return nil, SOCKETS end
-function Valuate:FindMissingEnchants() return nil, ENCHANTS end
+Valuate.FindEmptySockets, Valuate.FindMissingEnchants = REAL_SOCKETS, REAL_ENCHANTS
 ns.CountEnhanceTodo = function() return CAN_ENHANCE, BARE end
 
 DRIFT, SOCKETS, ENCHANTS = "Auto - Str/Crit", 2, 1
@@ -356,7 +365,10 @@ OPTIONS.todoOnLogin = nil
 -- picker says so while you hover, the list marks it and the editor repeats it - but all three
 -- need you to go and LOOK, and the moment you would most want telling is the one where you
 -- are looking at none of them: the scale is quietly scoring every item you see, on a guess.
-local function kinds(list)
+-- Named apart from the kinds() above on purpose: that one returns a comma-joined STRING and
+-- this one returns a table. Two same-named helpers with different return types sat in this
+-- file for a long time, and the second silently shadowed the first for everything below it.
+local function kindList(list)
     local out = {}
     for _, item in ipairs(list or {}) do out[#out + 1] = item.kind end
     return out
@@ -386,6 +398,50 @@ end
 PRIMARY = { DisplayName = "Solid", Values = { Agility = 1.0 } }
 eq(indexOfKind(Valuate:BuildTodoList(), "guess"), nil,
    "a scale with researched weights raises nothing")
+
+-- ---- what the build could NOT read ---------------------------------------------------------
+-- An empty list is read as "you are done". Two ways of reaching empty already become items -
+-- no scale, and never scanned - because a list built on nothing must not look like a list with
+-- nothing on it. This is the third way, and the only one that comes and goes: a source that
+-- failed on THIS refresh. It rides on a SECOND return, because it is not a job.
+DRIFT, SOCKETS, ENCHANTS, UPGRADES = nil, 0, 0, nil
+SOCKET_BLOCK, ENCHANT_UNREAD = nil, 0
+
+local items, unread = Valuate:BuildTodoList()
+-- The baseline is whatever this fixture leaves standing, not zero. What matters is that an
+-- unread source changes it by NOTHING.
+local baseline = #items
+ok(type(unread) == "table", "and the second return is a table rather than nil")
+eq(#unread, 0, "with every source readable, nothing is listed as unread")
+
+-- The socket reader's third value. Without this the panel says your gems are up to date on the
+-- one refresh that never looked at them.
+SOCKET_BLOCK = "an item is still being swapped"
+items, unread = Valuate:BuildTodoList()
+eq(#items, baseline, "a source that could not be read adds no JOB - you cannot act on a swap")
+eq(#unread, 1, "but it is reported")
+ok(unread[1]:find("socket", 1, true) ~= nil, "naming the source")
+ok(unread[1]:find("swapped", 1, true) ~= nil, "and carrying the reason it gave")
+SOCKET_BLOCK = nil
+
+-- Unreadable enchant slots, counted the same way and from a different source, so one working
+-- does not make the other look like it works.
+ENCHANT_UNREAD = 2
+items, unread = Valuate:BuildTodoList()
+eq(#unread, 1, "unreadable worn slots are reported too")
+ok(unread[1]:find("2", 1, true) ~= nil, "with how many")
+ok(unread[1]:find("loading", 1, true) ~= nil, "and what it means")
+
+-- Both at once. Sources accumulate; a second one must not overwrite the first.
+SOCKET_BLOCK = "an item is still being swapped"
+items, unread = Valuate:BuildTodoList()
+eq(#unread, 2, "two failing sources are both listed, not the last one only")
+SOCKET_BLOCK, ENCHANT_UNREAD = nil, 0
+
+-- And the pair: zero unreadable slots must NOT produce an entry saying so. A note that never
+-- clears is a note you stop reading.
+items, unread = Valuate:BuildTodoList()
+eq(#unread, 0, "back to clean, nothing is claimed unread")
 
 return failures, checks
 `,

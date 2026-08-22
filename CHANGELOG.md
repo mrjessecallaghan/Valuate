@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.203.0a] - 2026-08-22 — the to-do list stops vouching for what it never read
+
+### Fixed
+**"Nothing outstanding. Your gear, gems and enchants are all up to date."** Fixed text, printed
+whether or not any of the three had been looked at.
+
+An empty to-do list is the most consequential thing this addon says. Nobody reads it as *no
+rows*; they read it as *you are done*, and they act on it by not acting. Two ways of arriving
+at empty already turn into to-do items of their own — no scale, and never scanned — because a
+list built on nothing must not look like a list with nothing on it. This is the third way, and
+the only one that comes and goes: **a source that failed on this refresh.**
+
+Mid equipment swap the sockets are not read at all, and the panel vouched for your gems anyway.
+
+`BuildTodoList` now returns a second value: what it could not read, in sentences. When
+something went unread the blanket claim is **gone** — not softened, *gone*, because "your gems
+are up to date, probably" is the same claim wearing a hat — and what was missed is named
+instead. When everything was read, the confident sentence is unchanged; a panel that hedges on
+every refresh has only moved the lie to the other side.
+
+The note appears on a **non-empty** refresh too. A list of three jobs is just as much a
+statement about partial coverage as a clean bill is, and it is the more dangerous of the two to
+over-read: you do the three things, come back, see nothing, and take that as the window being
+finished with you.
+
+Nothing is ever worded as a fault. A swap finishes on its own and an item finishes loading;
+telling someone to fix a thing that is not wrong is how a panel stops being read.
+
+**`FindMissingEnchants` counted unreadable slots as fine.** Getting the rule right per item was
+never enough — an unreadable slot was simply *skipped*, so a character whose gear had not
+finished caching came back as "0 slots unenchanted", which is the same two values as a
+character who has enchanted everything. It now returns a third value: how many worn slots it
+could not read. A slot with no link but a resolving **texture** is worn-and-loading; a slot
+with neither is empty and is correctly not counted, so a character wearing no bracers is not
+permanently "still loading".
+
+### Internal
+- `ns.TodoEmptyText` and `ns.TodoCoverageLine` are pure and gated separately from the panel.
+- New gate `tools/todounread.js` (26 checks); `tools/enchants.js` +5; `tools/todotest.js` +11.
+- **Two fixture bugs found by this, both duplication:** `todotest.js` removed the socket and
+  enchant mocks to test the missing-function case and then *rewrote* them to restore, so the
+  third return silently vanished for every assertion after that point — the restore now puts
+  back the same functions. And two different `kinds()` helpers lived in one file, one returning
+  a string and one a table, the second silently shadowing the first.
+- Widening the two contracts un-anchored **two more** pre-existing mutations, both re-anchored.
+  That is three releases running; the report is doing its job.
+
+86 gates, 493 mutations.
+
 ## [0.202.0a] - 2026-08-22 — the Enhance tab admits sockets exist
 
 ### Added

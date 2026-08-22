@@ -416,7 +416,6 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua", scope: ANNOUNCE_TODO,
     label: "switching the summary off does not switch it off",
     from: "if Valuate:GetOptions().todoOnLogin == false then", to: "if false then" },
-
   // ---- the gear to-do list (v0.112.0a) -------------------------------------
   { gate: "todotest", file: "Valuate.lua",
     label: "upgrades are listed above the stale scale that CHOSE them",
@@ -429,8 +428,8 @@ module.exports = [
     from: "    if sockets > 0 then", to: "    if sockets >= 0 then" },
   { gate: "todotest", file: "Valuate.lua",
     label: "the socket count is silently nil, so that item can never appear",
-    from: "        local _, n = Valuate:FindEmptySockets()\n        sockets = n or 0",
-    to: "        local n = Valuate:FindEmptySockets()\n        sockets = n or 0" },
+    from: "        local _, n, blocked = Valuate:FindEmptySockets()\n        sockets = n or 0",
+    to: "        local n, blocked = Valuate:FindEmptySockets()\n        sockets = n or 0" },
   { gate: "todotest", file: "Valuate.lua",
     label: "an empty slot is not called out, so a huge gain looks like a remarkable item",
     from: 'detail = u.emptySlot and "That slot is empty." or nil,', to: "detail = nil," },
@@ -473,7 +472,6 @@ module.exports = [
   { gate: "queuetest", file: "Valuate.lua", scope: BUILD_PVP,
     label: "a source with no positive weights produces a scale that scores nothing",
     from: "if top <= 0 then", to: "if false then" },
-
   // ---- the PvP scale swap (v0.109.0a) --------------------------------------
   //
   // NO MUTATION HERE, deliberately, and this note is the reason.
@@ -542,7 +540,7 @@ module.exports = [
     from: 'itemLink:match("|?H?item:%d+:(%d+)")', to: 'itemLink:match("item:(%d+)")' },
   { gate: "enchants", file: "Valuate.lua",
     label: "an unreadable link is called unenchanted - a trip to the enchanter for nothing",
-    from: "if link and LinkEnchantId(link) == 0 then", to: "if link and not LinkEnchantId(link) or (link and LinkEnchantId(link) == 0) then" },
+    from: "                if enchantId == 0 then", to: "                if enchantId == 0 or enchantId == nil then" },
   { gate: "enchants", file: "Valuate.lua",
     label: "every slot is checked, so rings and trinkets nag about enchants you cannot apply",
     from: "if ENCHANTABLE_SLOTS[def.slotId] then", to: "if true then" },
@@ -568,7 +566,6 @@ module.exports = [
     label: "the in-transit guard is relaxed - tooltips read mid equipment swap",
     from: "    if equipmentSwapPending then return nil, 0, \"" + "" + "an item is still being swapped\" end",
     to: "    if false then return nil, 0, \"an item is still being swapped\" end" },
-
   // ---- the cross-path agreement check (v0.101.0a) --------------------------
   { gate: "selfverify", file: "Valuate.lua",
     label: "two paths disagreeing about your gear is reported as agreement",
@@ -579,7 +576,6 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua",
     label: "nothing equipped reads as 'the paths agree' rather than 'nothing to compare'",
     from: "if compared == 0 then", to: "if false then" },
-
   // ---- the ranked upgrade list (v0.99.0a) ----------------------------------
   // Scoped since v0.115.0a: UnmatchedBestSlots excludes bank gear with the same line, and
   // an unscoped anchor would land there instead - breaking a function this gate never runs.
@@ -714,7 +710,6 @@ module.exports = [
   { gate: "dungeonloot", file: "Valuate.lua", scope: D_CONSIDER,
     label: "it offers to leave a dungeon that is already finished, which is just noise",
     from: "if status.remaining <= 0 then return end", to: "if false then return end" },
-
   // ---- the harvested loot table (v0.121.0a) --------------------------------
   // The table is generated from AtlasLoot, so the failure that matters is not a wrong id -
   // it is a generator that quietly harvests NOTHING and leaves a syntactically perfect file
@@ -847,7 +842,6 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua", scope: SC_ITEMS,
     label: "a generator that harvested nothing reads as fine",
     from: 'if #ids == 0 then', to: "if false then" },
-
   { gate: "selfverify", file: "Valuate.lua", scope: SC_KEYS,
     label: "a dungeon whose name does not match reports PASS - the silent failure stays silent",
     from: '    return "fail", string.format(\n        "\\"%s\\" is not in the loot table',
@@ -855,7 +849,6 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua", scope: SC_KEYS,
     label: "standing in the open world is judged as a real result rather than skipped",
     from: 'if instanceType ~= "party" then', to: "if false then" },
-
   // ---- the wizard's failure screen (v0.129.0a) -----------------------------
   // The most likely way to reach it is a brand-new character wearing nothing, on the first
   // screen of an addon they installed a minute ago. It used to print to chat and leave the
@@ -1207,7 +1200,6 @@ module.exports = [
     scope: { start: "function Valuate:AutoUnjunkProtected(", end: "\n    local freed" },
     label: "the junk rescue writes overrides for item ids that have already moved",
     from: "if equipmentSwapPending then", to: "if false then" },
-
   // ---- and the two body-scoped rules can actually READ their subjects ------
   // Both of these count block keywords to find a function's body, and both were silently
   // inert for AutoDeleteJunk until a mutation asked. Prose in its comments read as Lua
@@ -1290,7 +1282,6 @@ module.exports = [
     label: "the accent stays lit on tabs you have left, so it marks all of them",
     from: "                if btn.accent then btn.accent:Hide() end",
     to: "                if false then btn.accent:Hide() end" },
-
   // The buttons have to stay reachable, or the checks above go back to being unwritable.
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "the tab buttons stop being reachable, and nothing can check them again",
@@ -1307,7 +1298,6 @@ module.exports = [
     label: "the shared button helper stops giving any hover feedback",
     from: "    btn:HookScript(\"OnEnter\", function(self)\n        TweenBackdrop(self, COLORS.buttonHover",
     to: "    btn:HookScript(\"OnEnter\", function(self)\n        if false then TweenBackdrop(self, COLORS.buttonHover" },
-
   // And the reason those twelve went quiet: SetScript replaces, HookScript chains.
   { gate: "tabtest", file: "ui/Settings.lua",
     label: "a tooltip handler replaces a button\u2019s hover instead of chaining onto it",
@@ -1325,7 +1315,6 @@ module.exports = [
     label: "tabs stop answering the mouse entirely",
     from: "            if activeTab ~= name then\n                TweenBackdrop(self, COLORS.buttonHover",
     to: "            if false then\n                TweenBackdrop(self, COLORS.buttonHover" },
-
   { gate: "tabtest", file: "ValuateUI.lua",
     label: "hover dims the ACTIVE tab, the one thing telling you where you are",
     from: "            if activeTab ~= name then\n                TweenBackdrop(self, COLORS.buttonHover",
@@ -1348,8 +1337,7 @@ module.exports = [
   // An empty list is an ANSWER. Silent emptiness reads as a panel that failed to load.
   { gate: "todopanel", file: "ui/TodoPanel.lua",
     label: "nothing to do shows a blank panel instead of saying there is nothing to do",
-    from: "        if #items == 0 then\n            empty:Show()",
-    to: "        if false then\n            empty:Show()" },
+    from: "        if #items == 0 then", to: "        if false then" },
 
   // Reused rows must not carry the previous item's explanation under the new one's text.
   { gate: "todopanel", file: "ui/TodoPanel.lua",
@@ -1419,7 +1407,6 @@ module.exports = [
     label: "text below its own row is no longer noticed - the v0.158.0a defect exactly",
     from: "        if c.bottom < p.bottom - SLACK then over[#over + 1] = \"below\" end",
     to: "        if false then over[#over + 1] = \"below\" end" },
-
   { gate: "uicheck", file: "ui/UICheck.lua",
     label: "the slack swallows real overflow instead of a rounded edge",
     from: "local SLACK = 1", to: "local SLACK = 400" },
@@ -1450,13 +1437,11 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "never having looked is reported as having found nothing",
     from: "    elseif not (best and best[scaleName]) then", to: "    elseif false then" },
-
   // The other unknown: no scale to score against at all.
   { gate: "todotest", file: "Valuate.lua",
     scope: { start: "function Valuate:BuildTodoList(", end: "    local upgrades = scaleName" },
     label: "a character with no scale is told everything is fine",
     from: "    if not scaleName then", to: "    if false then" },
-
   // And it must CLEAR. A blocker that outlives the thing blocking it is noise, and noise
   // at the top of the list is how people stop reading the list.
   { gate: "todotest", file: "Valuate.lua",
@@ -1537,7 +1522,6 @@ module.exports = [
     label: "only one of the two profession apis is read, losing the other entirely",
     from: "    if type(GetNumCrafts) == \"function\" and type(GetCraftInfo) == \"function\" then",
     to: "    if false then" },
-
   // What could not be read has to be REPORTED. Dropping it makes the panel look complete.
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "an enhancement whose slot cannot be read is silently discarded",
@@ -1594,14 +1578,12 @@ module.exports = [
     label: "slots with nothing equipped in them are offered enhancements anyway",
     from: "    if not info.hasItem then return \"empty\" end",
     to: "    if false then return \"empty\" end" },
-
   // "Nothing goes here" and "I have not been shown any" are opposite claims. Reporting a
   // trinket as the latter sends you looking for something that cannot exist.
   { gate: "enhancepanel", file: "ui/Enhance.lua",
     label: "a slot no enhancement fits reads as one I have simply never been shown",
     from: "    if not ns.ENHANCEABLE_SLOTS[info.slotId] then return \"none\" end",
     to: "    if false then return \"none\" end" },
-
   // Derived from the pattern table on purpose: a second hand-written list is a second thing
   // to forget, and forgetting it makes the panel offer a buckle to a slot it calls unenchantable.
   { gate: "enhancepanel", file: "ui/Enhance.lua",
@@ -1624,13 +1606,11 @@ module.exports = [
     label: "a slot that already has an enchant is recommended one anyway",
     from: "    if info.hasEnchant then return \"enhanced\" end",
     to: "    if false then return \"enhanced\" end" },
-
   // Filtered and blocked both leave an empty list, and only one is a fact about your gear.
   { gate: "enhancepanel", file: "ui/Enhance.lua",
     label: "a slot the profession filter is hiding blames your item level instead",
     from: "    if (info.shown or 0) <= 0 then return \"filtered\" end",
     to: "    if false then return \"filtered\" end" },
-
   // Counted before the filter, or a crafted-only view reports an enchanter's slots as never
   // having been seen - sending you to open a window you already opened.
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
@@ -1641,7 +1621,6 @@ module.exports = [
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
     label: "the profession filter does nothing at all",
     from: "            if ns.EnhanceFilters.source ~= \"all\" then", to: "            if false then" },
-
   // Only two of the seven states are jobs.
   { gate: "enhancepanel", file: "ui/Enhance.lua",
     label: "a slot waiting only on better gear does not count as anything to do",
@@ -1723,7 +1702,6 @@ module.exports = [
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "every vendor item is noted, so a city trip evicts everything that mattered",
     from: "    if not LooksLikeRecipe(name) then return 0 end", to: "    if false then return 0 end" },
-
   // A price that changed is the one worth keeping - reputation and server both move it.
   { gate: "enhance", file: "ui/Enhance.lua",
     label: "a recipe seen again at a new price keeps the stale one",
@@ -1787,13 +1765,11 @@ module.exports = [
   { gate: "selfverify", file: "Valuate.lua",
     label: "a client with no Craft api passes, though enchants can never appear",
     from: "    if not byKey.craft then", to: "    if false then" },
-
   // Zero open recipes is the NORMAL state with no window open. Calling it a failure would
   // teach people to ignore this check, which is worse than not having it.
   { gate: "selfverify", file: "Valuate.lua",
     label: "no profession window open is reported as a failure rather than untested",
     from: "    if open == 0 then", to: "    if false then" },
-
   // The UI check must not OPEN the window to inspect it: a diagnostic that changes what is
   // on your screen in order to measure it is measuring something you did not have.
   { gate: "uicheck", file: "ui/UICheck.lua",
@@ -1847,12 +1823,10 @@ module.exports = [
   { gate: "eventcost", file: "Valuate.lua",
     label: "having measured nothing prints an empty heading instead of saying so",
     from: "    if #costs == 0 then", to: "    if false then" },
-
   // Silently stopping at six reads as a complete list.
   { gate: "eventcost", file: "Valuate.lua",
     label: "the events not shown are dropped without saying how many",
     from: "    if #costs > 6 then", to: "    if false then" },
-
   // A report that flags everything flags nothing.
   { gate: "eventcost", file: "Valuate.lua",
     label: "every event is coloured as a problem, including the cheap ones",
@@ -1987,7 +1961,6 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "unenchanted slots vanish from the list entirely once nothing is known for them",
     from: "    elseif bareSlots > 0 then", to: "    elseif false then" },
-
   // The count comes from the Enhance tab's own logic, or the two drift apart again.
   { gate: "todotest", file: "Valuate.lua",
     label: "the to-do count stops coming from the Enhance tab and can disagree with it again",
@@ -2080,7 +2053,6 @@ module.exports = [
   { gate: "deletelimit", file: "Valuate.lua",
     label: "cleanup runs even when the bags are already at the target",
     from: "    if not preview and free >= keepFree then", to: "    if false then" },
-
   // "Delete now" means "run the normal cleanup immediately", not "empty my bags". This is the
   // one place a reasonable person might have made an exception.
   { gate: "deletelimit", file: "Valuate.lua",
@@ -2107,18 +2079,15 @@ module.exports = [
   { gate: "deletelimit", file: "Valuate.lua",
     label: "a slot whose contents changed since the scan is deleted anyway",
     from: "            if nowLink ~= c.link or nowLocked then", to: "            if false then" },
-
   // A locked slot is mid-move, mid-split, or waiting on the server.
   { gate: "deletelimit", file: "Valuate.lua",
     label: "a locked slot is treated as ordinary junk",
     from: "                if isJunk and slotLocked then", to: "                if false then" },
-
   // The confirmation dialog exists to prevent exactly this kind of accident.
   { gate: "deletelimit", file: "Valuate.lua",
     label: "an item left on the cursor by a confirmation popup is counted as deleted",
     from: "                if CursorHasItem and CursorHasItem() then\n                    ClearCursor()",
     to: "                if false then\n                    ClearCursor()" },
-
   // ---- suggesting a quest reward is not taking it (v0.187.0a) --------------
   // A quest reward is irreversible in a way even deletion is not: the other choices are gone
   // the moment the quest completes, and there is no buyback for a road not taken.
@@ -2134,13 +2103,11 @@ module.exports = [
   { gate: "questaction", file: "Valuate.lua",
     label: "quest rewards are chosen even with the feature switched off",
     from: "    if not options.autoQuestReward then", to: "    if false then" },
-
   // No scale, no weights, no opinion - and a guess here spends a choice you cannot get back.
   { gate: "questaction", file: "Valuate.lua",
     scope: { start: "function Valuate:AutoSelectBestQuestReward", end: "\n    local scored, links" },
     label: "a reward is chosen with no active scale to score against",
     from: "    if not scale then", to: "    if false then" },
-
   // ChooseQuestReward returns nil when it should not guess.
   { gate: "questaction", file: "Valuate.lua",
     label: "the policy declining to choose is ignored and a reward is taken anyway",
@@ -2293,7 +2260,6 @@ module.exports = [
   { gate: "bestequiptest", file: "ui/BestEquipment.lua",
     label: "both slots locked reports only the main hand, so the off hand looks described",
     from: "    if mh and oh then", to: "    if false then" },
-
   // A weapon set has nothing to say about your chest, and a note that fired for any lock at
   // all would appear on every tooltip for every scale the moment you pinned anything.
   { gate: "bestequiptest", file: "ui/BestEquipment.lua",
@@ -2308,7 +2274,6 @@ module.exports = [
   { gate: "todotest", file: "Valuate.lua",
     label: "upgrades sitting in your bank never appear on the to-do list",
     from: "    if bankUpgrades > 0 then", to: "    if false then" },
-
   // THE `and` TRAP, which the sockets block below already carries a warning about: an `and`
   // expression adjusts to a SINGLE value, so the third return - the only one wanted here -
   // becomes nil and the item can never appear. Written that way once already in this function.
@@ -2685,7 +2650,6 @@ module.exports = [
   { gate: "locktest", file: "Valuate.lua",
     label: "a locked slot is emptied by the next scan, which is the opposite of a lock",
     from: "                if isLocked and previous[slotId] then", to: "                if false then" },
-
   // The other direction. "Preserve everything" also keeps the locked slot, and freezes
   // best-in-slot at whatever the first scan of the session found - a lock on every slot,
   // shown nowhere.
@@ -2773,7 +2737,6 @@ module.exports = [
     label: "the pass has no time budget, so a large database is evaluated inside one repaint",
     from: "                elseif spent or (debugprofilestop() - start) > PASS_BUDGET_MS then",
     to: "                elseif false then" },
-
   // Their table is reused and wiped on every rebuild, so handing back a copy hands back a view
   // of something about to be emptied.
   { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
@@ -2792,7 +2755,6 @@ module.exports = [
   { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
     label: "switching spec keeps every verdict computed for the other one",
     from: "    if scaleName and scaleName ~= memoScale then", to: "    if false then" },
-
   // Their cache is keyed on their own filter state, which our button is not part of.
   // Scoped: SetMode invalidates too, and an unscoped anchor lands on whichever comes first
   // rather than on the driver path this gate drives.
@@ -2811,13 +2773,11 @@ module.exports = [
     label: "an item that could not be evaluated is hidden rather than shown",
     from: "    if verdict == ns.UNKNOWN or verdict == nil then return true end",
     to: "    if false then return true end" },
-
   // Mystic scrolls and vendors are not gear. Filtering them by stat weights empties tabs that
   // have nothing to do with this addon, which reads as a broken addon rather than a filter.
   { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
     label: "non-gear rows are filtered by stat weights, emptying the mystic and vendor tabs",
     from: "    if not isGear then return true end", to: "    if false then return true end" },
-
   // The two filter modes have to differ, or one of the three button states does nothing.
   { gate: "lctest", file: "../Valuate-LootCollector/Score.lua",
     label: "'My Stats' filters exactly like 'Upgrades', so one button state is dead",
@@ -2914,4 +2874,47 @@ module.exports = [
     label: "the swap guard stops saying why it refused, so mid-swap looks like a clean zero",
     from: "    if equipmentSwapPending then return nil, 0, \"an item is still being swapped\" end",
     to: "    if equipmentSwapPending then return nil, 0 end" },
+// ---- the to-do list's coverage (v0.203.0a) -------------------------------
+  // An empty to-do list is read as "you are done", and people act on it by not acting. Each
+  // of these puts the old lie back in a different way.
+  { gate: "todounread", file: "ui/TodoPanel.lua",
+    label: "the panel vouches for gems and enchants it never read",
+    from: "    if type(unread) ~= \"table\" or #unread == 0 then return all end",
+    to: "    if true then return all end" },
+
+  // The other direction, and the one a careless fix produces: hedging on every refresh. That
+  // has not removed the lie, only moved it to the side where someone who IS done is told they
+  // might not be.
+  { gate: "todounread", file: "ui/TodoPanel.lua",
+    label: "the confident sentence keeps its blanket claim and merely appends a caveat",
+    from: "    return \"Nothing outstanding among the things I could check just now - but \" ..",
+    to: "    return all .. \" Also, \" .." },
+
+  { gate: "todounread", file: "ui/TodoPanel.lua",
+    label: "a coverage line appears on refreshes where nothing was missed, so it stops meaning anything",
+    from: "    if type(unread) ~= \"table\" or #unread == 0 then return nil end",
+    to: "    if type(unread) ~= \"table\" then return nil end" },
+
+  // The two sources feeding it, one each. Break either and the sentence above is honest about
+  // a fact it can no longer obtain.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "a socket read that was refused is not reported, so the panel says gems are fine",
+    from: "        if blocked then unread[#unread + 1] = \"empty sockets (\" .. tostring(blocked) .. \")\" end",
+    to: "        if false then unread[#unread + 1] = \"empty sockets (\" .. tostring(blocked) .. \")\" end" },
+  { gate: "todotest", file: "Valuate.lua",
+    label: "worn items that have not loaded are never mentioned, so a fresh login looks finished",
+    from: "        if (unreadable or 0) > 0 then",
+    to: "        if false then" },
+  // An unreadable enchant field silently skipped is how "0 slots unenchanted" gets reported
+  // about gear nothing could parse.
+  { gate: "enchants", file: "Valuate.lua",
+    label: "an unparseable link is skipped silently instead of counted as unread",
+    from: "                elseif enchantId == nil then",
+    to: "                elseif false then" },
+  // And the pair. Counting every empty slot as unread makes a character who wears no bracers
+  // permanently "still loading" - a note that never clears is one you stop reading.
+  { gate: "enchants", file: "Valuate.lua",
+    label: "an empty slot is counted as unread, so the note never clears",
+    from: "            elseif GetInventoryItemTexture and GetInventoryItemTexture(\"player\", def.slotId) then",
+    to: "            else" },
 ];
