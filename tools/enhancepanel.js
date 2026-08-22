@@ -580,6 +580,34 @@ local lo, hi = scrollBar:GetMinMaxValues()
 eq(lo, 0, "that starts at the top")
 ok(hi > 0, "and can reach the bottom of a list taller than the frame (" .. tostring(hi) .. ")")
 
+-- How far there is to scroll depends on TWO numbers, and only one of them changes when the
+-- list does. The other is the height of the frame you are reading it through - and that moves
+-- on its own: the window animates to its tab height AFTER the refresh that computed the range,
+-- and it is user-resizable besides. Computed once, the range is whatever fitted the PREVIOUS
+-- tab, and the last row or two are unreachable.
+local before = select(2, scrollBar:GetMinMaxValues())
+scroll:SetHeight(scroll:GetHeight() - 120)
+local after = select(2, scrollBar:GetMinMaxValues())
+ok(after > before,
+   "shrinking the frame lengthens the scroll range without waiting for a refresh (" ..
+   tostring(before) .. " -> " .. tostring(after) .. ")")
+
+scroll:SetHeight(scroll:GetHeight() + 120)
+eq(select(2, scrollBar:GetMinMaxValues()), before, "and growing it back restores the range")
+
+-- A bar that cannot move reads as a list that failed to load, so it goes away instead.
+scroll:SetHeight(100000)
+eq(select(2, scrollBar:GetMinMaxValues()), 0, "a frame taller than its list has nothing to scroll")
+ok(not scrollBar:IsShown(), "and the scroll bar is hidden rather than sitting there inert")
+scroll:SetHeight(200)
+ok(scrollBar:IsShown(), "it comes back the moment there is something to scroll")
+
+-- The thumb cannot be left parked past the new end of a shorter list.
+scrollBar:SetValue(select(2, scrollBar:GetMinMaxValues()))
+scroll:SetHeight(100000)
+ok(scrollBar:GetValue() <= 0, "a bar scrolled to the bottom is pulled back when the list fits")
+scroll:SetHeight(200)
+
 -- ---- rows are pooled, not recreated ----------------------------------------------------------------
 local before = #__frames
 for _ = 1, 5 do ns.RefreshEnhancePanel() end

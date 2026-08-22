@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.178.0a] - 2026-08-16 — the in-game checklist catches up
+
+### Added
+- **Five new `/valuate verify` checks**, for the five releases the walkthrough had fallen
+  behind: the slot lock, auto-sell keeping what it cannot read, the Enhance tab's seven
+  states, the context scales, and `/valuate profile`. The checklist was **10 minor releases
+  behind — exactly at the limit its gate allows** — and three of the five cover bugs reported
+  from the client today. A checklist that quietly falls behind is worse than a short one: it
+  reports "nothing pending", and that sounds like assurance.
+
+  Each says what its gate *cannot* prove, because that is the only reason to walk one by hand.
+  The auto-sell check is the one that matters most: run `/valuate sellpreview` right after a
+  login, before your bags have finished caching, when the keep list should be full of "the
+  client has not cached it yet" — then again a minute later, when most of those should have
+  moved to a real verdict. A keep list that never empties means the read is failing
+  permanently rather than transiently, and auto-sell has quietly become a feature that does
+  nothing.
+
+### Fixed
+- **The Enhance tab's scroll range never tracked the frame it was measured against.** How far
+  there is to scroll depends on two numbers, and only one of them changes when the list does.
+  The other is the height of the frame you read it through — and the window animates to its
+  tab height *after* the refresh that computed the range. So arriving at the tab left the
+  range set to whatever fitted the previous tab, with the last row or two unreachable, and
+  dragging the window taller never told the bar either. Recomputed on `OnSizeChanged` now.
+- **The scroll bar is hidden when the whole list fits.** A bar that cannot move reads as a
+  list that failed to load.
+- **A bar scrolled to the bottom is pulled back** when the list gets shorter, rather than
+  leaving the content scrolled off the top.
+
+### Internal
+- The harness now **fires `OnSizeChanged` when a frame actually changes size**, as the client
+  does. Every such handler in the addon was unreachable from a gate before this, so a range
+  computed once against the wrong height looked correct forever. Third mock-fidelity fix in
+  two days, and the same lesson each time: a mock that answers calls the client would refuse,
+  or stays silent where the client speaks, is a test of a client that does not exist.
+
 ## [0.177.3a] - 2026-08-16 — HOTFIX: locking a slot and scanning emptied it
 
 ### Fixed

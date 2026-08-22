@@ -318,13 +318,35 @@ function ns.CreateEnhancePanel(parent)
 
     -- Height of the scroll child, and whether the bar can move at all. Called once at the end
     -- of a refresh, when every row has been measured.
-    local function Resize(contentHeight)
+    -- Remembered, because how far there is to scroll depends on TWO numbers and only one of
+    -- them changes when the list does. The other is the height of the frame the list is being
+    -- read through, and that moves on its own: the window animates to its tab height AFTER the
+    -- refresh that computed the range, and it is user-resizable besides.
+    --
+    -- Without this the range is whatever fitted the PREVIOUS tab, so arriving at Enhance for
+    -- the first time in a session left the last row or two unreachable - and dragging the
+    -- window taller never gave the scroll bar the news.
+    local lastContentHeight = 1
+
+    local function ApplyScrollRange()
         content:SetWidth(math.max(1, scrollFrame:GetWidth()))
-        content:SetHeight(math.max(1, contentHeight))
-        local range = math.max(0, contentHeight - scrollFrame:GetHeight())
+        content:SetHeight(math.max(1, lastContentHeight))
+        local range = math.max(0, lastContentHeight - scrollFrame:GetHeight())
         scrollBar:SetMinMaxValues(0, range)
         if scrollBar:GetValue() > range then scrollBar:SetValue(range) end
+        -- Nothing to scroll is not the same as a bar pinned at the top. Hidden, because a
+        -- scroll bar that cannot move reads as a list that failed to load.
+        if range > 0 then scrollBar:Show() else scrollBar:Hide() end
     end
+    panel.ApplyScrollRange = ApplyScrollRange
+
+    local function Resize(contentHeight)
+        lastContentHeight = contentHeight
+        ApplyScrollRange()
+    end
+
+    -- The frame telling us itself, rather than us guessing when it might have changed.
+    scrollFrame:SetScript("OnSizeChanged", ApplyScrollRange)
 
     local function Refresh()
         local scale, scaleName = nil, nil

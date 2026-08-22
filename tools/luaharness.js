@@ -91,9 +91,18 @@ function CreateFrame(frameType, name, parent, template)
     function f:GetAlpha() return self.__alpha end
     function f:SetScale(s) self.__scale = s end
     function f:GetScale() return self.__scale end
-    function f:SetHeight(h) self.__height = h end
+    -- A RESIZE TELLS THE FRAME. In the client, changing a frame's dimensions fires
+    -- OnSizeChanged, and panels rely on that to recompute anything measured against their own
+    -- size - scroll ranges above all. A mock that only stored the number left every such
+    -- handler unreachable from a gate, so a range computed once against the wrong height
+    -- looked correct forever.
+    local function sizeChanged(self)
+        local handler = self.__scripts and self.__scripts.OnSizeChanged
+        if handler then handler(self, self.__width or 0, self.__height or 0) end
+    end
+    function f:SetHeight(h) local was = self.__height self.__height = h if was ~= h then sizeChanged(self) end end
     function f:GetHeight() return self.__height end
-    function f:SetWidth(w) self.__width = w end
+    function f:SetWidth(w) local was = self.__width self.__width = w if was ~= w then sizeChanged(self) end end
     function f:GetWidth() return self.__width end
     function f:Show() self.__shown = true end
     function f:Hide() self.__shown = false end
@@ -179,7 +188,11 @@ function CreateFrame(frameType, name, parent, template)
     -- returning no-ops: a mock that answers every call agrees with every mistake, which
     -- is the opposite of what these gates are for. An unmocked method is a loud nil-call
     -- naming the exact line, which is the right failure.
-    function f:SetSize(w, h) self.__width, self.__height = w, h end
+    function f:SetSize(w, h)
+        local ww, hh = self.__width, self.__height
+        self.__width, self.__height = w, h
+        if ww ~= w or hh ~= h then sizeChanged(self) end
+    end
     function f:GetParent() return self.__parent end
     function f:SetParent(p) self.__parent = p end
     function f:SetChecked(v) self.__checked = v and true or false end

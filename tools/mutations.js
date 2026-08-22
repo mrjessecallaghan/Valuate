@@ -1651,7 +1651,7 @@ module.exports = [
   // Seventeen rows do not fit the window. They used to run off the bottom of it.
   { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
     label: "the scroll range is always zero, so rows past the fold are unreachable",
-    from: "        local range = math.max(0, contentHeight - scrollFrame:GetHeight())",
+    from: "        local range = math.max(0, lastContentHeight - scrollFrame:GetHeight())",
     to: "        local range = 0" },
 
   // "already enhanced" is the whole of what the item link supports. Dropping the words leaves
@@ -1879,6 +1879,24 @@ module.exports = [
     label: "a nomination whose scale is gone reads as if nothing was ever chosen",
     from: "            if not scale then return value .. \" (missing)\" end",
     to: "            if not scale then return NONE end" },
+
+  // ---- the scroll range tracks the frame (v0.178.0a) ------------------------
+  // How far there is to scroll depends on two numbers and only one of them changes when the
+  // list does. The window animates to its tab height AFTER the refresh that computed the
+  // range, and it is user-resizable besides.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the scroll range is computed once and never tracks the frame it is measured against",
+    from: "    scrollFrame:SetScript(\"OnSizeChanged\", ApplyScrollRange)", to: "" },
+
+  // A bar that cannot move reads as a list that failed to load.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "an inert scroll bar sits there when the whole list already fits",
+    from: "        if range > 0 then scrollBar:Show() else scrollBar:Hide() end", to: "" },
+
+  // A thumb left past the end of a shorter list scrolls the content off the top.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "a bar scrolled to the bottom stays there when the list gets shorter",
+    from: "        if scrollBar:GetValue() > range then scrollBar:SetValue(range) end", to: "" },
 
   // ---- a locked slot survives a scan (v0.177.3a) ---------------------------
   // Locking a slot and pressing Scan emptied it. Every assignment site guards on
