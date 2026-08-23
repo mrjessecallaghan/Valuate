@@ -6,23 +6,32 @@
  *
  *     node tools/backup.js
  *
- * `Valuate-AdiBags` and `Valuate-PassLoot` are real git repositories with real history and
- * NO REMOTE. Everything committed to them exists on exactly one disk. That has already been
- * a live risk rather than a theoretical one: a behavioural bug fix went into PassLoot in
- * v0.57.0a and sat, unbacked, in one place.
+ * Two sibling addons are git repositories with real history and NO REMOTE. Everything committed
+ * to them exists on exactly one disk.
  *
- * The right fix is two private GitHub repos, which needs a person - `gh` is not installed
- * here and creating them is not something a script should do on someone's behalf. Until
- * then, a git bundle is a complete, verifiable, single-file clone source: `git clone
+ * WHICH TWO HAS CHANGED, AND THAT IS THE POINT. When this was written it was Valuate-AdiBags
+ * and Valuate-PassLoot; both have remotes now. Today it is Valuate-TSM and
+ * Valuate-LootCollector, neither of which existed then. The list below is DISCOVERED for
+ * exactly that reason - a hand-written one would still be bundling the two addons that no
+ * longer need it while ignoring the two that do.
+ *
+ * The right fix is a private GitHub repo for each, which needs a person - `gh` is not installed
+ * here and creating them is not something a script should do on someone's behalf. Until then, a
+ * git bundle is a complete, verifiable, single-file clone source: `git clone
  * Valuate-PassLoot.bundle` restores the entire history.
  *
- * This exists because the manual version drifted. The bundles were written by hand on
- * 29 July and not again until 9 August, by which point AdiBags was EIGHT commits ahead of
- * its backup and PassLoot one. A thing you have to remember to do is a thing that stops
- * being done - the same argument behind every self-discovering list in this toolchain.
+ * This exists because the manual version drifted. The bundles were written by hand on 29 July
+ * and not again until 9 August, by which point AdiBags was EIGHT commits ahead of its backup
+ * and PassLoot one. A thing you have to remember to do is a thing that stops being done - the
+ * same argument behind every self-discovering list in this toolchain.
  *
- * Reports how stale each backup was before refreshing it, so running it tells you whether
- * you needed to.
+ * And then it drifted again anyway, because being self-discovering does not make it RUN: on
+ * 23 August, Valuate-LootCollector had no bundle at all and Valuate-TSM was five commits
+ * behind. tools/backupfresh.js is the gate that closes that loop - it fails the ordinary gate
+ * run when anything here has drifted, and names this script.
+ *
+ * Reports how stale each backup was before refreshing it, so running it tells you whether you
+ * needed to.
  */
 "use strict";
 

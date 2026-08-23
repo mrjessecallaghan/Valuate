@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.215.0a] - 2026-08-23 — the backup that had stopped happening
+
+### Fixed
+**Two addons had drifted off their only backup, and one had never had one.**
+
+`Valuate-TSM` and `Valuate-LootCollector` are git repositories with **no remote** — everything
+committed to them exists on one disk. `tools/backup.js` writes a git bundle of each to OneDrive
+so there is a second copy, and it has been self-discovering and correct for a long time.
+
+What it was not is **run**. Checked today:
+
+| | |
+|---|---|
+| `Valuate-LootCollector` | **no previous backup at all** |
+| `Valuate-TSM` | **5 commits behind**, including both of that day's releases |
+
+Both are bundled now. `backup.js` says it out loud in its own header — *"a thing you have to
+remember to do is a thing that stops being done"* — and then relied on somebody remembering to
+do it.
+
+### Added
+**`tools/backupfresh.js`** fails the ordinary gate run when an unbacked addon has drifted ahead
+of its bundle, and names the command that fixes it. The rule everywhere else in this toolchain
+is that a thing worth remembering becomes part of the run; this applies it to the one piece of
+housekeeping that was still manual.
+
+**Read-only, deliberately.** Gates in this project never act, and one that quietly wrote the
+backups would hide the drift it exists to report — the run would go green having just fixed the
+problem, and nobody would learn it had been drifting for five commits.
+
+It also refuses to pass on an empty scan. *"Nothing needs backing up"* is this gate's success
+message, so a broken directory scan produces it too — which would make it pass loudest at the
+exact moment it stopped checking anything.
+
+### Internal
+**Two mutations were written for it, survived, and were deleted rather than kept.** This gate
+has no fixture — it reads the real disk, so a mutation can only exercise the branches the disk
+happens to be in. The missing-bundle path is unreachable while both bundles exist, and a broken
+`needsBackup` produces the success message, which no predicate can catch about itself. The gate
+header now says which of its behaviours are unproven and why, because a mutation that cannot
+fail is decorative and pretending otherwise is worse than the gap.
+
+The missing-bundle branch was verified by hand instead — bundle moved aside, gate failed with
+the right message, bundle moved back.
+
+`backup.js`'s own header was three weeks stale: it named AdiBags and PassLoot as the unbacked
+pair, and both have had remotes for some time. The list was already discovered rather than
+written down, which is the only reason it kept working.
+
+93 gates, 540 mutations.
+
 ## [0.214.0a] - 2026-08-23 — the auction you selected, and the file nobody was testing
 
 ### Internal

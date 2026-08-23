@@ -3234,4 +3234,18 @@ module.exports = [
     label: "a sibling suite drops a return the caller checks, and the gate cannot see it",
     from: "        callback()\n    end\n    return true\nend",
     to: "        callback()\n    end\nend" },
+// ---- backup freshness (v0.215.0a) ----------------------------------------
+  // "Nothing needs backing up" is this gate's SUCCESS message, so a broken directory scan
+  // produces it too - the gate would pass loudest at the moment it stopped checking anything.
+  { gate: "backupfresh", file: "tools/backupfresh.js",
+    label: "the scan looks in the wrong place and reports a clean disk it never read",
+    from: "  .filter((e) => e.isDirectory() && /^Valuate-/.test(e.name))",
+    to: "  .filter((e) => e.isDirectory() && /^NotAnAddon-/.test(e.name))" },
+
+  // The rule has to match backup.js exactly. If the two disagree about what needs backing up,
+  // this reports on a set nobody is bundling - which is worse than not checking, because it
+  // reads as coverage.
+
+  // A missing bundle is the worst case, not a neutral one: it means the entire history of that
+  // addon exists on one disk.
 ];
