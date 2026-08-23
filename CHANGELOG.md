@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.221.0a] - 2026-08-23 — the half of a rule that was never tested
+
+### Internal
+**A gate claimed a property in its header that its fixture never exercised.**
+
+`tools/wardrobetest.js` states the rule plainly: *"IsAppearanceCollected **errors** or returns
+nil → the appearance is NOT treated as uncollected."* The wardrobe API is Ascension's, not
+Blizzard's, and nobody here has ever run it — which is why every call to it is `pcall`'d and why
+that rule exists at all.
+
+The nil half was tested. The **error** half was tested for one call and not the other: the
+fixture never made `GetItemAppearanceID` fail. Removing its guard changed the behaviour and no
+assertion noticed, because an errored `pcall` hands back the error **string**, which is truthy —
+so `if appearanceId then` would accept an error message as an appearance id, look it up, dedupe
+on it, and collect against it.
+
+Six mutations, two survived, and the two are different things:
+
+| | |
+|---|---|
+| **a real gap** | the errored `GetItemAppearanceID` path. Fixed with a fixture that makes it throw, plus its pair so that "always collect nothing" cannot pass |
+| **genuinely equivalent** | the `okHas` guard beside it. `collected == false` already rejects an error string on its own, so dropping `okHas` changes no behaviour. The mutation was deleted and a note left in its place — it is recorded as equivalent rather than kept looking like protection. The guard stays in the source because it says what the author meant; it simply cannot be broken from outside |
+
+Telling those two apart is the whole value of a SURVIVED result. Treating both as gaps would
+have meant inventing a test for something untestable; treating both as noise would have left an
+unverified API able to act on an error message.
+
+`wardrobetest` leaves `UNPROVEN_AT_BASELINE`, which promptly un-anchored the mutation that pins
+that very list — caught as UNAPPLIED on the next run, which is what that report is for.
+
+95 gates, 573 mutations. Eighteen gates remain unproven, none guarding an action.
+
 ## [0.220.0a] - 2026-08-23 — twenty-two gates nothing had tried to break
 
 ### Internal

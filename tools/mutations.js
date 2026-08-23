@@ -3434,12 +3434,52 @@ module.exports = [
   // stopped. Three gates guarding irreversible actions had none until this release.
   { gate: "toolsource", file: "tools/toolsource.js",
     label: "a gate that is neither mutated nor baselined slips through unnoticed",
-    from: "  \"typescale\",\n  \"wardrobetest\",",
-    to: "  \"wardrobetest\"," },
+    from: "  \"typescale\",\n  \"wizardroles\",",
+    to: "  \"wizardroles\"," },
 
   // The baseline must prune itself, or it reads as more debt than exists.
   { gate: "toolsource", file: "tools/toolsource.js",
     label: "the baseline keeps names that have since gained a mutation, overstating the debt",
     from: "  const mutatedGates = new Set(MUTATIONS.map((m) => m && m.gate).filter(Boolean));",
     to: "  const mutatedGates = new Set([...MUTATIONS.map((m) => m && m.gate).filter(Boolean), \"typescale\"]);" },
+// ---- wardrobe collecting (v0.221.0a) -------------------------------------
+  // The wardrobe API is Ascension's, not Blizzard's, and has never been run by anyone here. The
+  // gate's whole design is that every uncertain answer means DO NOTHING - and nothing proved
+  // those rules would be noticed if they stopped holding.
+  //
+  // THE ONE THAT MATTERS. IsAppearanceCollected returns false for "you do not have it" and nil
+  // for "I could not find out". `not collected` treats both as uncollected, so the addon acts
+  // on an answer it never got - against an API nobody has confirmed.
+  { gate: "wardrobetest", file: "Valuate.lua",
+    label: "an appearance it could not ask about is treated as one you do not have",
+    from: "                    if okHas and collected == false and not seenAppearance[appearanceId] then",
+    to: "                    if okHas and not collected and not seenAppearance[appearanceId] then" },
+
+  // NOT MUTATED: the `okHas` half of that same condition. An errored pcall hands back the error
+  // STRING, and `collected == false` already rejects a string - so dropping okHas changes no
+  // behaviour at all. It was written as a mutation, came back SURVIVED, and is recorded here as
+  // equivalent rather than left in the file looking like protection. The guard stays in the
+  // source because it says what the author meant; it simply cannot be broken from outside.
+
+  // IsAppearanceCollected does not catch up within a single pass, so two items sharing an
+  // appearance would both be collected - the second one redundantly.
+  { gate: "wardrobetest", file: "Valuate.lua",
+    label: "two items sharing an appearance are both collected, the second for nothing",
+    from: " and not seenAppearance[appearanceId] then", to: " then" },
+
+  // Re-verify before acting, the same rule the delete and sell paths follow: the list is a few
+  // frames old and the slot may hold something else entirely by now.
+  { gate: "wardrobetest", file: "Valuate.lua",
+    label: "it acts on a bag slot whose contents changed since the list was built",
+    from: "            if link == entry.link then", to: "            if true then" },
+
+  // Most clients are not this one. Calling a wardrobe API that is not there is an error in the
+  // middle of an automatic pass, not a graceful nothing.
+  { gate: "wardrobetest", file: "Valuate.lua",
+    label: "it runs on a client with no wardrobe API at all",
+    from: "    if not AppearanceApiReady() then", to: "    if false then" },
+
+  { gate: "wardrobetest", file: "Valuate.lua",
+    label: "an errored appearance-id read is used as an id",
+    from: "                if okId and appearanceId then", to: "                if appearanceId then" },
 ];

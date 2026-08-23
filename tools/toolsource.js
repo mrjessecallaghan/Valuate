@@ -287,7 +287,6 @@ const UNPROVEN_AT_BASELINE = new Set([
   "tooltiptest",
   "tsmratiotest",
   "typescale",
-  "wardrobetest",
   "wizardroles",
 ]);
 

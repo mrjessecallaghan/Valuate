@@ -167,6 +167,32 @@ eq(Valuate:LearnUncollectedAppearances(), 0, "and nothing is collected on a nil 
 eq(#collectCalls, 0, "not one call")
 C_AppearanceCollection.IsAppearanceCollected = savedIs
 
+-- ---- an appearance ID we did not get is not an ID ------------------------------------------
+--
+-- The other half of the same rule, and the half nothing covered: GetItemAppearanceID is pcall'd
+-- for the same reason IsAppearanceCollected is - this is Ascension's API and nobody here has
+-- run it - but the fixture never made it fail, so the guard on its result was never exercised.
+--
+-- It matters more than the collected-check guard, and in the opposite direction. An errored
+-- pcall hands back the error STRING, which is truthy: collected == false rejects that on its
+-- own, but if appearanceId then would happily accept it and go on to use an error message as
+-- an appearance id - looking it up, deduping on it, and collecting against it.
+reset()
+COLLECTED = {}
+local savedGet = C_Appearance.GetItemAppearanceID
+C_Appearance.GetItemAppearanceID = function() error("no such appearance") end
+local noId = Valuate:GetUncollectedAppearances()
+eq(noId and #noId, 0, "an errored appearance-id read leaves the item alone")
+eq(Valuate:LearnUncollectedAppearances(), 0, "and collects nothing")
+eq(#collectCalls, 0, "not one call against an id that is really an error message")
+C_Appearance.GetItemAppearanceID = savedGet
+
+-- The pair, so "always nothing" cannot pass: with the read working again it must still find it.
+reset()
+COLLECTED = {}
+local works = Valuate:GetUncollectedAppearances()
+ok(works and #works > 0, "and a working appearance-id read still finds uncollected items")
+
 -- ---- no wardrobe API at all ------------------------------------------------------------
 reset()
 local savedAppearance = C_Appearance
