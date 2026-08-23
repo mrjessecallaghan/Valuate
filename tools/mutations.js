@@ -3088,4 +3088,38 @@ module.exports = [
     scope: { start: "function Valuate:ConfirmAutoLootRoll", end: "-- Auto-accepts quests offered by NPCs" }, label: "a loot roll is confirmed with auto-roll switched off",
     from: "    if not options.autoRollLoot or not rollID then return end",
     to: "    if not rollID then return end" },
+// ---- orphaned scan cleanup (v0.209.0a) -----------------------------------
+  // The first restores the shipped behaviour: no floor at all, so a login where the scales
+  // failed to load deletes every scan you have and writes the saved variable without them.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "a login where the scales did not load deletes every scan result you have",
+    from: "    if stored > 0 and known == 0 and ns.scalesWereCreated then",
+    to: "    if false then" },
+
+  // The pair, and the reason the fix is not simply "never delete when there are no scales":
+  // deleting your last scale legitimately empties the table, and refusing there would hoard
+  // the scan data of every scale you have ever removed.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "an empty scales table you emptied yourself is treated as a failed read, so cleanup never runs",
+    from: "    if stored > 0 and known == 0 and ns.scalesWereCreated then",
+    to: "    if stored > 0 and known == 0 then" },
+
+  // Without the record, the invented table and the emptied one are the same value again and
+  // the distinction the whole fix rests on disappears.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "GetScales stops recording that it invented the table, collapsing the distinction",
+    from: "        ns.scalesWereCreated = true\n        ValuateScales = {}",
+    to: "        ValuateScales = {}" },
+
+  // Refusing on the missing table ALONE would warn every brand-new character about nothing,
+  // which is how a warning stops being read.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "the refusal fires with nothing at risk, so every new character is warned about nothing",
+    from: "    if stored > 0 and known == 0 and ns.scalesWereCreated then",
+    to: "    if known == 0 and ns.scalesWereCreated then" },
+
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "scans for scales that really are gone are kept forever instead of cleaned up",
+    from: "        if not scales[scaleName] then\n            bestEquipment[scaleName] = nil",
+    to: "        if false then\n            bestEquipment[scaleName] = nil" },
 ];

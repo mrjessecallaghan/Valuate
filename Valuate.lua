@@ -1082,6 +1082,12 @@ end
 -- Get character-specific scales table
 function Valuate:GetScales()
     if not ValuateScales then
+        -- RECORDED, because afterwards the two cases are the same empty table: one you emptied
+        -- yourself by deleting your last scale, and one this function just invented because the
+        -- saved variable was not there. A destructive path downstream has to tell them apart -
+        -- see Valuate:CleanupOrphanedBestEquipment, which deletes scan results for scales it
+        -- cannot find and runs on every login.
+        ns.scalesWereCreated = true
         ValuateScales = {}
     end
     return ValuateScales
@@ -6394,24 +6400,53 @@ end
 function Valuate:CleanupOrphanedBestEquipment()
     local bestEquipment = Valuate:GetBestEquipment()
     local scales = Valuate:GetScales()
+
+    -- Counted BEFORE anything is decided, because the decision below is about the totals
+    -- rather than about any one entry.
+    local stored, known = 0, 0
+    for _ in pairs(bestEquipment) do stored = stored + 1 end
+    for _ in pairs(scales) do known = known + 1 end
+
+    -- SCANS TO THROW AWAY, AND NO SCALES THAT WERE EVER READ.
+    --
+    -- This runs on every login and deletes the scan results of any scale it cannot find. That
+    -- is right when you deleted a scale - removing one leaves its scan behind on purpose, and
+    -- this is the tidy-up. It is catastrophically wrong when the scales simply did not load:
+    -- every scan looks orphaned, all of it goes, and the saved variable is written without it
+    -- when you log out. A re-scan of every bag and bank you own, and only if you notice.
+    --
+    -- The two arrive here as the SAME empty table, which is why GetScales now records having
+    -- invented one. A table you emptied yourself is a decision; a table that was never there
+    -- is a failed read, and nothing irreversible should be done on the strength of one.
+    --
+    -- Note the pairing: this refuses only when there is something to LOSE. A brand-new
+    -- character also has no scales table, and correctly falls straight through - it has no
+    -- scans either, so there is nothing here to be careful with.
+    if stored > 0 and known == 0 and ns.scalesWereCreated then
+        print("|cFFFF8800[Valuate]|r Your scales could not be read this session, so the scan " ..
+            "results for " .. stored .. " scale(s) were left alone rather than cleaned up.")
+        print("  |cFFAAAAAAIf your scales really are gone, /valuate scan rebuilds this. " ..
+              "Nothing has been deleted.|r")
+        return 0
+    end
+
     local removed = 0
-    
-    -- Iterate through all best equipment data
-    for scaleName, _ in pairs(bestEquipment) do
-        -- If the scale no longer exists, remove its best equipment data
+    for scaleName in pairs(bestEquipment) do
+        -- Setting an EXISTING field to nil during a pairs() traversal is explicitly allowed in
+        -- Lua 5.1; adding one is not. This only ever removes.
         if not scales[scaleName] then
             bestEquipment[scaleName] = nil
             removed = removed + 1
         end
     end
-    
+
     if removed > 0 then
         local options = Valuate:GetOptions()
         if options.chatMessages then
             print("|cFF00FF00[Valuate]|r Cleaned up best equipment data for " .. removed .. " removed scale(s)")
         end
     end
-    
+
     return removed
 end
 

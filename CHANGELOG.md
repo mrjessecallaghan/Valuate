@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.209.0a] - 2026-08-23 — a failed read never deletes your scans
+
+### Fixed
+**`CleanupOrphanedBestEquipment` deleted the scan results of every scale it could not find, and
+it runs on every login.**
+
+That is correct when you deleted a scale — removing one deliberately leaves its scan behind
+(`ui/ScaleList.lua` just nils the entry) and this is the tidy-up that follows at next login.
+
+It is catastrophic when the scales simply did not load. `Valuate:GetScales()` hands back a table
+it **invents** when `ValuateScales` is nil, rather than admitting it was missing — so every scan
+looks orphaned, all of it is deleted, and the saved variable is written without it when you log
+out. The cost is a re-scan of every bag and bank you own, assuming you notice at all: nothing
+errors, and under the old rule nothing was even printed unless chat messages happened to be on.
+
+The two states arrived here as **the same empty table**. `GetScales` now records having invented
+one, and the cleanup refuses to delete on the strength of a read that did not happen. It is the
+same distinction this addon draws everywhere else — *"I could not look"* is not *"there is
+nothing there"* — finally applied to the one path that destroys data.
+
+The condition is deliberately three-part, and each piece is load-bearing:
+
+| | |
+|---|---|
+| `stored > 0` | refuse only when there is something to **lose** — a brand-new character has no scales table either, and warning it about nothing is how a warning stops being read |
+| `known == 0` | a partial read still cleans up the entries it can account for |
+| `scalesWereCreated` | an empty table **you** emptied by deleting your last scale is a decision, not a failed read — refusing there would hoard the scan data of every scale you ever removed |
+
+### Internal
+New gate `tools/orphancleanup.js`, 16 checks, 5 mutations. Every assertion is paired against its
+opposite, because failing closed too eagerly is its own bug: a version that never cleaned
+anything would pass a one-sided test and quietly hoard data forever. Two of the five mutations
+exist specifically to catch that over-correction.
+
+91 gates, 523 mutations.
+
 ## [0.208.0a] - 2026-08-23 — nothing is soulbound on your behalf without intent you gave
 
 ### Internal
