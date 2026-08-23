@@ -1604,25 +1604,28 @@ end
 
 -- Migrate from account-wide to per-character SavedVariables
 function Valuate:MigrateToPerCharacter()
-    -- Check if we need to migrate from account-wide to per-character
-    -- The SavedVariablesPerCharacter are now the main storage, but we may have
-    -- old account-wide data that needs to be copied to this character
-    
-    -- Migration is automatic: WoW will create per-character versions of ValuateOptions
-    -- and ValuateScales when we use SavedVariablesPerCharacter in the .toc file
-    -- If this character doesn't have data yet, it will start with empty tables
-    
-    -- For backwards compatibility, we don't need explicit migration code since
-    -- each character will get a fresh copy when logging in after the update
-    
-    -- Just ensure the per-character data is initialized
-    if not ValuateOptions then
-        ValuateOptions = {}
-    end
-    
-    if not ValuateScales then
-        ValuateScales = {}
-    end
+    -- There is no copying to do. SavedVariablesPerCharacter in the .toc means WoW hands each
+    -- character its own ValuateOptions and ValuateScales; a character that has none simply
+    -- starts with nothing. All this has ever done is make sure the two tables exist.
+    --
+    -- It used to do that itself:
+    --
+    --     if not ValuateOptions then ValuateOptions = {} end
+    --     if not ValuateScales  then ValuateScales  = {} end
+    --
+    -- which is exactly what GetOptions and GetScales do - except those two also RECORD that
+    -- the table was missing, and Valuate:CleanupOrphanedBestEquipment refuses to delete your
+    -- scan results without that record.
+    --
+    -- Initialize calls THIS function first. So the duplicate quietly materialised both tables
+    -- before anything could observe they had been absent, and the protection added in
+    -- v0.209.0a never fired once on a real login. Its gate passed the whole time, because the
+    -- gate called GetScales directly instead of walking the order the client actually walks.
+    --
+    -- Two copies of one nil-check, and only one of them knew what the check was for. The fix
+    -- is not to teach the copy - it is to stop having one.
+    Valuate:GetOptions()
+    Valuate:GetScales()
 end
 
 -- Initialize function

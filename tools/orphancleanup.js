@@ -2,7 +2,12 @@
 /*
  * @gate Scan results are never thrown away because the scales failed to load
  *
- * Runs the real Valuate:GetScales and Valuate:CleanupOrphanedBestEquipment from Valuate.lua.
+ * Runs the real Valuate:GetScales, Valuate:MigrateToPerCharacter and
+ * Valuate:CleanupOrphanedBestEquipment from Valuate.lua.
+ *
+ * MigrateToPerCharacter is in that list because leaving it out is what made the first version
+ * of this gate worthless. It passed every assertion while the protection it was written for
+ * never fired once in the client - see THE ORDER THE CLIENT ACTUALLY WALKS at the bottom.
  *
  * This deletes the scan results of any scale it cannot find, and it runs on EVERY login.
  *
@@ -36,6 +41,9 @@ const lua = fs.readFileSync(path.join(ADDON_ROOT, "Valuate.lua"), "utf8");
 
 const PIECES = [
   /^function Valuate:GetScales\([\s\S]*?\r?\nend/m,
+  // Sliced in because the client reaches the cleanup THROUGH this, and what it does on the
+  // way is the difference between the protection working and being decorative.
+  /^function Valuate:MigrateToPerCharacter\([\s\S]*?\r?\nend/m,
   /^function Valuate:CleanupOrphanedBestEquipment\([\s\S]*?\r?\nend/m,
 ];
 const sliced = PIECES.map((re) => {
@@ -78,7 +86,15 @@ print = function(...)
     SAID[#SAID + 1] = table.concat(parts, " ")
 end
 
-function Valuate:GetOptions() return { chatMessages = true } end
+-- Models the real GetOptions rather than just answering: it materialises ValuateOptions when
+-- that is nil, and MigrateToPerCharacter now leans on exactly that. A stub that only returned a
+-- table would let a migration which quietly stopped initialising options pass unnoticed - the
+-- same shape of gap that let this whole release's bug through.
+function Valuate:GetOptions()
+    if not ValuateOptions then ValuateOptions = {} end
+    ValuateOptions.chatMessages = true
+    return ValuateOptions
+end
 function Valuate:GetBestEquipment()
     if not ValuateBestEquipment then ValuateBestEquipment = {} end
     return ValuateBestEquipment
@@ -89,7 +105,7 @@ end
 -- Puts the world back the way a fresh login finds it: saved variables as given, and no memory
 -- of a previous run's invented table.
 local function login(scales, best)
-    ValuateScales, ValuateBestEquipment = scales, best
+    ValuateScales, ValuateBestEquipment, ValuateOptions = scales, best, nil
     ns.scalesWereCreated = nil
     SAID = {}
 end
@@ -145,6 +161,46 @@ eq(ns.scalesWereCreated, nil, "a table that was really there is not reported as 
 -- initialisation with it.
 login(nil, nil)
 ok(pcall(Valuate.CleanupOrphanedBestEquipment, Valuate), "cleanup on an empty world does not error")
+
+-- ---- THE ORDER THE CLIENT ACTUALLY WALKS -------------------------------------------------------
+--
+-- Everything above calls GetScales directly. The client does not: Valuate:Initialize runs
+--
+--     MigrateToPerCharacter()  ->  GetScales()  ->  CleanupOrphanedBestEquipment()
+--
+-- and MigrateToPerCharacter used to carry its OWN copy of the nil-check:
+--
+--     if not ValuateScales then ValuateScales = {} end
+--
+-- which materialised the table before anything could observe it had been missing. The flag was
+-- therefore never set, the refusal never fired, and every assertion above passed anyway -
+-- because every assertion above skipped the step that broke it.
+--
+-- A protection is only as good as the ORDER it is reached in, so this drives the real one.
+local function initialize()
+    Valuate:MigrateToPerCharacter()
+    Valuate:GetScales()
+    return Valuate:CleanupOrphanedBestEquipment()
+end
+
+login(nil, { Dps = {}, Tank = {}, Healer = {} })
+eq(initialize(), 0,
+   "reached the way the client reaches it, an unread scales table STILL deletes nothing")
+eq(count(ValuateBestEquipment), 3, "and every scan survives the login")
+ok(saidAny("could not be read"), "with the reason said out loud")
+
+-- The pair, through the same door: a genuine tidy-up must still happen on the real path.
+login({ Dps = {} }, { Dps = {}, Gone = {} })
+eq(initialize(), 1, "and a scale you really deleted is still cleaned up on that same path")
+eq(count(ValuateBestEquipment), 1, "leaving what is still in use")
+
+-- Migration must not swallow the fact either. It exists only to make sure the tables are
+-- there, and the two functions that do that are the two that know why it matters.
+login(nil, nil)
+Valuate:MigrateToPerCharacter()
+eq(ns.scalesWereCreated, true,
+   "MigrateToPerCharacter goes through GetScales, so the missing table is still recorded")
+eq(type(ValuateOptions), "table", "and options are initialised too")
 
 return failures, checks
 `,

@@ -3122,4 +3122,21 @@ module.exports = [
     label: "scans for scales that really are gone are kept forever instead of cleaned up",
     from: "        if not scales[scaleName] then\n            bestEquipment[scaleName] = nil",
     to: "        if false then\n            bestEquipment[scaleName] = nil" },
+// ---- the order the client walks (v0.210.0a) ------------------------------
+  // THE SHIPPED BUG, restored verbatim. MigrateToPerCharacter carried its own copy of the
+  // nil-check and Initialize calls it FIRST, so the table was materialised before anything
+  // could observe it had been missing. The v0.209.0a protection never fired once on a real
+  // login - and its gate passed the whole time, because the gate called GetScales directly
+  // instead of walking the order the client walks.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "migration materialises the scales table itself, so the protection is decorative",
+    from: "    Valuate:GetOptions()\n    Valuate:GetScales()",
+    to: "    if not ValuateOptions then ValuateOptions = {} end\n    if not ValuateScales then ValuateScales = {} end" },
+
+  // The other half of what migration is for. Dropping options initialisation is silent until
+  // something reads a setting that is not there.
+  { gate: "orphancleanup", file: "Valuate.lua",
+    label: "migration stops initialising options, so the first setting read finds nothing",
+    from: "    Valuate:GetOptions()\n    Valuate:GetScales()",
+    to: "    Valuate:GetScales()" },
 ];

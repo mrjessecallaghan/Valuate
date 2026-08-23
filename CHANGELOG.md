@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.210.0a] - 2026-08-23 — the protection added yesterday never actually fired
+
+### Fixed
+**v0.209.0a's safeguard was inert on every real login.** It was written to stop
+`CleanupOrphanedBestEquipment` deleting your scan results when the scales failed to load, and
+its gate passed. In the client it never once ran.
+
+`Valuate:Initialize` walks this order:
+
+```
+MigrateToPerCharacter()  ->  GetScales()  ->  CleanupOrphanedBestEquipment()
+```
+
+and `MigrateToPerCharacter` carried **its own copy** of the nil-check:
+
+```lua
+if not ValuateOptions then ValuateOptions = {} end
+if not ValuateScales  then ValuateScales  = {} end
+```
+
+That is what `GetOptions` and `GetScales` do — except those two also *record* that the table was
+missing, which is the entire basis on which the cleanup refuses to delete. Because migration
+runs **first**, both tables were materialised before anything could observe they had been
+absent. The flag was never set, the refusal never fired, and the scan-deleting behaviour was
+exactly as it had been the day before.
+
+`MigrateToPerCharacter` now delegates to `GetOptions()` and `GetScales()` instead of repeating
+them. There was never any copying for it to do — SavedVariablesPerCharacter means WoW hands each
+character its own tables — so making sure they exist was always its whole job, and the two
+functions that already do that are the two that know why it matters.
+
+**Two copies of one nil-check, and only one of them knew what the check was for.** The fix is
+not to teach the copy; it is to stop having one. That is the third duplication bug in four
+releases — a rewritten mock in `todotest.js`, two `kinds()` helpers in one file, and now this.
+
+### Internal
+**Why the gate passed.** Every assertion in `tools/orphancleanup.js` called `GetScales`
+directly. The client does not. A protection is only as good as the **order it is reached in**,
+and a gate that enters through a different door proves nothing about the door people use.
+
+The gate now drives the real sequence, and the mutation that restores the shipped duplicate is
+caught. Also hardened: the fixture's `GetOptions` stub now models the real one's nil-fallback
+instead of merely returning a table — a stub too thin to reach the behaviour is the same gap
+one level down, and it is what let this through.
+
+23 checks, 7 mutations.
+
+91 gates, 525 mutations.
+
 ## [0.209.0a] - 2026-08-23 — a failed read never deletes your scans
 
 ### Fixed
