@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.211.0a] - 2026-08-23 — the seams between tested parts
+
+### Internal
+**Following v0.210.0a's lesson to its conclusion.** That release found a safeguard that was inert
+because its gate entered through a different door than the client does. The obvious question was
+whether anything else added in this run had the same defect. Two things did.
+
+**The socket rows had never been drawn by a gate.** `tools/enhancepanel.js` never supplied
+`Valuate.FindEmptySockets`, so `ns.SocketsBySlot` answered *"the socket reader is not loaded"* on
+every refresh and the panel ran permanently in its could-not-read state. The reader had a gate,
+the panel had a gate, and **nothing joined them** — so the half of v0.202.0a that reaches a
+screen was unexercised, and every other assertion in that file was being made against the
+degraded path.
+
+**The to-do coverage note had never been rendered.** `tools/todopanel.js` mocked `BuildTodoList`
+with a **single** return value, so `unread` was always nil, the confident sentence was always the
+one chosen, and the note added in v0.203.0a was never drawn. The formatters were gated, the
+second return was gated, and again the path between them was not.
+
+Both features turned out to *work*. That is worth saying plainly: this release fixes no
+user-visible behaviour. What it fixes is that neither feature had anything holding it in place,
+and five mutations now prove it does — including the Lua single-value trap on
+`Valuate:BuildTodoList`, which the old one-value mock could not have caught in principle.
+
+### Fixed
+**A gate assertion that passed for the wrong reason.** The new "the summary carries the socket
+total" check matched `2 empty sockets` — which the chest *row* also prints. Deleting the summary
+clause entirely left it passing. It is pinned to `/valuate sockets` now, which nothing else on
+the panel prints. Found by a SURVIVED mutation, which is precisely the job that tool exists to
+do.
+
+131 checks in `enhancepanel.js`, 28 in `todopanel.js`.
+
+91 gates, 530 mutations.
+
 ## [0.210.0a] - 2026-08-23 — the protection added yesterday never actually fired
 
 ### Fixed

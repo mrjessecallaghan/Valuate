@@ -224,6 +224,71 @@ local fine = pcall(ns.RefreshTodoPanel)
 ok(fine, "a kind this panel has never heard of does not break the list")
 eq(visibleRows(), 1, "and is still shown")
 
+-- ---- what the list did NOT read, drawn on the panel -----------------------------------------------
+--
+-- This seam was unexercised. The mock returned ONE value, so unread was always nil, the
+-- confident sentence was always the one chosen, and the coverage note added in v0.203.0a had
+-- never been rendered by any gate at all.
+--
+-- The formatters are gated in tools/todounread.js and BuildTodoList's second return is gated in
+-- tools/todotest.js. Neither proves the panel joins them up - which is the same shape as the
+-- v0.210.0a bug: every part tested, and the path between them not.
+--
+-- Note the mock now returns TWO values. Lua adjusts an and expression to one, and the panel's
+-- own call site carries a comment about exactly that; a fixture that returns one value can
+-- never catch it.
+local UNREAD = nil
+Valuate.BuildTodoList = function() return ITEMS, UNREAD end
+
+-- Every visible string on the panel.
+local function panelText()
+    local out = {}
+    for _, f in ipairs(__frames) do
+        if f.IsShown and f:IsShown() and f.GetRegions then
+            for _, r in ipairs({ f:GetRegions() }) do
+                if r and r.GetText and r:GetText() and r.IsShown and r:IsShown() then
+                    out[#out + 1] = r:GetText()
+                end
+            end
+        end
+    end
+    return table.concat(out, " | ")
+end
+
+-- An empty list with nothing unread: the confident sentence, unchanged.
+ITEMS, UNREAD = {}, nil
+ns.RefreshTodoPanel()
+local said = panelText()
+ok(said:find("all up to date", 1, true) ~= nil,
+   "nothing to do and nothing unread still says your gear is up to date")
+
+-- THE ONE THAT MATTERS. An empty list is read as "you are done", and a source that failed on
+-- this refresh means the panel cannot honestly say that.
+ITEMS, UNREAD = {}, { "empty sockets (an item is still being swapped)" }
+ns.RefreshTodoPanel()
+said = panelText()
+eq(said:find("all up to date", 1, true), nil,
+   "with a source unread, the blanket claim is GONE from the panel - not merely softened")
+ok(said:find("sockets", 1, true) ~= nil, "and what was missed is named on screen")
+
+-- Said on a NON-empty refresh too. A list of jobs is just as much a claim about partial
+-- coverage as a clean bill is, and the more dangerous of the two to over-read.
+ITEMS = { { kind = "scan", text = "Scan your gear", command = "/valuate scan" } }
+UNREAD = { "2 worn slots still loading" }
+ns.RefreshTodoPanel()
+said = panelText()
+ok(said:find("Not read this refresh", 1, true) ~= nil,
+   "a list with rows on it STILL says what went unread")
+ok(said:find("still loading", 1, true) ~= nil, "naming the source")
+
+-- And it withdraws. A note that never clears is one you stop reading.
+UNREAD = nil
+ns.RefreshTodoPanel()
+said = panelText()
+eq(said:find("Not read this refresh", 1, true), nil,
+   "a clean refresh withdraws the note rather than leaving it up")
+ITEMS = {}
+
 return failures, checks
 `,
   "todopanel",

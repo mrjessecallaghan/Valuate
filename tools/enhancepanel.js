@@ -680,6 +680,67 @@ local before = #__frames
 for _ = 1, 5 do ns.RefreshEnhancePanel() end
 eq(#__frames, before, "refreshing does not create new frames")
 
+-- ---- empty sockets, drawn on the row for the slot they are in -----------------------------------
+--
+-- This whole seam was unexercised. The fixture never supplied Valuate.FindEmptySockets, so
+-- ns.SocketsBySlot answered "the socket reader is not loaded" on every refresh and the panel
+-- ran permanently in its could-not-read state. Every assertion above was therefore made against
+-- the degraded path, and the socket feature shipped in v0.202.0a had no gate touching the half
+-- that reaches a screen.
+--
+-- The same shape as the v0.210.0a bug one level down: the gate entered through a door the
+-- client does not use.
+SOCKET_LIST, SOCKET_TOTAL, SOCKET_BLOCK = nil, 0, nil
+Valuate.FindEmptySockets = function() return SOCKET_LIST, SOCKET_TOTAL, SOCKET_BLOCK end
+
+SOCKET_LIST = { { slotId = 5, slotName = "Chest", sockets = 2 } }
+SOCKET_TOTAL = 2
+ns.RefreshEnhancePanel()
+
+local chest = rowFor("Chest")
+ok(chest ~= nil, "the chest row is drawn")
+ok(chest and chest:find("2 empty sockets", 1, true) ~= nil,
+   "a socketed item says how many of its sockets are bare, on its own row")
+
+-- The pair. A slot with nothing to say must say nothing, or the note is decoration.
+local feet = rowFor("Feet")
+ok(feet ~= nil, "the feet row is drawn")
+eq(feet and feet:find("empty socket", 1, true), nil,
+   "a fully gemmed slot says nothing about sockets rather than claiming zero")
+
+-- Asserted on the SUMMARY-ONLY half of that line. "2 empty sockets" also appears on the
+-- chest row, so matching it here passed whether or not the summary said anything at all -
+-- a mutation deleting the summary clause survived until this was pinned to the pointer,
+-- which nothing else on the panel prints.
+said = texts()
+ok(said:find("/valuate sockets", 1, true) ~= nil,
+   "and the summary carries the total, with the command to see them")
+
+-- ---- could not read is not the same as none ---------------------------------------------------
+-- Silence on a row reads as that slot being fine. Mid equipment swap that is the wrong answer,
+-- delivered in the most reassuring possible way - so every worn row says so instead.
+SOCKET_LIST, SOCKET_TOTAL, SOCKET_BLOCK = nil, 0, "an item is still being swapped"
+ns.RefreshEnhancePanel()
+chest = rowFor("Chest")
+ok(chest and chest:find("sockets not read", 1, true) ~= nil,
+   "when the sockets could not be read, a worn row SAYS so rather than falling silent")
+said = texts()
+ok(said:find("swapped", 1, true) ~= nil, "and the summary carries the reason")
+
+-- A slot with nothing equipped has no socket claim either way - there is no item to have them.
+local bareWrist = rowFor("Wrist")
+if bareWrist then
+    eq(bareWrist:find("sockets not read", 1, true), nil,
+       "an empty slot is not reported as unreadable - there is nothing in it to read")
+end
+
+-- ---- back to a clean read ------------------------------------------------------------------------
+SOCKET_LIST, SOCKET_TOTAL, SOCKET_BLOCK = nil, 0, nil
+ns.RefreshEnhancePanel()
+said = texts()
+eq(said:find("sockets not read", 1, true), nil, "a clean read withdraws the warning")
+eq(said:find("empty socket", 1, true), nil, "and claims no sockets when there are none")
+
 return failures, checks
 `,
   "enhancepanel",

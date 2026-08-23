@@ -3139,4 +3139,36 @@ module.exports = [
     label: "migration stops initialising options, so the first setting read finds nothing",
     from: "    Valuate:GetOptions()\n    Valuate:GetScales()",
     to: "    Valuate:GetScales()" },
+// ---- the seams between tested parts (v0.211.0a) --------------------------
+  // Every one of these sits BETWEEN two things that were already gated. The socket reader had a
+  // gate, the panel had a gate, and nothing joined them - so the socket rows had never once been
+  // drawn by a gate at all.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "worn rows stop showing empty sockets, and the tab silently loses the feature",
+    from: "                if worn then\n                    local n = socketsBySlot[def.slotId]",
+    to: "                if false then\n                    local n = socketsBySlot[def.slotId]" },
+
+  // Silence on a row reads as that slot being fine. Mid equipment swap that is the wrong answer
+  // delivered in the most reassuring possible way.
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "a slot whose sockets could not be read falls silent, so it looks finished",
+    from: "                        wornText = wornText .. \"  |cFF666666sockets not read|r\"",
+    to: "                        wornText = wornText" },
+
+  { gate: "enhancepanel", file: "ui/EnhancePanel.lua",
+    label: "the summary drops the socket total, so the count only exists per row",
+    from: "        elseif socketTotal > 0 then", to: "        elseif false then" },
+
+  // THE LUA TRAP, and the reason the fixture had to start returning two values. An `and`
+  // expression is adjusted to a SINGLE value, so `unread` silently becomes nil and the panel
+  // goes back to vouching for what it never read. The old one-value mock could not catch this.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "the second return is lost to Lua's single-value adjustment, so the panel vouches for everything",
+    from: "        if Valuate.BuildTodoList then items, unread = Valuate:BuildTodoList() end",
+    to: "        items, unread = Valuate.BuildTodoList and Valuate:BuildTodoList()" },
+
+  // A list of jobs is just as much a claim about partial coverage as a clean bill is.
+  { gate: "todopanel", file: "ui/TodoPanel.lua",
+    label: "a non-empty list stops saying what went unread, so partial coverage reads as complete",
+    from: "        if note and #items > 0 then", to: "        if false then" },
 ];
