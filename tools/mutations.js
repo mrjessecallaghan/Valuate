@@ -3171,4 +3171,20 @@ module.exports = [
   { gate: "todopanel", file: "ui/TodoPanel.lua",
     label: "a non-empty list stops saying what went unread, so partial coverage reads as complete",
     from: "        if note and #items > 0 then", to: "        if false then" },
+// ---- mock arity (v0.212.0a) ----------------------------------------------
+  // THE REGRESSION THIS GATE EXISTS FOR, restored exactly. A one-value mock of a two-value
+  // function is how the to-do list's coverage note went two releases without being rendered
+  // once - the gate passed the whole time, because the value carrying the point of the work
+  // was never returned to it.
+  { gate: "mockarity", file: "tools/todopanel.js",
+    label: "a mock quietly drops the second return, and the gate above it stops seeing the feature",
+    from: "Valuate.BuildTodoList = function() return ITEMS, UNREAD end",
+    to: "Valuate.BuildTodoList = function() return ITEMS end" },
+
+  // The allowlist has to prune itself. An entry that no longer matches anything makes the debt
+  // read as bigger than it is, and a list nobody prunes is a list nobody trusts.
+  { gate: "mockarity", file: "tools/settingstest.js",
+    label: "a reviewed entry goes stale and the allowlist starts overstating the debt",
+    from: "Valuate.GetProfessionOverrideChoices = function() return {} end",
+    to: "Valuate.GetProfessionOverrideChoices = function() return {}, {} end" },
 ];

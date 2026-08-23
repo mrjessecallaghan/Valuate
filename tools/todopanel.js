@@ -56,7 +56,14 @@ __ran = {}
 SlashCmdList = { VALUATE = function(arg) table.insert(__ran, arg) end }
 
 local ITEMS = {}
-Valuate.BuildTodoList = function() return ITEMS end
+-- ONE definition, returning BOTH values from the start.
+--
+-- This began as a one-value mock, and when the second return was added a THIRD-release-later
+-- block simply defined the function again further down. Two mocks for one function in one
+-- file, with every assertion above the second one still running against the thin copy - the
+-- same duplication that had already cost a bug in todotest.js and another in Valuate.lua.
+local UNREAD = nil
+Valuate.BuildTodoList = function() return ITEMS, UNREAD end
 
 local host = CreateFrame("Frame")
 host:SetWidth(600)
@@ -237,8 +244,6 @@ eq(visibleRows(), 1, "and is still shown")
 -- Note the mock now returns TWO values. Lua adjusts an and expression to one, and the panel's
 -- own call site carries a comment about exactly that; a fixture that returns one value can
 -- never catch it.
-local UNREAD = nil
-Valuate.BuildTodoList = function() return ITEMS, UNREAD end
 
 -- Every visible string on the panel.
 local function panelText()

@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.212.0a] - 2026-08-23 — the class that caused three bugs now catches itself
+
+### Added
+**`tools/mockarity.js` — no gate quietly mocks away a return value it was written to check.**
+
+Three of the last four real defects were not logic errors. They were **seams and duplication**:
+a nil-check with two copies, a mock too thin to reach the code, a fixture returning one value
+where the function returns two. Two of those three were the same mechanical mistake:
+
+```
+todopanel.js   Valuate.BuildTodoList = function() return ITEMS end        real returns 2
+todotest.js    function Valuate:FindEmptySockets() return nil, SOCKETS    real returns 3
+```
+
+Both times the dropped value carried the distinction the release was *about* — what the to-do
+list could not read, and whether the socket reader had been refused — and both times a fully
+green suite said everything was fine. This compares every mock in every gate against the real
+function's return arity, so the next one is caught by a tool rather than by noticing.
+
+**It is an allowlist, not a hard rule.** A thin mock is not automatically wrong; most of the
+fourteen listed are fine, because the code under test reads only the first value. A gate failing
+on all of them would be ignored inside a week, and this project has written that lesson down
+more than once. What the list buys is the *moment*: adding a name to it is the point at which
+somebody has to ask **"does the code under test read the value I am dropping?"** — which is the
+question nobody asked in either case above.
+
+The list prunes itself too. An entry that stops matching anything makes the debt read as bigger
+than it is, and a list nobody prunes is a list nobody trusts.
+
+Reviewed explicitly because it sits on the destructive path: `IsUpgradeForAnyScale` returns
+`isUpgrade, bestDelta, bestScaleName`, and every caller in the delete and sell paths reads the
+boolean alone — only the bag-upgrade notifier uses the delta.
+
+### Fixed
+**A duplicate mock introduced by the previous release.** v0.211.0a added a two-value
+`BuildTodoList` mock to `todopanel.js` and left the original one-value definition in place, so
+every assertion above the new block still ran against the thin copy. One definition now, from
+the top. That is the *fourth* duplication bug in five releases, and the second I have caused
+myself — which is the argument for the gate above rather than against it.
+
+92 gates, 532 mutations.
+
 ## [0.211.0a] - 2026-08-23 — the seams between tested parts
 
 ### Internal
