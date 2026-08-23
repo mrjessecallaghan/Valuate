@@ -12111,6 +12111,11 @@ local VERIFY_CHECKS = {
     },
     {
         id = "dungeonkills", since = "0.120.0a",
+        -- Needs an instance: the check is "run Deadmines and watch after each boss dies".
+        ready = function()
+            if IsInInstance and select(1, IsInInstance()) then return true end
+            return false, "being inside a dungeon"
+        end,
         gate = "tools/dungeonloot.js",
         title = "Boss kills are noticed, and the prompt does not fire on a table it cannot read",
         steps = "Switch on /valuate autoleavedungeon, run Deadmines, and check /valuate dungeon after each boss dies. Then /valuate report.",
@@ -12147,6 +12152,14 @@ local VERIFY_CHECKS = {
     },
     {
         id = "bgleave", since = "0.108.0a",
+        -- Needs a battleground played to its end, so there has to be one running.
+        ready = function()
+            if IsInInstance then
+                local inside, kind = IsInInstance()
+                if inside and (kind == "pvp" or kind == "arena") then return true end
+            end
+            return false, "being in a battleground"
+        end,
         gate = "tools/queuetest.js",
         title = "A finished battleground leaves after a readable pause, and cancelling works",
         steps = "With /valuate autoleavebg on, play a battleground to the end. Read the countdown message. In a LATER match, switch it off with /valuate autoleavebg during those 8 seconds.",
@@ -12659,6 +12672,15 @@ end
 -- Returns doable, blocked - two arrays of the same entries, so the caller can say what is
 -- available AND what is waiting on something, rather than presenting an empty list as though
 -- there were nothing left to do.
+--
+-- `doable` comes back UNGATED FIRST. Sixty of the 78 checks have a headless gate behind them,
+-- so doing one confirms something already proven by other means; the other eighteen are the
+-- only evidence that will ever exist for what they cover. Both are worth doing and neither is
+-- hidden - but when somebody has five minutes, five minutes spent on the unwatched ones buys
+-- strictly more than five spent confirming what a gate already asserts.
+--
+-- Stable within each group: two checks that are equally unwatched keep the order the list
+-- declares them in, so this cannot reorder itself between runs.
 function ns.ReadyChecks(checks, isPending)
     local doable, blocked = {}, {}
     for _, c in ipairs(checks or {}) do
@@ -12671,9 +12693,18 @@ function ns.ReadyChecks(checks, isPending)
             end
         end
     end
-    return doable, blocked
-end
 
+    -- A stable partition rather than table.sort, which is NOT stable in Lua 5.1 and would let
+    -- the same pending list come back in a different order on two runs - the exact defect this
+    -- project has already fixed twice in ranked output.
+    local ungated, gated = {}, {}
+    for _, c in ipairs(doable) do
+        if c.gate then gated[#gated + 1] = c else ungated[#ungated + 1] = c end
+    end
+    for _, c in ipairs(gated) do ungated[#ungated + 1] = c end
+
+    return ungated, blocked
+end
 local function NextPendingCheck()
     local first, firstIndex, pending = nil, nil, 0
     local fallback, fallbackIndex = nil, nil
@@ -12738,8 +12769,15 @@ function Valuate:RunVerify(which)
             print(string.format("|cFFFF8800[Valuate]|r Nothing you can check from here - all %d " ..
                 "pending checks are waiting on a circumstance.", #blocked))
         else
-            print(string.format("|cFF00FF00[Valuate]|r %d check%s you can do right now:",
-                #doable, #doable == 1 and "" or "s"))
+            -- How many of these nothing else is watching. Sixty of the 78 have a headless
+            -- gate behind them; the rest are the only evidence that will ever exist for what
+            -- they cover, and they are listed first for that reason. Saying the number is what
+            -- makes five minutes here feel worth spending rather than arbitrary.
+            local unwatched = 0
+            for _, c in ipairs(doable) do if not c.gate then unwatched = unwatched + 1 end end
+            print(string.format("|cFF00FF00[Valuate]|r %d check%s you can do right now%s:",
+                #doable, #doable == 1 and "" or "s",
+                unwatched > 0 and string.format(" |cFFFF8833(%d with no gate behind them, listed first)|r", unwatched) or ""))
             for i = 1, math.min(6, #doable) do
                 print(string.format("  |cFFFFFFFF%s|r  %s", doable[i].id, doable[i].title))
             end

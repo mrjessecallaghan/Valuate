@@ -145,6 +145,49 @@ ok(pcall(ns.ReadyChecks, {}, nil), "an empty list is survivable")
 local everything = ns.ReadyChecks(LIST, nil)
 eq(#everything, 3, "with no filter, every ready check is offered including ticked ones")
 
+-- ---- unwatched first ---------------------------------------------------------------------------
+-- Sixty of the 78 checks have a headless gate behind them, so doing one confirms something
+-- already proven by other means. The rest are the only evidence that will ever exist for what
+-- they cover. Both are worth doing and neither is hidden - but five minutes spent on the
+-- unwatched ones buys strictly more, so they come out first.
+local MIXED = {
+    { id = "gatedA",   gate = "tools/a.js" },
+    { id = "bareA" },
+    { id = "gatedB",   gate = "tools/b.js" },
+    { id = "bareB" },
+    { id = "gatedC",   gate = "tools/c.js" },
+}
+local order = ns.ReadyChecks(MIXED, nil)
+eq(#order, 5, "every ready check is still offered")
+eq(order[1].id, "bareA", "the checks with no gate come FIRST")
+eq(order[2].id, "bareB", "-- all of them")
+eq(order[3].id, "gatedA", "then the gated ones")
+
+-- STABLE within each group. Lua 5.1s table.sort is not a stable sort, and a ranked list that
+-- reorders itself between two runs is a defect this project has already fixed twice elsewhere.
+eq(order[4].id, "gatedB", "gated checks keep their declared order")
+eq(order[5].id, "gatedC", "-- rather than an order that could differ between runs")
+local again = ns.ReadyChecks(MIXED, nil)
+for i = 1, #order do
+    eq(again[i].id, order[i].id, "and the same list comes back the same way every time")
+end
+
+-- The partition must not lose or duplicate anything.
+local allGated = ns.ReadyChecks({ MIXED[1], MIXED[3] }, nil)
+eq(#allGated, 2, "a list of nothing but gated checks still returns all of them")
+local allBare = ns.ReadyChecks({ MIXED[2], MIXED[4] }, nil)
+eq(#allBare, 2, "and so does a list of nothing but unwatched ones")
+
+-- Ordering must not resurrect a blocked check into the doable list.
+local WITHBLOCK = {
+    { id = "blocked", ready = function() return false, "the bank open" end },
+    { id = "bare" },
+}
+local d2, b2 = ns.ReadyChecks(WITHBLOCK, nil)
+eq(#d2, 1, "a blocked check is not pulled into the doable list by the reordering")
+eq(d2[1].id, "bare", "only the doable one is offered")
+eq(#b2, 1, "and the blocked one is still reported")
+
 return failures, checks
 `,
   "verifyready",

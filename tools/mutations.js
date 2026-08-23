@@ -3300,4 +3300,18 @@ module.exports = [
   { gate: "verifyready", file: "Valuate.lua",
     label: "the pending filter is ignored, so checks you already ticked are offered again",
     from: "        if (not isPending) or isPending(c) then", to: "        if true then" },
+// ---- unwatched first (v0.218.0a) -----------------------------------------
+  // Sixty of the 78 checks have a gate behind them. The other eighteen are the only evidence
+  // that will ever exist for what they cover, and five minutes spent on those buys strictly
+  // more than five spent confirming what a gate already asserts.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "the checks nothing else watches are no longer offered first",
+    from: "        if c.gate then gated[#gated + 1] = c else ungated[#ungated + 1] = c end",
+    to: "        ungated[#ungated + 1] = c" },
+
+  // The partition must not drop the other half.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "gated checks are dropped entirely instead of being listed after the rest",
+    from: "    for _, c in ipairs(gated) do ungated[#ungated + 1] = c end",
+    to: "    for _, c in ipairs({}) do ungated[#ungated + 1] = c end" },
 ];

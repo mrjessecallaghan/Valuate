@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.218.0a] - 2026-08-23 — the five minutes that buy the most
+
+### Changed
+**`/valuate verify here` lists the unwatched checks first, and says how many there are.**
+
+Sixty of the 78 behavioural checks have a headless gate behind them, so doing one confirms
+something already proven by other means. The other eighteen are **the only evidence that will
+ever exist** for what they cover. Both are worth doing and neither is hidden — but when you have
+five minutes, five minutes on the unwatched ones buys strictly more than five spent confirming
+what a gate already asserts.
+
+The partition is stable rather than sorted. Lua 5.1's `table.sort` is not a stable sort, and a
+ranked list that reorders itself between two runs is a defect this project has already fixed
+twice elsewhere.
+
+### Added
+Readiness predicates for `dungeonkills` (needs an instance) and `bgleave` (needs a battleground).
+
+### Not added, and this is the point
+I set out to tag far more checks and found I should not. Cue-matching the `steps` prose suggested
+27 candidates; **reading them cut that to two.**
+
+| check | prose says | reality |
+|---|---|---|
+| `sellprotects` | "…sell…" | needs a **login**, not a merchant |
+| `combat` | "…combat…" | is a command, doable anywhere |
+| `enhancetab` | "…open Enchanting…" | deliberately *starts* with no profession window open |
+
+A wrong predicate **hides** a check, and hiding one that needed doing costs the thing the check
+was protecting — the exact failure the gate on this mechanism was written to prevent. So the
+honest count is seven preconditions across 78 checks, and the remaining 51 with no circumstance
+cue at all are genuinely doable anywhere. `verify here` is at its correct coverage, not a
+provisional one.
+
+That is worth recording because the tempting version of this release — thirty plausible
+predicates — would have looked like far more work and quietly made the feature lie.
+
+### Internal
+`tools/verifyready.js` 23 → 39 checks, 7 mutations. The first run after the ordering change still
+passed at 23, which meant nothing was testing it; the assertions came before the trust.
+
+95 gates, 550 mutations.
+
 ## [0.217.0a] - 2026-08-23 — `/valuate verify here`
 
 ### Added
