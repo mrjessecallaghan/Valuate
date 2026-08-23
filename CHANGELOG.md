@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.205.0a] - 2026-08-23 — a deferred bug is reported, not just witnessed
+
+### Fixed
+**Every timer callback in this addon ran outside its own error handling.**
+
+The frame handler wraps `OnEvent` in a `pcall` and reports whatever breaks — once per event —
+into `/valuate errors`. Work handed to a timer escaped all of it. It runs on Blizzard's ticker,
+so a bug there is a raw Lua error on your screen that the addon never learns happened.
+
+This is not hypothetical, and it is why the previous release's crash reached a player first:
+
+```
+ui\Enhance.lua:1346: in function `_callback'
+Interface\SharedXML\Util\Timer.lua:32: in function <...Timer.lua:28>
+```
+
+That traceback goes through Blizzard's timer, not through anything in Valuate. The crash was
+deferred by a tick — deliberately, because profession windows populate their list *after* their
+event fires — and deferring is common here for exactly that reason. Which is what makes this
+the one wrapper worth having: it is not defensive padding, it is the boundary the `pcall`
+upstairs stops at.
+
+`ValuateAfter` now guards the callback and routes failures through the existing
+`Valuate:ReportRuntimeError`, so they land in `/valuate errors` beside event failures.
+
+Three details that are the whole design:
+
+- **Keyed on the error's own `file:line`**, never on one fixed word. Reporting is once-per-key
+  so a timer firing every second cannot fill your chat with one line — but a single `"deferred"`
+  key would mean the *first* deferred bug of a session silences every other one, which is the
+  same mistake pointing the other way.
+- **Arguments are forwarded.** Whichever `C_Timer` flavour a client ships may hand the timer
+  object to its callback, and swallowing that would change behaviour while claiming only to add
+  safety.
+- **All three flavours are wrapped** — `C_Timer.NewTimer`, `C_Timer.After`, and the pure
+  `OnUpdate` fallback. The two nobody's client is running are precisely the ones that rot.
+
+### Internal
+- New gate `tools/deferred.js` (20 checks), driving all three flavours. Five mutations.
+- Swept for other instances of the v0.204.0a crash shape — a table-returning function feeding a
+  string context — across all 20 Lua files. **There are none**; the four candidates are all
+  `#list`, which is a number. That class is closed rather than merely patched.
+
+87 gates, 501 mutations, 76 verify checks.
+
 ## [0.204.0a] - 2026-08-23 — opening the enchanting window no longer errors
 
 ### Fixed

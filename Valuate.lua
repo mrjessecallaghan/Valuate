@@ -202,15 +202,53 @@ local bagUpgradePending = false
 local timerFramePool = {}
 
 local function ValuateAfter(delay, callback)
+    -- EVERY deferred callback in this addon runs OUTSIDE the event handler's pcall.
+    --
+    -- The frame handler wraps OnEvent and reports whatever breaks, once per event, into
+    -- /valuate errors. Work handed to a timer escapes all of that: it runs on Blizzard's
+    -- ticker, so a bug there is a raw Lua error on the player's screen and this addon never
+    -- learns it happened.
+    --
+    -- Not hypothetical. The v0.204.0a format crash was deferred by a tick, and its traceback
+    -- runs through SharedXML/Util/Timer.lua rather than through anything here - which is why
+    -- it reached a player before it reached /valuate errors.
+    --
+    -- Deferring is common in this file and deliberately so: profession and vendor windows
+    -- populate their lists AFTER their event fires, so reading a tick later is the correct
+    -- thing to do rather than a workaround. That is what makes this the one wrapper worth
+    -- having; it is not defensive padding, it is the boundary the pcall upstairs stops at.
+    --
+    -- Arguments are FORWARDED rather than dropped. Whichever C_Timer flavour a client ships
+    -- may hand the timer object to its callback, and swallowing that would change behaviour
+    -- while claiming only to add safety.
+    local function guarded(...)
+        local ok, err = pcall(callback, ...)
+        if ok then return end
+        -- Keyed on the error's own file:line, never on one fixed word. The once-per-key rule
+        -- exists so a timer firing every second cannot fill your chat with the same line -
+        -- but a single "deferred" key would mean the FIRST deferred bug of a session silences
+        -- every other one, which is the same mistake pointing the other way.
+        local where = (type(err) == "string" and err:match("^(.-:%d+):")) or "deferred"
+        if Valuate.ReportRuntimeError then
+            Valuate:ReportRuntimeError("deferred at " .. where, err)
+        else
+            -- Loading order: ValuateAfter is defined near the top of this file and the
+            -- reporter far below it. A timer cannot fire before the file has finished
+            -- loading, so this branch should be unreachable - but printing beats silence if
+            -- it ever is reached, because the alternative is an error nobody ever sees.
+            print("|cFFFF0000[Valuate]|r Error in a deferred call: " .. tostring(err))
+        end
+    end
+
     if C_Timer and C_Timer.NewTimer then
         -- Native cancelable timer object.
-        return C_Timer.NewTimer(delay, callback)
+        return C_Timer.NewTimer(delay, guarded)
     elseif C_Timer and C_Timer.After then
         -- No native cancel: gate the callback behind a cancelled flag.
         local handle = { cancelled = false }
         function handle:Cancel() self.cancelled = true end
-        C_Timer.After(delay, function()
-            if not handle.cancelled then callback() end
+        C_Timer.After(delay, function(...)
+            if not handle.cancelled then guarded(...) end
         end)
         return handle
     else
@@ -247,7 +285,7 @@ local function ValuateAfter(delay, callback)
             handle.elapsed = handle.elapsed + (e or 0)
             if handle.elapsed >= delay then
                 release(self)
-                if not handle.cancelled then callback() end
+                if not handle.cancelled then guarded() end
             end
         end)
         return handle
@@ -11686,6 +11724,14 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "deferrederrors", since = "0.205.0a",
+        gate = "tools/deferred.js",
+        title = "A bug in deferred work reaches /valuate errors, not just your screen",
+        steps = "Play normally for a session - open profession windows, vendors, loot, scan. Then run /valuate errors.",
+        expect = "Empty is the expected answer. Anything listed as 'deferred at <file>:<line>' is a real bug worth reporting, and each distinct site appears once rather than repeating.",
+        broke = "Every timer callback in this addon used to run bare. The frame handler wraps OnEvent in a pcall and reports what breaks; work handed to a timer escaped all of it, running on Blizzard's ticker where a bug is a raw error on your screen that the addon never learns about. The v0.204.0a enchanting crash was deferred by a tick, which is why it reached you before it reached this list. The gate drives all three timer flavours against a mocked reporter. What only the client can show is which flavour Ascension actually ships - if a deferred bug ever shows as a raw error WITHOUT a matching line here, the wrapper is not on the path this client takes, and the branch it does take is the one to look at.",
     },
     {
         id = "bookheartbeat", since = "0.204.0a",

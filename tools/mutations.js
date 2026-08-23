@@ -2944,4 +2944,34 @@ module.exports = [
     label: "only the first open book is named, so the second looks like it was skipped",
     from: "table.concat(books, \", \"), count or 0))",
     to: "books[1], count or 0))" },
+// ---- deferred callbacks (v0.205.0a) --------------------------------------
+  // The state before this release: every timer callback ran bare. A bug in one was a raw Lua
+  // error on the player's screen that the addon never learned about.
+  { gate: "deferred", file: "Valuate.lua",
+    label: "a deferred error escapes into Blizzard's ticker and the addon never learns of it",
+    from: "        local ok, err = pcall(callback, ...)",
+    to: "        local ok, err = true, nil callback(...)" },
+
+  // Once-per-key is deliberate, so the key must identify the SITE. One fixed word and the
+  // first deferred bug of a session silences every other one for good.
+  { gate: "deferred", file: "Valuate.lua",
+    label: "every deferred failure shares one key, so the first bug hides all the others",
+    from: "            Valuate:ReportRuntimeError(\"deferred at \" .. where, err)",
+    to: "            Valuate:ReportRuntimeError(\"deferred\", err)" },
+
+  // Swallowing the timer object would change behaviour while claiming only to add safety.
+  { gate: "deferred", file: "Valuate.lua",
+    label: "the timer's own arguments are dropped on the way through the wrapper",
+    from: "pcall(callback, ...)", to: "pcall(callback)" },
+
+  // The two branches nobody's client is running, which is exactly why they rot.
+  { gate: "deferred", file: "Valuate.lua",
+    label: "the C_Timer.After branch is left unguarded",
+    from: "            if not handle.cancelled then guarded(...) end",
+    to: "            if not handle.cancelled then callback(...) end" },
+
+  { gate: "deferred", file: "Valuate.lua",
+    label: "the no-C_Timer fallback is left unguarded",
+    from: "                if not handle.cancelled then guarded() end",
+    to: "                if not handle.cancelled then callback() end" },
 ];
