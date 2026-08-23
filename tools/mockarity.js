@@ -60,6 +60,8 @@ const NL = String.fromCharCode(10);
  * so the same function mocked thinly somewhere new still has to be justified there. */
 const REVIEWED = new Set([
   "arrowtest.js:Valuate.IsItemLinkUpgrade",
+  // SetArrow reads the boolean and nothing else - the delta and scale name go unused there.
+  "arrowmark.js:Valuate.IsItemLinkUpgrade",
   "autowizard.js:Valuate.GetCachedEquippedStatTotals",
   "autowizard.js:Valuate.GetTemplateSet",
   "autowizard.js:Valuate.PlanAutoScale",

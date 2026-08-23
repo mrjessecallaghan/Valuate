@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.223.0a] - 2026-08-23 — the arrow on every item in your bags
+
+### Internal
+**`ui/UpgradeArrows.lua` had no gate — the last whole file at zero coverage.**
+
+I set it aside twice as decoration. It is not: the arrow is an **assertion about your gear**,
+drawn on every item in your bags, at a merchant and on loot. Green says *this beats what you are
+wearing*, blue says *it will once you can equip it*. Wrong one way you vendor an upgrade, wrong
+the other you carry junk believing it is one, and neither shows up as an error.
+
+**And I was wrong about why it was untestable.** I recorded it as having no surface because every
+function is `local`. Two of them are published by *assignment* — `ns.SetUpgradeArrow = SetArrow`
+— which the coverage scan was not looking for. **Ten `ui/` files publish something that way**, so
+the testable surface has been under-reported across the board.
+
+New gate `tools/arrowmark.js`, 15 checks, 4 mutations, pinning:
+
+| | |
+|---|---|
+| **the order of the two lookups** | upgrade is asked first, future only when that said no. The file explains why: a bug in the future lookup can then never take a green arrow away from something you can equip today. Asserted by counting whether the future lookup is called at all |
+| **hiding allocates nothing** | `HideArrow` reads the table directly rather than calling `GetArrow`, so an unmarked item never gets a frame built. Most of a full bag is unmarked items, and WoW never frees frames |
+| **the option is the option** | off means hidden, whatever the item is |
+| **no link is not an upgrade** | an empty slot is never even *asked about* — a mutation removing that guard survived until the assertion asked that sharper question, because with a nil link both lookups return nothing anyway and the outcome looks identical |
+
+### Added
+**`toolsource.js` reports a multi-line mutation anchor pointed at a CRLF file.** It cannot match
+— the anchor carries `\n`, the file has `\r\n` — and it reports UNAPPLIED, which reads as *"that
+mutation is stale"* rather than *"this file differs from its neighbours"*. It has cost two
+sessions: once when a git checkout rewrote a source file and broke three anchors at once, and
+again on `ui/UpgradeArrows.lua`, which is CRLF while every file beside it is LF. The fix at the
+call site is always available — anchor on one line, add a `scope` if it is not unique — so the
+rule points at the anchor rather than asking anyone to normalise anything.
+
+`mockarity.js` caught this release's own new gate mocking `IsItemLinkUpgrade` thinly. `SetArrow`
+reads the boolean and nothing else, so it is recorded as reviewed with that reason.
+
+96 gates, 583 mutations.
+
 ## [0.222.0a] - 2026-08-23 — the checklist learns from what the addon proved
 
 ### Added

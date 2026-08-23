@@ -251,6 +251,39 @@ for (const m of MUTATIONS) {
   }
 }
 
+/* ---- 3b. a multi-line anchor pointed at a CRLF file --------------------------------------- */
+
+/* A mutation whose `from` spans lines cannot match a file with Windows line endings: the anchor
+ * carries "\n" and the file has "\r\n". It does not fail loudly - mutate.js reports UNAPPLIED,
+ * which is easy to read as "that one is stale" rather than "this file is different from its
+ * neighbours".
+ *
+ * It has cost two sessions now. Once when a git checkout rewrote a source file as CRLF and
+ * silently broke three anchors at once, and again on ui/UpgradeArrows.lua, which is CRLF while
+ * every file beside it is LF.
+ *
+ * The fix at the call site is always the same and always available: anchor on ONE line, and use
+ * `scope` if that line is not unique. So this does not ask anyone to normalise line endings - it
+ * points at the anchor that is about to stop working. */
+{
+  const crlf = new Map();
+  for (const m of MUTATIONS) {
+    if (!m || typeof m.from !== "string" || !m.from.includes("\n")) continue;
+    const target = path.join(TOOLS_DIR, "..", m.file || "");
+    if (!fs.existsSync(target)) continue;
+    if (!crlf.has(target)) {
+      crlf.set(target, fs.readFileSync(target, "utf8").includes("\r\n"));
+    }
+    if (!crlf.get(target)) continue;
+    problems.push(
+      `a mutation for gate "${m.gate}" anchors across lines in ${m.file}, which has CRLF line ` +
+        `endings - the anchor carries a bare newline and cannot match. It will report ` +
+        `UNAPPLIED rather than fail. Anchor on a single line, with a scope if that line is not ` +
+        `unique: "${String(m.label || "").slice(0, 60)}"`
+    );
+  }
+}
+
 /* ---- 4. a gate nothing has ever tried to break ------------------------------------------ */
 
 /* A gate proves the code does something. A MUTATION proves the gate would notice if it

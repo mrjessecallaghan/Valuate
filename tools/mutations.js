@@ -3516,4 +3516,41 @@ module.exports = [
     label: "a FAILING self-check ticks its verify item",
     from: "        if status == \"pass\" and check.proves then",
     to: "        if check.proves then" },
+// ---- the upgrade arrow (v0.223.0a) ---------------------------------------
+  // Not decoration: an assertion about your gear, drawn on every item in your bags. Wrong one
+  // way you vendor an upgrade, wrong the other you carry junk believing it is one.
+  //
+  // THE ORDER. Upgrade is asked first and future only when that said no - so a bug in the
+  // future lookup can never take a green arrow away from something you can equip today.
+  { gate: "arrowmark", file: "ui/UpgradeArrows.lua",
+    label: "the future lookup is consulted for an item that is already an upgrade",
+    from: "    if Valuate:IsItemLinkUpgrade(itemLink) then",
+    to: "    if false then" },
+
+  // HideArrow reads the table directly rather than calling GetArrow. One frame per unmarked bag
+  // item is a leak that only shows on somebody with full bags, and WoW never frees frames.
+  { gate: "arrowmark", file: "ui/UpgradeArrows.lua",
+    scope: { start: "local function HideArrow(button)", end: "-- The single entry point" },
+    label: "hiding builds an arrow for every unmarked item in your bags",
+    from: "local function HideArrow(button)\n    local rec = arrows[button]",
+    from: "    local rec = arrows[button]",
+    to: "    local rec = GetArrow(button)" },
+  // Off means off, whatever the item is.
+  { gate: "arrowmark", file: "ui/UpgradeArrows.lua",
+    label: "arrows are drawn with the option switched off",
+    from: "    if not options.showUpgradeArrows or not itemLink then",
+    to: "    if not itemLink then" },
+
+  // An empty slot must never be marked.
+  { gate: "arrowmark", file: "ui/UpgradeArrows.lua",
+    label: "an empty slot is marked as an upgrade",
+    from: "    if not options.showUpgradeArrows or not itemLink then",
+    to: "    if not options.showUpgradeArrows then" },
+// ---- a multi-line anchor on a CRLF file (v0.223.0a) ----------------------
+  // Reports UNAPPLIED rather than failing, which reads as "that mutation is stale" instead of
+  // "this file has different line endings from its neighbours". It has cost two sessions.
+  { gate: "toolsource", file: "tools/mutations.js",
+    label: "a cross-line anchor on a CRLF file goes unreported until somebody reads UNAPPLIED carefully",
+    from: "    from: \"    if Valuate:IsItemLinkUpgrade(itemLink) then\",",
+    to: "    from: \"    if Valuate:IsItemLinkUpgrade(itemLink) then\n        ShowArrow(button, itemLink, \\\"upgrade\\\")\"," },
 ];
