@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.220.0a] - 2026-08-23 — twenty-two gates nothing had tried to break
+
+### Internal
+**A gate proves the code does something. A mutation proves the gate would notice if it
+stopped.** Twenty-two of the 95 gates had no mutation at all — they were claims about
+themselves.
+
+That is not theoretical. One release ago, fifteen assertions inside a *passing* gate had their
+arguments reversed and could not fail; two surviving mutations were the only reason anyone
+looked.
+
+Ranked by what being wrong costs you, three of the twenty-two guard **irreversible actions**.
+All three now have mutations, and **all twelve were caught** — every one of those gates was
+already load-bearing. That is the finding, and it is worth stating as one rather than implying
+something was broken:
+
+| gate | what a wrong answer costs |
+|---|---|
+| `dialogtest` | the confirm dialog is a **singleton** reused for every question including *"delete these 12 items?"*. Mutations: the accept button accumulating callbacks so Okay runs every dialog you ever dismissed; **Cancel running the accept callback, so declining deletes**; the dialog staying up while its callback runs; the buttons and text keeping the previous question's words |
+| `rolltest` | a roll cannot be taken back. Needing something the scales do not want takes it from somebody who did; Passing where Greed was offered gives loot away for nothing |
+| `questtest` | you choose once. Guessing the first reward when nothing could be scored, refusing the only reward on offer, letting raw score beat a real upgrade, or counting a sidegrade as one |
+
+### Added
+**`tools/toolsource.js` refuses a new gate that nothing tries to break.** The remaining nineteen
+are recorded as a baseline rather than as approved — they mostly guard appearance or data-file
+agreement rather than an action, and nineteen red lines on every run would be ignored inside a
+week. What the rule stops is the list **growing**: a gate written from today has to come with
+something that breaks it, which is the moment its author finds out whether the assertions bite.
+It prunes itself too.
+
+Both of its own mutations first came back SURVIVED, because each branch was unreachable in the
+current state — the same situation that led to deleting two mutations in v0.215.0a. Here they
+could be made reachable rather than dropped: one removes a name from the baseline, the other
+adds a baselined gate to the mutated set. Nudging the world rather than deleting the branch is
+the better answer when it is available.
+
+95 gates, 568 mutations.
+
 ## [0.219.0a] - 2026-08-23 — fifteen assertions that could not fail
 
 ### Fixed

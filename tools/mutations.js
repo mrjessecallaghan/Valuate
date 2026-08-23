@@ -3340,4 +3340,106 @@ module.exports = [
     label: "an assertion has its arguments reversed and can no longer fail",
     from: "ok(created:find(\"never overwrites\", 1, true) ~= nil,",
     to: "ok(\"a plain creation promises nothing was overwritten\"," },
+// ---- the confirm dialog (v0.220.0a) --------------------------------------
+  // ValuateConfirmDialog is a SINGLETON reused for every question the addon asks, including
+  // "delete these 12 items?". Its gate was well written and had nothing proving it would fail.
+  //
+  // SetScript REPLACES; HookScript CHAINS. One word turns a rebind into an accumulation, and
+  // then clicking Okay runs the callback from every dialog you have ever dismissed.
+  { gate: "dialogtest", file: "ui/Dialog.lua",
+    label: "the accept button accumulates callbacks, so Okay runs every dialog you ever dismissed",
+    from: "    f.accept:SetScript(\"OnClick\", function()",
+    to: "    f.accept:HookScript(\"OnClick\", function()" },
+
+  // The worst single edit in this file: Cancel performing the destructive action.
+  { gate: "dialogtest", file: "ui/Dialog.lua",
+    label: "Cancel runs the accept callback, so declining deletes",
+    from: "        if opts.onCancel then opts.onCancel() end",
+    to: "        if opts.onAccept then opts.onAccept() end" },
+
+  // Hidden BEFORE the callback runs. A callback that errors would otherwise leave the dialog
+  // on screen still bound to it, inviting a second click at the worst possible moment.
+  { gate: "dialogtest", file: "ui/Dialog.lua",
+    label: "the dialog stays up while its callback runs, so a failure invites a second click",
+    from: "        f:Hide()\n        if opts.onAccept then opts.onAccept() end",
+    to: "        if opts.onAccept then opts.onAccept() end\n        f:Hide()" },
+
+  // A reused frame that keeps the previous question's button text is the same recycling bug
+  // one layer out: the words say Delete while the callback does something else.
+  { gate: "dialogtest", file: "ui/Dialog.lua",
+    label: "the buttons keep the previous dialog's labels",
+    from: "    f.accept.label:SetText(opts.acceptText or \"Okay\")",
+    to: "    f.accept.label:SetText(f.accept.label:GetText() or opts.acceptText or \"Okay\")" },
+
+  { gate: "dialogtest", file: "ui/Dialog.lua",
+    label: "the dialog keeps the previous question's text",
+    from: "    f.text:SetText(opts.text or \"\")",
+    to: "    f.text:SetText(f.text:GetText() or opts.text or \"\")" },
+// ---- rolling on loot (v0.220.0a) -----------------------------------------
+  // A roll cannot be taken back, and Needing something you do not want takes it from somebody
+  // who did. Three lines, each irreversible in a different direction.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "Need is rolled on something the scales do not want, taking it from someone who did",
+    from: "    if wants and canNeed then return 1, \"Need\" end",
+    to: "    if canNeed then return 1, \"Need\" end" },
+
+  // Need is not always offered for something you cannot use yet - a recipe above your skill is
+  // exactly that - and Greed still wins it. Passing there gives away loot for nothing.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "it Passes where Greed was available, giving away loot for free",
+    from: "    if canGreed then return 2, \"Greed\" end", to: "    if false then return 2, \"Greed\" end" },
+
+  // Wanting it does not make Need legal. Rolling Need where the client did not offer it is
+  // either refused or, worse, taken as Greed on some builds.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "Need is rolled where the client never offered it",
+    from: "    if wants and canNeed then return 1, \"Need\" end",
+    to: "    if wants then return 1, \"Need\" end" },
+
+// ---- quest rewards (v0.220.0a) -------------------------------------------
+  // You choose once. A wrong pick is permanent for that character, and there is no vendor buy-
+  // back for a reward you never took.
+  //
+  // The refusal at the end is the whole safety property: with several choices and nothing that
+  // could be scored, it declines rather than guessing. Returning 1 there picks the first item
+  // on the list for you, forever.
+  { gate: "questtest", file: "Valuate.lua",
+    label: "it guesses the first reward when it could score none of them",
+    from: "    if numChoices == 1 then\n        return 1\n    end\n    return nil",
+    to: "    return 1" },
+
+  // A single choice is not a choice - taking it costs nothing and skips a click. Refusing there
+  // makes full auto turn-in stall on every one-reward quest.
+  { gate: "questtest", file: "Valuate.lua",
+    label: "the only reward on offer is refused, stalling every one-choice quest",
+    from: "    if numChoices == 1 then\n        return 1\n    end",
+    to: "    if false then\n        return 1\n    end" },
+
+  // An UPGRADE outranks the best raw score: the highest-scoring reward may be something you
+  // already have better than, and the delta is what says otherwise.
+  { gate: "questtest", file: "Valuate.lua",
+    label: "the highest score wins over the real upgrade, taking gear you already beat",
+    from: "    if upgIndex and upgDelta and upgDelta > 0 then\n        return upgIndex\n    end",
+    to: "    if false then\n        return upgIndex\n    end" },
+
+  // A delta of exactly zero is not an upgrade. Taking it means choosing a sidegrade over
+  // whatever else was on offer.
+  { gate: "questtest", file: "Valuate.lua",
+    label: "a sidegrade counts as an upgrade and beats everything else on offer",
+    from: "    if upgIndex and upgDelta and upgDelta > 0 then",
+    to: "    if upgIndex and upgDelta and upgDelta >= 0 then" },
+
+  // ---- gates nothing has tried to break (v0.220.0a) ------------------------
+  // A gate proves the code does something. A mutation proves the gate would NOTICE if it
+  // stopped. Three gates guarding irreversible actions had none until this release.
+  { gate: "toolsource", file: "tools/toolsource.js",
+    label: "a gate that is neither mutated nor baselined slips through unnoticed",
+    from: "  \"typescale\",\n  \"wardrobetest\",",
+    to: "  \"wardrobetest\"," },
+
+  // The baseline must prune itself, or it reads as more debt than exists.
+  { gate: "toolsource", file: "tools/toolsource.js",
+    label: "the baseline keeps names that have since gained a mutation, overstating the debt",
+    from: "  const mutatedGates = new Set(MUTATIONS.map((m) => m && m.gate).filter(Boolean));",
+    to: "  const mutatedGates = new Set([...MUTATIONS.map((m) => m && m.gate).filter(Boolean), \"typescale\"]);" },
 ];

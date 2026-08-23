@@ -233,10 +233,11 @@ for (const name of names) {
   }
 }
 
+const MUTATIONS = require("./mutations.js");
+
 /* ---- 3. mutations name gates that exist -------------------------------------------------- */
 
 let mutationsChecked = 0;
-const MUTATIONS = require("./mutations.js");
 const seenGates = new Set();
 for (const m of MUTATIONS) {
   if (!m || !m.gate || seenGates.has(m.gate)) continue;
@@ -250,6 +251,74 @@ for (const m of MUTATIONS) {
   }
 }
 
+/* ---- 4. a gate nothing has ever tried to break ------------------------------------------ */
+
+/* A gate proves the code does something. A MUTATION proves the gate would notice if it
+ * stopped. Without one, a gate is a claim about itself.
+ *
+ * That is not theoretical here. In v0.219.0a fifteen assertions in a passing gate had their
+ * arguments reversed and could not fail; two surviving mutations were the only reason anyone
+ * looked. The gate reported OK the whole time.
+ *
+ * The nineteen below had no mutation when this rule was written, and are recorded as the
+ * state of the world rather than as approved. They are not equally urgent - most guard
+ * appearance or data-file agreement rather than an action - which is why this is a baseline
+ * and not a failure: nineteen red lines on every run would be ignored inside a week.
+ *
+ * What it stops is the list GROWING. A gate written from today has to come with something
+ * that breaks it, which is the moment its author finds out whether the assertions bite.
+ *
+ * The list only shrinks. Removing a name means writing a mutation for it. */
+const UNPROVEN_AT_BASELINE = new Set([
+  "animtest",
+  "arrowtest",
+  "automatch",
+  "autoname",
+  "charwindowtest",
+  "datatest",
+  "futurelinetest",
+  "genloot",
+  "iconpickertest",
+  "loadtime",
+  "pickercoa",
+  "pickertest",
+  "sharetest",
+  "statsearchtest",
+  "tooltiptest",
+  "tsmratiotest",
+  "typescale",
+  "wardrobetest",
+  "wizardroles",
+]);
+
+{
+  const mutatedGates = new Set(MUTATIONS.map((m) => m && m.gate).filter(Boolean));
+  const discovered = names.filter((n) => {
+    const src = fs.readFileSync(path.join(TOOLS_DIR, n), "utf8");
+    return isDiscoverable(src);
+  });
+  for (const file of discovered) {
+    const gate = file.replace(/\.js$/, "");
+    if (mutatedGates.has(gate)) continue;
+    if (UNPROVEN_AT_BASELINE.has(gate)) continue;
+    problems.push(
+      `tools/${file} is a gate that no mutation has ever tried to break. A passing gate ` +
+        `proves the code does something; only a mutation proves the gate would NOTICE if it ` +
+        `stopped. Add an entry to tools/mutations.js with gate: "${gate}", or add it to ` +
+        `UNPROVEN_AT_BASELINE here and say why it can wait.`
+    );
+  }
+  /* An entry that has since gained a mutation is a note about work already done. Left in, the
+   * list reads as more debt than exists - and a list nobody prunes is a list nobody trusts. */
+  for (const gate of UNPROVEN_AT_BASELINE) {
+    if (mutatedGates.has(gate)) {
+      problems.push(
+        `UNPROVEN_AT_BASELINE lists "${gate}", but it has a mutation now. Delete the entry ` +
+          `so the list keeps meaning what it says.`
+      );
+    }
+  }
+}
 if (problems.length) {
   console.error(`The tooling has ${problems.length} problem(s):`);
   for (const p of problems) console.error(`  - ${p}`);
