@@ -3015,4 +3015,38 @@ module.exports = [
     label: "a stat scorer that throws takes the whole Enhance tab down with it",
     from: "        local ok, value = pcall(Valuate.CalculateItemScore, Valuate, entry.stats, scaleName)",
     to: "        local ok, value = true, Valuate.CalculateItemScore(Valuate, entry.stats, scaleName)" },
+// ---- automatic repair (v0.207.0a) ----------------------------------------
+  // The first is the shipped bug restored: pcall's `ok` read as success. It tells you the CALL
+  // did not error and nothing about whether the guild bank paid - and the early return meant
+  // it never fell through to your own gold.
+  { gate: "repairtest", file: "Valuate.lua",
+    label: "guild funds that never paid are announced as a repair, and you leave with red gear",
+    from: "        pcall(function() RepairAllItems(1) end)\n        ValuateAfter(ns.REPAIR_VERIFY_DELAY, function()",
+    to: "        if pcall(function() RepairAllItems(1) end) then succeeded(\"guild funds\") return true end\n        ValuateAfter(ns.REPAIR_VERIFY_DELAY, function()" },
+
+  // Walking away from the merchant leaves GetRepairAllCost with nothing to say. Reading that
+  // silence as success is the original bug with extra steps.
+  { gate: "repairtest", file: "Valuate.lua",
+    label: "leaving the merchant reads as a successful repair",
+    from: "        if not (CanMerchantRepair and CanMerchantRepair()) then return false, true end",
+    to: "        if not (CanMerchantRepair and CanMerchantRepair()) then return true, false end" },
+
+  // The pair: always blaming your own purse would pass every guild-failure assertion while
+  // getting the credit wrong in the case that works.
+  { gate: "repairtest", file: "Valuate.lua",
+    label: "a guild-funded repair is credited to your own gold",
+    from: "            if repaired then return succeeded(\"guild funds\") end",
+    to: "            if repaired then return succeeded(\"your own gold\") end" },
+
+  // A request the server never obliged must not be reported as done.
+  { gate: "repairtest", file: "Valuate.lua",
+    label: "a repair that did not take is announced as a success anyway",
+    from: "            if repaired then return succeeded(\"your own gold\") end\n            Valuate:MarkAutomation(\"autoRepair\", \"did not go through, \" .. money)",
+    to: "            if true then return succeeded(\"your own gold\") end\n            Valuate:MarkAutomation(\"autoRepair\", \"did not go through, \" .. money)" },
+
+  // Damaged gear is the worse outcome, so an unpaid guild attempt must still pay.
+  { gate: "repairtest", file: "Valuate.lua",
+    label: "the guild declining leaves your gear damaged instead of paying it yourself",
+    from: "            payYourself()\n        end)\n        return true",
+    to: "            return\n        end)\n        return true" },
 ];

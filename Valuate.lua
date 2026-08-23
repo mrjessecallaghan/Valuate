@@ -10139,6 +10139,30 @@ function Valuate:AutoSellJunk(opts)
 end
 
 -- Repairs at merchants that offer it, optionally trying guild funds first.
+-- How long to wait before believing a repair happened.
+--
+-- Durability comes back from the SERVER. RepairAllItems sends a request; it does not zero
+-- your durability on the spot, so the cost cannot be re-read on the same frame. A second is
+-- generous for a local action and short enough that the answer still arrives while you are
+-- standing at the vendor.
+-- On ns rather than a file-local: this file sits near Lua 5.1s 200-top-level-local ceiling,
+-- past which it silently will not compile. It also makes the delay readable from a gate.
+ns.REPAIR_VERIFY_DELAY = 1.0
+
+-- Repairs, and then CHECKS that it worked.
+--
+-- The old version read pcall's `ok` as success. pcall tells you the CALL did not error - it
+-- says nothing about whether the repair went through, and the two come apart in exactly the
+-- case that matters. RepairAllItems(1) asks for guild funds, and a guild bank that is empty,
+-- or a rank whose daily repair allowance is spent, refuses WITHOUT erroring.
+--
+-- So the old code announced "Repaired using guild funds", marked the automation done, and
+-- returned true - which also meant it never fell through to your own gold. You left town with
+-- red gear, having been told you were fine, by a feature whose whole job is to stop that.
+--
+-- Every claim below is therefore made AFTER a verifying read, never before one. This is also
+-- robust to the opposite being true: on a client that does update durability immediately, the
+-- deferred read sees zero just the same.
 function Valuate:AutoRepair(verbose)
     local options = Valuate:GetOptions()
     if not CanMerchantRepair or not CanMerchantRepair() then
@@ -10154,27 +10178,65 @@ function Valuate:AutoRepair(verbose)
 
     local money = GetCoinTextureString and GetCoinTextureString(cost) or (cost .. "c")
 
-    -- Guild funds first when asked and permitted.
-    if options.autoRepairGuildFirst and CanGuildBankRepair and CanGuildBankRepair() then
-        local ok = pcall(function() RepairAllItems(1) end)
-        if ok then
-            Valuate:MarkAutomation("autoRepair", "guild funds, " .. money)
-            print("|cFF00FF00[Valuate]|r Repaired using guild funds (" .. money .. ").")
-            return true
+    -- Returns repaired, unknown.
+    --
+    -- GetRepairAllCost answers about the merchant you have open, so walking away before the
+    -- server replies leaves it with nothing to say. That is NOT the same as a successful
+    -- repair, and reporting it as one would put the original bug back with extra steps.
+    local function outcome()
+        if not (CanMerchantRepair and CanMerchantRepair()) then return false, true end
+        local owed = GetRepairAllCost and GetRepairAllCost() or 0
+        return (owed or 0) <= 0, false
+    end
+
+    local function succeeded(how)
+        Valuate:MarkAutomation("autoRepair", how .. ", " .. money)
+        print("|cFF00FF00[Valuate]|r Repaired using " .. how .. " (" .. money .. ").")
+    end
+
+    local function unconfirmed()
+        Valuate:MarkAutomation("autoRepair", "could not confirm - merchant closed")
+        if verbose then
+            print("|cFFAAAAAA[Valuate]|r Left the merchant before the repair could be confirmed.")
         end
     end
 
-    if GetMoney() < cost then
-        -- Recorded as well as printed. "Could not afford it" is exactly the kind of
-        -- did-nothing the report exists to explain, and a chat line scrolls away.
-        Valuate:MarkAutomation("autoRepair", "could not afford " .. money)
-        print("|cFFFF5555[Valuate]|r Not enough money to repair (" .. money .. ").")
-        return false
+    local function payYourself()
+        if GetMoney() < cost then
+            -- Recorded as well as printed. "Could not afford it" is exactly the kind of
+            -- did-nothing the report exists to explain, and a chat line scrolls away.
+            Valuate:MarkAutomation("autoRepair", "could not afford " .. money)
+            print("|cFFFF5555[Valuate]|r Not enough money to repair (" .. money .. ").")
+            return
+        end
+        RepairAllItems()
+        ValuateAfter(ns.REPAIR_VERIFY_DELAY, function()
+            local repaired, unknown = outcome()
+            if unknown then return unconfirmed() end
+            if repaired then return succeeded("your own gold") end
+            Valuate:MarkAutomation("autoRepair", "did not go through, " .. money)
+            print("|cFFFF5555[Valuate]|r Repair did not go through - your gear is still damaged.")
+        end)
     end
 
-    RepairAllItems()
-    Valuate:MarkAutomation("autoRepair", "repaired for " .. money)
-    print("|cFF00FF00[Valuate]|r Repaired for " .. money .. ".")
+    if options.autoRepairGuildFirst and CanGuildBankRepair and CanGuildBankRepair() then
+        -- CanGuildBankRepair says you are ALLOWED to use guild funds. It says nothing about
+        -- whether any are left, which is the whole reason this needs checking afterwards.
+        pcall(function() RepairAllItems(1) end)
+        ValuateAfter(ns.REPAIR_VERIFY_DELAY, function()
+            local repaired, unknown = outcome()
+            if unknown then return unconfirmed() end
+            if repaired then return succeeded("guild funds") end
+            -- Permitted but unpaid: an empty bank or a spent allowance. Said out loud rather
+            -- than quietly covered, because which purse paid for your repairs is worth
+            -- knowing - and then paid anyway, because damaged gear is the worse outcome.
+            print("|cFFFF8800[Valuate]|r Guild funds did not cover it - using your own gold.")
+            payYourself()
+        end)
+        return true
+    end
+
+    payYourself()
     return true
 end
 
@@ -11724,6 +11786,14 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "repairverified", since = "0.207.0a",
+        gate = "tools/repairtest.js",
+        title = "Auto-repair tells you which purse actually paid",
+        steps = "Turn on auto-repair and 'try guild funds first'. Visit a repair vendor with damaged gear. Watch chat, then check your durability and your gold. Best tested on a character whose guild repair allowance is spent or whose guild bank is empty.",
+        expect = "One line naming the purse that paid, a second or so after the vendor opens. If the guild does not cover it you are told so and your own gold pays instead - never silence, and never a claim of guild funds that did not move.",
+        broke = "This announced 'Repaired using guild funds' on the strength of pcall not erroring. pcall says the CALL did not error; it says nothing about whether the guild bank paid, and an empty bank or a spent daily allowance refuses WITHOUT erroring - so it marked the job done and returned, never falling through to your own gold. You left town with red gear having been told you were fine. Only the client can show how long Ascension takes to send durability back: the verifying read waits ns.REPAIR_VERIFY_DELAY seconds, and if you consistently see 'could not confirm' or 'still damaged' while your gear is visibly repaired, that delay is too short for this realm.",
     },
     {
         id = "deferrederrors", since = "0.205.0a",

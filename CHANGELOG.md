@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.207.0a] - 2026-08-23 — auto-repair stops claiming the guild paid
+
+### Fixed
+**Auto-repair announced success on the strength of `pcall` not erroring.**
+
+`pcall` tells you the *call* did not error. It says nothing about whether the repair went
+through, and the two come apart in exactly the case that matters: `RepairAllItems(1)` asks for
+guild funds, and a guild bank that is empty — or a rank whose daily repair allowance is spent —
+**refuses without erroring**.
+
+So the old code printed *"Repaired using guild funds"*, marked the automation done, and
+returned `true`. The return also meant it never fell through to your own gold. **You left town
+with red gear, having been told you were fine, by the feature whose entire job is preventing
+that.** `CanGuildBankRepair()` says you are *allowed* to use guild funds; it says nothing about
+whether any are left.
+
+Every claim is now made *after* a verifying read, never before one. There are **three** states,
+and conflating any pair of them puts the bug back:
+
+| | |
+|---|---|
+| **repaired** | the cost went to zero — say which purse paid |
+| **not repaired** | still owed. If the guild declined, say so and pay it yourself; damaged gear is the worse outcome |
+| **unknown** | you left the merchant, so `GetRepairAllCost` has nothing to read — record it as unconfirmed rather than guessing |
+
+That third state is the one a careless fix drops. Durability comes back from the **server**, so
+none of this can be read on the same frame as the request; the check is deferred by
+`ns.REPAIR_VERIFY_DELAY`. That is also robust to the opposite being true — on a client that
+updates immediately, the deferred read sees zero just the same.
+
+### Internal
+**Nothing had ever tested the repair path.** An audit of all 219 public functions found 59 that
+no gate names; ranked by consequence, this one spends money — sometimes the *guild's* — and was
+top of the list. New gate `tools/repairtest.js`, 20 checks, 5 mutations, the first of which
+restores the shipped bug verbatim.
+
+Each assertion is paired against its opposite: a fix that always credits "your own gold" would
+pass every guild-failure check while getting the working case wrong, so a guild repair that
+*does* pay must still be credited to the guild.
+
+The delay constant lives on `ns`, not the file scope — `Valuate.lua` sits near Lua 5.1's
+200-top-level-local ceiling, past which it silently will not compile.
+
+89 gates, 512 mutations, 77 verify checks.
+
 ## [0.206.0a] - 2026-08-23 — the enchant you are told to buy is scored for your role
 
 ### Internal
