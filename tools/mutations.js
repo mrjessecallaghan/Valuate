@@ -3201,4 +3201,37 @@ module.exports = [
     label: "a redraw latches pending without being scheduled, so the table never redraws again",
     from: "    if not scheduled then ns.dirtyPending = nil end",
     to: "    if false then ns.dirtyPending = nil end" },
+// ---- the selected auction (v0.214.0a) ------------------------------------
+  // TSM's buy button acts on rt.selected, an INDEX into rt.data - and the pass that calls this
+  // has just reordered rt.data. Every one of these costs gold rather than accuracy.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Columns.lua",
+    label: "a stale index survives the reorder, so the buy button acts on a different auction",
+    from: "    rt.selected = nil\n    for i = 1, #rt.data do",
+    to: "    for i = 1, #rt.data do" },
+
+  { gate: "siblingsuites", file: "../Valuate-TSM/Columns.lua",
+    label: "the selection lands one row past the record, so you buy the next auction down",
+    from: "            rt.selected = i\n            return", to: "            rt.selected = i + 1\n            return" },
+
+  // A nil record means nothing was selected before. Clearing on it would drop a selection the
+  // reorder never touched.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Columns.lua",
+    label: "a refresh with nothing previously selected clears the selection you already had",
+    from: "    if not rt or not rt.data or not record then return end",
+    to: "    if not rt or not rt.data then return end" },
+
+  // And the file being LOADED at all. It was outside the suite entirely until v0.214.0a, so
+  // every assertion above it would silently stop running if it left again.
+  { gate: "siblingsuites", file: "../Valuate-TSM/tools/test.js",
+    label: "Columns.lua drops out of the suite and its whole file goes untested again",
+    from: "  runAddonFile(\"Columns.lua\");", to: "" },
+// ---- the sibling suites, and multi-line mocks (v0.214.0a) ----------------
+  // Until this release the matcher only read ONE-LINE mocks, so the sibling suites - which write
+  // theirs across several lines - were invisible to it entirely. This is the exact mock that
+  // cost v0.213.0a: ScheduleWork returning nothing where the real one returns a boolean, which
+  // tells every caller that scheduling failed.
+  { gate: "mockarity", file: "../Valuate-TSM/tools/tests.lua",
+    label: "a sibling suite drops a return the caller checks, and the gate cannot see it",
+    from: "        callback()\n    end\n    return true\nend",
+    to: "        callback()\n    end\nend" },
 ];

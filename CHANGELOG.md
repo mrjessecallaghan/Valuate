@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.214.0a] - 2026-08-23 — the auction you selected, and the file nobody was testing
+
+### Internal
+**`Valuate-TSM/Columns.lua` was not loaded by its own suite at all.** All 25 of its functions —
+the sort, the filter, the column drawing, the selection handling that reorders what TSM shows
+you — sat outside every test in the project. Adding one line to the runner was enough; the
+existing mocks carry it unchanged. That was the whole barrier.
+
+**The selected auction now has assertions holding it in place.** TSM's buy button acts on
+`rt.selected`, which is an **index** into `rt.data` — and Valuate's sort/filter pass reorders
+`rt.data` underneath it. A kept index points at whatever now occupies that position: in a
+shopping list, a different auction at a different price. This is the one place in the addon
+where being wrong costs gold rather than accuracy.
+
+The logic was already **correct** — it re-finds by record identity and *clears* the selection
+when the record is gone, which is the safe direction. It is now `ns.RestoreSelection`, pulled
+out so it can be driven on its own, with nine assertions and three mutations including a
+one-row-off variant that would have you buying the next auction down.
+
+A fourth mutation removes `Columns.lua` from the runner again, so the file cannot quietly leave
+the suite the way it quietly stayed out of it.
+
+**`tools/mockarity.js` now reads the sibling suites, and multi-line mocks.** The version shipped
+one release ago matched only single-line mocks — which meant it could not see the sibling suites
+at all, since they write theirs across several lines. Its header claimed that coverage anyway.
+
+I found it by breaking the TSM mock on purpose and watching the gate stay green. **A rule
+silently covering half of what it claims is exactly the failure that file exists to stop**, one
+level up. There is a mutation pinning the case now, and a body it cannot read confidently
+reports nothing rather than a guessed arity.
+
+Widening it surfaced 21 more thin mocks. They are in a separate `BASELINE` set rather than
+merged into `REVIEWED`, because *reviewed* means somebody asked whether the dropped value is
+read — and folding these in would quietly stop that being true of most of it. Nearly all are
+do-nothing stubs for side-effecting functions where the return was never the point; they stay in
+scope because a zero-return stub is not automatically harmless, as the TSM one proved.
+
+Valuate-TSM suite: 170 → 179 assertions. 92 gates, 539 mutations.
+
 ## [0.213.0a] - 2026-08-23 — a guard that latched on its own failure
 
 ### Fixed
