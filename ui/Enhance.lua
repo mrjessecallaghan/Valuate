@@ -1340,11 +1340,33 @@ capture:SetScript("OnEvent", function(_, event)
         -- tick late is correct.
         local after = ns.ValuateAfter or (Valuate and Valuate.After)
         local function readBook()
-            local book, count = ns.SnapshotOpenBook()
-            if book and count > 0 and Valuate.MarkAutomation then
-                Valuate:MarkAutomation("enhanceBooks",
-                    string.format("%s: %d enhancement(s) remembered", book, count))
-            end
+            -- SnapshotOpenBook returns a LIST of book names and a total - `stored, total`,
+            -- named exactly that where it is defined. This read the first as a single name and
+            -- handed it straight to string.format, which is a hard error the moment any book is
+            -- stored. It fired the first time anyone opened Enchanting:
+            --
+            --   Enhance.lua: bad argument #2 to 'format' (string expected, got table)
+            --
+            -- The gate DOES drive this handler, several times. It never reached this line,
+            -- because the line sits behind Valuate.MarkAutomation and the fixture had no such
+            -- function - so the branch short-circuited and the path counted as covered. Running
+            -- a handler is not the same as running what is inside it.
+            local books, count = ns.SnapshotOpenBook()
+
+            -- `#books`, not `books`. An empty table is truthy in Lua, so the old test could
+            -- only ever have been carried by the count beside it.
+            if type(books) ~= "table" or #books == 0 then return end
+            if not Valuate.MarkAutomation then return end
+
+            -- Every book that was stored, not the first of them. Both apis can be open at once
+            -- - a trade skill and a craft window - and naming one of two is worse than naming
+            -- neither, because it reads as the other having been missed.
+            --
+            -- A zero count is still worth marking: the books ARE in the snapshot, they simply
+            -- had nothing readable in them this time. Silence there is indistinguishable from
+            -- never having looked, which is the thing this whole heartbeat exists to answer.
+            Valuate:MarkAutomation("enhanceBooks", string.format(
+                "%s: %d enhancement(s) remembered", table.concat(books, ", "), count or 0))
         end
         if type(after) == "function" then after(0.2, readBook) else readBook() end
         return

@@ -2917,4 +2917,31 @@ module.exports = [
     label: "an empty slot is counted as unread, so the note never clears",
     from: "            elseif GetInventoryItemTexture and GetInventoryItemTexture(\"player\", def.slotId) then",
     to: "            else" },
+// ---- the enchanting-window crash (v0.204.0a) -----------------------------
+  // The first of these IS the shipped bug, restored exactly. SnapshotOpenBook returns a LIST of
+  // book names; the handler passed that table straight to string.format, and it fired the first
+  // time anyone opened Enchanting on a live realm.
+  //
+  // The gate already drove this handler several times and never reached the line, because the
+  // line sits behind Valuate.MarkAutomation and the fixture had no such function. What was
+  // missing was a mock, not an assertion.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "opening the enchanting window errors: a table is handed to string.format",
+    from: "                \"%s: %d enhancement(s) remembered\", table.concat(books, \", \"), count or 0))",
+    to: "                \"%s: %d enhancement(s) remembered\", books, count or 0))" },
+
+  // An empty table is TRUTHY in Lua, so this guard can only ever have been carried by the count
+  // beside it. Written the obvious way, a read that found no open book still leaves a heartbeat
+  // saying ": 0 enhancement(s) remembered" with no book named - and the heartbeat's entire job
+  // is to answer "did this run".
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "a read that found no book still leaves a heartbeat, so the mark means nothing",
+    from: "            if type(books) ~= \"table\" or #books == 0 then return end",
+    to: "            if not books then return end" },
+
+  // Naming one of two open books reads as the other having been missed.
+  { gate: "enhance", file: "ui/Enhance.lua",
+    label: "only the first open book is named, so the second looks like it was skipped",
+    from: "table.concat(books, \", \"), count or 0))",
+    to: "books[1], count or 0))" },
 ];

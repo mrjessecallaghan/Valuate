@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.204.0a] - 2026-08-23 — opening the enchanting window no longer errors
+
+### Fixed
+**A hard Lua error on every character who opened Enchanting.**
+
+```
+ui\Enhance.lua:1346: bad argument #2 to 'format' (string expected, got table)
+  (*temporary) = "%s: %d enhancement(s) remembered"
+  (*temporary) = <table> { 1 = "Enchanting" }
+```
+
+`ns.SnapshotOpenBook` returns a **list** of book names and a total — `stored, total`, named
+exactly that where it is defined, and documented as such two lines above it. The event handler
+read the first as a single name and handed it straight to `string.format`. Both profession APIs
+can answer at once, so the mark now names **every** book that was stored, comma-separated;
+naming one of two reads as the other having been missed.
+
+Two smaller things in the same six lines:
+
+- The emptiness test was `if book and ...`. **An empty table is truthy in Lua**, so that test
+  could only ever have been carried by the count beside it. It is `#books == 0` now.
+- A zero count is still marked. The books *are* in the snapshot; they simply had nothing
+  readable in them. Silence there is indistinguishable from never having looked, which is the
+  one question this heartbeat exists to answer.
+
+### Internal
+**Why no gate caught it.** `tools/enhance.js` already drove this exact handler, several times
+over, and had done for months. It never reached the crashing line: the line sits behind
+`Valuate.MarkAutomation`, the fixture defined no such function, and the branch short-circuited
+every single run. **The path counted as covered because the handler ran — but nothing inside it
+did.** The missing piece was a *mock*, not an assertion.
+
+The fixture now supplies `MarkAutomation` and reads the heartbeat back. Three mutations, the
+first of which restores the shipped bug verbatim; all three are caught. 135 checks in that gate,
+up from 132.
+
+86 gates, 496 mutations, 75 verify checks.
+
 ## [0.203.0a] - 2026-08-22 — the to-do list stops vouching for what it never read
 
 ### Fixed

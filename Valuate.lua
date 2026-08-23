@@ -11688,6 +11688,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "bookheartbeat", since = "0.204.0a",
+        gate = "tools/enhance.js",
+        title = "Opening a profession window records the book without erroring",
+        steps = "Open Enchanting, then any other crafting profession. Run /valuate report and find the enhanceBooks heartbeat. Then close both and open one again.",
+        expect = "No Lua error on opening. The heartbeat names the book and how many enhancements it remembered. With two windows open it names both, separated by a comma. Opening nothing leaves the previous heartbeat alone rather than replacing it with an empty one.",
+        broke = "This crashed on every character who opened Enchanting: the reader returns a LIST of book names and the handler passed that table straight to string.format. The gate had driven this handler for months without reaching the line, because the line sits behind Valuate.MarkAutomation and the fixture never defined one - so the branch short-circuited and the path counted as covered. The gate now reproduces the crash and refuses it. What only the client can show is which book NAMES Ascension reports through GetCraftName and GetTradeSkillLine: a name that comes back empty or as UNKNOWN falls back to 'Enchanting' or 'Crafting', and if the heartbeat always says the fallback then the real names are not reaching us and every book on this server is filed under two labels.",
+    },
+    {
         id = "enhancesockets", since = "0.202.0a",
         gate = "tools/enhancesockets.js",
         title = "The Enhance tab counts your empty sockets",

@@ -449,6 +449,62 @@ if watcher then
     STATS_BY_NAME["Enchant Boots - Greater Assault"] = { Agility = 32 }
     watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
     ns.CollectEnhancements()
+
+    -- ---- WHAT THE HANDLER DOES WITH WHAT IT READ ------------------------------------------
+    --
+    -- This block exists because the handler above shipped a crash that this gate drove past
+    -- several times without noticing:
+    --
+    --   Enhance.lua: bad argument #2 to format (string expected, got table)
+    --
+    -- SnapshotOpenBook returns a LIST of book names and a total. The handler read the first as
+    -- a single name and passed it to string.format. It fired the first time anyone opened
+    -- Enchanting on a live realm.
+    --
+    -- The gate already ran this exact handler, repeatedly. What it never ran was the line
+    -- INSIDE it: the format call sits behind Valuate.MarkAutomation, and the fixture had no
+    -- such function, so the branch short-circuited every time and the path counted as covered.
+    -- Driving a handler is not the same as driving what is inside it, and the piece that was
+    -- missing here was a MOCK rather than an assertion.
+    MARKS = {}
+    function Valuate:MarkAutomation(name, outcome) MARKS[name] = outcome end
+
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    ok(MARKS.enhanceBooks ~= nil, "reading a book leaves an automation heartbeat behind")
+    eq(type(MARKS.enhanceBooks), "string",
+       "and it is a STRING - a table reaching string.format is a hard error, not a bad label")
+    local mark = type(MARKS.enhanceBooks) == "string" and MARKS.enhanceBooks or ""
+    ok(mark:find("Enchanting", 1, true) ~= nil, "naming the book it read")
+    ok(mark:find("%d") ~= nil, "and how much it remembered")
+
+    -- Both apis can answer at once. Naming one of two books reads as the other having been
+    -- missed, so the mark lists every book that was stored rather than whichever came first.
+    -- This fixture has both open, which is exactly why the single-name read was a table.
+    if type(GetNumTradeSkills) == "function" and (GetNumTradeSkills() or 0) > 0 then
+        ok(mark:find(",", 1, true) ~= nil,
+           "with two books open, BOTH are named rather than the first of them")
+    end
+
+    -- Nothing open, nothing stored, NOTHING MARKED.
+    --
+    -- The pair to the assertions above, and the one that makes the emptiness test load-bearing.
+    -- SnapshotOpenBook returns a table either way, and an empty table is TRUTHY in Lua - so a
+    -- guard written as if books then passes on a read that found nothing and leaves a
+    -- heartbeat saying ": 0 enhancement(s) remembered", with no book named at all. The
+    -- heartbeat's whole job is to answer "did this run", and a mark from a run that read
+    -- nothing is the one answer worse than no mark.
+    local realCrafts, realTrades = GetNumCrafts, GetNumTradeSkills
+    GetNumCrafts = function() return 0 end
+    GetNumTradeSkills = function() return 0 end
+    MARKS = {}
+    watcher.__scripts.OnEvent(watcher, "CRAFT_UPDATE")
+    eq(MARKS.enhanceBooks, nil, "a read that found no open book leaves NO heartbeat behind")
+
+    -- Put the fixture back: everything after this reads these same two books, and a test that
+    -- quietly leaves the world different is a test that breaks its neighbours.
+    GetNumCrafts, GetNumTradeSkills = realCrafts, realTrades
+
+    Valuate.MarkAutomation = nil
 end
 
 -- A FAILED read is not remembered.
