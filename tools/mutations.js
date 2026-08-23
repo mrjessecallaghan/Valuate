@@ -2974,4 +2974,45 @@ module.exports = [
     label: "the no-C_Timer fallback is left unguarded",
     from: "                if not handle.cancelled then guarded() end",
     to: "                if not handle.cancelled then callback() end" },
+// ---- enhancement scoring (v0.206.0a) -------------------------------------
+  // This decides which enchant sits at the top of a slot. It ran transitively through
+  // RankForSlot for a long time, so it was EXECUTED - but nothing asserted what it returned,
+  // and being executed is not being checked. None of these error; you just buy the wrong thing.
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "every role is scored as dps, so a healer is sold a melee damage proc",
+    from: "    local column = (role == \"tank\" and 3) or (role == \"healer\" and 4) or 2",
+    to: "    local column = 2" },
+
+  // The columns swapped rather than collapsed - the version that still varies by role, so any
+  // assertion checking merely that roles DIFFER would sail straight through it.
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "the tank and healer columns are swapped, so each is sold the other's enchant",
+    from: "    local column = (role == \"tank\" and 3) or (role == \"healer\" and 4) or 2",
+    to: "    local column = (role == \"tank\" and 4) or (role == \"healer\" and 3) or 2" },
+
+  // The cumulative match is deliberate for exactly one row: "greater" is a nudge so that
+  // Greater X outranks plain X on a tie. A break added later to "fix" the double-match would
+  // silently undo it.
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "a break stops the cumulative match, so Greater X no longer outranks plain X",
+    from: "            estimated = true\n        end\n    end\n\n    return score, estimated",
+    to: "            estimated = true\n            break\n        end\n    end\n\n    return score, estimated" },
+
+  // The admission that part of this number is somebody's opinion. Always-true and never-true
+  // are both useless, and the panel prints it either way.
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "every score claims to be an estimate, so the admission stops meaning anything",
+    from: "    local estimated = false\n    local lower", to: "    local estimated = true\n    local lower" },
+
+  // score + effect[column] is an addition. A row added without all three numbers is score + nil
+  // - a hard error for ONE role, invisible to everybody else.
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "an effect row loses its healer column, so healers crash and nobody else notices",
+    from: "    { \"mongoose\",        50,   25,    0,   \"agility proc\" },",
+    to: "    { \"mongoose\",        50,   25,   \"agility proc\" }," },
+
+  { gate: "enhancescore", file: "ui/Enhance.lua",
+    label: "a stat scorer that throws takes the whole Enhance tab down with it",
+    from: "        local ok, value = pcall(Valuate.CalculateItemScore, Valuate, entry.stats, scaleName)",
+    to: "        local ok, value = true, Valuate.CalculateItemScore(Valuate, entry.stats, scaleName)" },
 ];

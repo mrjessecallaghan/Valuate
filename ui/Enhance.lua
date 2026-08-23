@@ -372,14 +372,16 @@ local function StatsFromTooltip(setter, index, name)
     return stats, reqLevel
 end
 
--- The link is decoration - a hover target - never a fact the panel depends on. Some clients
--- return nil for a craft that produces no item (an enchant is cast, not made), and a few
--- error rather than returning nil, so this is wrapped and its failure is not interesting.
-function ns.SafeLink(fn, index)
-    if type(fn) ~= "function" then return nil end
-    local ok, link = pcall(fn, index)
-    return ok and link or nil
-end
+-- ns.SafeLink lived here: a nil-safe wrapper for GetCraftItemLink / GetTradeSkillItemLink.
+--
+-- Removed rather than kept, because it was never called by anything and its NAME was the
+-- problem. A helper called SafeLink implies links are read somewhere and handled carefully,
+-- when the design deliberately stores neither a link nor an index: both are only meaningful
+-- while the profession window is open, and a stored index moves the moment the list is
+-- filtered or collapsed - which would be a wrong answer rather than a missing one, as
+-- ns.ReadOpenBook says where it declines to keep them.
+--
+-- Left in place, the next person to read it wires it back up and reintroduces exactly that.
 
 -- Returns bySlot, unreadable.
 --

@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.206.0a] - 2026-08-23 — the enchant you are told to buy is scored for your role
+
+### Internal
+**`ns.ScoreEnhancement` had no gate of its own.** It decides which enchant sits at the top of a
+slot on the Enhance tab. It ran *transitively* through `RankForSlot`, so it was executed on
+every gate run — but nothing anywhere asserted what it returned, and **being executed is not
+being checked**. That is the same gap that hid the v0.204.0a crash, in a quieter form: there,
+the line never ran; here, it ran and nobody looked.
+
+Two ways it can be wrong, failing in opposite directions:
+
+- **The wrong column.** `EFFECT_VALUES` carries a number per role — dps, tank, healer — and the
+  column comes from the scale. Read the wrong one and a healer is recommended a melee damage
+  proc worth exactly nothing to them, with a confident number beside it. Nothing errors; you
+  just buy the wrong enchant. The new assertions compare roles *against each other* rather than
+  against constants, so a version that reads one column for everybody cannot pass — and a
+  second mutation swaps tank and healer rather than collapsing them, which any "the roles
+  differ" check would sail straight through.
+- **A short row.** `score + effect[column]` is an addition, so a row added later without all
+  three numbers is `score + nil` — a hard error, **for one role only**. A dps player would never
+  see it and a healer could not use the tab at all. The table is well-formed today; the gate is
+  there so it stays that way when someone adds a row and stops at the columns they cared about.
+
+Also pinned: `estimated`, the flag that admits part of the score came from a hand-written
+opinion about how much movement speed is worth. The panel prints that admission, and it is only
+as good as the flag — always-true and never-true are equally useless. And the cumulative match
+is now deliberately locked: the loop has no `break` so that *Greater X* outranks plain *X* on a
+tie, and a `break` added later to "fix" the double-match would silently undo it.
+
+New gate `tools/enhancescore.js`, 91 checks, 6 mutations.
+
+### Removed
+**`ns.SafeLink`** — dead, and its *name* was the problem. A helper called SafeLink implies links
+are read somewhere and handled carefully, when the design deliberately stores neither a link nor
+an index: both are only meaningful while the profession window is open, and a stored index moves
+the moment the list is filtered or collapsed, which would be a wrong answer rather than a
+missing one. Left in place, the next person to read it wires it back up and reintroduces exactly
+that. A comment marks where it was and why it is gone.
+
+88 gates, 507 mutations.
+
 ## [0.205.0a] - 2026-08-23 — a deferred bug is reported, not just witnessed
 
 ### Fixed
