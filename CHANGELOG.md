@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.216.0a] - 2026-08-23 — the junk hook that fed the sell list
+
+### Internal
+**`Valuate-AdiBags` had no behavioural coverage at all.** Its only gate was `tools/api.js`,
+which checks that its calls into Valuate *resolve* — not that any of them behave. 23 of its 28
+functions were named by no gate.
+
+The one that matters is `mod:HookJunkModule`, and the reason is the chain it sits in: it reaches
+into **another addon** and replaces AdiBags' junk check so gear the scan marks surplus counts as
+junk too — and Valuate's own auto-sell and auto-delete then read junk classification. That is
+the shortest path in this project from a wrong answer to an item leaving your bags, and the one
+time this addon has actually cost something, it was down this line.
+
+New gate `tools/junkhook.js`, 15 checks, 3 mutations, pinning three properties:
+
+| | |
+|---|---|
+| **additive only** | AdiBags' own verdict is returned first and never contradicted. Valuate can widen the junk set, never narrow it — it does not get to overrule the host addon about the host addon's own feature |
+| **fails closed** | `IsSurplusGear` reads scan data that may not be there, and an error must mean *not junk*. The alternative is an item being sold on the strength of a read that never happened — the shape this project has now hit four times elsewhere |
+| **idempotent** | installing twice chains the wrapper around itself, running the surplus test once per layer on a path that runs per item per bag repaint |
+
+**The code was already right on all three.** This release fixes no behaviour; it stops three
+properties that a one-line edit could break from resting on nobody having made that edit.
+
+### Not found
+Worth recording, since a clean audit is only useful if it is reported as one. `HookJunkModule`
+sets its guard flag *before* installing the hook — better ordering than the TSM `Decorate` path
+noted two releases ago. `SectionFor` and `Filter` are cheap per item. `CommitMinPrice` converts
+gold/silver/copper correctly. `RestoreSelection` was already right when it was pinned. Four
+audits, four sound implementations.
+
+94 gates, 543 mutations.
+
 ## [0.215.0a] - 2026-08-23 — the backup that had stopped happening
 
 ### Fixed

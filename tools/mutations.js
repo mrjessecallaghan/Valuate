@@ -3248,4 +3248,25 @@ module.exports = [
 
   // A missing bundle is the worst case, not a neutral one: it means the entire history of that
   // addon exists on one disk.
+// ---- the AdiBags junk hook (v0.216.0a) -----------------------------------
+  // The shortest path in this project from a wrong answer to an item leaving your bags. Valuate
+  // wraps AdiBags' junk check, and Valuate's auto-sell reads junk classification.
+  { gate: "junkhook", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    label: "a failed surplus read counts as junk, so unscanned gear joins the sell list",
+    from: "\t\treturn okCheck and surplus or false",
+    to: "\t\treturn (not okCheck) or surplus or false" },
+
+  // Valuate does not get to overrule the host addon about the host addon's own feature.
+  { gate: "junkhook", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    label: "Valuate can un-junk something AdiBags already called junk",
+    from: "\t\tif previous(selfMod, itemId, force) then return true end",
+    to: "\t\tlocal was = previous(selfMod, itemId, force)",
+    scope: { start: "function mod:HookJunkModule", end: "-- Junk is not \"new\"" } },
+
+  // Chaining the wrapper around itself runs the surplus test once per layer, on a path that
+  // runs per item per bag repaint.
+  { gate: "junkhook", file: "../Valuate-AdiBags/Valuate-AdiBags.lua",
+    label: "the hook installs more than once and stacks a wrapper per call",
+    from: "\tif junkModule or not AdiBags.GetModule then return end",
+    to: "\tif not AdiBags.GetModule then return end" },
 ];
