@@ -3269,4 +3269,35 @@ module.exports = [
     label: "the hook installs more than once and stacks a wrapper per call",
     from: "\tif junkModule or not AdiBags.GetModule then return end",
     to: "\tif not AdiBags.GetModule then return end" },
+// ---- checklist readiness (v0.217.0a) -------------------------------------
+  // A broken probe must never remove a check from the list. Offering one you cannot perform
+  // costs a glance; hiding one that needed doing costs the thing the check was protecting.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "a readiness probe that errors hides the check instead of leaving it visible",
+    from: "    if not ok then return true, nil end   -- a probe that broke does not get to hide a check",
+    to: "    if not ok then return false, \"probe failed\" end" },
+
+  // Most checks need no circumstance. Treating silence as unknown would hide almost the whole
+  // list behind a field nobody had filled in yet.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "a check with no precondition is treated as un-doable, hiding most of the list",
+    from: "    if type(check.ready) ~= \"function\" then return true, nil end",
+    to: "    if type(check.ready) ~= \"function\" then return false, \"unknown\" end" },
+
+  // "Nothing from here" and "nothing left" are different sentences. Dropping the blocked list
+  // turns the first into the second.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "checks waiting on a circumstance are dropped, so an empty list reads as finished",
+    from: "                blocked[#blocked + 1] = { check = c, why = why }",
+    to: "                blocked[#blocked + 1] = nil" },
+
+  // A refusal with no words reaches a screen as "waiting: nil".
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "a bare refusal reaches the screen with no reason attached",
+    from: "    return false, why or \"not right now\"", to: "    return false, why" },
+
+  // The caller's pending filter must actually be consulted, or ticked checks are offered again.
+  { gate: "verifyready", file: "Valuate.lua",
+    label: "the pending filter is ignored, so checks you already ticked are offered again",
+    from: "        if (not isPending) or isPending(c) then", to: "        if true then" },
 ];

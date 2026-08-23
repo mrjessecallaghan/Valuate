@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.217.0a] - 2026-08-23 — `/valuate verify here`
+
+### Added
+**The checklist now knows which checks you could actually do from where you are standing.**
+
+`/valuate verify` holds 78 behavioural checks, every one covering something only a running
+client can prove, and **none of them has ever been ticked**. That is the largest known gap in
+this project — everything since v0.177.1a is proven against a mocked WoW API and nothing else.
+
+The reason is not presentation. The list already hands out one check at a time, the ticks
+persist, they un-tick themselves when the behaviour changes, and ungated checks are handed out
+first. The reason is that most checks need a **circumstance**: a repair vendor, an open
+profession window, the bank, a full relog. Reading past sixty things you cannot do to find the
+three you can is how a checklist stays at zero — and being handed one you cannot perform is
+worse than being handed nothing.
+
+A check may now declare what it needs, and **`/valuate verify here`** answers *"what could I do
+without moving"*. It lists what is doable, and — separately — what is waiting and on what, so an
+empty result reads as *"nothing from here"* rather than *"nothing left"*. Those are different
+sentences and only one of them points somewhere.
+
+Five checks declare a precondition so far: a repair vendor, an open profession window, the bank
+frame, a battleground queue, and one that can never be ready now by construction — the setting
+that has to survive a full log out and back in.
+
+The two defaults are the whole design, and they point in opposite directions:
+
+| | |
+|---|---|
+| **no predicate means ready** | most checks need no circumstance, and treating silence as *unknown* would hide almost the entire list behind a field nobody had filled in yet |
+| **a probe that errors means ready** | readiness touches live client API. A broken probe must never remove a check: offering one you cannot perform costs a glance, hiding one that needed doing costs the thing the check was protecting |
+
+Both are the rule this addon applies everywhere else — an unreadable answer is never allowed to
+be the reassuring one — pointed at the checklist itself.
+
+### Internal
+New gate `tools/verifyready.js`, 23 checks, 5 mutations. `BankFrame` is declared in
+`tools/globals.js`; it is a real client global and the readiness probe is the first thing here
+to need it.
+
+95 gates, 548 mutations.
+
 ## [0.216.0a] - 2026-08-23 — the junk hook that fed the sell list
 
 ### Internal

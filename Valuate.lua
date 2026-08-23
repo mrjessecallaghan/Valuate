@@ -11835,6 +11835,12 @@ local VERIFY_CHECKS = {
     },
     {
         id = "repairverified", since = "0.207.0a",
+        -- Needs a merchant who repairs. Detectable exactly, so there is no reason to hand
+        -- this one out while you are standing in a field.
+        ready = function()
+            if CanMerchantRepair and CanMerchantRepair() then return true end
+            return false, "a repair vendor"
+        end,
         gate = "tools/repairtest.js",
         title = "Auto-repair tells you which purse actually paid",
         steps = "Turn on auto-repair and 'try guild funds first'. Visit a repair vendor with damaged gear. Watch chat, then check your durability and your gold. Best tested on a character whose guild repair allowance is spent or whose guild bank is empty.",
@@ -11851,6 +11857,14 @@ local VERIFY_CHECKS = {
     },
     {
         id = "bookheartbeat", since = "0.204.0a",
+        -- Both profession apis only answer while their window is open, which is the same
+        -- fact the feature itself is built around.
+        ready = function()
+            local crafts = type(GetNumCrafts) == "function" and (GetNumCrafts() or 0) or 0
+            local trades = type(GetNumTradeSkills) == "function" and (GetNumTradeSkills() or 0) or 0
+            if crafts > 0 or trades > 0 then return true end
+            return false, "a profession window open"
+        end,
         gate = "tools/enhance.js",
         title = "Opening a profession window records the book without erroring",
         steps = "Open Enchanting, then any other crafting profession. Run /valuate report and find the enhanceBooks heartbeat. Then close both and open one again.",
@@ -11883,6 +11897,10 @@ local VERIFY_CHECKS = {
     },
     {
         id = "settingssurvive", since = "0.190.0a",
+        -- Never doable "now" by construction: the whole check is that a setting survives a
+        -- full log out and back in. Saying so is more useful than letting it come up in a
+        -- list of things you could do without moving, which it can never be.
+        ready = function() return false, "a full log out and back in" end,
         gate = "tools/optiondefaults.js",
         title = "A setting you changed survives a relog",
         steps = "Turn OFF something that defaults on - the login summary, or Need on unlearned recipes. Log out fully to character select, log back in, and check it.",
@@ -12117,6 +12135,10 @@ local VERIFY_CHECKS = {
     },
     {
         id = "bgaccept", since = "0.108.0a",
+        ready = function()
+            if GetBattlefieldStatus then return true end
+            return false, "a battleground queue"
+        end,
         gate = "tools/queuetest.js",
         title = "A queue pop is taken automatically - but never mid-fight",
         steps = "Turn on /valuate autoqueuepvp and /valuate autoacceptbg, queue, and go do something. When it pops, you should be pulled in. Then queue again and be IN COMBAT when it pops.",
@@ -12442,6 +12464,11 @@ local VERIFY_CHECKS = {
     },
     {
         id = "bankvisit", since = "0.38.1a",
+        -- Bank containers only answer while the bank frame is open.
+        ready = function()
+            if BankFrame and BankFrame.IsShown and BankFrame:IsShown() then return true end
+            return false, "the bank open"
+        end,
         title = "Opening a bank says whether anything in it is an upgrade",
         steps = "Put an item better than what you are wearing into your bank, walk away, then come back and open it. Then move a few items in and out while it is open.",
         expect = "About a second and a half after opening, one message names how many banked items beat your gear. Moving items around must NOT print it again.",
@@ -12604,6 +12631,49 @@ end
 -- Twenty-one checks is a long sitting and it may not be finished in one. If it stops
 -- half-way, the half that got done should be the half nothing else covers - so `next` hands
 -- those out first. Within each group the list order is preserved, so it stays predictable.
+-- Can this check be performed from where you are standing right now?
+--
+-- Returns ready, reason. `reason` is filled in only when the answer is no.
+--
+-- The checklist is 78 items and most of them need a CIRCUMSTANCE: a repair vendor, an open
+-- profession window, a guild, a bank. Handing somebody a check they cannot perform is the
+-- friction that kept this list at zero ticked for six weeks - you read it, you cannot do it,
+-- you close the window, and nothing about the addon is any better proven than before.
+--
+-- A check with no `ready` can be done anywhere, which is the common case and the right default:
+-- silence here means "no circumstance required", never "unknown".
+--
+-- pcall'd because a readiness probe touches live client API, and a checklist that errors while
+-- telling you what you could check is worse than one that just lists everything.
+function ns.VerifyReadiness(check)
+    if type(check) ~= "table" then return false, "no such check" end
+    if type(check.ready) ~= "function" then return true, nil end
+    local ok, isReady, why = pcall(check.ready)
+    if not ok then return true, nil end   -- a probe that broke does not get to hide a check
+    if isReady then return true, nil end
+    return false, why or "not right now"
+end
+
+-- Which pending checks you could do without moving.
+--
+-- Returns doable, blocked - two arrays of the same entries, so the caller can say what is
+-- available AND what is waiting on something, rather than presenting an empty list as though
+-- there were nothing left to do.
+function ns.ReadyChecks(checks, isPending)
+    local doable, blocked = {}, {}
+    for _, c in ipairs(checks or {}) do
+        if (not isPending) or isPending(c) then
+            local ready, why = ns.VerifyReadiness(c)
+            if ready then
+                doable[#doable + 1] = c
+            else
+                blocked[#blocked + 1] = { check = c, why = why }
+            end
+        end
+    end
+    return doable, blocked
+end
+
 local function NextPendingCheck()
     local first, firstIndex, pending = nil, nil, 0
     local fallback, fallbackIndex = nil, nil
@@ -12643,6 +12713,53 @@ function Valuate:RunVerify(which)
     if verb == "reset" then
         Valuate:GetOptions().verifiedChecks = {}
         print("|cFF00FF00[Valuate]|r Cleared every verification tick.")
+        return true
+    end
+
+    -- /valuate verify here - what you could check without moving.
+    --
+    -- The list is 78 items and most need a circumstance you are probably not in. Reading past
+    -- sixty things you cannot do to find the three you can is how a checklist stays at zero.
+    if verb == "here" and not target then
+        local function pending(c)
+            local at, stale = VerifiedState(c)
+            return (not at) or stale
+        end
+        local doable, blocked = ns.ReadyChecks(VERIFY_CHECKS, pending)
+
+        if #doable == 0 and #blocked == 0 then
+            print("|cFF00FF00[Valuate]|r Nothing pending - every behavioural check is ticked.")
+            return true
+        end
+
+        if #doable == 0 then
+            -- NOT "nothing to do". Every pending check needs something you have not got in
+            -- front of you, which is a different sentence and points somewhere.
+            print(string.format("|cFFFF8800[Valuate]|r Nothing you can check from here - all %d " ..
+                "pending checks are waiting on a circumstance.", #blocked))
+        else
+            print(string.format("|cFF00FF00[Valuate]|r %d check%s you can do right now:",
+                #doable, #doable == 1 and "" or "s"))
+            for i = 1, math.min(6, #doable) do
+                print(string.format("  |cFFFFFFFF%s|r  %s", doable[i].id, doable[i].title))
+            end
+            if #doable > 6 then
+                print(string.format("  |cFFAAAAAA...and %d more.|r", #doable - 6))
+            end
+            print("  |cFFAAAAAAStart one with /valuate verify <id>|r")
+        end
+
+        -- What is waiting, and on WHAT. A blocked check is not a check you can forget; it is
+        -- one to run next time you happen to be standing somewhere.
+        if #blocked > 0 then
+            local shown = {}
+            for _, b in ipairs(blocked) do
+                if not shown[b.why] then
+                    shown[b.why] = true
+                    print(string.format("  |cFF888888waiting: %s|r", b.why))
+                end
+            end
+        end
         return true
     end
 
@@ -12754,6 +12871,7 @@ function Valuate:RunVerify(which)
 
     print(" ")
     print(string.format("|cFFAAAAAA%d of %d checked%s. Work through them with /valuate verify next, " ..
+        "see just what you could do from where you are standing with /valuate verify here, " ..
         "tick one with /valuate verify done <name>, or start over with /valuate verify reset.|r",
         done, #VERIFY_CHECKS,
         stale > 0 and (", " .. stale .. " now STALE - those come round again") or ""))
