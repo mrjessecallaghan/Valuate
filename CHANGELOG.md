@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.213.0a] - 2026-08-23 — a guard that latched on its own failure
+
+### Fixed
+**`Valuate-TSM`'s scoring worker could latch itself off for an entire session, silently.**
+
+`ns.ScheduleWork` is feature-detected because TSM builds disagree about whether
+`TSMAPI:CreateTimeDelay` exists. Two callers raise a flag meaning *"this is already in
+flight"* — and both raised it **before** finding out whether anything had been scheduled:
+
+```lua
+ns.workerRunning = true                       -- flag up
+ns.ScheduleWork(WORK_LABEL, TICK, ...)        -- ...which may have done nothing at all
+```
+
+So on exactly the clients the feature detection exists for, the flag went up, no timer was
+created, and every later `Enqueue` returned at the guard. **The Upgrade columns stay blank for
+the whole session and nothing says why.** `ns.NotifyDirty` had the identical bug: one failed
+schedule and the results table never redraws again.
+
+A guard that latches on a failure is worse than no guard, because it turns one missed tick into
+a permanent one. `ScheduleWork` now reports whether it scheduled, and both flags are withdrawn
+when it did not. They are still raised *first* and cleared on failure rather than raised
+afterwards — the harness runs some scheduled callbacks synchronously, so a flag set after the
+call would be set on top of a callback that had already cleared it, which is the same bug from
+the other side.
+
+### Internal
+`Valuate-TSM` is the largest sibling at 2,588 lines, runs inside TSM's own shopping UI, and had
+**61 of its 110 functions** named by no suite. The worker cluster was checked first because a
+background task inside another addon's UI is the one place a Valuate bug looks like TSM being
+broken — and there is precedent: an earlier TSM integration froze a client, which is why
+per-event cost profiling exists at all.
+
+The termination property turned out to be **sound** — `GetEntry` returns `blank` once
+`MAX_ATTEMPTS` is reached, so a queue of nothing but cold items drains after eight passes rather
+than requeueing forever. Worth stating plainly, since that was the thing most likely to be
+wrong.
+
+Suite up to 170 assertions from 166.
+
+**Two of my own mistakes, both caught by checking rather than assuming.** The four new
+assertions were first appended *below* the suite's summary line, so they ran and reported
+nothing — noticed only because the pass count did not move; there is now a note at that spot
+saying so. And the suite's `ScheduleWork` override had to start returning `true`: a mock
+returning nothing would make every caller believe scheduling had failed. That is exactly the
+class `tools/mockarity.js` was built for one release ago, in a sibling suite that gate does not
+yet scan.
+
+92 gates, 534 mutations.
+
 ## [0.212.0a] - 2026-08-23 — the class that caused three bugs now catches itself
 
 ### Added

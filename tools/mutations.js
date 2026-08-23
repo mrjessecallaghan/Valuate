@@ -3187,4 +3187,18 @@ module.exports = [
     label: "a reviewed entry goes stale and the allowlist starts overstating the debt",
     from: "Valuate.GetProfessionOverrideChoices = function() return {} end",
     to: "Valuate.GetProfessionOverrideChoices = function() return {}, {} end" },
+// ---- the TSM worker's latch (v0.213.0a) ----------------------------------
+  // Both of these restore the shipped behaviour: a guard raised BEFORE finding out whether
+  // anything was scheduled. On a TSM build without CreateTimeDelay - the exact case the
+  // feature detection exists for - the flag went up, nothing ran, and every later call
+  // returned at the guard. Silently, for the whole session.
+  { gate: "siblingsuites", file: "../Valuate-TSM/Score.lua",
+    label: "the scoring worker latches running without being scheduled, so columns stay blank forever",
+    from: "    ns.workerRunning = true\n    if not ns.ScheduleWork(WORK_LABEL, TICK, function() ns.RunWorker() end, TICK) then\n        ns.workerRunning = nil\n    end",
+    to: "    ns.workerRunning = true\n    ns.ScheduleWork(WORK_LABEL, TICK, function() ns.RunWorker() end, TICK)" },
+
+  { gate: "siblingsuites", file: "../Valuate-TSM/Score.lua",
+    label: "a redraw latches pending without being scheduled, so the table never redraws again",
+    from: "    if not scheduled then ns.dirtyPending = nil end",
+    to: "    if false then ns.dirtyPending = nil end" },
 ];
