@@ -3049,4 +3049,43 @@ module.exports = [
     label: "the guild declining leaves your gear damaged instead of paying it yourself",
     from: "            payYourself()\n        end)\n        return true",
     to: "            return\n        end)\n        return true" },
+// ---- bind confirmations (v0.208.0a) --------------------------------------
+  // Binding is PERMANENT and has no undo anywhere in the game. One check stands between you and
+  // a silently soulbound BoE, and none of these error - the item is simply bound.
+  { gate: "bindconfirm", file: "Valuate.lua",
+    label: "an item YOU equipped is silently soulbound, because intent is no longer required",
+    from: "        if HasEquipIntent() and EquipPendingItem then",
+    to: "        if EquipPendingItem then" },
+
+  // Time-bounded rather than cleared on completion, deliberately: an equip that never finishes
+  // would leave the flag armed forever, which is the worst possible duration for this action.
+  { gate: "bindconfirm", file: "Valuate.lua",
+    label: "equip intent never expires, so one Equip All arms the addon for the whole session",
+    from: "    return GetTime() <= equipIntentUntil",
+    to: "    return equipIntentUntil > 0" },
+
+  // Looting is something YOU did. Merging the two consents means an Equip All quietly agrees to
+  // bind whatever you loot next.
+  { gate: "bindconfirm", file: "Valuate.lua",
+    label: "Valuate's own equip intent is taken as consent to bind what you looted",
+    from: "        if options.autoConfirmBindOnLoot and ConfirmLootSlot then",
+    to: "        if (options.autoConfirmBindOnLoot or HasEquipIntent()) and ConfirmLootSlot then" },
+
+  // Not an oversight and never to be "fixed": ConfirmBindOnUse taints a protected path, and the
+  // client then blocks the actual use - which broke Ascension's vanity sync.
+  { gate: "bindconfirm", file: "Valuate.lua",
+    label: "USE_BIND_CONFIRM is helpfully handled, tainting the path and breaking the item",
+    from: "    elseif event == \"LOOT_BIND_CONFIRM\" then",
+    to: "    elseif event == \"USE_BIND_CONFIRM\" then\n        if ConfirmBindOnUse then ConfirmBindOnUse(slot) end\n    elseif event == \"LOOT_BIND_CONFIRM\" then" },
+
+  // Slot semantics differ per event. Confirming the wrong one binds a different item than the
+  // prompt was about, and nothing looks wrong until you find it later.
+  { gate: "bindconfirm", file: "Valuate.lua",
+    label: "the wrong slot is confirmed, so a different item is bound than the prompt named",
+    from: "            EquipPendingItem(slot)", to: "            EquipPendingItem(1)" },
+
+  { gate: "bindconfirm", file: "Valuate.lua",
+    scope: { start: "function Valuate:ConfirmAutoLootRoll", end: "-- Auto-accepts quests offered by NPCs" }, label: "a loot roll is confirmed with auto-roll switched off",
+    from: "    if not options.autoRollLoot or not rollID then return end",
+    to: "    if not rollID then return end" },
 ];

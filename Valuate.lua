@@ -11788,6 +11788,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "bindintent", since = "0.208.0a",
+        gate = "tools/bindconfirm.js",
+        title = "Nothing is soulbound unless you asked for it",
+        steps = "With a bind-on-equip item in your bags, equip it YOURSELF from the bag. Answer the prompt by hand. Then use Equip All on a scale whose best-in-slot includes a BoE and watch what happens. Finally check a bind-on-use item still works.",
+        expect = "Equipping by hand always prompts YOU - Valuate never answers that. Equip All answers its own prompts and nothing else. A bind-on-use item opens its own confirmation and using it works normally.",
+        broke = "Binding is permanent and has no undo anywhere in the game, which puts this beside delete and sell. One check stands in the way: Valuate answers an equip-bind prompt only when Valuate started the equip. Take it away and the addon confirms the prompt raised by an item you picked up to look at - no click, no message, and it is bound. USE_BIND_CONFIRM is deliberately never answered, because calling ConfirmBindOnUse taints a protected path and the client then blocks the actual use, which broke Ascension's vanity sync. Only the client can show which of these events this server actually raises and with what slot argument - if Equip All ever leaves a prompt sitting on screen, or a bind-on-use item stops working, the event names or their slot semantics differ here.",
+    },
+    {
         id = "repairverified", since = "0.207.0a",
         gate = "tools/repairtest.js",
         title = "Auto-repair tells you which purse actually paid",

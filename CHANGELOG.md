@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.208.0a] - 2026-08-23 — nothing is soulbound on your behalf without intent you gave
+
+### Internal
+**`Valuate:HandleBindConfirm` had no gate.** Binding is **permanent** — a bind-on-equip item
+that binds is unsellable and untradeable for the rest of its life, and there is no undo for it
+anywhere in the game. That puts this function beside delete and sell, and nothing had ever
+tested it.
+
+One check stands between you and a silently soulbound BoE: `HasEquipIntent()`. Valuate answers
+an equip-bind prompt **only when Valuate started the equip**. Take that away and the addon
+confirms the prompt raised by an item you picked up to look at — no click, no message, and it is
+bound. Nothing errors, nothing is logged, and the item is worth a fraction of what it was a
+second earlier.
+
+The intent is **time-bounded** rather than cleared on completion, deliberately: an equip that
+never finishes would leave a flag armed forever, and *forever* is the worst possible duration
+for this particular action. The gate pins the expiry too, since a version that armed intent
+permanently would pass every other check in the file.
+
+Three separate consents, and merging any two of them is a bug:
+
+| event | authorised by |
+|---|---|
+| `EQUIP_BIND_CONFIRM` / `AUTOEQUIP_BIND_CONFIRM` | Valuate's own equip intent |
+| `LOOT_BIND_CONFIRM` | its own opt-in setting — *your* looting, not Valuate's doing |
+| `USE_BIND_CONFIRM` | **never answered, at all** |
+
+That last row is not an oversight and must never be "fixed". Using an item is a protected path,
+so calling `ConfirmBindOnUse` taints it and the client then blocks the actual use — which broke
+Ascension's vanity sync. A regression that helpfully handles it does not merely fail; it stops
+bind-on-use items working entirely. There is now a mutation that adds exactly that handler, and
+the gate refuses it.
+
+Also pinned: the **slot is passed through unchanged**. Slot semantics differ per event, and
+confirming the wrong one binds a different item than the prompt was about — which looks like
+nothing went wrong at all until you find the bound item later.
+
+New gate `tools/bindconfirm.js`, 21 checks, 6 mutations. It covers `ConfirmAutoLootRoll` too:
+confirming a Need roll on a bind-on-pickup item binds it the moment you win.
+
+90 gates, 518 mutations, 78 verify checks.
+
 ## [0.207.0a] - 2026-08-23 — auto-repair stops claiming the guild paid
 
 ### Fixed
