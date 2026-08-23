@@ -387,6 +387,55 @@ UnitClass = function() return nil end
 local _, nilWhich = Valuate:GetTemplateSet()
 eq(nilWhich, "classic", "a nil class name falls back too")
 
+-- ---- what the last screen CLAIMS happened ------------------------------------------------------
+--
+-- CommitAutoScale is gated separately and does the right thing. This is about the sentence you
+-- read afterwards, and every one of its three outcomes makes a promise about your OTHER scales.
+--
+-- The dangerous one is the plain-creation text, which says in so many words that it never
+-- overwrites a scale you already have. Printed on the branch that just deleted one, that is a
+-- false reassurance about the user's own data - and the wizard has a near-miss in exactly this
+-- area already: an earlier version offered to overwrite any scale it had made, so asking for a
+-- Tank build would replace your DPS one.
+local created = ns.WizardOutcomeText(nil)
+local updated = ns.WizardOutcomeText("updated")
+local reused  = ns.WizardOutcomeText("reused")
+
+ok(created:find("never overwrites", 1, true) ~= nil,
+   "a plain creation promises nothing was overwritten")
+ok(updated:find("never overwrites", 1, true) == nil,
+   "an UPDATE never makes that promise - it just replaced one")
+ok(updated:find("untouched", 1, true) ~= nil,
+   "but it does say the others are untouched, which is the part that IS true")
+ok(reused:find("nothing new was made", 1, true) ~= nil,
+   "a reuse says nothing new was made")
+ok(reused:lower():find("created", 1, true) == nil,
+   "and does not claim to have created anything")
+
+-- All three differ. A mapping that collapsed two outcomes onto one sentence would pass several
+-- of the checks above while telling you the wrong thing about one of them.
+ok(created ~= updated and updated ~= reused and created ~= reused,
+   "the three outcomes are three different sentences")
+
+-- AN OUTCOME THIS FUNCTION HAS NOT BEEN TAUGHT ABOUT.
+--
+-- nil means creation because that is exactly what CommitAutoScale returns for one. Anything
+-- else is an outcome added later, and it must not inherit a guarantee written before it
+-- existed - which is how a wizard comes to promise it never overwrites while overwriting.
+local unknown = ns.WizardOutcomeText("migrated")
+ok(unknown:find("never overwrites", 1, true) == nil,
+   "an unrecognised outcome does NOT inherit the never-overwrites promise")
+ok(unknown:find("untouched", 1, true) == nil,
+   "nor the claim that your other scales are untouched")
+ok(unknown:find("primary scale", 1, true) ~= nil,
+   "it still says the part that is true of every outcome")
+
+-- It reaches a screen, so it must always be a string.
+for _, why in ipairs({ "updated", "reused", "migrated", "" }) do
+    ok(type(ns.WizardOutcomeText(why)) == "string", "outcome " .. why .. " produces text")
+end
+ok(type(ns.WizardOutcomeText(nil)) == "string", "and so does nil")
+
 return failures, checks
 `,
   "wizarduitest",

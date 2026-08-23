@@ -160,6 +160,30 @@ function scanForStrippedEscapes(name, src) {
   });
 }
 
+/* ---- 1b. an assertion whose arguments are the wrong way round --------------------------- */
+
+/* Every gate here writes `ok(condition, "what it means")`. The sibling suites write the
+ * opposite - `Check("what it means", condition)` - and moving a block from one to the other by
+ * renaming the call is how you get `ok("what it means", condition)`.
+ *
+ * That form CANNOT FAIL. A non-empty string is truthy in Lua, so the assertion passes whatever
+ * the condition says, and a whole block of them reads exactly like coverage while testing
+ * nothing at all. It happened in v0.219.0a: fifteen assertions about what the wizard claims it
+ * did, every one of them decorative, caught only because two mutations survived.
+ *
+ * A string LITERAL as the first argument is the signal. A variable there is an ordinary
+ * assertion that something is non-nil and is left alone. */
+function scanForSwappedAssertions(name, src) {
+  src.split(String.fromCharCode(10)).forEach((line, idx) => {
+    if (!/^\s*ok\(\s*"/.test(line)) return;
+    problems.push(
+      `tools/${name}:${idx + 1} calls ok() with a string first - the arguments are reversed. ` +
+        `A non-empty string is truthy, so this assertion passes no matter what the condition ` +
+        `says. Write ok(condition, "message")`
+    );
+  });
+}
+
 /* ---- 2. every file is a gate or infrastructure ------------------------------------------ */
 
 /* The same rule gates.js applies, spelled the same way. If discovery changes, this has to
@@ -190,6 +214,7 @@ for (const name of names) {
   const src = fs.readFileSync(path.join(TOOLS_DIR, name), "utf8");
   scanned++;
   scanForStrippedEscapes(name, src);
+  scanForSwappedAssertions(name, src);
 
   const discoverable = isDiscoverable(src);
   if (discoverable) gateCount++;

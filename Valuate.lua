@@ -11826,6 +11826,22 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "wizardclaims", since = "0.219.0a",
+        gate = "tools/wizarduitest.js",
+        title = "The wizard says truthfully what it just did to your scales",
+        steps = "Run /valuate wizard and create a scale. Read the last screen. Run it again with the same gear and read it again. Then change several pieces of gear and run it a third time, taking the Update option.",
+        expect = "First run: created, and it says it never overwrites a scale you already have. Second run: it tells you nothing new was made and this one is just primary now. Third run: it says it updated, and that your OTHER scales are untouched - never the never-overwrites line.",
+        broke = "All three sentences make a promise about scales you did not just make. The create text says in so many words that nothing was overwritten, and printing that on the update branch - which deletes the old entry - is a false reassurance about your own data. The wizard has a near-miss here already: an earlier version offered to overwrite any scale it had made, so asking for a Tank build would have replaced your DPS one. The gate proves the mapping from outcome to sentence; only the client can show that the OUTCOME is right - check your scale list after the third run and confirm exactly one wizard scale changed and nothing else moved.",
+    },
+    {
+        id = "verifyhere", since = "0.217.0a",
+        gate = "tools/verifyready.js",
+        title = "The checklist knows what you can do from where you stand",
+        steps = "Run /valuate verify here in a city. Then run it again at a repair vendor, then with a profession window open, then inside a dungeon.",
+        expect = "The list changes as your circumstances do. Checks with no gate behind them are listed first and the count of those is called out. Anything waiting is named with what it waits for, so an empty list reads as 'nothing from here' rather than 'nothing left'.",
+        broke = "78 checks and none ever ticked, because most need a circumstance and reading past sixty you cannot do is how a checklist stays at zero. Seven declare a precondition. Only the client can show whether those probes read this server correctly: if a check never appears at a repair vendor, or one appears that you plainly cannot do, the probe is wrong about Ascension rather than about you. A wrong probe HIDES a check, which is the direction that costs something.",
+    },
+    {
         id = "bindintent", since = "0.208.0a",
         gate = "tools/bindconfirm.js",
         title = "Nothing is soulbound unless you asked for it",

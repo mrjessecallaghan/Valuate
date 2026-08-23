@@ -3314,4 +3314,30 @@ module.exports = [
     label: "gated checks are dropped entirely instead of being listed after the rest",
     from: "    for _, c in ipairs(gated) do ungated[#ungated + 1] = c end",
     to: "    for _, c in ipairs({}) do ungated[#ungated + 1] = c end" },
+// ---- what the wizard claims it did (v0.219.0a) ---------------------------
+  // CommitAutoScale is gated separately and does the right thing. These are about the sentence
+  // you read afterwards, which makes a promise about your OTHER scales.
+  { gate: "wizarduitest", file: "ui/Wizard.lua",
+    label: "an update claims nothing was overwritten, on the branch that just deleted a scale",
+    from: "    if why == \"updated\" then\n        return \"Updated to match the gear",
+    to: "    if false then\n        return \"Updated to match the gear" },
+
+  // nil means creation because that is what CommitAutoScale returns for one. Anything else is
+  // an outcome added later, and it must not inherit a guarantee written before it existed -
+  // which is how a wizard comes to promise it never overwrites while overwriting.
+  { gate: "wizarduitest", file: "ui/Wizard.lua",
+    label: "an unknown outcome inherits the never-overwrites promise",
+    from: "    if why == nil then", to: "    if true then" },
+
+  { gate: "wizarduitest", file: "ui/Wizard.lua",
+    label: "a reuse reports itself as a creation, sending you to look for a row that is not there",
+    from: "    if why == \"reused\" then", to: "    if false then" },
+// ---- reversed assertion arguments (v0.219.0a) ----------------------------
+  // ok("message", condition) CANNOT FAIL - a non-empty string is truthy, so the assertion
+  // passes whatever the condition says. Fifteen were written that way in this very release and
+  // survived two mutations before anyone noticed.
+  { gate: "toolsource", file: "tools/wizarduitest.js",
+    label: "an assertion has its arguments reversed and can no longer fail",
+    from: "ok(created:find(\"never overwrites\", 1, true) ~= nil,",
+    to: "ok(\"a plain creation promises nothing was overwritten\"," },
 ];

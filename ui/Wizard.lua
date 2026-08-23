@@ -483,6 +483,47 @@ function ns.WizardPlan(role)
 end
 
 -- Step 2 -> 3. The only place the wizard writes anything.
+-- What the last screen says happened, chosen from what CommitAutoScale actually did.
+--
+-- Three outcomes, and every one of them makes a promise about YOUR OTHER SCALES:
+--
+--   "reused"    you already had this exact scale, so nothing new was made
+--   "updated"   one wizard-made scale was replaced, and the rest are untouched
+--   nil         a plain creation - nothing was overwritten at all
+--
+-- Getting this mapping wrong corrupts nothing: CommitAutoScale has already done whatever it
+-- did, and it is gated separately. What it does is tell you the wrong thing about your own
+-- data - and the third sentence is an explicit promise that nothing was overwritten. Printing
+-- that on the branch which just deleted a scale is the failure this project cares most about:
+-- not the action, the claim made about it.
+--
+-- An unrecognised `why` gets the CAUTIOUS wording, never the promise. nil means creation
+-- because that is precisely what CommitAutoScale returns for one; anything else is an outcome
+-- added later, and a new outcome must not silently inherit a guarantee written before it
+-- existed. That is how the wizard came to offer to overwrite any scale it had made.
+--
+-- Returns the blurb text.
+function ns.WizardOutcomeText(why)
+    if why == "updated" then
+        return "Updated to match the gear you are wearing now, and made your primary scale. " ..
+               "Your other scales are untouched."
+    end
+    if why == "reused" then
+        -- Says what actually happened. Reporting "created" here would be a small lie that
+        -- sends you looking for a new row that does not exist.
+        return "You already had this one, so nothing new was made - it is just your primary " ..
+               "scale now, and your gear has been rescanned."
+    end
+    if why == nil then
+        return "It is now your primary scale, and your gear has been rescanned - item tooltips " ..
+               "and Best Equipment already use it.\n\nYou can run this again any time; it never " ..
+               "overwrites a scale you already have."
+    end
+    -- Something this function has not been taught about. Say the part that is true of every
+    -- outcome and claim nothing beyond it.
+    return "It is now your primary scale, and your gear has been rescanned."
+end
+
 function ns.WizardCommit()
     if not currentPlan or not Valuate.CommitAutoScale then return end
 
@@ -494,22 +535,8 @@ function ns.WizardCommit()
 
     local screen = screens.done
     screen.name:SetText(currentPlan.name)
-    if why == "updated" then
-        screen.blurb:SetText(
-            "Updated to match the gear you are wearing now, and made your primary scale. " ..
-            "Your other scales are untouched.")
-    elseif why == "reused" then
-        -- Says what actually happened. Reporting "created" here would be a small lie that
-        -- sends you looking for a new row that does not exist.
-        screen.blurb:SetText(
-            "You already had this one, so nothing new was made - it is just your primary " ..
-            "scale now, and your gear has been rescanned.")
-    else
-        screen.blurb:SetText(
-            "It is now your primary scale, and your gear has been rescanned - item tooltips " ..
-            "and Best Equipment already use it.\n\nYou can run this again any time; it never " ..
-            "overwrites a scale you already have.")
-    end
+    screen.blurb:SetText(ns.WizardOutcomeText(why))
+
     ShowScreen("done")
 
     if Valuate.PulseMinimapButton then Valuate:PulseMinimapButton() end

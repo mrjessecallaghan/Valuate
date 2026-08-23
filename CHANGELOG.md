@@ -4,6 +4,54 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.219.0a] - 2026-08-23 — fifteen assertions that could not fail
+
+### Fixed
+**An assertion form that always passes, and the rule that now forbids it.**
+
+Valuate's gates write `ok(condition, "what it means")`. The sibling suites write the opposite —
+`Check("what it means", condition)`. Moving a block from one to the other by renaming the call
+produces `ok("what it means", condition)`, and **that form cannot fail**: a non-empty string is
+truthy in Lua, so the assertion passes whatever the condition says.
+
+I wrote fifteen of them in this very release — a whole block about what the wizard claims it did
+— and they read exactly like coverage. Two surviving mutations were the only reason it came to
+light. Every one has been rewritten, and `tools/toolsource.js` now refuses the shape: a string
+*literal* as the first argument to `ok(` is a reversed call, while a variable there is an
+ordinary non-nil assertion and is left alone. Zero others exist across all 95 gates.
+
+### Added
+**`ns.WizardOutcomeText`** — the sentence the wizard's last screen shows, extracted from the
+inline branch so it can be driven on its own.
+
+`CommitAutoScale` does the data work and is gated separately; this is about the **claim made
+afterwards**, and all three of its outcomes promise something about your *other* scales:
+
+| outcome | says |
+|---|---|
+| `reused` | you already had this one, nothing new was made |
+| `updated` | one wizard-made scale was replaced, the rest are untouched |
+| *(nil)* | a plain creation — **"it never overwrites a scale you already have"** |
+
+Printing that third sentence on the branch that just deleted a scale is a false reassurance
+about your own data, and the wizard has a near-miss in exactly this area: an earlier version
+offered to overwrite any scale it had made, so asking for a Tank build would replace your DPS
+one.
+
+An **unrecognised** outcome now gets cautious wording rather than inheriting the guarantee. `nil`
+means creation because that is precisely what `CommitAutoScale` returns for one; anything else is
+an outcome added later, and a new outcome must not silently inherit a promise written before it
+existed. That is the mechanism by which a wizard comes to promise it never overwrites while
+overwriting.
+
+### Internal
+Coverage was measured per source file to find another whole-file gap like `Columns.lua`.
+`ui/UpgradeArrows.lua` is 12 of 12 untested — but every function in it is `local`, so it has no
+testable surface at all, and it draws decoration. The wizard's claims about user data outranked
+it.
+
+95 gates, 554 mutations, 80 verify checks.
+
 ## [0.218.0a] - 2026-08-23 — the five minutes that buy the most
 
 ### Changed
