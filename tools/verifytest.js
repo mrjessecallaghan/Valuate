@@ -40,9 +40,27 @@ function slice(name) {
   return m[0];
 }
 
-const REAL = ["VersionOlder", "VerifiedState", "NextPendingCheck", "PrintVerifyCheck"]
-  .map(slice)
-  .join("\n");
+/* ns.VerifyEvidence is sliced in beside them because VerifiedState routes through it now.
+ * Leaving it out would not fail loudly - it would fail as a nil index part-way through the
+ * run, which is how a gate quietly stops testing the thing it names. */
+const EVIDENCE = (function () {
+  const m = lua.match(/^function ns\.VerifyEvidence\([\s\S]*?\r?\nend/m);
+  if (!m) {
+    console.error(
+      "  SLICE  could not find ns.VerifyEvidence in Valuate.lua - VerifiedState depends on " +
+        "it, so this gate would be testing a different function than the one that ships"
+    );
+    process.exit(1);
+  }
+  return "ns = ns or {}\n" + m[0];
+})();
+
+const REAL =
+  EVIDENCE +
+  "\n" +
+  ["VersionOlder", "VerifiedState", "NextPendingCheck", "PrintVerifyCheck"]
+    .map(slice)
+    .join("\n");
 
 /* ---------------------------------------------------------------------------
  * The REAL list, checked statically: does it still describe the addon that ships?
@@ -254,6 +272,41 @@ ok(ungatedText:find("Already proven", 1, true) == nil,
 -- The distinction is the point, not the wording: a rewrite may change either sentence and may
 -- not make the two states read the same.
 ok(gatedText ~= ungatedText, "the two states produce different text")
+
+-- ---- an evidence record with two possible authors -------------------------------------------
+--
+-- Two stores, never merged: what YOU ticked and what /valuate selfverify proved from inside the
+-- client. Both are client evidence and neither is a gate, but only one is a person having run
+-- the steps - and if those read the same, the list quietly stops collecting the thing it exists
+-- for.
+ok(select(3, ns.VerifyEvidence("0.5.0a", nil, nil, VersionOlder)) == "human",
+   "a tick you recorded is attributed to you")
+ok(select(3, ns.VerifyEvidence(nil, "0.5.0a", nil, VersionOlder)) == "addon",
+   "one the addon recorded is attributed to the addon")
+ok(select(3, ns.VerifyEvidence("0.5.0a", "0.9.0a", nil, VersionOlder)) == "human",
+   "and yours wins when both exist - you saw more than a self-check can")
+ok(select(1, ns.VerifyEvidence("0.5.0a", "0.9.0a", nil, VersionOlder)) == "0.5.0a",
+   "including which version it was recorded at")
+ok(select(1, ns.VerifyEvidence(nil, nil, nil, VersionOlder)) == nil,
+   "with neither recorded there is no evidence at all")
+
+-- Staleness applies to both the same way.
+ok(select(2, ns.VerifyEvidence("0.5.0a", nil, "0.9.0a", VersionOlder)) == true,
+   "a human tick older than the behaviour is stale")
+ok(select(2, ns.VerifyEvidence(nil, "0.5.0a", "0.9.0a", VersionOlder)) == true,
+   "and so is an addon one")
+ok(select(2, ns.VerifyEvidence("0.9.0a", nil, "0.5.0a", VersionOlder)) == false,
+   "a tick newer than the behaviour is not stale")
+
+-- A COMPARISON THAT ERRORED IS NOT PROOF THE TICK IS CURRENT.
+--
+-- Stale puts the check back on the list, which costs a minute. The other direction retires a
+-- check about behaviour that has since changed, silently, and nothing ever asks again.
+local function explodes() error("cannot compare") end
+ok(select(2, ns.VerifyEvidence("0.5.0a", nil, "0.9.0a", explodes)) == true,
+   "a staleness comparison that ERRORS counts as stale, not as current")
+ok(select(1, ns.VerifyEvidence("0.5.0a", nil, "0.9.0a", explodes)) == "0.5.0a",
+   "and the tick itself still reports when it was made")
 
 return failures, checks
 `,

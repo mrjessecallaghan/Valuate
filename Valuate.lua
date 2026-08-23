@@ -922,6 +922,7 @@ local DEFAULT_OPTIONS = {
     -- sessions: ten checks is more than anyone holds in their head, and losing track
     -- halfway is the difference between doing the pass and abandoning it.
     verifiedChecks = {},
+    selfVerifiedChecks = {},
     showStatBreakdown = false,
     autoScan = "onEquipmentChange",       -- "off" | "onEquipmentChange" | "onLoot" | "always"
     notifyBagUpgrade = false,             -- popup when an equippable upgrade for the current scale is in bags
@@ -8640,14 +8641,26 @@ function ns.SelfCheckUILayout()
     return "pass", string.format("%d measured against the real client, all inside their frames.",
         examined)
 end
+-- `proves` names a /valuate verify check this self-check settles ON ITS OWN.
+--
+-- Only two so far, and deliberately so. A mapping is a claim that passing this proves that -
+-- and the checklist is the only evidence some behaviours will ever have, so a wrong one
+-- retires a check nobody ever ran. Both below assert the same sentence as the check they name:
+-- the secondaries parse off a real tooltip, and the repaint caches hit in the client rather
+-- than only in the harness.
+--
+-- dungeondata is NOT mapped even though selfverify answers part of it - its own steps say so
+-- in as many words, "it now answers the name-matching half". Half is not a tick.
 local SELF_CHECKS = {
     { id = "enhancesrc", title = "This client can tell me about enchants", run = ns.SelfCheckEnhanceSources },
     { id = "uilayout",   title = "Nothing is drawn outside the frame that owns it", run = ns.SelfCheckUILayout },
     { id = "templates",  title = "Your class resolves to a template set", run = SelfCheckTemplateSet },
     { id = "dungeonids", title = "The harvested dungeon item ids exist on this server", run = SelfCheckDungeonItems },
     { id = "dungeonkey", title = "This dungeon's name matches the loot table", run = SelfCheckDungeonKeys },
-    { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries },
-    { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches },
+    { id = "newstats",   title = "Mastery/Versatility/Leech parse off a real tooltip", run = SelfCheckNewSecondaries,
+      proves = "newstats" },
+    { id = "caches",     title = "The repaint caches are actually hitting", run = SelfCheckCaches,
+      proves = "cachehit" },
     { id = "agreement",  title = "Two scoring paths agree about your gear", run = SelfCheckScoreAgreement },
     { id = "canrun",     title = "Automations you switched on can actually run here", run = SelfCheckAutomationsCanRun },
 }
@@ -8657,18 +8670,27 @@ function Valuate:RunSelfVerify()
     local results = {}
     for _, check in ipairs(SELF_CHECKS) do
         local status, detail = check.run()
+        -- A check that errored is a FAILURE, not a skip. Swallowing it would report
+        -- all-clear for a subsystem that cannot even be asked.
+        status = status or "fail"
+
+        -- ONLY on a pass. A skip means "the situation was never present to test", which is
+        -- the one answer that must never become a tick - and it is the commonest answer here,
+        -- fifteen of the twenty-three returns in these checks.
+        if status == "pass" and check.proves then
+            ns.SetSelfVerified(check.proves)
+        end
+
         table.insert(results, {
             id = check.id,
             title = check.title,
-            -- A check that errored is a FAILURE, not a skip. Swallowing it would report
-            -- all-clear for a subsystem that cannot even be asked.
-            status = status or "fail",
+            status = status,
             detail = detail or "(no detail)",
+            proves = check.proves,
         })
     end
     return results
 end
-
 -- Empty gem sockets: stats you have already earned and are not wearing.
 --
 -- An unfilled socket is invisible unless you go looking for it, and it stays that way for
@@ -12608,6 +12630,25 @@ local function SetVerified(id, done)
     opts.verifiedChecks[id] = done and (Valuate.version or "?") or nil
 end
 
+-- Recorded by /valuate selfverify, in its OWN store.
+--
+-- Kept apart from the human ticks on purpose. This checklist exists because a headless gate
+-- cannot see the client; selfverify runs inside the client, so what it proves is real evidence
+-- of a kind no gate can produce - but it is not somebody having run the steps, and writing it
+-- into the same table would quietly empty the list of exactly what it was built to collect.
+--
+-- Only ever called on a self-check that PASSED. A skip is "the situation was never present",
+-- which is the one answer that must never become a tick.
+--
+-- On ns rather than a file-local: this file sits at Lua 5.1s 200-top-level-local ceiling, and
+-- being reachable from a gate is worth having for something that writes evidence.
+function ns.SetSelfVerified(id)
+    if not id then return end
+    local opts = Valuate:GetOptions()
+    opts.selfVerifiedChecks = opts.selfVerifiedChecks or {}
+    opts.selfVerifiedChecks[id] = Valuate.version or "?"
+end
+
 -- true when version string `a` is older than `b`.
 --
 -- Compared NUMERICALLY, component by component, not as strings: "0.9.0a" < "0.10.0a" is
@@ -12635,15 +12676,55 @@ end
 -- checked" and looks entirely authoritative. Deriving data from presentation is the
 -- same silent-wrongness this checklist exists to catch, so it had no business being
 -- inside the checklist.
+-- Who says this check passed, and is that still about what ships?
+--
+-- Two kinds of evidence, and they are NEVER merged.
+--
+--   "human"   somebody ran the steps and typed /valuate verify done
+--   "addon"   /valuate selfverify proved it from inside the client
+--
+-- The checklist exists because a headless gate cannot see the client. selfverify runs IN the
+-- client, so what it proves is real evidence of a kind no gate can produce - but it is not a
+-- person having looked, and recording it as one would quietly empty the list of exactly the
+-- thing it was built to collect. So an addon tick is stored separately, shown differently, and
+-- counted apart.
+--
+-- A HUMAN TICK OUTRANKS AN ADDON ONE. Somebody who ran the steps saw more than a self-check
+-- can, so their answer stands even when both exist.
+--
+-- Staleness applies to both the same way: a tick recorded before the behaviour was revised is
+-- not evidence about what ships now, whoever recorded it.
+--
+-- Returns at, stale, by - all nil when nothing has been recorded.
+function ns.VerifyEvidence(humanAt, addonAt, since, olderThan)
+    local at, by
+    if humanAt then
+        at, by = humanAt, "human"
+    elseif addonAt then
+        at, by = addonAt, "addon"
+    else
+        return nil, false, nil
+    end
+
+    local stale = false
+    if since and at ~= "?" and type(olderThan) == "function" then
+        local ok, isOlder = pcall(olderThan, at, since)
+        -- A comparison that errored is not a licence to call it current. The cautious answer
+        -- is stale: it puts the check back on the list, which costs a minute, where the other
+        -- direction silently retires a check about behaviour that has since changed.
+        stale = (not ok) or (isOlder and true or false)
+    end
+    return at, stale, by
+end
+
 local function VerifiedState(c)
     local opts = Valuate:GetOptions()
-    local at = opts.verifiedChecks and opts.verifiedChecks[c.id]
-    if not at then return nil, false end
-    -- `since` is the version the check was introduced or last revised at. Newer than
-    -- when you ticked it means what you verified is not what ships now.
-    local stale = (c.since and at ~= "?" and VersionOlder(at, c.since)) and true or false
-    return at, stale
+    -- Two stores, deliberately kept apart. See ns.VerifyEvidence.
+    local humanAt = opts.verifiedChecks and opts.verifiedChecks[c.id]
+    local addonAt = opts.selfVerifiedChecks and opts.selfVerifiedChecks[c.id]
+    return ns.VerifyEvidence(humanAt, addonAt, c.since, VersionOlder)
 end
+
 
 -- The first check still wanting attention, in list order, plus how many do.
 --
@@ -12739,16 +12820,21 @@ local function NextPendingCheck()
     return fallback, fallbackIndex, pending
 end
 
--- "[x] v0.33.0a" / "[x] v0.30.0a - STALE, changed in v0.33.0a" / "[ ]"
+-- "[x] v0.33.0a" / "[a] v0.33.0a - by the addon" / "[x] ... STALE" / "[ ]"
+--
+-- An addon tick reads DIFFERENTLY from yours, always. Both are evidence from a running client
+-- and neither is a gate - but only one of them is a person having run the steps, and the moment
+-- those look the same on screen the list stops meaning what it was built to mean.
 local function VerifiedLabel(c)
-    local at, stale = VerifiedState(c)
+    local at, stale, by = VerifiedState(c)
     if not at then return "|cFF888888[ ]|r" end
+    local mark = (by == "addon") and "[a]" or "[x]"
+    local note = (by == "addon") and " - by the addon" or ""
     if stale then
-        return "|cFFFF8800[x] " .. at .. " - STALE, changed in v" .. c.since .. "|r"
+        return "|cFFFF8800" .. mark .. " " .. at .. " - STALE, changed in v" .. c.since .. "|r"
     end
-    return "|cFF00FF00[x] " .. at .. "|r"
+    return "|cFF00FF00" .. mark .. " " .. at .. note .. "|r"
 end
-
 
 function Valuate:RunVerify(which)
     which = which and strtrim(which) or ""

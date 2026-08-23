@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.222.0a] - 2026-08-23 — the checklist learns from what the addon proved
+
+### Added
+**`/valuate selfverify` now records the checks it settles — in its own store, marked as its
+own.**
+
+Nine self-checks run *inside the client* and produce evidence no headless gate ever can. Until
+now `SetVerified` was only ever called from the manual `done` verb, so the checklist never
+learned a thing from them: you had to tick, by hand, something the addon had just proved.
+
+**Machine evidence is never written as human evidence.** This list exists because a gate cannot
+see the client; selfverify runs in the client, so what it proves is real — but it is not somebody
+having run the steps, and folding the two into one table would quietly empty the list of exactly
+what it was built to collect. So:
+
+| | |
+|---|---|
+| separate store | `selfVerifiedChecks`, never `verifiedChecks` |
+| different mark | `[a] v0.222.0a - by the addon` beside your `[x]` |
+| **your tick wins** | you saw more than a self-check can, so a human record outranks an addon one when both exist |
+| **only a pass records** | skip is the commonest answer these checks give — fifteen of their twenty-three returns — and it means *"the situation was never present to test"*. A skip that ticked would retire a check on the strength of never having looked |
+
+**Two mappings, and only two.** `newstats` and `cachehit` assert the same sentence as the
+self-check that claims them. `dungeondata` is *not* mapped even though selfverify answers part
+of it — its own steps say so in as many words, *"it now answers the name-matching half"*. **Half
+is not a tick.**
+
+An errored staleness comparison now counts as **stale**. Putting a check back on the list costs
+a minute; the other direction silently retires a check about behaviour that has since changed,
+and nothing ever asks again.
+
+### Internal
+Five mutations, two survived, both gaps in the assertions I had just written — the skip path was
+never driven, and the fixture never made the version comparison throw. Both are driven now.
+
+One of my assertions was also simply wrong: `SELF_TICKS` accumulates across the many scenarios
+that gate runs, so I was comparing an earlier run's tick against the final run's status. Scoped
+to one run.
+
+Rewriting `RunSelfVerify` un-anchored a pre-existing mutation, reported UNAPPLIED and re-anchored
+— the third release running that report has caught something.
+
+95 gates, 578 mutations.
+
 ## [0.221.0a] - 2026-08-23 — the half of a rule that was never tested
 
 ### Internal

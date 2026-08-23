@@ -275,7 +275,7 @@ module.exports = [
     from: "if pct >= 80 then", to: "if pct >= 0 then" },
   { gate: "selfverify", file: "Valuate.lua",
     label: "a check that returns nothing is recorded as a pass rather than a failure",
-    from: 'status = status or "fail",', to: 'status = status or "pass",' },
+    from: 'status = status or "fail"', to: 'status = status or "pass"' },
 
   // ---- queue / release / leave (v0.105.0a) ---------------------------------
   { gate: "queuetest", file: "Valuate.lua",
@@ -3482,4 +3482,38 @@ module.exports = [
   { gate: "wardrobetest", file: "Valuate.lua",
     label: "an errored appearance-id read is used as an id",
     from: "                if okId and appearanceId then", to: "                if appearanceId then" },
+// ---- machine evidence is not human evidence (v0.222.0a) ------------------
+  // The checklist exists because a headless gate cannot see the client. selfverify runs INSIDE
+  // the client, so what it proves is real - but it is not somebody having run the steps, and
+  // the moment those two look the same the list stops meaning what it was built to mean.
+  { gate: "verifytest", file: "Valuate.lua",
+    label: "an addon tick is recorded as a human one, emptying the list of what it collects",
+    from: "    if humanAt then\n        at, by = humanAt, \"human\"\n    elseif addonAt then\n        at, by = addonAt, \"addon\"",
+    to: "    if humanAt then\n        at, by = humanAt, \"human\"\n    elseif addonAt then\n        at, by = addonAt, \"human\"" },
+
+  // Somebody who ran the steps saw more than a self-check can, so their answer stands.
+  { gate: "verifytest", file: "Valuate.lua",
+    label: "an addon tick outranks the human one who actually ran the steps",
+    from: "    if humanAt then\n        at, by = humanAt, \"human\"\n    elseif addonAt then",
+    to: "    if addonAt then\n        at, by = addonAt, \"addon\"\n    elseif humanAt then" },
+
+  // A comparison that errored is not a licence to call a tick current. Stale puts the check
+  // back on the list, which costs a minute; the other direction retires a check about
+  // behaviour that has since changed.
+  { gate: "verifytest", file: "Valuate.lua",
+    label: "a staleness check that errored is taken as proof the tick is current",
+    from: "        stale = (not ok) or (isOlder and true or false)",
+    to: "        stale = ok and (isOlder and true or false)" },
+
+  // Skip is the commonest answer these checks give, and it means "the situation was never
+  // present to test". A skip that ticked would retire a check on the strength of never looking.
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a skipped self-check ticks its verify item anyway, retiring it unlooked-at",
+    from: "        if status == \"pass\" and check.proves then",
+    to: "        if status ~= \"fail\" and check.proves then" },
+
+  { gate: "selfverify", file: "Valuate.lua",
+    label: "a FAILING self-check ticks its verify item",
+    from: "        if status == \"pass\" and check.proves then",
+    to: "        if check.proves then" },
 ];

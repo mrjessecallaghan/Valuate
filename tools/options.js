@@ -285,6 +285,9 @@ const NOT_A_PREFERENCE = {
   uiPosition: "where you dragged the window to - state, not an opinion",
   minimapButtonAngle: "where you dragged the minimap button to",
   verifiedChecks: "which /valuate verify items you have ticked off",
+  selfVerifiedChecks:
+    "which checks /valuate selfverify proved on its own - kept apart from your own ticks " +
+    "on purpose, so machine evidence can never be counted as somebody having looked",
   pvpScale: "nominated BY NAME, so a checkbox cannot express it - /valuate pvpscale",
   dungeonScale: "nominated BY NAME, like pvpScale - /valuate dungeonscale",
   normalScale: "nominated BY NAME, like pvpScale - /valuate normalscale",

@@ -105,6 +105,11 @@ end
 -- The two scoring routes, kept independent on purpose: the check exists to notice when they
 -- disagree, so a mock that computes both from one number would test nothing.
 ns = {}
+-- Defined up here, before the first RunSelfVerify call. A recorder installed later would
+-- miss every pass that happened before it existed - and the assertions below would then be
+-- about an empty list rather than about what the checks actually recorded.
+SELF_TICKS = {}
+ns.SetSelfVerified = function(id) SELF_TICKS[#SELF_TICKS + 1] = id end
 ns.EQUIP_SLOTS = { { slotId = 5, name = "Chest" }, { slotId = 7, name = "Legs" } }
 local PRIMARY = { DisplayName = "Dps", Values = { Strength = 1.0 } }
 function Valuate:GetPrimaryScale() return PRIMARY, "Dps" end
@@ -421,6 +426,66 @@ ok(missed.detail:find("Deadmines", 1, true) ~= nil,
 
 INSTANCE_NAME, INSTANCE_TYPE = "The Deadmines", "raid"
 eq(resultFor("dungeonkey").status, "skip", "a raid is not this feature's business")
+
+-- ---- what a pass RECORDS ------------------------------------------------------------------
+--
+-- Two of these self-checks settle a /valuate verify item on their own, and passing one now
+-- writes a tick into a SEPARATE store from the human ones. That store exists so machine
+-- evidence can never be counted as somebody having run the steps - see ns.VerifyEvidence.
+--
+-- The rule that carries the risk: only a PASS records anything. Skip is the commonest answer
+-- these checks give - fifteen of their twenty-three returns - and it means "the situation was
+-- never present to test". A skip that ticked a check would retire it on the strength of never
+-- having looked, which is the one failure this whole checklist exists to prevent.
+
+-- Cleared first. This gate drives RunSelfVerify many times over with different fixtures, so
+-- the recorder has ticks in it from scenarios that are no longer the world - and comparing
+-- those against THIS run's statuses is an assertion about the wrong thing entirely.
+SELF_TICKS = {}
+local passes = Valuate:RunSelfVerify()
+local byId = {}
+for _, r in ipairs(passes) do byId[r.id] = r end
+
+ok(byId.newstats ~= nil, "the secondaries check still runs")
+ok(byId.caches ~= nil, "and the cache check")
+eq(byId.newstats.proves, "newstats", "the secondaries check names the verify item it settles")
+eq(byId.caches.proves, "cachehit", "and the cache check names its own")
+
+-- Every tick recorded came from a check that PASSED, and named the item that check proves.
+for _, id in ipairs(SELF_TICKS) do
+    local from
+    for _, r in ipairs(passes) do if r.proves == id then from = r end end
+    ok(from ~= nil, "a recorded tick traces back to a check that claims it: " .. tostring(id))
+    ok(from and from.status == "pass",
+       "and that check PASSED - a skip or a failure never records: " .. tostring(id))
+end
+
+-- A check with nothing to prove records nothing, whatever it returns.
+for _, r in ipairs(passes) do
+    if not r.proves then
+        for _, id in ipairs(SELF_TICKS) do
+            ok(id ~= r.id, "a check that proves no verify item records nothing: " .. r.id)
+        end
+    end
+end
+
+-- A SKIP must record nothing, and this is the assertion that makes that rule load-bearing.
+--
+-- Skip is the commonest answer these checks give and it means "the situation was never present
+-- to test". Without driving one, a rule written as "not a failure" instead of "a pass" looks
+-- identical here - and it would retire a check on the strength of never having looked, which is
+-- the single thing this checklist exists to prevent.
+local savedStats = Valuate.GetCacheStats
+Valuate.GetCacheStats = nil            -- makes SelfCheckCaches skip
+SELF_TICKS = {}
+local skipped = Valuate:RunSelfVerify()
+local cacheResult
+for _, r in ipairs(skipped) do if r.id == "caches" then cacheResult = r end end
+eq(cacheResult and cacheResult.status, "skip", "the cache check skips with no stats to read")
+for _, id in ipairs(SELF_TICKS) do
+    ok(id ~= "cachehit", "a SKIPPED self-check records no tick for the item it would prove")
+end
+Valuate.GetCacheStats = savedStats
 
 return failures, checks
 `,
