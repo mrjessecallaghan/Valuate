@@ -8725,6 +8725,8 @@ ns.QUICK_COSTS = {
       why = "binding is permanent and makes an item unsellable and untradeable" },
 }
 
+
+
 -- One line at first login, and ONLY when it would tell you something.
 --
 -- A new character gets a Starter scale and nothing else: every automation is off by default,
@@ -10650,6 +10652,129 @@ local function DecideRollType(wants, canNeed, canGreed)
     -- skill is exactly that - and Greed still wins it.
     if canGreed then return 2, "Greed" end
     return 0, "Pass"
+end
+
+-- never look like "you want it".
+function ns.AppearanceWantedForLink(link)
+    if not link then return false, "no item" end
+    if not AppearanceApiReady() then return false, "this client has no wardrobe api" end
+
+    local itemId = GetItemIdFromLink and GetItemIdFromLink(link)
+    if not itemId then return false, "could not read the item id" end
+
+    local okId, appearanceId = pcall(C_Appearance.GetItemAppearanceID, itemId)
+    if not okId or not appearanceId then return false, "no appearance for this item" end
+
+    local okHas, collected = pcall(C_AppearanceCollection.IsAppearanceCollected, appearanceId)
+    -- `== false` rather than `not collected`: an errored pcall hands back the error STRING,
+    -- which is truthy, and nil means "could not find out". Only an explicit false is an answer.
+    if okHas and collected == false then return true, "you do not have this appearance" end
+    return false, "already collected, or could not tell"
+end
+
+-- Who has passed, per roll. Keyed by rollID and cleared when that roll ends, because the
+-- client reuses roll ids within a session.
+ns.rollPasses = {}
+
+-- Records a pass announced in chat.
+--
+-- LOOT_ROLL_PASSED is the client's own format string - "%s passed on: %s" - so the name and the
+-- item link are pulled out with the same pattern the client would have used to build the line.
+-- Read from the GLOBAL rather than hardcoded in English, the way the socket strings are.
+--
+-- Returns the roller's name when one was recognised, nil otherwise.
+--
+-- Passes are the ONLY roll choice this client announces while the roll is still open, which is
+-- why the feature above can act on "everyone else passed" and cannot act on "everyone greeded".
+function ns.NotePassMessage(message, rollID)
+    if type(message) ~= "string" or not rollID then return nil end
+    local fmt = LOOT_ROLL_PASSED or "%s passed on: %s"
+    -- Turn the format into a pattern: escape the magic characters, then let %s become a capture.
+    local pattern = fmt:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1"):gsub("%%s", "(.-)")
+    local who = message:match("^" .. pattern .. "$")
+    if not who or who == "" then return nil end
+
+    ns.rollPasses[rollID] = ns.rollPasses[rollID] or {}
+    ns.rollPasses[rollID][who] = true
+    return who
+end
+
+-- A roll is over: forget who passed on it. Roll ids are reused within a session, so a stale
+-- entry would make the NEXT roll look as though people had already declined it - which is the
+-- one direction that turns Greed into Need on no evidence at all.
+function ns.ForgetRollPasses(rollID)
+    if rollID then ns.rollPasses[rollID] = nil end
+end
+
+-- Who is still to declare on a roll.
+--
+-- Passes are announced live, so they can be counted. Needs and Greeds are not announced until
+-- the roll resolves, which is why this counts the ONE thing the client says out loud and calls
+-- everybody else undeclared - including people who have already chosen and simply not been
+-- reported. Undeclared is the cautious side: it produces Greed.
+--
+-- Returns undeclared, groupSize.
+function ns.UndeclaredRollers(rollID, passedByRoll)
+    local size = 1
+    if GetNumRaidMembers and (GetNumRaidMembers() or 0) > 0 then
+        size = GetNumRaidMembers()
+    elseif GetNumPartyMembers then
+        size = (GetNumPartyMembers() or 0) + 1
+    end
+    local others = math.max(0, size - 1)
+    local passed = 0
+    local seen = passedByRoll and passedByRoll[rollID]
+    if seen then for _ in pairs(seen) do passed = passed + 1 end end
+    return math.max(0, others - passed), size
+end
+
+-- ============================================================================
+-- Rolling for an appearance
+-- ============================================================================
+-- An item can be worth having for its LOOK when it is worth nothing for its stats. Greed is
+-- the polite roll for that, and Greed loses to anybody who Needs - so an appearance you will
+-- never see again goes to somebody who wanted the stats. Fair, and still a shame.
+--
+-- Need is only fair when nobody else wants it, which raises the obvious question: how do you
+-- know?
+--
+-- WHAT THE CLIENT WILL AND WILL NOT TELL YOU
+--
+-- 3.3.5 announces a PASS the moment it happens - LOOT_ROLL_PASSED, "%s passed on: %s". It does
+-- NOT announce a Need or a Greed until the roll resolves and a winner exists, by which point
+-- your own roll is long since cast.
+--
+-- So "everyone greeded" cannot be known in time. "Everyone else passed" can, and it is the
+-- half of the same idea that is actually observable: nobody contested it, so taking it costs
+-- nobody anything.
+--
+-- Returns rollType, why.
+--
+--   1 Need   2 Greed   0 Pass   nil "not my decision, leave it alone"
+--
+-- Every uncertain answer is GREED, never Need. Greed on something nobody wanted loses you a
+-- transmog; Need on something somebody did is a thing you cannot take back and other people
+-- remember. The asymmetry is the whole design.
+function ns.AppearanceRollChoice(o)
+    o = o or {}
+    -- Not switched on, or the ordinary roller already wants it for its stats: nothing to add.
+    if not o.enabled then return nil, "appearance rolling is off" end
+    if o.isUpgrade then return nil, "wanted for its stats, not its look" end
+    if not o.appearanceWanted then return nil, "you already have this appearance" end
+    if not o.canNeed then return 2, "Need is not on offer, so Greed is the whole of it" end
+
+    -- ALONE. There is nobody to take it from, so the question does not arise.
+    if (o.groupSize or 1) <= 1 then return 1, "nobody else is here" end
+
+    -- Everybody else declared themselves out. This is the observable half of "nobody wants it",
+    -- and the only one the client actually supports.
+    if (o.othersUndeclared or 0) <= 0 then
+        return 1, "everyone else passed"
+    end
+
+    -- Somebody has not said. That is not the same as somebody wanting it - and it is not the
+    -- same as nobody wanting it either, which is exactly why this greeds.
+    return 2, string.format("%d player(s) have not declared", o.othersUndeclared)
 end
 
 function Valuate:AutoRollOnLoot(rollID, isRetry)

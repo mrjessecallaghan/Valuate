@@ -61,6 +61,7 @@ UseEquipmentSet GetEquipmentSetLocations EquipmentManager_UnpackLocation
 CanMerchantRepair GetRepairAllCost RepairAllItems CanGuildBankRepair GetMoney
 MerchantFrame GetMerchantNumItems GetBuybackItemInfo GetMerchantItemLink MERCHANT_ITEMS_PER_PAGE
 BankFrame
+LOOT_ROLL_PASSED
 GetMerchantItemInfo GetSpellInfo
 -- Tradeskill and Craft. Enchanting uses the CRAFT api on 3.3.5, not TradeSkill, so a
 -- feature that only read one of the two would silently miss an entire profession.

@@ -3665,4 +3665,25 @@ module.exports = [
     label: "the hint errors on a character with no options table yet",
     from: "    if type(options) ~= \"table\" then return nil end\n    local off = 0",
     to: "    local off = 0" },
+// ---- rolling for an appearance (v0.226.0a) -------------------------------
+  // Greeding something nobody wanted loses you a transmog. Needing something somebody did is a
+  // thing you cannot take back and other people remember. Those are not the same size of
+  // mistake, so they do not get the same benefit of the doubt.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "Need is rolled while somebody has not declared, taking it from a player who wanted it",
+    from: "    if (o.othersUndeclared or 0) <= 0 then",
+    to: "    if true then" },
+
+  // An errored or nil collected-state is not "you want this". It decides whether to take an
+  // item off somebody, on an Ascension api nobody here has watched answer.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "an unreadable appearance check counts as wanting the appearance",
+    from: "    if okHas and collected == false then return true, \"you do not have this appearance\" end",
+    to: "    if collected ~= true then return true, \"you do not have this appearance\" end" },
+
+  // Passes are counted; everybody else is undeclared. Miscounting the group the other way makes
+  // "everyone passed" true on an empty group.
+  { gate: "rolltest", file: "Valuate.lua",
+    label: "the group is miscounted so a full party reads as nobody left to declare",
+    from: "    return math.max(0, others - passed), size", to: "    return 0, size" },
 ];
