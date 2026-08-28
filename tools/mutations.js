@@ -3588,4 +3588,63 @@ module.exports = [
   { gate: "bulkimport", file: "ImportExport.lua",
     label: "an unreadable tag is dropped in silence instead of counted",
     from: "            table.insert(errors, {", to: "            if false then table.insert(errors, {" },
+// ---- quick setup (v0.225.0a) ---------------------------------------------
+  // The risk is not the current contents - it is the tiers DRIFTING. One option moved into the
+  // safe list, or added there by somebody who read the name and not the tier, and a command
+  // sold as "this only tells you things" starts deleting.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "a destructive automation is switched on by the command that promises it only tells you things",
+    from: "    { option = \"showUpgradeArrows\",       label = \"arrows on bag items that beat what you wear\" },",
+    to: "    { option = \"autoSellJunk\", label = \"arrows on bag items that beat what you wear\" }," },
+
+  // A bare list of names is a list you skim. The reason is the reason it is useful.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "a refusal stops explaining itself, so the list reads as arbitrary",
+    from: "      why = \"deletion has no undo anywhere in the game\" },",
+    to: "      why = nil }," },
+
+  // It is a way in, not a way to have your settings rearranged.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "quick setup switches things OFF as well as on",
+    from: "        if options[entry.option] == true then",
+    to: "        if false then" },
+
+  // Running it twice must not claim to have done it twice.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "an option already on is counted as newly switched on",
+    from: "            alreadyOn[#alreadyOn + 1] = entry",
+    to: "            turnedOn[#turnedOn + 1] = entry" },
+
+  // The three worst automations in the addon must be NAMED, not quietly omitted.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "the destructive automations are dropped from the list entirely",
+    from: "    { option = \"autoSellJunk\",           label = \"sell junk at a vendor\",",
+    to: "    { option = \"notARealOption\",           label = \"sell junk at a vendor\"," },
+// ---- quick setup (v0.225.0a) ---------------------------------------------
+  // A convenience feature that quietly enabled auto-sell would be worse than no convenience
+  // feature at all - and it is one line moved between two lists.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "quickstart switches on the automations that ACT for you, not just the ones that tell",
+    from: "    for _, entry in ipairs(ns.QUICK_TELLS) do",
+    to: "    for _, entry in ipairs(ns.QUICK_ACTS) do" },
+
+  // A way in, not a rearrangement. Somebody who has tuned their settings and runs this out of
+  // curiosity must not lose anything.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "an option you had switched on yourself is turned back off",
+    from: "        if options[entry.option] == true then\n            alreadyOn[#alreadyOn + 1] = entry\n        else",
+    to: "        if false then\n            alreadyOn[#alreadyOn + 1] = entry\n        else" },
+
+  // The explanation is the useful half. Switching six things on is the small part; being told
+  // what the addon deliberately will not decide for you is the rest.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "an option left off stops saying why, so the list is a wall of names",
+    scope: { start: "ns.QUICK_COSTS = {", end: "-- Turns on every TELLS option" },
+    from: "      why = \"deletion has no undo anywhere in the game\" },", to: "    }," },
+
+  // A name nothing reads: the command reports it switched on and it does nothing, forever.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "quick setup names an option that does not exist",
+    from: "    { option = \"showUpgradeArrows\",       label = \"arrows on bag items",
+    to: "    { option = \"showUpgradeArrowz\",       label = \"arrows on bag items" },
 ];

@@ -8666,6 +8666,116 @@ local SELF_CHECKS = {
 }
 
 -- Returns an array of { id, title, status, detail } - no printing, so a gate can run it.
+-- ============================================================================
+-- Quick setup
+-- ============================================================================
+-- Twenty-odd automations, every one off by default, each needing you to work out for yourself
+-- what it might cost. That is the right default and a poor first hour: the settings that only
+-- change what the addon SHOWS you sit in the same list as the ones that sell your gear, and
+-- telling them apart means reading each one.
+--
+-- So they are sorted here, once, into three tiers by what they can cost you - and the command
+-- turns on exactly the first.
+--
+-- The line between tiers is not "how likely is this to go wrong". It is WHAT IS AT STAKE IF IT
+-- DOES:
+--
+--   TELLS   changes only what Valuate draws or remembers. Wrong, you see a wrong number.
+--   ACTS    reaches into the game world on your behalf - spends gold, accepts, equips, queues.
+--           Wrong, something happened that you did not do. Reversible, but yours to choose.
+--   COSTS   destroys or binds. Wrong, an item is gone and no undo exists anywhere in the game.
+--
+-- Only the first is ever switched on for you. The other two are LISTED, with what each would
+-- do, because the useful half of this command is not the switching - it is being told what the
+-- addon deliberately will not decide for you.
+ns.QUICK_TELLS = {
+    { option = "showUpgradeArrows",       label = "arrows on bag items that beat what you wear" },
+    { option = "notifyBagUpgrade",        label = "a line in chat when you loot an upgrade" },
+    { option = "notifyOtherSpecUpgrades", label = "and when it is an upgrade for another spec" },
+    { option = "notifyDungeonNoUpgrades", label = "a word when a dungeon has nothing left for you" },
+    { option = "showStatBreakdown",       label = "the per-stat breakdown on item tooltips" },
+    { option = "todoOnLogin",             label = "the to-do summary at login" },
+}
+
+ns.QUICK_ACTS = {
+    { option = "autoRepair",           label = "repair at any vendor that can",
+      why = "spends your gold - and the guild's, if you also switch that on" },
+    { option = "autoAcceptQuests",     label = "accept quests from NPCs",
+      why = "puts things in your log you did not choose, including escorts" },
+    { option = "autoEquipUpgrades",    label = "equip an upgrade the moment you loot it",
+      why = "swaps your gear mid-play, which is rarely what you want in a fight" },
+    { option = "autoRollLoot",         label = "roll on group loot for you",
+      why = "a roll cannot be taken back, and Need takes it from somebody who wanted it" },
+    { option = "autoLearnAppearances", label = "collect wardrobe appearances",
+      why = "uses an Ascension api this addon has never seen answer" },
+    { option = "autoUnjunkProtected",  label = "rescue protected gear from the Junk section",
+      why = "writes into AdiBags own state, and stays written after you switch it off" },
+}
+
+ns.QUICK_COSTS = {
+    { option = "autoDeleteJunk",         label = "delete junk to keep bag slots free",
+      why = "deletion has no undo anywhere in the game" },
+    { option = "autoSellJunk",           label = "sell junk at a vendor",
+      why = "buyback is limited and does not survive a logout" },
+    { option = "autoConfirmBindOnLoot",  label = "answer bind-on-pickup prompts",
+      why = "binding is permanent and makes an item unsellable and untradeable" },
+}
+
+-- Turns on every TELLS option that is not already on.
+--
+-- Returns turnedOn, alreadyOn - both arrays of the entries, so the caller can say what changed
+-- without recomputing it. Nothing is ever switched OFF: this is a way in, not a way to have
+-- your settings rearranged.
+function ns.ApplyQuickSetup(options)
+    local turnedOn, alreadyOn = {}, {}
+    if type(options) ~= "table" then return turnedOn, alreadyOn end
+    for _, entry in ipairs(ns.QUICK_TELLS) do
+        if options[entry.option] == true then
+            alreadyOn[#alreadyOn + 1] = entry
+        else
+            options[entry.option] = true
+            turnedOn[#turnedOn + 1] = entry
+        end
+    end
+    return turnedOn, alreadyOn
+end
+
+-- /valuate quickstart - switch on everything that can only tell you things.
+function Valuate:RunQuickStart()
+    local options = Valuate:GetOptions()
+    local turnedOn, alreadyOn = ns.ApplyQuickSetup(options)
+
+    if #turnedOn == 0 then
+        print("|cFF00FF00[Valuate]|r Everything that only tells you things is already on.")
+    else
+        print(string.format("|cFF00FF00[Valuate]|r Switched on %d setting%s that can only tell you things:",
+            #turnedOn, #turnedOn == 1 and "" or "s"))
+        for _, e in ipairs(turnedOn) do
+            print("  |cFF00FF00+|r " .. e.label)
+        end
+    end
+    if #alreadyOn > 0 then
+        print(string.format("  |cFFAAAAAA%d more were already on.|r", #alreadyOn))
+    end
+
+    -- The useful half. Anything that reaches into the game is listed and NOT switched on,
+    -- because "it did something I did not ask for" is the complaint no convenience is worth.
+    print(" ")
+    print("|cFFFFFFFFLeft off - these ACT for you.|r |cFFAAAAAAEach is one command away.|r")
+    for _, e in ipairs(ns.QUICK_ACTS) do
+        print(string.format("  |cFF888888-|r %s |cFFAAAAAA(%s)|r", e.label, e.why))
+    end
+
+    print(" ")
+    print("|cFFFF8800Left off - these can COST you something.|r")
+    for _, e in ipairs(ns.QUICK_COSTS) do
+        print(string.format("  |cFFFF8800-|r %s |cFFAAAAAA(%s)|r", e.label, e.why))
+    end
+    print("  |cFFAAAAAAAll three have a preview: /valuate deletepreview, /valuate sellpreview.|r")
+    print("|cFFAAAAAASettings has every one of these with its own description.|r")
+    return #turnedOn
+end
+
 function Valuate:RunSelfVerify()
     local results = {}
     for _, check in ipairs(SELF_CHECKS) do
@@ -13055,6 +13165,8 @@ SlashCmdList["VALUATE"] = function(msg)
                 "  /valuate help - Show this help",
                 "  /valuate version - Show version info",
                 "  |cFF3FE0C8/valuate wizard|r - Build an optimized scale from the gear you are wearing",
+                "  |cFF3FE0C8/valuate quickstart|r - Switch on everything that only TELLS you " ..
+                    "things, and list what it deliberately left off",
                 "  /valuate scales - List all stat weight scales",
                 "  /valuate library - Scales shared across all your characters (save/load/delete)",
                 "  /valuate settings save|load - Copy your settings to your other characters",
@@ -14187,6 +14299,8 @@ SlashCmdList["VALUATE"] = function(msg)
             -- would put in it, and inventing that number would feed straight into item scores.
             print("  |cFFAAAAAACounted, not scored - what a socket is worth depends on the gem you choose.|r")
         end
+    elseif command == "quickstart" then
+        Valuate:RunQuickStart()
     elseif command == "selfverify" then
         print("|cFF00FF00[Valuate]|r Self-verify |cFFAAAAAA(the checks the addon can judge on its own)|r")
         local pass, fail, skip = 0, 0, 0
@@ -14390,6 +14504,4 @@ end
 -- Keybinding System
 -- ========================================
 -- Note: ValuateToggleUI() is defined at the top of the file to ensure
--- it's available when Bindings.xml is processed
-
-
+-- it's available when Bindings.xml is processe

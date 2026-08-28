@@ -4,6 +4,101 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.225.0a] - 2026-08-24 — `/valuate quickstart`
+
+### Added
+**One command for the first hour.** Twenty-odd automations, every one off by default. That is
+the right default and a poor first hour: the settings that only change what the addon *draws*
+sit in the same list as the ones that *sell your gear*, and telling them apart means reading
+each one.
+
+They are sorted once, by **what is at stake if they go wrong** — not by how likely that is:
+
+| tier | if it is wrong | quickstart |
+|---|---|---|
+| **TELLS** | you see a wrong number | **switched on** |
+| **ACTS** | something happened that you did not do — gold spent, a quest accepted, a roll made | listed, left off |
+| **COSTS** | an item is gone or bound, and no undo exists anywhere in the game | listed, left off |
+
+**Only the first tier is ever switched on.** The other two are printed with *why* each is left
+off, because the useful half of this command is not the switching — six settings is the small
+part — it is being told what the addon deliberately will not decide for you.
+
+**Nothing is ever switched off.** It is a way in, not a rearrangement: run it after tuning your
+own settings and you lose nothing, including automations you deliberately enabled from the
+riskier tiers.
+
+### Internal
+New gate `tools/quickstart.js`, 84 checks, 4 mutations. The tiering is a judgement and the gate
+does not pretend to check it — it cannot know whether `autoRepair` belongs in ACTS. What it does
+hold is everything mechanical about it: nothing from ACTS or COSTS is ever written, nothing is
+switched off, no option sits in two tiers, everything left off explains itself, and **every
+option named really exists** — checked against `DEFAULT_OPTIONS` in the source, because a typo
+would report a setting switched on while nothing ever read the key.
+
+**Two stranded mutations were found in the working tree** and restored before anything shipped:
+an inverted enchant requirement check in `RankForSlot`, and a removed `craftType ~= "header"`
+guard that would have filed profession category headers as enchants. Both were left by
+mutation runs that were interrupted rather than exiting — the hazard `mutate.js` records in its
+own header, and the reason the working tree gets read before a commit rather than after.
+
+98 gates, 593 mutations.
+
+## [0.225.0a] - 2026-08-23 — `/valuate quickstart`
+
+### Added
+**One command that switches on everything which can only tell you things — and lists what it
+deliberately would not.**
+
+Twenty-odd automations, every one off by default. That is the right default and a poor first
+hour: the settings that only change what the addon *draws* sit in the same list as the ones that
+**sell your gear**, and telling them apart means reading each one and deciding for yourself.
+
+They are sorted once, by **what is at stake if they go wrong** — not by how likely that is:
+
+| tier | if it is wrong |
+|---|---|
+| **tells** | you see a wrong number. *Switched on.* |
+| **acts** | something happened in the game that you did not do — gold spent, a quest accepted, a roll made. *Listed, left off.* |
+| **costs** | an item is deleted or bound, and no undo exists anywhere in the game. *Listed, left off.* |
+
+**The listing is the point, not the switching.** Each thing it refuses to enable says what it
+would have done and why it is your decision — *"a roll cannot be taken back, and Need takes it
+from somebody who wanted it"*, *"writes into AdiBags' own state, and stays written after you
+switch it off"*. A convenience command that quietly enabled auto-sell would be worse than no
+convenience command at all.
+
+It never switches anything **off**, so running it out of curiosity cannot rearrange settings you
+already tuned, and running it twice reports what was already on rather than claiming to have
+done it again.
+
+### Internal
+New gate `tools/quickstart.js`, 84 checks, 5 mutations. The tiering is a judgement and the gate
+does not pretend otherwise — it cannot know whether `autoRepair` belongs in *acts*. What it does
+hold: nothing from *acts* or *costs* is ever written, nothing is switched off, no option sits in
+two tiers, every refusal explains itself, and **every option named really exists** — checked
+against `DEFAULT_OPTIONS`, because a typo would set a key nothing reads and the command would
+report a setting enabled that does nothing forever.
+
+**A stray `mutate.js` kept outliving its shell.** On this machine `node tools/mutate.js`
+detaches and keeps running after the command that started it returns - so several runs were
+live at once, each periodically writing a mutated source file and then restoring its own
+snapshot over everyone else's work.
+
+That explains a day of nonsense: three separate attempts at this feature vanished mid-edit,
+gates failed on a different file every run, and eleven mutations reported SURVIVED against
+assertions that catch them perfectly well when run alone. Two deliberate bugs were left in the
+working tree - an inverted enchant requirement check and a dropped profession-header guard -
+and a third in Valuate-LootCollector. All were restored by hand rather than with
+`git checkout`, which rewrites line endings and broke two mutation anchors when it was tried.
+
+The v0.224.0a commit was audited afterwards and is clean: it changed no Lua but the version
+strings.
+
+98 gates. Every gate passes standalone and `quickstart` catches all five of its mutations
+in an isolated run; a clean FULL-suite mutation pass could not be obtained this session, for
+reasons recorded above.
+
 ## [0.224.0a] - 2026-08-23 — a paste from guild chat cannot replace your scales
 
 ### Fixed — the measurement
