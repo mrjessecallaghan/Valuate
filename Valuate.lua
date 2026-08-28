@@ -1758,6 +1758,10 @@ function Valuate:CreateDefaultScale()
             print("  |cFF00FF00Type /valuate|r and click |cFFFFFFFFFrom Template|r (top-left) - there are 45 built-in")
             print("  specs with proper weights. Pick whichever matches how you actually play.")
         end
+
+        -- Said last, and only when it applies. See ns.QuickStartHint.
+        local hint = ns.QuickStartHint and ns.QuickStartHint(Valuate:GetOptions())
+        if hint then print("  " .. hint) end
     end)
 end
 
@@ -8720,6 +8724,31 @@ ns.QUICK_COSTS = {
     { option = "autoConfirmBindOnLoot",  label = "answer bind-on-pickup prompts",
       why = "binding is permanent and makes an item unsellable and untradeable" },
 }
+
+-- One line at first login, and ONLY when it would tell you something.
+--
+-- A new character gets a Starter scale and nothing else: every automation is off by default,
+-- which is the right default and means the addon looks inert. Six of those settings only ever
+-- draw things - arrows, a line in chat, the to-do summary - and nobody is going to read
+-- sixty-nine options to find them.
+--
+-- Returns nil when they are already on. That is exactly the case for somebody who just loaded a
+-- settings snapshot from another character, and telling them to run a command that would do
+-- nothing is how the rest of the first-run text stops being read.
+--
+-- Counts what is OFF rather than announcing a feature, because the number is the argument.
+function ns.QuickStartHint(options)
+    if type(options) ~= "table" then return nil end
+    local off = 0
+    for _, entry in ipairs(ns.QUICK_TELLS or {}) do
+        if options[entry.option] ~= true then off = off + 1 end
+    end
+    if off == 0 then return nil end
+    return string.format(
+        "%d setting%s that only SHOW you things are off. |cFF00FF00/valuate quickstart|r turns " ..
+        "them on, and lists what it will not touch.",
+        off, off == 1 and "" or "s")
+end
 
 -- Turns on every TELLS option that is not already on.
 --

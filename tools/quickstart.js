@@ -58,6 +58,13 @@ if (applyStart < 0) {
 }
 const apply = lua.slice(applyStart, lua.indexOf(NL + "end" + NL, applyStart) + 5);
 
+const hintStart = lua.indexOf("function ns.QuickStartHint(");
+if (hintStart < 0) {
+  console.error("  SLICE  could not find ns.QuickStartHint in Valuate.lua");
+  process.exit(1);
+}
+const hint = lua.slice(hintStart, lua.indexOf(NL + "end" + NL, hintStart) + 5);
+
 /* The declared options, read from the source rather than listed again here. A second copy of
  * this list is a second thing to forget, which is the failure this whole toolchain is about. */
 const defaults = lua.match(/^local DEFAULT_OPTIONS = \{[\s\S]*?\r?\n\}/m);
@@ -87,6 +94,7 @@ local ns = {}
 ` + sliceTable("QUICK_ACTS") + `
 ` + sliceTable("QUICK_COSTS") + `
 ` + apply + `
+` + hint + `
 
 -- ---- the tiers are populated and distinct ------------------------------------------------------
 ok(#ns.QUICK_TELLS > 0, "there is something safe to switch on")
@@ -152,6 +160,39 @@ eq(#secondAlready, #ns.QUICK_TELLS, "because everything safe is already on")
 -- ---- it survives being handed nothing ----------------------------------------------------------------
 ok(pcall(ns.ApplyQuickSetup, nil), "no options table is survivable")
 eq(#(select(1, ns.ApplyQuickSetup(nil))), 0, "and switches nothing on")
+
+-- ---- the first-login hint --------------------------------------------------------------------
+--
+-- A new character gets a Starter scale and nothing else: every automation is off by default,
+-- which is right and means the addon looks inert. Six settings only ever DRAW things, and nobody
+-- reads sixty-nine options to find them.
+--
+-- The rule that keeps it from being noise: it says nothing when there is nothing to say.
+local ALL_OFF = {}
+local hint = ns.QuickStartHint(ALL_OFF)
+ok(hint ~= nil, "a character with everything off is told there is something to switch on")
+ok(hint and hint:find("quickstart", 1, true) ~= nil, "and told the command that does it")
+ok(hint and hint:find(tostring(#ns.QUICK_TELLS), 1, true) ~= nil,
+   "with the COUNT, which is the argument rather than the feature name")
+
+-- SILENT WHEN IT WOULD DO NOTHING. This is exactly the case for somebody who just loaded a
+-- settings snapshot from another character, and a command that would change nothing is how the
+-- rest of the first-run text stops being read.
+local ALL_ON = {}
+for _, e in ipairs(ns.QUICK_TELLS) do ALL_ON[e.option] = true end
+eq(ns.QuickStartHint(ALL_ON), nil, "with them all already on, it says NOTHING")
+
+-- Partly on: still worth saying, and the number reflects what is actually left.
+local PARTIAL = {}
+for i = 2, #ns.QUICK_TELLS do PARTIAL[ns.QUICK_TELLS[i].option] = true end
+local partialHint = ns.QuickStartHint(PARTIAL)
+ok(partialHint ~= nil, "one still off is still worth mentioning")
+ok(partialHint and partialHint:find("1 setting", 1, true) ~= nil,
+   "and it counts what is off, not how many exist")
+
+-- It reads out of the options table at login, before much else is built.
+eq(ns.QuickStartHint(nil), nil, "no options table says nothing rather than erroring")
+ok(pcall(ns.QuickStartHint, "not a table"), "and a wrong type is survivable")
 
 return failures, checks
 `,

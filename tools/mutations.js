@@ -3647,4 +3647,22 @@ module.exports = [
     label: "quick setup names an option that does not exist",
     from: "    { option = \"showUpgradeArrows\",       label = \"arrows on bag items",
     to: "    { option = \"showUpgradeArrowz\",       label = \"arrows on bag items" },
+// ---- the first-login hint (v0.226.0a) ------------------------------------
+  // A line that appears when it would change nothing is how the rest of the first-run text
+  // stops being read - and that text is the only guidance a new character ever gets.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "the hint appears even when every display setting is already on",
+    from: "    if off == 0 then return nil end", to: "    if false then return nil end" },
+
+  // The count is the argument. "Some settings are off" is a sentence you skim.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "the hint stops counting what is actually off",
+    from: "        if options[entry.option] ~= true then off = off + 1 end",
+    to: "        if options[entry.option] ~= true then off = off end" },
+
+  // It runs at login, before much else exists.
+  { gate: "quickstart", file: "Valuate.lua",
+    label: "the hint errors on a character with no options table yet",
+    from: "    if type(options) ~= \"table\" then return nil end\n    local off = 0",
+    to: "    local off = 0" },
 ];

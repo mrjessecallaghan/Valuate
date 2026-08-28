@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.226.0a] - 2026-08-24 — Need for a look, when nobody else wanted it
+
+### Added
+**Need for an appearance, but only when nobody else wanted it.** `/valuate` gains
+`autoRollAppearanceNeed` (off by default, in the ACTS tier).
+
+An item can be worth having for its LOOK when it is worth nothing for its stats. Greed is the
+polite roll for that, and Greed loses to anybody who Needs - so an appearance you may never see
+again goes to somebody who wanted the stats.
+
+**What the client will and will not tell you.** 3.3.5 announces a PASS the moment it happens.
+It does *not* announce a Need or a Greed until the roll RESOLVES, by which point your own roll
+was cast long ago. So *"everyone greeded"* cannot be known in time, and this does not pretend
+otherwise. *"Everyone else passed"* can be, and it is the half of the same idea the client
+actually supports: nobody contested it, so taking it costs nobody anything. Solo, the question
+does not arise at all.
+
+**The asymmetry is the design.** Every uncertain answer is Greed - an unreadable appearance
+check, a wardrobe api that is not there, a player who has not declared. Greeding something
+nobody wanted loses you a transmog; Needing something somebody did is a thing you cannot take
+back and other people remember. Those are not the same size of mistake, so they do not get the
+same benefit of the doubt.
+
+New gate `tools/approll.js`, 32 checks, 3 mutations.
+
+### Added
+**A new character is told, once, that six display settings are off.**
+
+The first login already explains scales carefully — a Starter scale, what its equal weights
+actually mean, and where the 45 real templates live. It said nothing about the twenty
+automations, every one off by default. That is the right default and it means the addon looks
+**inert**: no arrows on bag items, no line when you loot an upgrade, no to-do summary. Nobody is
+going to read sixty-nine settings to find the six that only draw things.
+
+One line now, at the end of the first-run text, naming the count and `/valuate quickstart`.
+
+**It says nothing when it would change nothing.** Anyone who loaded a settings snapshot from
+another character already has these on, and pointing them at a command that would do nothing is
+how the rest of the first-run guidance stops being read. The count is the argument, not the
+feature name — *"6 settings that only SHOW you things are off"* is a reason; *"try quickstart"*
+is an advertisement.
+
+### Internal
+`tools/quickstart.js` 84 → 92 checks, 12 mutations. Three of the new ones cover the hint: that
+it stays silent when everything is already on, that it counts what is genuinely off rather than
+how many exist, and that it survives running before the options table exists.
+
+**The suite is stable again.** Every anomaly in the previous release traced to `mutate.js`
+detaching and outliving its shell — three green `gates.js` runs in a row once the strays were
+stopped, where a different gate had been failing each time. One more stranded mutation was found
+and restored before starting (a slot added to the enchantable set), and the process check is now
+the first thing done rather than the last.
+
+98 gates, 596 mutations.
+
 ## [0.225.0a] - 2026-08-24 — `/valuate quickstart`
 
 ### Added
