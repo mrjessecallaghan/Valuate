@@ -3553,4 +3553,39 @@ module.exports = [
     label: "a cross-line anchor on a CRLF file goes unreported until somebody reads UNAPPLIED carefully",
     from: "    from: \"    if Valuate:IsItemLinkUpgrade(itemLink) then\",",
     to: "    from: \"    if Valuate:IsItemLinkUpgrade(itemLink) then\n        ShowArrow(button, itemLink, \\\"upgrade\\\")\"," },
+// ---- bulk scale import (v0.224.0a) ---------------------------------------
+  // The one place in the addon that takes untrusted input and writes user data. A scale you
+  // spent an evening tuning is not something to replace because a string in guild chat happened
+  // to use the same name.
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "a pasted string silently replaces a scale you already have",
+    from: "        if #existingScales > 0 then", to: "        if false then" },
+
+  // Importing "the ones that do not clash" looks like an improvement and means a paste half
+  // applies - some scales in, some not, and nothing said about which.
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "a clash blocks only the clashing scale, so the paste half-applies",
+    from: "            return 0, 0, existingScales",
+    to: "            existingScales = {}" },
+
+  // The conflicting names are how the caller knows what to ask you about.
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "the clashing names are not reported, so nothing can ask you about them",
+    from: "                table.insert(existingScales, parsed.name)", to: "" },
+
+  // Braces and pipes are the tag format's own syntax; a name carrying one can break every later
+  // parse of the same string.
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "a scale name carrying the tag format's own syntax is accepted",
+    from: "    if string.match(name, \"[{}|]\") then", to: "    if false then" },
+
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "an empty scale name is accepted as a key",
+    from: "    if type(name) ~= \"string\" or strtrim(name) == \"\" then",
+    to: "    if type(name) ~= \"string\" then" },
+
+  // "3 imported" out of five, with two errors nobody mentioned, is worse than a refusal.
+  { gate: "bulkimport", file: "ImportExport.lua",
+    label: "an unreadable tag is dropped in silence instead of counted",
+    from: "            table.insert(errors, {", to: "            if false then table.insert(errors, {" },
 ];

@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.224.0a] - 2026-08-23 — a paste from guild chat cannot replace your scales
+
+### Fixed — the measurement
+**Every coverage figure this run has worked from was wrong.** The scan looked for
+`function ns.X` and missed `ns.X = someLocal`, which is how ten `ui/` files publish. Corrected,
+the addon has **285 published symbols, not 219** — sixty-six the old scan could not see, and
+seventy-nine of the whole named by no gate.
+
+Two ticks of "which file is least covered" were therefore answering a slightly different
+question than the one being asked. That is worth recording rather than quietly re-running.
+
+### Internal
+The corrected scan put `ImportExport.lua` near the top, and it is the one place in the addon
+that takes **untrusted input and writes user data**: somebody pastes a string out of guild chat
+and three functions decide what lands in your scale list. None had a gate.
+
+New gate `tools/bulkimport.js`, 27 checks, 6 mutations:
+
+| | |
+|---|---|
+| **nothing is written on a clash** | one name you already have blocks the **entire** paste, and the clashing names come back so you can be asked first |
+| **its innocent neighbours too** | importing "the ones that do not clash" would look like an improvement and would mean a paste silently half-applies. A scale you spent an evening tuning is not something to replace on a guess |
+| **a malformed tag is counted** | *"3 imported"* out of five, with two errors nobody mentioned, is worse than a refusal — you walk away believing you have scales that are not there |
+| **a name is not a key until checked** | braces and pipes are the tag format's own syntax, so a name carrying one can break every later parse of the same string |
+
+The paired assertion matters as much as the rule: with nothing in the way both scales *do*
+import, and `overwrite` genuinely overwrites. Without those, "never write anything" would pass
+every safety check above.
+
+`mockarity.js` caught this release's own gate mocking `ParseScaleTag` thinly — twice running now
+that it has flagged my own new work. Investigating the answer rather than allowlisting it turned
+up a small thing worth knowing: `ParseScaleTag` returns four values and
+`ParseMultipleScaleTags` destructures all four, but **`versionMessage` is never read**. So the
+thin mock is genuinely safe here, and the reason is recorded instead of assumed.
+
+97 gates, 589 mutations.
+
 ## [0.223.0a] - 2026-08-23 — the arrow on every item in your bags
 
 ### Internal

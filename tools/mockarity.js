@@ -62,6 +62,10 @@ const REVIEWED = new Set([
   "arrowtest.js:Valuate.IsItemLinkUpgrade",
   // SetArrow reads the boolean and nothing else - the delta and scale name go unused there.
   "arrowmark.js:Valuate.IsItemLinkUpgrade",
+  // ParseScaleTag really returns name, data, errorMessage, versionMessage. The first three are
+  // all exercised here - the error one on the failure path. The fourth is destructured by
+  // ParseMultipleScaleTags and then never read, so there is nothing for a wider mock to reach.
+  "bulkimport.js:Valuate.ParseScaleTag",
   "autowizard.js:Valuate.GetCachedEquippedStatTotals",
   "autowizard.js:Valuate.GetTemplateSet",
   "autowizard.js:Valuate.PlanAutoScale",
