@@ -128,6 +128,47 @@ try {
     );
     ok = false;
   }
+
+  /* One entry per version, newest first.
+   *
+   * Only the TOP entry was ever checked, which is enough while one person writes the file. It
+   * stopped being enough the day a second session developed in the same working directory: two
+   * releases shipped as 0.227.0a, one entry was overwritten by the other and lost entirely, and
+   * 0.225.0a ended up described twice in different words. Nothing noticed, because nothing was
+   * looking below line one.
+   *
+   * The version is what a bug report quotes. Two builds answering to the same number makes
+   * every report about either of them ambiguous, and there is no way to tell afterwards which
+   * one somebody was running.
+   *
+   * Out-of-order is checked for the same reason it matters in the file at all: a reader takes
+   * the top entry as current. An entry that drifts below an older one is invisible. */
+  const headings = [...changelog.matchAll(/^##\s*\[(\d+)\.(\d+)\.(\d+)([a-z]?)\]/gm)];
+  const seenVersion = new Map();
+  let previous = null;
+  for (const h of headings) {
+    const version = `${h[1]}.${h[2]}.${h[3]}${h[4]}`;
+    if (seenVersion.has(version)) {
+      console.error(
+        `DUPLICATE  CHANGELOG has two entries for ${version}. The version is what a bug ` +
+          "report quotes, so two releases answering to one number make every report about " +
+          "either of them ambiguous. Renumber the later one."
+      );
+      ok = false;
+    }
+    seenVersion.set(version, true);
+
+    const rank = Number(h[1]) * 1e6 + Number(h[2]) * 1e3 + Number(h[3]);
+    if (previous !== null && rank >= previous.rank) {
+      console.error(
+        `ORDER  CHANGELOG lists ${version} below ${previous.version}, but it is not older. ` +
+          "Entries run newest-first, and a reader takes the top one as current - anything " +
+          "that drifts beneath an older release is invisible."
+      );
+      ok = false;
+    }
+    previous = { version, rank };
+  }
 } catch (e) {
   // No CHANGELOG: not a sync failure.
 }

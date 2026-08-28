@@ -4,7 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.227.0a] - 2026-08-29 — the gear you left in the bank
+## [0.229.0a] - 2026-08-29 — two releases answering to one number
+
+### Fixed
+The CHANGELOG had drifted from what actually shipped, in three ways at once, and nothing
+noticed because nothing was looking below the first line.
+
+**Two releases both called 0.227.0a.** Two sessions developed in this directory on the same day
+and each numbered its own release. The second overwrote the first's entry, so one release was
+described twice under one number and the other was not described at all. The version is what a
+bug report quotes: two builds answering to the same number makes every report about either of
+them ambiguous, with no way to tell afterwards which one somebody was running.
+
+Resolved by commit order rather than by preference. `49278ed` landed before `34b5747`, so the
+earlier keeps 0.227.0a and the later is renumbered **0.228.0a**, with `.toc`, `README.md` and
+`ui/InfoPanels.lua` moved with it. The lost entry — "the addon looking inert is a to-do" — is
+restored from its own commit.
+
+**0.225.0a was described twice**, in different words, by the same collision. One kept.
+
+### Internal
+`tools/tocsync.js` only ever read the TOP entry, which is enough while one person writes the
+file. Now every heading is checked: **one entry per version**, and **strictly newest-first**.
+
+The ordering half matters for the same reason the file is ordered at all — a reader takes the
+top entry as current, so an entry that drifts beneath an older release is invisible.
+
+Both were confirmed against the real damage: reintroduce the duplicate number, the gate fails;
+move an entry below an older one, it fails. 98 gates.
+
+
+## [0.228.0a] - 2026-08-29 — the gear you left in the bank
 
 ### Added
 **`/valuate withdraw`** — what is sitting in your bank that beats what you are wearing, and
@@ -42,6 +72,44 @@ separate conditions overlapped and either alone would have passed. A bags item w
 banked separates them, and that is what makes the source tag load-bearing.
 
 98 gates.
+
+## [0.227.0a] - 2026-08-24 — the addon looking inert is a to-do
+
+### Added
+**The To Do tab now says when the addon is not showing you anything.**
+
+Six settings do nothing but draw — arrows on bag items, a line when you loot an upgrade, the
+login summary — and all of them are off by default. A new character sees a Starter scale and no
+evidence the addon does anything at all.
+
+`/valuate quickstart` fixes that, and v0.226.0a mentioned it once at first login. Once. This
+puts it where the answer to *"what should I do next"* already lives, and the To Do rows already
+run their command when clicked, so it is one press rather than a command to remember.
+
+Two things make it a to-do rather than an advertisement:
+
+- **It removes itself.** The row is built from the same check the hint uses, so the moment those
+  settings are on it is gone. A row that survives being acted on is furniture, and furniture is
+  what makes a list stop being read.
+- **It is last.** Everything above it is about your gear; this is about the addon's own
+  settings, and it must never push a real job off the top.
+
+### Internal
+Considered a button in Settings first and rejected it: the panel has no global refresh, so the
+six checkboxes would have sat visibly stale after a press. The To Do list rebuilds on every
+refresh and its rows already carry a command — the machinery was already there, and using it
+avoided inventing a state-sync problem.
+
+`tools/todotest.js` 72 → 76 checks, 3 mutations: that the row appears when they are off, that it
+disappears when they are on, that it stays last, and that it keeps the command that acts on it.
+
+### Note on this working tree
+A second session is developing in the same directory and pushed `80fe779` mid-tick. This commit
+was assembled through the index rather than by editing files, so their in-flight work — a bank
+gear listing, unfinished at the time — was never touched. All 98 gates pass on the shared tree.
+
+98 gates, 599 mutations.
+
 
 ## [0.226.0a] - 2026-08-24 — Need for a look, when nobody else wanted it
 
@@ -137,61 +205,6 @@ mutation runs that were interrupted rather than exiting — the hazard `mutate.j
 own header, and the reason the working tree gets read before a commit rather than after.
 
 98 gates, 593 mutations.
-
-## [0.225.0a] - 2026-08-23 — `/valuate quickstart`
-
-### Added
-**One command that switches on everything which can only tell you things — and lists what it
-deliberately would not.**
-
-Twenty-odd automations, every one off by default. That is the right default and a poor first
-hour: the settings that only change what the addon *draws* sit in the same list as the ones that
-**sell your gear**, and telling them apart means reading each one and deciding for yourself.
-
-They are sorted once, by **what is at stake if they go wrong** — not by how likely that is:
-
-| tier | if it is wrong |
-|---|---|
-| **tells** | you see a wrong number. *Switched on.* |
-| **acts** | something happened in the game that you did not do — gold spent, a quest accepted, a roll made. *Listed, left off.* |
-| **costs** | an item is deleted or bound, and no undo exists anywhere in the game. *Listed, left off.* |
-
-**The listing is the point, not the switching.** Each thing it refuses to enable says what it
-would have done and why it is your decision — *"a roll cannot be taken back, and Need takes it
-from somebody who wanted it"*, *"writes into AdiBags' own state, and stays written after you
-switch it off"*. A convenience command that quietly enabled auto-sell would be worse than no
-convenience command at all.
-
-It never switches anything **off**, so running it out of curiosity cannot rearrange settings you
-already tuned, and running it twice reports what was already on rather than claiming to have
-done it again.
-
-### Internal
-New gate `tools/quickstart.js`, 84 checks, 5 mutations. The tiering is a judgement and the gate
-does not pretend otherwise — it cannot know whether `autoRepair` belongs in *acts*. What it does
-hold: nothing from *acts* or *costs* is ever written, nothing is switched off, no option sits in
-two tiers, every refusal explains itself, and **every option named really exists** — checked
-against `DEFAULT_OPTIONS`, because a typo would set a key nothing reads and the command would
-report a setting enabled that does nothing forever.
-
-**A stray `mutate.js` kept outliving its shell.** On this machine `node tools/mutate.js`
-detaches and keeps running after the command that started it returns - so several runs were
-live at once, each periodically writing a mutated source file and then restoring its own
-snapshot over everyone else's work.
-
-That explains a day of nonsense: three separate attempts at this feature vanished mid-edit,
-gates failed on a different file every run, and eleven mutations reported SURVIVED against
-assertions that catch them perfectly well when run alone. Two deliberate bugs were left in the
-working tree - an inverted enchant requirement check and a dropped profession-header guard -
-and a third in Valuate-LootCollector. All were restored by hand rather than with
-`git checkout`, which rewrites line endings and broke two mutation anchors when it was tried.
-
-The v0.224.0a commit was audited afterwards and is clean: it changed no Lua but the version
-strings.
-
-98 gates. Every gate passes standalone and `quickstart` catches all five of its mutations
-in an isolated run; a clean FULL-suite mutation pass could not be obtained this session, for
-reasons recorded above.
 
 ## [0.224.0a] - 2026-08-23 — a paste from guild chat cannot replace your scales
 
