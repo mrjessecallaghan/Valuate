@@ -3705,4 +3705,38 @@ module.exports = [
     label: "the settings row loses the command that acts on it",
     from: "                command = \"/valuate quickstart\",\n            })",
     to: "            })" },
+// ---- taking gear out of the bank (v0.227.0a) -----------------------------
+  // The addon knew a banked item was best-in-slot and said "Equip All cannot reach it" - true,
+  // and the end of the sentence. These are the ways the list could send you on a wrong errand.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "an item that is not in the bank snapshot is listed, sending you to fetch nothing",
+    from: "                    if id and bankItems[id] then", to: "                    if id then" },
+
+  // Two scales wanting the same banked piece is ONE withdrawal.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "the same slot is listed once per scale that wants it",
+    from: "                if not claimed[slotId] and type(item) == \"table\"",
+    to: "                if type(item) == \"table\"" },
+
+  // An item in your bags is not a trip to the bank.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "gear already in your bags is listed as needing withdrawal",
+    from: "                   and item.source == \"bank\" and item.itemLink then",
+    to: "                   and item.itemLink then" },
+
+  // Refused as a WHOLE. A half-done withdrawal leaves you believing you have your gear when
+  // some of it is still in the bank.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "it moves what fits and leaves the rest, half-applying the withdrawal",
+    from: "    if (freeSlots or 0) < count then", to: "    if false then" },
+
+  // The in-transit guard, read and never relaxed.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "bank slots are touched while items are still moving",
+    from: "    if settling then return false, \"items are still moving - try again in a moment\" end",
+    to: "    if false then return false, \"items are still moving - try again in a moment\" end" },
+
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "it tries to withdraw with the bank closed",
+    from: "    if not bankOpen then return false, \"the bank has to be open\" end", to: "" },
 ];

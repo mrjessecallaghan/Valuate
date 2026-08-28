@@ -4,42 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.227.0a] - 2026-08-24 — the addon looking inert is a to-do
+## [0.227.0a] - 2026-08-29 — the gear you left in the bank
 
 ### Added
-**The To Do tab now says when the addon is not showing you anything.**
+**`/valuate withdraw`** — what is sitting in your bank that beats what you are wearing, and
+`/valuate withdraw now` to take it out.
 
-Six settings do nothing but draw — arrows on bag items, a line when you loot an upgrade, the
-login summary — and all of them are off by default. A new character sees a Starter scale and no
-evidence the addon does anything at all.
+The addon already knew. A scan marks a banked item best-in-slot and tags it `source = "bank"`,
+and Best Equipment then said:
 
-`/valuate quickstart` fixes that, and v0.226.0a mentioned it once at first login. Once. This
-puts it where the answer to *"what should I do next"* already lives, and the To Do rows already
-run their command when clicked, so it is one press rather than a command to remember.
+> Bank gear is excluded (Equip All cannot reach it) — see `/valuate bank`.
 
-Two things make it a to-do rather than an advertisement:
+True, and the end of the sentence. `/valuate bank` was a *diagnostic*: it explained why the bank
+contributed nothing, and never said **which items, in which slots**, out of a bank of several
+hundred. The answer existed and you were left to reconstruct it.
 
-- **It removes itself.** The row is built from the same check the hint uses, so the moment those
-  settings are on it is gone. A row that survives being acted on is furniture, and furniture is
-  what makes a list stop being read.
-- **It is last.** Everything above it is about your gear; this is about the addon's own
-  settings, and it must never push a real job off the top.
+The preview reads the snapshot, so it answers anywhere. Only the withdrawal itself needs the
+bank open, because that is the only moment those containers can be read at all.
+
+| | |
+|---|---|
+| **one entry per slot** | two scales wanting the same banked piece is one trip, not two — and the scales are walked in sorted order, so two runs produce the same list |
+| **only what the snapshot holds** | a best-in-slot entry the bank has never seen is stale, and sending you to fetch something that is not there is worse than saying nothing |
+| **refused as a whole** | not enough free bag slots refuses the lot rather than moving what fits. A half-done withdrawal leaves you believing you have your gear when some of it is still in the bank, and "free a slot and run it again" is the same fix either way |
+| **located live** | the snapshot records what a past visit saw, so the items are found in the real bank at the moment of moving. Anything no longer there is reported, not passed over in silence |
+
+The in-transit guard is read and never relaxed: nothing is moved while items are still settling,
+and it says so rather than blaming your bags.
 
 ### Internal
-Considered a button in Settings first and rejected it: the panel has no global refresh, so the
-six checkboxes would have sat visibly stale after a press. The To Do list rebuilds on every
-refresh and its rows already carry a command — the machinery was already there, and using it
-avoided inventing a state-sync problem.
+Assertions live in `tools/bestequiptest.js` — it already owns *which item belongs in which slot
+and where it is*, and this is that question with one more place to look. 20 checks → 43, six
+mutations.
 
-`tools/todotest.js` 72 → 76 checks, 3 mutations: that the row appears when they are off, that it
-disappears when they are on, that it stays last, and that it keeps the command that acts on it.
+One survived first: my fixture's bags-sourced item was not also in the bank snapshot, so two
+separate conditions overlapped and either alone would have passed. A bags item whose twin *is*
+banked separates them, and that is what makes the source tag load-bearing.
 
-### Note on this working tree
-A second session is developing in the same directory and pushed `80fe779` mid-tick. This commit
-was assembled through the index rather than by editing files, so their in-flight work — a bank
-gear listing, unfinished at the time — was never touched. All 98 gates pass on the shared tree.
-
-98 gates, 599 mutations.
+98 gates.
 
 ## [0.226.0a] - 2026-08-24 — Need for a look, when nobody else wanted it
 

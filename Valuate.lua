@@ -10677,6 +10677,167 @@ local function DecideRollType(wants, canNeed, canGreed)
 end
 
 -- never look like "you want it".
+-- What is sitting in your bank that beats what you are wearing.
+--
+-- Best Equipment already knows: a scan marks a banked item best-in-slot and tags it
+-- source = "bank". What the addon then said was "Bank gear is excluded (Equip All cannot reach
+-- it)" - true, and the end of the sentence. It knew the answer and left you to work out which
+-- items, in which slots, out of a bank of several hundred.
+--
+-- Returns a list of { slotId, slotName, itemId, itemLink, scaleName }, one per slot, and a
+-- reason when the list is empty for a reason worth saying out loud.
+--
+-- Deduplicated by SLOT, not by item: two scales can both want the same banked piece, and
+-- withdrawing it once is enough. The first scale to claim a slot keeps it, which is stable
+-- because the scale names are walked in sorted order rather than pairs() order - the same
+-- ranking rule the rest of this addon follows.
+--
+-- An item still in the SNAPSHOT but no longer in the bank is not filtered out here, because
+-- this cannot know: the snapshot is what a past visit saw. The withdrawal itself looks in the
+-- real bank and simply does not find it, which is the honest place for that to surface.
+-- idFromLink is passed IN rather than reached for, so this stays a pure function of its
+-- arguments and can be driven without the rest of the file. The caller hands it the same
+-- GetItemIdFromLink everything else here uses.
+function ns.BankWithdrawPlan(bestEquipment, bankItems, activeScales, idFromLink)
+    local out = {}
+    if type(bestEquipment) ~= "table" or type(bankItems) ~= "table" then
+        return out, "no scan to read"
+    end
+
+    -- Sorted, so two runs produce the same list in the same order.
+    local names = {}
+    for scaleName in pairs(bestEquipment) do
+        if (not activeScales) or activeScales[scaleName] then names[#names + 1] = scaleName end
+    end
+    if #names == 0 then return out, "no active scale, so nothing is ranked" end
+    table.sort(names)
+
+    local claimed = {}
+    for _, scaleName in ipairs(names) do
+        local slots = bestEquipment[scaleName]
+        if type(slots) == "table" then
+            for slotId = 1, 18 do
+                local item = slots[slotId]
+                if not claimed[slotId] and type(item) == "table"
+                   and item.source == "bank" and item.itemLink then
+                    local id = idFromLink and idFromLink(item.itemLink)
+                    -- Only what the snapshot actually holds. An id the bank cache has never
+                    -- seen is a stale best-equipment entry, and sending you to fetch something
+                    -- that is not there is worse than saying nothing.
+                    if id and bankItems[id] then
+                        claimed[slotId] = true
+                        out[#out + 1] = {
+                            slotId = slotId,
+                            slotName = item.slotName or ("slot " .. slotId),
+                            itemId = id,
+                            itemLink = item.itemLink,
+                            scaleName = scaleName,
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    if #out == 0 then return out, "nothing in the bank beats what you are wearing" end
+    return out, nil
+end
+
+-- Can these actually be moved right now?
+--
+-- Returns ok, reason. Every refusal names the thing to fix, because "it did nothing" with no
+-- explanation is the complaint this addon has fixed more than once.
+function ns.BankWithdrawBlocked(count, freeSlots, bankOpen, settling)
+    if settling then return false, "items are still moving - try again in a moment" end
+    if not bankOpen then return false, "the bank has to be open" end
+    if (count or 0) <= 0 then return false, "nothing to withdraw" end
+    -- Refused as a whole rather than moving what fits. A half-done withdrawal leaves you
+    -- believing you have your gear when some of it is still in the bank, and the fix - free a
+    -- slot and run it again - is the same either way.
+    if (freeSlots or 0) < count then
+        return false, string.format("%d free bag slot(s) needed, %d free", count, freeSlots or 0)
+    end
+    return true, nil
+end
+
+-- /valuate withdraw - what to take out of the bank, and (with `now`) take it.
+--
+-- Previews from the SNAPSHOT, so it answers anywhere; acts only with the bank actually open,
+-- because that is the only time the containers can be read or written.
+function Valuate:WithdrawBankUpgrades(doIt)
+    local active = {}
+    if Valuate.GetActiveScales then
+        for name in pairs(Valuate:GetActiveScales() or {}) do active[name] = true end
+    end
+    local cache = Valuate:GetBankCache()
+    local plan, why = ns.BankWithdrawPlan(
+        Valuate:GetBestEquipment(), cache and cache.items or {}, active, GetItemIdFromLink)
+
+    if #plan == 0 then
+        print("|cFF00FF00[Valuate]|r " .. (why or "nothing to withdraw") .. ".")
+        return 0
+    end
+
+    print(string.format("|cFF00FF00[Valuate]|r %d banked item%s beat%s what you are wearing:",
+        #plan, #plan == 1 and "" or "s", #plan == 1 and "s" or ""))
+    for _, e in ipairs(plan) do
+        print(string.format("  |cFFFFFFFF%s|r  %s |cFFAAAAAA(%s)|r",
+            e.slotName, e.itemLink, e.scaleName))
+    end
+
+    local bankOpen = BankFrame and BankFrame.IsShown and BankFrame:IsShown()
+    local free = CountFreeBagSlots and CountFreeBagSlots() or 0
+    -- Read, never relaxed: moving bag or bank slots while items are in transit is how things
+    -- vanish. The same guard the delete and sell paths keep.
+    local settling = equipmentSwapPending or recentEquipmentChange
+    local canMove, blocked = ns.BankWithdrawBlocked(#plan, free, bankOpen, settling)
+
+    if not doIt then
+        print("  |cFFAAAAAA" .. (canMove and "Open the bank and run /valuate withdraw now."
+            or ("To take them: " .. tostring(blocked) .. ".")) .. "|r")
+        return #plan
+    end
+    if not canMove then
+        print("|cFFFF8800[Valuate]|r Not withdrawing: " .. tostring(blocked) .. ".")
+        return 0
+    end
+
+    -- Located LIVE rather than from the snapshot. The snapshot records what a past visit saw,
+    -- and a slot that has moved since would otherwise pick up whatever now sits in it.
+    local wanted = {}
+    for _, e in ipairs(plan) do wanted[e.itemId] = true end
+
+    local moved = 0
+    for _, bagId in ipairs({ -1, 5, 6, 7, 8, 9, 10, 11 }) do
+        local slots = GetContainerNumSlots and GetContainerNumSlots(bagId) or 0
+        for slotId = 1, slots do
+            local link = GetContainerItemLink and GetContainerItemLink(bagId, slotId)
+            local id = link and GetItemIdFromLink(link)
+            if id and wanted[id] then
+                wanted[id] = nil          -- one of each, however many copies are banked
+                if UseContainerItem then
+                    -- The 3.3.5 way to move bank -> bags: using a banked item puts it in your
+                    -- bags. No cursor, so nothing can be left held if this is interrupted.
+                    local ok = pcall(UseContainerItem, bagId, slotId)
+                    if ok then moved = moved + 1 end
+                end
+            end
+        end
+    end
+
+    print(string.format("|cFF00FF00[Valuate]|r Moved %d item%s into your bags.",
+        moved, moved == 1 and "" or "s"))
+    if moved < #plan then
+        -- Said out loud. The snapshot is what a past visit saw, so an item that has since been
+        -- moved or spent is simply not there - and silence would read as "it worked".
+        print(string.format("  |cFFFF8800%d were not found in the bank|r |cFFAAAAAA- the " ..
+            "snapshot is from your last visit. Close and reopen the bank to refresh it.|r",
+            #plan - moved))
+    end
+    Valuate:MarkAutomation("bankWithdraw", string.format("moved %d of %d", moved, #plan))
+    return moved
+end
+
 function ns.AppearanceWantedForLink(link)
     if not link then return false, "no item" end
     if not AppearanceApiReady() then return false, "this client has no wardrobe api" end
@@ -11401,6 +11562,7 @@ function Valuate:PrintReport()
         { key = "questAccept",   label = "Quest auto-accept" },
         { key = "autoRoll",      label = "Loot roll" },
         { key = "autoRepair",    label = "Auto-repair" },
+        { key = "bankWithdraw", label = "Bank withdrawal" },
         { key = "questReward",   label = "Quest reward taken" },
         -- Turn-in shared questReward until it was given its own, so the report could say a
         -- reward had been taken but never that a quest was advanced - and the interesting
@@ -13353,6 +13515,7 @@ SlashCmdList["VALUATE"] = function(msg)
             { key = "gear", title = "Gear and scoring", lines = {
                 "  /valuate scan - Scan bags/equipped now for best-in-slot items",
                 "  /valuate bank - Show the bank snapshot used for best-in-slot",
+                "  /valuate withdraw - What in your bank beats what you wear; withdraw now takes it out",
                 "  /valuate equip - Equip the best set for the active scale",
                 "  /valuate weights [scale] - Which of your stat weights actually matter",
                 "  /valuate future - Gear waiting on a level, and which level",
@@ -14557,6 +14720,8 @@ SlashCmdList["VALUATE"] = function(msg)
         else
             print("|cFFFF8800[Valuate]|r The Valuate-AdiBags module isn't loaded, so nothing is being marked as junk.")
         end
+    elseif command == "withdraw" then
+        Valuate:WithdrawBankUpgrades(arg == "now")
     elseif command == "bank" then
         -- Diagnostic: says WHY the bank contributes nothing, rather than silently
         -- contributing nothing. The three reasons are: never visited, the option is
