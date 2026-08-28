@@ -3686,4 +3686,23 @@ module.exports = [
   { gate: "rolltest", file: "Valuate.lua",
     label: "the group is miscounted so a full party reads as nobody left to declare",
     from: "    return math.max(0, others - passed), size", to: "    return 0, size" },
+// ---- the inert-addon to-do (v0.227.0a) -----------------------------------
+  // A row that stays after you have acted on it is furniture, and furniture is what makes a
+  // to-do list stop being read.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the settings row stays after you have switched them on, becoming furniture",
+    from: "        local hint = ns.QuickStartHint(Valuate:GetOptions())\n        if hint then",
+    to: "        local hint = ns.QuickStartHint(Valuate:GetOptions())\n        if true then" },
+
+  // Everything above it is about your gear. This is about the addon's own settings.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the settings row is inserted above real gear work",
+    from: "            table.insert(items, {\n                kind = \"settings\",",
+    to: "            table.insert(items, 1, {\n                kind = \"settings\"," },
+
+  // Without a command the row is an observation rather than something you can act on.
+  { gate: "todotest", file: "Valuate.lua",
+    label: "the settings row loses the command that acts on it",
+    from: "                command = \"/valuate quickstart\",\n            })",
+    to: "            })" },
 ];

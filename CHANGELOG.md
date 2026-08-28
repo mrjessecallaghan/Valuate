@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.227.0a] - 2026-08-24 — the addon looking inert is a to-do
+
+### Added
+**The To Do tab now says when the addon is not showing you anything.**
+
+Six settings do nothing but draw — arrows on bag items, a line when you loot an upgrade, the
+login summary — and all of them are off by default. A new character sees a Starter scale and no
+evidence the addon does anything at all.
+
+`/valuate quickstart` fixes that, and v0.226.0a mentioned it once at first login. Once. This
+puts it where the answer to *"what should I do next"* already lives, and the To Do rows already
+run their command when clicked, so it is one press rather than a command to remember.
+
+Two things make it a to-do rather than an advertisement:
+
+- **It removes itself.** The row is built from the same check the hint uses, so the moment those
+  settings are on it is gone. A row that survives being acted on is furniture, and furniture is
+  what makes a list stop being read.
+- **It is last.** Everything above it is about your gear; this is about the addon's own
+  settings, and it must never push a real job off the top.
+
+### Internal
+Considered a button in Settings first and rejected it: the panel has no global refresh, so the
+six checkboxes would have sat visibly stale after a press. The To Do list rebuilds on every
+refresh and its rows already carry a command — the machinery was already there, and using it
+avoided inventing a state-sync problem.
+
+`tools/todotest.js` 72 → 76 checks, 3 mutations: that the row appears when they are off, that it
+disappears when they are on, that it stays last, and that it keeps the command that acts on it.
+
+### Note on this working tree
+A second session is developing in the same directory and pushed `80fe779` mid-tick. This commit
+was assembled through the index rather than by editing files, so their in-flight work — a bank
+gear listing, unfinished at the time — was never touched. All 98 gates pass on the shared tree.
+
+98 gates, 599 mutations.
+
 ## [0.226.0a] - 2026-08-24 — Need for a look, when nobody else wanted it
 
 ### Added

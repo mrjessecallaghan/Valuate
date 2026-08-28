@@ -443,6 +443,42 @@ SOCKET_BLOCK, ENCHANT_UNREAD = nil, 0
 items, unread = Valuate:BuildTodoList()
 eq(#unread, 0, "back to clean, nothing is claimed unread")
 
+-- ---- the addon looking inert is a to-do -------------------------------------------------------
+--
+-- Six settings do nothing but draw, all off by default, and a new character sees a scale and no
+-- evidence the addon does anything at all. It appears here because this list is "what is worth
+-- doing", and it is the only entry that costs nothing.
+--
+-- Two rules make it a to-do rather than an advertisement: it removes ITSELF once they are on,
+-- and it never pushes a real job off the top.
+ns.QUICK_TELLS = ns.QUICK_TELLS or { { option = "showUpgradeArrows" }, { option = "notifyBagUpgrade" } }
+ns.QuickStartHint = function(o)
+    for _, e in ipairs(ns.QUICK_TELLS) do
+        if o and o[e.option] ~= true then return "some are off" end
+    end
+    return nil
+end
+
+DRIFT, SOCKETS, ENCHANTS, UPGRADES = nil, 0, 0, nil
+SOCKET_BLOCK, ENCHANT_UNREAD = nil, 0
+OPTIONS.showUpgradeArrows, OPTIONS.notifyBagUpgrade = nil, nil
+
+local withHint = Valuate:BuildTodoList()
+local hintRow, hintIndex
+for i, it in ipairs(withHint) do if it.kind == "settings" then hintRow, hintIndex = it, i end end
+ok(hintRow ~= nil, "with the display settings off, the list says so")
+eq(hintRow and hintRow.command, "/valuate quickstart", "and the row runs the command that fixes it")
+eq(hintIndex, #withHint, "LAST - it must never push a real job off the top")
+
+-- It removes itself. A row that stays after you have done it is furniture, and furniture is
+-- what makes a to-do list stop being read.
+OPTIONS.showUpgradeArrows, OPTIONS.notifyBagUpgrade = true, true
+local without = Valuate:BuildTodoList()
+for _, it in ipairs(without) do
+    ok(it.kind ~= "settings", "once they are on, the row is gone entirely")
+end
+OPTIONS.showUpgradeArrows, OPTIONS.notifyBagUpgrade = nil, nil
+
 return failures, checks
 `,
   "todotest",

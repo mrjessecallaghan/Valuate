@@ -8012,6 +8012,28 @@ function Valuate:BuildTodoList()
         end
     end
 
+    -- The addon looking INERT is a real to-do, and the only one here that costs nothing.
+    --
+    -- Every automation is off by default, six of which do nothing but draw: arrows on bag items,
+    -- a line when you loot an upgrade, the to-do summary itself. A new character sees a scale
+    -- and no evidence the addon does anything, and the fix is one click.
+    --
+    -- LAST in the list on purpose. Everything above it is about your gear; this is about the
+    -- addon's own settings, and it must never push a real job off the top. It also removes
+    -- itself - QuickStartHint returns nothing once they are on - so it cannot become furniture.
+    if ns.QuickStartHint then
+        local hint = ns.QuickStartHint(Valuate:GetOptions())
+        if hint then
+            table.insert(items, {
+                kind = "settings",
+                text = "Switch on the settings that only show you things",
+                detail = "Arrows on bag items, a line when you loot an upgrade, this summary at " ..
+                    "login. None of them touch your gear, and nothing that does is switched on.",
+                command = "/valuate quickstart",
+            })
+        end
+    end
+
     return items, unread
 end
 
