@@ -771,6 +771,21 @@ local function OnEvent(self, event, addonName, ...)
                     if bankJustOpened then
                         ValuateAfter(1.2, function()
                             if not Valuate.CountEquippableUpgrades then return end
+
+                            -- Withdrawing for you, if you asked for that. Deliberately BEFORE
+                            -- the chat-messages check below: this one is an action, and an
+                            -- action you switched on should still happen when you have turned
+                            -- the commentary off.
+                            --
+                            -- The bank is open right now, which is the only moment those
+                            -- containers can be read or written at all - so this is the one
+                            -- place the addon can act on something it has always known.
+                            if Valuate:GetOptions().autoWithdrawUpgrades
+                               and Valuate.WithdrawBankUpgrades then
+                                Valuate:WithdrawBankUpgrades(true, true)
+                                return
+                            end
+
                             -- Convenience, so it honours the verbosity option. Fires on
                             -- every bank visit that has an upgrade in it.
                             if not Valuate:GetOptions().chatMessages then return end
@@ -781,7 +796,11 @@ local function OnEvent(self, event, addonName, ...)
                                 print(string.format(
                                     "|cFF00FF00Valuate|r: |cFFFF8800%d item(s) in this bank|r beat what you are wearing for %s.",
                                     bankCount, scaleName))
-                                print("  |cFFAAAAAATake them out and Valuate will treat them as equippable.|r")
+                                -- Said while you are standing AT the bank, which is the only
+                                -- moment the containers can be read or written. Naming the
+                                -- command here rather than "take them out" is the difference
+                                -- between knowing and doing.
+                                print("  |cFFAAAAAA/valuate withdraw now|r|cFFAAAAAA takes them out, or move them yourself.|r")
                             end
                         end)
                     end
@@ -954,6 +973,7 @@ local DEFAULT_OPTIONS = {
     ignoreProfessionTools = true,         -- never score/track fishing poles & profession tool weapons
     showUpgradeArrows = true,              -- green arrow on merchant/loot/bag icons that upgrade a scale
     includeBankItems = true,              -- count banked gear as best-in-slot candidates (Equip All still skips it)
+    autoWithdrawUpgrades = false,   -- open the bank and it takes out what beats your gear
     -- Collect wardrobe appearances you do not have yet, from items in your bags. Off by
     -- default like every automation here, and with more reason than most: collecting may
     -- BIND the item, which nothing in this client lets me verify. /valuate wardrobe lists
@@ -6052,7 +6072,7 @@ function Valuate:CheckBagUpgradeNotify(trigger, verbose)
     local count, sig, bankCount, topUpgrade = Valuate:CountEquippableUpgrades(scaleName)
     say("equippable upgrades in bags: " .. count)
     if bankCount > 0 then
-        say("upgrades sitting in your bank (not equippable from here): " .. bankCount)
+        say("upgrades sitting in your bank (/valuate withdraw): " .. bankCount)
     end
     if count == 0 then
         lastNotifiedSignature = nil
@@ -7752,6 +7772,7 @@ ns.AUTOMATION_LABELS = {
     autoSellJunk            = { label = "sell junk",                     beat = "junkSell" },
     autoRepair              = { label = "repair",                        beat = "autoRepair" },
     autoRollLoot            = { label = "roll on loot",                  beat = "autoRoll" },
+    autoWithdrawUpgrades    = { label = "withdraw bank upgrades",       beat = "bankWithdraw" },
     autoAcceptQuests        = { label = "accept quests",                 beat = "questAccept" },
     autoQuestTurnIn         = { label = "turn in quests",                beat = "questTurnIn" },
     autoQuestReward         = { label = "pick quest rewards",            beat = "questReward" },
@@ -7943,8 +7964,8 @@ function Valuate:BuildTodoList()
             kind = "bank",
             text = string.format("%d upgrade%s waiting in your bank", bankUpgrades,
                 bankUpgrades == 1 and "" or "s"),
-            detail = "Equip All cannot reach the bank, so these need withdrawing first",
-            command = "/valuate bank",
+            detail = "Equip All cannot reach the bank - /valuate withdraw lists them, and withdraw now takes them out",
+            command = "/valuate withdraw",
         })
     end
     -- Guarded with an `if`, NOT `local _, n = Valuate.X and Valuate:X()`. Lua adjusts an
@@ -8734,6 +8755,8 @@ ns.QUICK_ACTS = {
       why = "a roll cannot be taken back, and Need takes it from somebody who wanted it" },
     { option = "autoLearnAppearances", label = "collect wardrobe appearances",
       why = "uses an Ascension api this addon has never seen answer" },
+    { option = "autoWithdrawUpgrades", label = "take bank upgrades out when you open the bank",
+      why = "moves your items without being asked, and a full bag makes it refuse rather than half-do it" },
     { option = "autoUnjunkProtected",  label = "rescue protected gear from the Junk section",
       why = "writes into AdiBags own state, and stays written after you switch it off" },
 }
@@ -10764,7 +10787,13 @@ end
 --
 -- Previews from the SNAPSHOT, so it answers anywhere; acts only with the bank actually open,
 -- because that is the only time the containers can be read or written.
-function Valuate:WithdrawBankUpgrades(doIt)
+-- quiet is the AUTOMATIC caller, and it differs from the command in the two ways an
+-- automation has to: it says nothing when there is nothing to say, and it records a
+-- heartbeat even then. A line of chat on every bank visit that had nothing in it is how
+-- an opt-in convenience turns into something you switch back off; and a heartbeat only on
+-- success would leave an automation that has never found anything looking identical to one
+-- that is broken, which is the exact failure the heartbeat table exists to tell apart.
+function Valuate:WithdrawBankUpgrades(doIt, quiet)
     local active = {}
     if Valuate.GetActiveScales then
         for name in pairs(Valuate:GetActiveScales() or {}) do active[name] = true end
@@ -10774,15 +10803,27 @@ function Valuate:WithdrawBankUpgrades(doIt)
         Valuate:GetBestEquipment(), cache and cache.items or {}, active, GetItemIdFromLink)
 
     if #plan == 0 then
-        print("|cFF00FF00[Valuate]|r " .. (why or "nothing to withdraw") .. ".")
+        -- The automation records it and says nothing; the command was asked a question, so it
+        -- answers. Both halves matter: silence with no heartbeat is indistinguishable from
+        -- an automation that has stopped working.
+        if quiet then
+            Valuate:MarkAutomation("bankWithdraw", why or "nothing to withdraw")
+        else
+            print("|cFF00FF00[Valuate]|r " .. (why or "nothing to withdraw") .. ".")
+        end
         return 0
     end
 
-    print(string.format("|cFF00FF00[Valuate]|r %d banked item%s beat%s what you are wearing:",
-        #plan, #plan == 1 and "" or "s", #plan == 1 and "s" or ""))
-    for _, e in ipairs(plan) do
-        print(string.format("  |cFFFFFFFF%s|r  %s |cFFAAAAAA(%s)|r",
-            e.slotName, e.itemLink, e.scaleName))
+    -- The listing answers "which ones?", which is the command being asked a question. The
+    -- automation was not asked anything, and its own summary line below already names what
+    -- moved - so listing them first would just be saying it twice.
+    if not quiet then
+        print(string.format("|cFF00FF00[Valuate]|r %d banked item%s beat%s what you are wearing:",
+            #plan, #plan == 1 and "" or "s", #plan == 1 and "s" or ""))
+        for _, e in ipairs(plan) do
+            print(string.format("  |cFFFFFFFF%s|r  %s |cFFAAAAAA(%s)|r",
+                e.slotName, e.itemLink, e.scaleName))
+        end
     end
 
     local bankOpen = BankFrame and BankFrame.IsShown and BankFrame:IsShown()
@@ -10798,7 +10839,11 @@ function Valuate:WithdrawBankUpgrades(doIt)
         return #plan
     end
     if not canMove then
+        -- Spoken even when quiet. Silence here is the one that would be read as "it works":
+        -- something you switched on found upgrades, refused to move them, and you would be
+        -- standing at the bank with no reason to think anything had happened.
         print("|cFFFF8800[Valuate]|r Not withdrawing: " .. tostring(blocked) .. ".")
+        if quiet then Valuate:MarkAutomation("bankWithdraw", "held off: " .. tostring(blocked)) end
         return 0
     end
 
@@ -12294,6 +12339,14 @@ local VERIFY_CHECKS = {
         steps = "With the bag-upgrade prompt on, get an upgrade to pop while in combat. Press Equip. Then leave combat and press it again.",
         expect = "In combat: it says it cannot change equipment, and the popup STAYS UP. Out of combat the same button equips and the popup closes.",
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
+    },
+    {
+        id = "bankwithdraw", since = "0.230.0a",
+        gate = "tools/bestequiptest.js",
+        title = "Opening the bank takes out the gear that beats what you are wearing",
+        steps = "Switch on Withdraw Upgrades Automatically in Settings, with Include Bank Items already on. Put a piece of gear that beats your current one in the bank, then close and reopen the bank. Then fill your bags and reopen it again. Then switch the option off and open it once more.",
+        expect = "First reopen: the item lands in your bags and one line says how many moved. Second: it says it is not withdrawing and why, and NOTHING moves - not even the one that would have fit. Third: complete silence. In all three, /valuate report shows a bankWithdraw heartbeat with what happened, including on a visit that found nothing.",
+        broke = "The gate drives this against a mocked bank, and a mock cannot answer the two questions that decide whether the feature is usable. First, whether UseContainerItem on a bank slot really moves the item into your bags on this server - it is the 3.3.5 way and it is what the code assumes, but Ascension has changed container behaviour before and a wrong call here moves nothing while reporting success. Second, whether the snapshot the plan is built from matches the live bank; it is written on your LAST visit, so an item spent since is planned for and not there, and the shortfall line is the only thing that tells you. The silence on an empty visit is the other half - it fires on every bank open you will ever do, so one stray line of chat there is the difference between an automation you keep and one you switch off.",
     },
     {
         id = "wizardclaims", since = "0.219.0a",

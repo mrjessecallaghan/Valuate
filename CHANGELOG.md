@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.230.0a] - 2026-08-29 — the bank empties itself
+
+### Added
+**Withdraw Upgrades Automatically** (Settings, under Include Bank Items; off by default).
+Open your bank and the gear that beats what you are wearing comes out on its own. Last
+release taught the addon to reach into the bank on command; this is the same reach without
+the command, for people who would rather not have to remember it.
+
+It refuses as a whole rather than half-doing it: too few free bag slots moves nothing at all,
+so you are never left believing you have your gear when some of it is still in there. The
+in-transit guard applies unchanged — mid equipment swap it does not touch a slot.
+
+### Changed
+`Valuate:WithdrawBankUpgrades` now takes a second argument for the automatic caller, because
+an automation and a command want different things from the same work:
+
+- **It says nothing when there is nothing to say.** The function fires on every bank visit,
+  and almost every one of those has nothing to take. A line of chat each time is how an
+  opt-in convenience becomes something you switch back off two days later.
+- **It records a heartbeat either way.** An automation that has never found anything would
+  otherwise look exactly like one that is broken, which is the single distinction the
+  heartbeat table exists to make. `/valuate report` now shows *nothing to withdraw* rather
+  than *no occasion yet*.
+- **A refusal is still spoken.** Silence there is the one that reads as success: it found
+  your gear, moved nothing, and you walk away from the bank none the wiser.
+- **It skips the itemised listing.** That listing is the command answering *which ones?* —
+  the automation was not asked anything, and its own summary line already names what moved.
+
+Three stale messages that still said the addon could not reach the bank were corrected: the
+bank-open notice, the To Do entry, and the report line.
+
+### Internal
+Four new mutations, all caught. The two worth naming are the ones that would have shipped a
+working feature nobody could live with: an automation that announces having found nothing on
+every bank visit forever, and one that records no heartbeat when it finds nothing.
+
+`tools/bestequiptest.js` now slices the method itself, not only the two pure planners — what
+is worth proving about the automatic caller is what it *says* and *records*, and both live in
+the method. 59 checks, up from 43.
+
+Two gate bugs found while writing it. A needle read `beat what you are wearing` where the
+message says `beats`, which made the matching negative assertion pass for free. And the
+listing mutation named a site that appeared twice — the engine refused it as ambiguous rather
+than landing on the wrong one, so the empty-plan branch was folded into a single if/else:
+better code, and one anchor. 98 gates.
+
 ## [0.229.0a] - 2026-08-29 — two releases answering to one number
 
 ### Fixed

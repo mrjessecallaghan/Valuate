@@ -3739,4 +3739,39 @@ module.exports = [
   { gate: "bestequiptest", file: "Valuate.lua",
     label: "it tries to withdraw with the bank closed",
     from: "    if not bankOpen then return false, \"the bank has to be open\" end", to: "" },
+
+  // ---- the automatic caller (v0.228.0a) -----------------------------------
+  // Same function as the typed command, called with quiet = true when the bank opens. The
+  // two differences are the ones that decide whether an opt-in convenience survives
+  // contact: it fires on EVERY bank visit, and almost every one of those has nothing to
+  // take. A line of chat each time is how a switch gets turned back off.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "the automation announces having found nothing, on every bank visit forever",
+    from: "        if quiet then",
+    to: "        if false then",
+    scope: { start: "function Valuate:WithdrawBankUpgrades(",
+             end: "    local bankOpen = BankFrame" } },
+
+  // A heartbeat only on success leaves an automation that has never found anything looking
+  // exactly like a broken one - the single thing that table exists to tell apart.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "a quiet run that found nothing records no heartbeat, so it reads as never having run",
+    from: "            Valuate:MarkAutomation(\"bankWithdraw\", why or \"nothing to withdraw\")",
+    to: "" },
+
+  // Refusing in silence is the one that reads as success: it found your gear, moved
+  // nothing, and you walk away from the bank with no reason to think anything happened.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "a refusal goes unrecorded, so the summary cannot say why nothing moved",
+    from: "        if quiet then Valuate:MarkAutomation(\"bankWithdraw\", \"held off: \" .. tostring(blocked)) end",
+    to: "" },
+
+  // The listing answers "which ones?" - a command being asked a question. The automation
+  // was not asked anything, and its own summary line already names what moved.
+  { gate: "bestequiptest", file: "Valuate.lua",
+    label: "the automation lists every item before moving it, saying the same thing twice",
+    from: "    if not quiet then",
+    to: "    if true then",
+    scope: { start: "function Valuate:WithdrawBankUpgrades(",
+             end: "function ns.AppearanceWantedForLink(" } },
 ];

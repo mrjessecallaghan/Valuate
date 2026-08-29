@@ -65,6 +65,15 @@ const WITHDRAW = (function () {
     if (at < 0) { console.error("  SLICE  ns." + n + " is gone - this gate would test nothing"); process.exit(1); }
     parts.push(core.slice(at, core.indexOf(String.fromCharCode(10) + "end" + String.fromCharCode(10), at) + 5));
   }
+  /* The method as well, not only the two pure planners. What is worth proving about the
+   * automatic caller is not the plan - it is what it SAYS and RECORDS, and both of those
+   * live in the method. Sliced rather than reimplemented so a change to it is a change here. */
+  const at = core.indexOf("function Valuate:WithdrawBankUpgrades(");
+  if (at < 0) {
+    console.error("  SLICE  Valuate:WithdrawBankUpgrades is gone - this gate would test nothing");
+    process.exit(1);
+  }
+  parts.push(core.slice(at, core.indexOf(String.fromCharCode(10) + "end" + String.fromCharCode(10), at) + 5));
   return parts.join(String.fromCharCode(10));
 })();
 const run = load([]);
@@ -222,6 +231,128 @@ eq(ns.BankWithdrawBlocked(0, 5, true, false), false, "nothing to withdraw is not
 eq(ns.BankWithdrawBlocked(1, 20, true, true), false, "mid equipment swap it refuses")
 ok(select(2, ns.BankWithdrawBlocked(1, 20, true, true)):find("moving", 1, true) ~= nil,
    "and says the items are still settling rather than blaming your bags")
+
+
+-- ---- the AUTOMATIC caller ---------------------------------------------------------------------
+--
+-- Same function as '/valuate withdraw now', called with quiet = true when the bank opens by
+-- itself. The plan is identical either way and is already proven above; what is worth proving
+-- here is the pair of things an automation has to get right and a command does not:
+--
+--   it says nothing when there is nothing to say   a line of chat on every bank visit that had
+--                                                  nothing in it is how an opt-in convenience
+--                                                  becomes something you switch back off
+--   it records a heartbeat EITHER WAY              an automation that has never found anything
+--                                                  otherwise looks exactly like a broken one,
+--                                                  which is the whole reason that table exists
+--
+-- Both are easy to lose in a one-line edit, and neither raises an error when lost.
+
+-- Held before the fixture replaces Valuate wholesale: the slice defined the method on the real
+-- table, and each capture() hands the function a fresh one carrying only what it may read.
+WITHDRAW_FN = Valuate.WithdrawBankUpgrades
+local said, beats
+local realPrint = print
+local function capture()
+    said, beats = {}, {}
+    print = function(s) table.insert(said, tostring(s)) end
+    Valuate = {
+        GetActiveScales   = function() return { Fury = true } end,
+        GetBestEquipment  = function() return BEST end,
+        GetBankCache      = function() return { items = BANK } end,
+        MarkAutomation    = function(_, key, detail) table.insert(beats, key .. ": " .. tostring(detail)) end,
+    }
+    Valuate.WithdrawBankUpgrades = WITHDRAW_FN
+end
+local function heard(needle)
+    for _, line in ipairs(said) do if line:find(needle, 1, true) then return true end end
+    return false
+end
+
+-- One banked item that beats a bare slot, and the live bank holds it.
+-- The shape the planner actually reads: keyed by scale, then by slot id, and the bank
+-- snapshot keyed by item id - an entry the snapshot has never seen is deliberately skipped.
+BEST = { Fury = { [1] = { source = "bank", itemLink = "|Hitem:700|h[Helm]|h", slotName = "Head" } } }
+BANK = { [700] = true }
+
+GetItemIdFromLink = function(link)
+    local id = tostring(link or ""):match("item:(%d+)")
+    return id and tonumber(id) or nil
+end
+BankFrame = { IsShown = function() return true end }
+CountFreeBagSlots = function() return 8 end
+equipmentSwapPending, recentEquipmentChange = false, false
+GetContainerNumSlots = function(bag) return bag == -1 and 2 or 0 end
+GetContainerItemLink = function(bag, slot)
+    if bag == -1 and slot == 1 then return "|Hitem:700|h[Helm]|h" end
+    return nil
+end
+UseContainerItem = function() end
+
+-- ---- nothing to withdraw ----------------------------------------------------------------------
+-- THE ONE THAT DECIDES WHETHER THIS AUTOMATION IS LIVEABLE. It fires on every single bank open,
+-- and the overwhelmingly common case is that there is nothing in there to take.
+local savedBest = BEST
+BEST = {}
+capture()
+Valuate:WithdrawBankUpgrades(true, true)
+eq(#said, 0, "with nothing to withdraw, the automatic run prints NOTHING at all")
+eq(#beats, 1, "but it still records a heartbeat, so it does not look broken")
+ok(beats[1] and beats[1]:find("bankWithdraw", 1, true) ~= nil, "-- against the right automation")
+
+-- The command, asked the same question, answers it. Silence is right for the automation and
+-- wrong for something you typed.
+capture()
+Valuate:WithdrawBankUpgrades(false)
+ok(#said > 0, "the typed command still answers when there is nothing to withdraw")
+BEST = savedBest
+
+-- ---- it found something and cannot move it ----------------------------------------------------
+-- Spoken even when quiet, deliberately. This is the case silence would be read as success: you
+-- switched something on, it found your gear, it refused, and you walk away from the bank.
+CountFreeBagSlots = function() return 0 end
+capture()
+Valuate:WithdrawBankUpgrades(true, true)
+ok(heard("Not withdrawing"), "a refusal is said out loud even on the quiet automatic run")
+ok(beats[1] and beats[1]:find("held off", 1, true) ~= nil, "and recorded as held off, with the reason")
+CountFreeBagSlots = function() return 8 end
+
+-- The in-transit guard reaches the automatic path too. It is READ here, never relaxed.
+equipmentSwapPending = true
+capture()
+Valuate:WithdrawBankUpgrades(true, true)
+ok(heard("Not withdrawing"), "mid equipment swap the automation refuses rather than moving slots")
+equipmentSwapPending = false
+
+-- ---- it moved something -----------------------------------------------------------------------
+capture()
+local moved = Valuate:WithdrawBankUpgrades(true, true)
+eq(moved, 1, "with room and the bank open, the automatic run takes the item out")
+ok(heard("Moved 1 item"), "and says so - an automation that moved your things always says so")
+ok(not heard("banked item"),
+   "but it does not list them first: it was not asked a question, and the move line names them")
+eq(#beats, 1, "one heartbeat for the run")
+ok(beats[1]:find("moved 1 of 1", 1, true) ~= nil, "recording what moved against what was planned")
+
+-- The command lists them, because listing is the command answering "which ones?".
+capture()
+Valuate:WithdrawBankUpgrades(true)
+ok(heard("banked item"), "the typed command DOES list them before moving")
+
+-- ---- the snapshot was stale ---------------------------------------------------------------------
+-- The plan comes from what a past visit saw. An item spent or moved since is simply not there,
+-- and silence would read as "it worked".
+GetContainerItemLink = function() return nil end
+capture()
+eq(Valuate:WithdrawBankUpgrades(true, true), 0, "an item no longer in the bank cannot be moved")
+ok(heard("were not found"), "and the automation says so rather than reporting a clean run")
+ok(beats[1]:find("moved 0 of 1", 1, true) ~= nil, "the heartbeat carries the same shortfall")
+GetContainerItemLink = function(bag, slot)
+    if bag == -1 and slot == 1 then return "|Hitem:700|h[Helm]|h" end
+    return nil
+end
+
+print = realPrint
 
 return failures, checks
 `,

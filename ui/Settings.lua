@@ -2183,6 +2183,30 @@ local function CreateSettingsPanel(parent)
         end
     end)
     includeBankCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Sits directly under Include Bank Items, because it is only meaningful when that is on:
+    -- nothing is ever marked best-in-slot from the bank otherwise, so there is nothing to fetch.
+    local autoWithdrawCheckbox = CreateFrame("CheckButton", nil, col3, "UICheckButtonTemplate")
+    autoWithdrawCheckbox:SetSize(24, 24)
+    autoWithdrawCheckbox:SetPoint("TOPLEFT", includeBankCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+
+    local autoWithdrawLabel = autoWithdrawCheckbox:CreateFontString(nil, "OVERLAY", FONT_SMALL)
+    autoWithdrawLabel:SetPoint("LEFT", autoWithdrawCheckbox, "RIGHT", 5, 0)
+    autoWithdrawLabel:SetText("Withdraw Upgrades Automatically")
+    autoWithdrawCheckbox:SetChecked(Valuate:GetOptions().autoWithdrawUpgrades == true)
+    autoWithdrawCheckbox:SetScript("OnClick", function(self)
+        Valuate:GetOptions().autoWithdrawUpgrades = (self:GetChecked() == 1) or (self:GetChecked() == true)
+    end)
+    autoWithdrawCheckbox:SetScript("OnEnter", function(self)
+        if ShowTooltipSafe(self, "ANCHOR_RIGHT") then
+            GameTooltip:AddLine("Withdraw Upgrades Automatically", 1, 1, 1)
+            GameTooltip:AddLine("Opening your bank takes out the gear that beats what you are wearing, so you do not have to find it. Off by default.", 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("It moves nothing unless every item fits: too few free bag slots refuses the whole withdrawal rather than half-doing it and leaving you to notice.", 0.6, 0.6, 0.6, true)
+            GameTooltip:AddLine("Without this, /valuate withdraw lists them and withdraw now takes them out.", 0.6, 0.6, 0.6, true)
+            GameTooltip:Show()
+        end
+    end)
+    autoWithdrawCheckbox:SetScript("OnLeave", function() GameTooltip:Hide() end)
     columnHeights[3] = columnHeights[3] + 24 + ELEMENT_SPACING
 
     -- Upgrade alert presentation (Column 3, below Include Bank Items).
@@ -2190,7 +2214,7 @@ local function CreateSettingsPanel(parent)
     -- the column is a third of the window wide, so a second button on the notify
     -- row would have overflowed - the layout failure this panel already suffered.
     local alertLabel = col3:CreateFontString(nil, "OVERLAY", FONT_SMALL)
-    alertLabel:SetPoint("TOPLEFT", includeBankCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
+    alertLabel:SetPoint("TOPLEFT", autoWithdrawCheckbox, "BOTTOMLEFT", 0, -ELEMENT_SPACING)
     alertLabel:SetText("Upgrade Alert")
 
     local function AlertStyleText()
