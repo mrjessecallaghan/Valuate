@@ -98,7 +98,29 @@ function Viewer:InvalidateFilterCache() invalidations = invalidations + 1 end
 Viewer.window = CreateFrame("Frame")
 
 local LCAddon = {}
-function LCAddon:GetModule(name) return name == "Viewer" and Viewer or nil end
+-- The toast popup and the map. Both are real modules a third party can reach through
+-- GetModule, and both are surfaces the sanity filter has to cover: Toast.lua does not go
+-- through DiscoveryPassesFilters at all, and the map keeps stale pins unless its cache is
+-- marked dirty.
+local toastShown, toastLast = 0, nil
+local Toast = {}
+function Toast:Show(d, force, options)
+    toastShown = toastShown + 1
+    toastLast = d
+    return "shown"
+end
+
+local mapUpdates, minimapUpdates = 0, 0
+local Map = { cacheIsDirty = false }
+function Map:Update() mapUpdates = mapUpdates + 1 end
+function Map:UpdateMinimap() minimapUpdates = minimapUpdates + 1 end
+
+function LCAddon:GetModule(name)
+    if name == "Viewer" then return Viewer end
+    if name == "Toast" then return Toast end
+    if name == "Map" then return Map end
+    return nil
+end
 
 -- The one predicate behind both the map pin layer and the arrow that points at the nearest
 -- find. Counted, so the assertions can tell a hook that wraps it from one that replaces it.
@@ -558,6 +580,62 @@ ns.mode = "off"
 ns.hidden = {}
 for _ = 1, 20 do LCAddon:DiscoveryPassesFilters(pin("absurd", 31)) end
 eq(#ns.hidden, 0, "twenty map repaints add nothing to the hidden record")
+
+
+-- ---- the toast ---------------------------------------------------------------------------------
+--
+-- A SEPARATE hook, and the reason is a fact about LootCollector rather than a design choice:
+-- Toast.lua does not call DiscoveryPassesFilters anywhere. Filtering the map therefore does
+-- nothing about the popup, and a phantom find announcing itself in the corner of the screen is
+-- the most irritating form the complaint takes - it arrives unasked, while you are busy.
+ns.sanity = true
+ns.mode = "off"
+
+ok(Toast.Show ~= nil, "the toast is hooked at all")
+
+toastShown = 0
+Toast:Show({ il = "fine", z = 31, iz = 0 })
+eq(toastShown, 1, "a level-appropriate find still announces itself")
+
+Toast:Show({ il = "absurd", z = 31, iz = 0 })
+eq(toastShown, 1, "one that could not have dropped there does not")
+
+-- Forced toasts too. Their own force branch sits BELOW this wrapper, so it never gets there.
+Toast:Show({ il = "absurd", z = 31, iz = 0 }, true, { isNew = true })
+eq(toastShown, 1, "not even a forced one")
+
+-- Everything the filter cannot judge still announces itself, on this path as on the others.
+Toast:Show({ il = "absurd", z = 99999, iz = 0 })
+Toast:Show({ il = "absurd", z = nil, iz = 0 })
+Toast:Show({ il = "stranger", z = 31, iz = 0 })
+Toast:Show(nil)
+eq(toastShown, 5, "an untaught zone, no zone, an uncached item and no discovery all still show")
+
+ns.sanity = false
+Toast:Show({ il = "absurd", z = 31, iz = 0 })
+eq(toastShown, 6, "and with the filter off, so does the implausible one")
+ns.sanity = true
+
+-- The upgrade filter must never reach this path either. A toast is telling you something was
+-- found, not recommending it, and silencing finds you happen to out-gear would make the addon
+-- look like it had stopped working.
+ns.mode = "upgrades"
+Toast:Show({ il = "nothing", z = 31, iz = 0 })
+eq(toastShown, 7, "an item worth nothing to your scale still announces itself")
+ns.mode = "off"
+
+-- ---- repainting the map when a setting changes -------------------------------------------------
+--
+-- THE DIRTY FLAG IS THE PART THAT IS EASY TO MISS. RebuildFilteredCache returns early while it
+-- is false, so without it the minimap keeps exactly the pins it already had and switching the
+-- setting looks like it did nothing at all. Copied from LootCollector's own filter menu.
+Map.cacheIsDirty = false
+mapUpdates, minimapUpdates = 0, 0
+
+ns.SetMode("off")
+eq(Map.cacheIsDirty, true, "changing a setting marks the map cache dirty")
+eq(mapUpdates, 1, "and asks the world map to redraw")
+eq(minimapUpdates, 1, "and the minimap, which is a separate draw")
 
 return failures, checks
 `,

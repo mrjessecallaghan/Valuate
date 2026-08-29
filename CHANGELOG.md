@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.232.0a] - 2026-08-29 — the two surfaces the fix had missed
+
+### Fixed
+Last release's sanity filter reached the LootCollector list, the world map, the minimap and
+the tracking arrow — every surface that goes through `DiscoveryPassesFilters`. Reading the
+rest of LootCollector afterwards turned up two that do not.
+
+**The toast was never filtered.** `Modules/Toast.lua` does not call
+`DiscoveryPassesFilters` anywhere — not one reference in the file — so an implausible find
+still popped up in the corner of the screen announcing itself. That is the most irritating
+form the whole complaint takes: it arrives unasked, while you are doing something else. It
+now has its own hook, wrapped above their force branch so a forced toast is caught too.
+
+**Switching the setting never repainted the map.** `/vlc sanity` invalidated the Viewer and
+left the pins exactly as they were. `Map:RebuildFilteredCache` returns early while
+`cacheIsDirty` is false, so the minimap kept precisely the pins it already had and the
+command looked like it had done nothing. The repaint now follows LootCollector's own filter
+menu — dirty the cache, `Map:Update()`, `Map:UpdateMinimap()` — which is three lines and
+invisible by inspection, since a stale pin looks exactly like a pin.
+
+### Internal
+`tools/lchook.js` is at 118 checks, from 106. The fixture gained the Toast and Map modules,
+and the map assertions check the dirty flag specifically: it is the part that is easy to
+leave out and impossible to see in a screenshot.
+
+Five more mutations, all caught after one was rewritten. The first version of the
+"switched off" toast mutation patched install-time state that the assertions overwrite
+before they run, so it could never fail — a mutation testing nothing, which is the finding
+rather than a formality. Replaced with one that removes the `ns.sanity` guard from the
+toast test itself. 99 gates, 634 mutations.
+
 ## [0.231.0a] - 2026-08-29 — the finds that were never there
 
 ### Added

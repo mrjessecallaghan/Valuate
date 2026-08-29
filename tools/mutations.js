@@ -3866,4 +3866,38 @@ module.exports = [
     label: "implausible discoveries keep their map pins and their tracking arrow",
     from: "        return ns.KeepPlausible(true, SanityVerdictFor(d))",
     to: "    return true" },
+
+  // Toast.lua does not call DiscoveryPassesFilters anywhere, so the map hook does nothing
+  // about the popup. A phantom find announcing itself while you are busy is the most
+  // irritating form the whole complaint takes.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "implausible discoveries still pop a toast at you",
+    from: "        if ns.sanity and not ns.KeepPlausible(true, SanityVerdictFor(discoveryData)) then",
+    to: "        if false then" },
+
+  // The toast is telling you something was found, not recommending it.
+  // Switched off, it has to be completely inert here as well.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the toast is filtered even with the sanity setting switched off",
+    from: "        if ns.sanity and not ns.KeepPlausible(true, SanityVerdictFor(discoveryData)) then",
+    to: "        if not ns.KeepPlausible(true, SanityVerdictFor(discoveryData)) then" },
+
+  // RebuildFilteredCache returns early while the flag is false, so without it the minimap
+  // keeps exactly the pins it had and the setting looks like it did nothing.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the map cache is never marked dirty, so the minimap keeps its stale pins",
+    from: "    Map.cacheIsDirty = true",
+    to: "" },
+
+  // Two separate draws. Redrawing one leaves the other showing what it showed before.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "only the world map is repainted, never the minimap",
+    from: "    if Map.UpdateMinimap then Map:UpdateMinimap() end",
+    to: "" },
+
+  // Only the list was being redrawn when a setting changed.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "changing a setting never repaints the map at all",
+    from: "    RepaintMap()",
+    to: "" },
 ];
