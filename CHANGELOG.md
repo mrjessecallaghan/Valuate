@@ -4,6 +4,81 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.231.0a] - 2026-08-29 — the finds that were never there
+
+### Added
+**A sanity filter for LootCollector discoveries**, in a new module —
+`Valuate-LootCollector/Plausible.lua`. Epic items listed in starter zones, at levels far
+above anything that zone holds, which are not there when you walk to the coordinates. It
+hides them, from the list, from the map pins, and from the tracking arrow.
+
+**Why a level table, when four cheaper answers were tried first.** The real saved database
+on this account was taken apart before a line was written — 3,227 discoveries across 121
+zones — and every candidate signal already in the data failed against the entries a person
+would call obviously wrong:
+
+| signal | why it failed |
+| --- | --- |
+| the item string's link level | median 1 in every zone, including the level-55 ones. It records the linker, not the item. |
+| a stock-Blizzard item id | there are none. Every entry in the database is an Ascension custom id. |
+| id bands as level tiers | mean zone level per band came out 20, 28, 30, 38, 43. No relationship. |
+| provenance | the suspects share the same finders, observers and CONFIRMED status as everything else. |
+
+So the signal is not in the database — which is why the entries are still in it. The one
+thing that can separate them is the item's own level, and that lives in the client. That
+negative result is written into the module's header, because it is the reason it costs a
+`GetItemInfo` rather than reading a field already to hand.
+
+**Quality is never evidence, deliberately.** An epic in a low-level zone is the whole reason
+LootCollector exists on this server — worldforged gear is generated and drops anywhere — so
+a filter that hid epics in starter zones would hide precisely the finds the addon is for.
+Quality is what the complaint *noticed*; level is what makes an entry wrong. The rule is
+held by a gate, because "hide epics in low zones" is the obvious edit somebody makes later.
+
+**A zone the table has not been taught is never judged.** 121 zones are banded, from the
+eight racial starting valleys up to Molten Core; every Conquest of Azeroth zone, every city
+and anything Ascension adds after this was written falls through to *no opinion* rather than
+to a guess. Cities are absent rather than banded 1–60: a wide band would read as a judgement
+that happens never to fire.
+
+The margins are generous on purpose — 15 levels above the top of the zone, and more than
+twice that for item level, which is used only when there is no requirement to read. The ask
+was for *obviously* incorrect entries, and every degree of aggression past that starts
+hiding real finds.
+
+### Changed
+**On by default** — the one default in this addon set that is not *off*. The rule everywhere
+else holds because the cost of a surprise is unbounded: gold spent, an item destroyed. Here
+it is bounded and visible. The button carries the number it hid in orange, `/vlc hidden`
+reads them back with the reason for each, and `/vlc sanity` switches it off. Nothing is
+unrecoverable and nothing is silent, so shipping it off would only mean shipping a fix that
+does not apply until somebody finds the command for it. The upgrade filter stays off by
+default, because that one *can* empty a list quietly.
+
+**The two filters are gated apart.** The upgrade filter asks whether an item beats your
+gear, needs a scale, and only runs on the equipment tab. The sanity filter asks whether the
+entry could have come from where it says, needs nothing, and runs on every tab — a scroll
+listed in the wrong zone is as wrong as a helmet. Only the sanity filter reaches the map:
+removing a pin because you out-gear the item would make the map useless for finding out
+where things are.
+
+### Internal
+`tools/lcplausible.js` — 53 checks, six mutations, all caught. `tools/lchook.js` grew from
+65 checks to 106 for the wiring, with seven more mutations.
+
+Three findings while writing them. The `lchook` fixture was building a half-addon — it read
+Score and Filter while the `.toc` had gained a third file, and Filter calls into it at file
+scope; it now loads all three in `.toc` order. Its `GetItemInfo` mock returned nil for item
+level and required level, which is the mock gap this toolchain keeps finding: the code read
+a real return, the fixture answered nil, and nothing failed.
+
+And one mutation **survived** and was deleted rather than dressed up. It removed the nil-row
+guard in the filter loop, expecting a hole in the list; there is no hole, because
+`t[#t + 1] = nil` is a no-op in Lua and the next real row still lands correctly. The guard
+stays — it states the intent, and the day that append becomes `table.insert` the difference
+stops being nothing — but the comment claiming it prevented a hole was wrong, and both it
+and the mutation now say so. 99 gates.
+
 ## [0.230.0a] - 2026-08-29 — the bank empties itself
 
 ### Added

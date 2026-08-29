@@ -39,12 +39,16 @@ const path = require("path");
 const { load, ADDON_ROOT } = require("./luaharness.js");
 
 const DIR = path.resolve(ADDON_ROOT, "..", "Valuate-LootCollector");
-if (!fs.existsSync(path.join(DIR, "Filter.lua"))) {
+if (!fs.existsSync(path.join(DIR, "Filter.lua")) || !fs.existsSync(path.join(DIR, "Plausible.lua"))) {
   console.log("SKIP  Valuate-LootCollector is not installed next to this addon; nothing to check.");
   process.exit(0);
 }
 
 const score = fs.readFileSync(path.join(DIR, "Score.lua"), "utf8");
+/* Loaded in the order the .toc names them, because Filter.lua calls into Plausible.lua.
+ * Reading only the two this gate used to know about is how it first failed: the sanity
+ * filter went in, the .toc gained a file, and the fixture was still building a half-addon. */
+const plausible = fs.readFileSync(path.join(DIR, "Plausible.lua"), "utf8");
 const filter = fs.readFileSync(path.join(DIR, "Filter.lua"), "utf8");
 
 const run = load([]);
@@ -96,6 +100,15 @@ Viewer.window = CreateFrame("Frame")
 local LCAddon = {}
 function LCAddon:GetModule(name) return name == "Viewer" and Viewer or nil end
 
+-- The one predicate behind both the map pin layer and the arrow that points at the nearest
+-- find. Counted, so the assertions can tell a hook that wraps it from one that replaces it.
+local passCalls = 0
+local PASS_ANSWER = true
+function LCAddon:DiscoveryPassesFilters(d)
+    passCalls = passCalls + 1
+    return PASS_ANSWER
+end
+
 LibStub = function(major)
     if major == "AceAddon-3.0" then
         return { GetAddon = function() return LCAddon end }
@@ -107,10 +120,14 @@ local WORLD = {}
 local SCALE_NAME = "Dps"
 local statCalls = 0
 
+-- Positions 4 and 5 are item level and required level. They were nil here until the sanity
+-- filter needed them, which is the shape of mock gap this whole toolchain keeps finding: the
+-- code under test read a real return, the fixture answered nil, and nothing failed.
 GetItemInfo = function(link)
     local e = WORLD[link]
     if not e or e.uncached then return nil end
-    return "Item", nil, nil, nil, nil, nil, nil, nil, e.equipLoc or "INVTYPE_CHEST"
+    return "Item", nil, nil, e.ilvl, e.req, nil, nil, nil,
+           e.equipLoc or "INVTYPE_CHEST"
 end
 
 Valuate = {
@@ -132,6 +149,7 @@ Valuate = {
 local compile = loadstring or load
 local ns = {}
 assert(compile(${JSON.stringify(score)}, "@Valuate-LootCollector/Score.lua"))("Valuate-LootCollector", ns)
+assert(compile(${JSON.stringify(plausible)}, "@Valuate-LootCollector/Plausible.lua"))("Valuate-LootCollector", ns)
 assert(compile(${JSON.stringify(filter)}, "@Valuate-LootCollector/Filter.lua"))("Valuate-LootCollector", ns)
 
 -- Two frames carry an OnUpdate: the hidden background driver and the visible watcher that
@@ -161,13 +179,23 @@ eq(preRow("Button built").ok, false, "and the button as not yet built")
 watcher.__scripts.OnUpdate(watcher, 1)
 eq(ns.mode, "off", "the filter starts off, so installing the hook changes nothing by itself")
 
-local function rowFor(link, mystic, vendor)
-    return { discovery = { il = link }, isMystic = mystic or false, isVendor = vendor or false }
+-- zone defaults to nil rather than to a real one: a row with no zone must fall through the
+-- sanity filter untouched, so every assertion about the GEAR filter below is written against
+-- rows the sanity filter cannot have an opinion about.
+local function rowFor(link, mystic, vendor, zone)
+    return { discovery = { il = link, z = zone, iz = 0 },
+             isMystic = mystic or false, isVendor = vendor or false }
 end
 
 -- ---- OFF, and the two tabs this has no opinion about -------------------------------------
 -- IDENTITY, not equality. Their result table is reused and wiped on every rebuild, so handing
 -- back a copy would hand back a view of something about to be emptied.
+--
+-- The sanity filter is switched off for this block. It runs on every tab by design, so
+-- leaving it on would mean these four assertions passed or failed on ITS behaviour while
+-- claiming to be about the gear filter - and identity is exactly what a second filter
+-- rebuilding the table takes away. It gets its own block below.
+ns.sanity = false
 WORLD["junk"] = { stats = { Agility = 0 } }
 ROWS = { rowFor("junk") }
 eq(Viewer:GetFilteredDiscoveries(), ROWS, "with the filter off, their own table comes straight back")
@@ -379,6 +407,157 @@ for _, row in ipairs(ns.StatusReport()) do
     ok(type(row.value) == "string" and row.value ~= "",
        "and a value: '" .. tostring(row.label) .. "'")
 end
+
+
+-- ---- the sanity filter, end to end -----------------------------------------------------------
+--
+-- Plausible.lua is proven on its own in tools/lcplausible.js. What is only provable HERE is the
+-- wiring: that the verdict reaches the list, that the row actually leaves it, that the reason
+-- survives the trip, and that it happens on the tabs the gear filter refuses to touch.
+--
+-- The zone ids are real ones out of LootCollector's ZoneList: 31 is Elwynn Forest, banded 1-10,
+-- and 24 is Eastern Plaguelands, banded 53-60.
+ns.sanity = true
+ns.mode = "off"
+Viewer.currentFilter = "eq"
+
+WORLD["absurd"] = { equipLoc = "INVTYPE_HEAD", req = 60, ilvl = 200, stats = { Agility = 1 } }
+WORLD["fine"]   = { equipLoc = "INVTYPE_HEAD", req = 8,  ilvl = 15,  stats = { Agility = 1 } }
+
+ROWS = { rowFor("absurd", false, false, 31), rowFor("fine", false, false, 31) }
+local out = Viewer:GetFilteredDiscoveries()
+eq(#out, 1, "a level 60 requirement in Elwynn Forest is taken out of the list")
+eq(out[1].discovery.il, "fine", "and the level-appropriate find in the same zone stays")
+eq(#ns.hidden, 1, "what it removed is recorded rather than merely dropped")
+eq(ns.hidden[1].link, "absurd", "by link")
+ok(ns.hidden[1].why and ns.hidden[1].why:find("60", 1, true) ~= nil,
+   "with the reason, so the judgement can be argued with rather than only trusted")
+
+-- The SAME item in a zone that holds level 60 content is not implausible at all. This is the
+-- assertion that separates a level filter from a quality filter.
+ROWS = { rowFor("absurd", false, false, 24) }
+eq(#Viewer:GetFilteredDiscoveries(), 1, "the identical item in Eastern Plaguelands is left alone")
+eq(#ns.hidden, 0, "and nothing is reported as hidden")
+
+-- ---- it runs where the gear filter will not ---------------------------------------------------
+-- A scroll listed in a zone it could not have come from is just as wrong as a helmet, and the
+-- gear filter refuses those tabs on purpose. This is the point of gating the two separately.
+for _, tab in ipairs({ "ms", "bmv" }) do
+    Viewer.currentFilter = tab
+    ROWS = { rowFor("absurd", tab == "ms", tab == "bmv", 31) }
+    eq(#Viewer:GetFilteredDiscoveries(), 0,
+       "the sanity filter applies on the " .. tab .. " tab, where the gear filter never runs")
+end
+Viewer.currentFilter = "eq"
+
+-- ---- and it needs nothing the gear filter needs ------------------------------------------------
+SCALE_NAME = nil
+ROWS = { rowFor("absurd", false, false, 31) }
+eq(#Viewer:GetFilteredDiscoveries(), 0,
+   "with no active scale it still works - it is not asking about your gear")
+SCALE_NAME = "Dps"
+
+-- ---- every way of having no grounds leaves the row alone ----------------------------------------
+--
+-- Each of these is a different reason, and the shared answer is never "hide it". They are
+-- written out one at a time because collapsing them is how a filter starts treating "I could
+-- not tell" as "no".
+ROWS = { rowFor("absurd", false, false, nil) }
+eq(#Viewer:GetFilteredDiscoveries(), 1, "a row with no zone on it is not judged")
+
+ROWS = { rowFor("absurd", false, false, 99999) }
+eq(#Viewer:GetFilteredDiscoveries(), 1, "nor is one in a zone the level table has never been taught")
+
+WORLD["stranger"] = { equipLoc = "INVTYPE_HEAD", req = 60, ilvl = 200, uncached = true }
+ROWS = { rowFor("stranger", false, false, 31) }
+eq(#Viewer:GetFilteredDiscoveries(), 1, "nor an item the client has not cached yet")
+
+-- iz is 0 for a map LootCollector recognises and the map id itself for one it does not. An
+-- unrecognised map is one the level table cannot have a range for either.
+ROWS = { { discovery = { il = "absurd", z = 31, iz = 31 }, isMystic = false, isVendor = false } }
+eq(#Viewer:GetFilteredDiscoveries(), 1, "nor a discovery on a map LootCollector itself does not know")
+
+-- ---- switched off, it is completely inert ---------------------------------------------------------
+ns.sanity = false
+ROWS = { rowFor("absurd", false, false, 31) }
+eq(Viewer:GetFilteredDiscoveries(), ROWS,
+   "switched off with the gear filter off too, their own table comes straight back untouched")
+ns.sanity = true
+
+-- ---- the two together -----------------------------------------------------------------------------
+-- An implausible row must not come back as a hole. ns.Keep says yes to anything that is not
+-- gear, and a removed row is not gear, so the order of those two tests is load-bearing.
+ns.mode = "upgrades"
+WORLD["realupgrade"] = { equipLoc = "INVTYPE_HEAD", req = 8, ilvl = 15,
+                         stats = { Agility = 50 }, upgrade = true }
+ROWS = { rowFor("absurd", false, false, 31), rowFor("realupgrade", false, false, 31) }
+out = Viewer:GetFilteredDiscoveries()
+eq(#out, 1, "with both filters on, the implausible row is gone and the upgrade is not")
+eq(out[1].discovery.il, "realupgrade", "-- and it is the upgrade that survived")
+for i = 1, #out do ok(out[i] ~= nil, "no hole is left where a hidden row was") end
+ns.mode = "off"
+
+
+-- ---- the map pins and the tracking arrow -------------------------------------------------------
+--
+-- LootCollector::DiscoveryPassesFilters is the single predicate behind the map pin layer and
+-- the arrow that points at the nearest find. It is the surface that actually costs something:
+-- a row in a list is a row, but a phantom pin is a walk across a zone to stand on empty ground.
+ns.sanity = true
+ns.mode = "off"
+
+local function pin(link, zone, iz) return { il = link, z = zone, iz = iz or 0 } end
+
+ok(LCAddon.DiscoveryPassesFilters ~= nil, "the map predicate is hooked at all")
+
+PASS_ANSWER = true
+passCalls = 0
+eq(LCAddon:DiscoveryPassesFilters(pin("fine", 31)), true,
+   "a level-appropriate find keeps its pin on the map")
+eq(passCalls, 1, "and the original was called, not replaced")
+
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", 31)), false,
+   "a level 60 requirement in Elwynn Forest loses its pin, so nobody walks to it")
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", 24)), true,
+   "the identical item in Eastern Plaguelands keeps its pin")
+
+-- THEIRS IS FINAL WHEN IT SAYS NO. Their own window has hide-stale, hide-looted and the rest;
+-- a filter that could turn a hidden discovery back ON would be overriding those settings.
+PASS_ANSWER = false
+passCalls = 0
+eq(LCAddon:DiscoveryPassesFilters(pin("fine", 31)), false,
+   "what their own filters hid stays hidden - this never adds a pin back")
+eq(passCalls, 1, "and it asked them first rather than deciding by itself")
+PASS_ANSWER = true
+
+-- The same four ways of having no grounds, on this path too.
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", nil)), true, "no zone, no opinion")
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", 99999)), true, "an untaught zone, no opinion")
+eq(LCAddon:DiscoveryPassesFilters(pin("stranger", 31)), true, "an uncached item, no opinion")
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", 31, 31)), true,
+   "and a map LootCollector itself does not recognise")
+eq(LCAddon:DiscoveryPassesFilters(nil), true, "no discovery at all is survivable")
+
+-- Switched off, it is inert here as well.
+ns.sanity = false
+eq(LCAddon:DiscoveryPassesFilters(pin("absurd", 31)), true,
+   "with the sanity filter off, every pin their filters allow is drawn")
+ns.sanity = true
+
+-- ONLY the sanity filter belongs on this path. Whether an item beats your gear is a good
+-- reason to leave it in a list and a bad reason to remove it from the map: the map is how you
+-- find out where things are, and emptying it of everything you happen to out-gear would make
+-- the addon look broken.
+ns.mode = "upgrades"
+eq(LCAddon:DiscoveryPassesFilters(pin("nothing", 31)), true,
+   "an item worth nothing to your scale still keeps its pin - the map is not the upgrade list")
+ns.mode = "off"
+
+-- Nothing is recorded from this path. It runs per pin per repaint, so appending there would
+-- grow the record without bound; the list pass rebuilds it and is what /vlc hidden reports on.
+ns.hidden = {}
+for _ = 1, 20 do LCAddon:DiscoveryPassesFilters(pin("absurd", 31)) end
+eq(#ns.hidden, 0, "twenty map repaints add nothing to the hidden record")
 
 return failures, checks
 `,

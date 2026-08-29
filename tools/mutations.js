@@ -2741,14 +2741,14 @@ module.exports = [
   // of something about to be emptied.
   { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
     label: "the filter rewrites rows even when it is switched off",
-    from: "        if ns.mode == \"off\" or type(rows) ~= \"table\" then return rows end",
-    to: "        if type(rows) ~= \"table\" then return rows end" },
+    from: "        local gearFilter = ns.mode ~= \"off\"",
+    to: "        local gearFilter = true or ns.mode ~= \"off\"" },
 
   // A stat scale has no opinion about mystic scrolls or vendors, and emptying those tabs reads
   // as a broken addon rather than as a filter.
   { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
     label: "the Mystic Scrolls and vendor tabs get filtered by stat weights too",
-    from: "        if selfRef.currentFilter ~= \"eq\" then return rows end", to: "" },
+    from: "            and selfRef.currentFilter == \"eq\"", to: "" },
 
   // Checked BEFORE the memo is read, by both paths into it. Below the lookup it never ran for
   // anything already memoised, which is every item you had looked at.
@@ -3774,4 +3774,96 @@ module.exports = [
     to: "    if true then",
     scope: { start: "function Valuate:WithdrawBankUpgrades(",
              end: "function ns.AppearanceWantedForLink(" } },
+
+  // ---- the LootCollector sanity filter (Plausible.lua) --------------------
+  // It hides rows on the strength of a level table somebody typed. A wrong keep costs a
+  // glance; a wrong hide costs a real find that silently never appeared. So the mutations
+  // that matter here are the ones that make it judge where it has no grounds to.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "it judges an item the client has not cached, which is most of them on a fresh login",
+    from: "    if not cached then return ns.UNKNOWN, \"the client has not cached this item yet\" end",
+    to: "" },
+
+  // THE ONE THAT MATTERS. A zone the table has never been taught - and every zone
+  // Ascension adds after it was written - must get no opinion rather than an opinion
+  // built on a made-up range.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "an unknown zone is given a made-up level range instead of no opinion",
+    from: "        return ns.UNKNOWN, \"no level range known for this zone\"",
+    to: "        band = { 1, 10 }" },
+
+  // The margin is what keeps this to OBVIOUSLY wrong entries. Without it every world drop
+  // that runs a few levels above its zone - which is most of them - disappears.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "the margin is dropped, so ordinary world drops above their zone are hidden",
+    from: "        if req > ceiling + ns.LEVEL_MARGIN then",
+    to: "    if req > ceiling then" },
+
+  // A requirement you can read settles it. Worldforged gear routinely carries an item
+  // level far above its requirement, so falling through to the item-level test would hide
+  // exactly the good drops the addon exists to surface.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "a readable requirement falls through to the item level test as well",
+    from: "        return \"ok\"",
+    to: "        if true then end" },
+
+  // Inclusive on doubt, in the one function that acts on the verdict.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "anything it could not judge is hidden, rather than only a positive judgement",
+    from: "    return verdict ~= \"implausible\"",
+    to: "    return verdict == \"ok\"" },
+
+  // The table is typed by hand. A starting valley banded as though it held level 60
+  // content switches the filter off exactly where the complaint came from, and nothing
+  // about the running addon would look wrong.
+  { gate: "lcplausible", file: "../Valuate-LootCollector/Plausible.lua",
+    label: "a starting valley is banded as high-level content, silently exempting it",
+    from: "    [1238] = { 1, 6 },    -- Northshire Valley",
+    to: "    [1238] = { 1, 60 }," },
+
+  // ---- wiring the sanity filter into the list (v0.231.0a) ------------------
+  // The nil-row guard in that loop has NO mutation, deliberately. One was written - remove the
+  // guard, expect a hole in the list - and it SURVIVED, because t[#t + 1] = nil is a no-op in
+  // Lua and the next real row still lands correctly. Deleted rather than kept looking like
+  // protection. What follows are the three that do bite.
+
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "discoveries on maps LootCollector does not recognise are judged anyway",
+    from: "    if (tonumber(d.iz) or 0) ~= 0 then return ns.UNKNOWN end",
+    to: "" },
+
+  // The two filters ask different questions and are gated apart on purpose: a scroll
+  // listed in a zone it could not have come from is just as wrong as a helmet, and the
+  // gear filter refuses those tabs.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the sanity filter stops running, so implausible entries are back on every tab",
+    from: "            if ns.sanity then",
+    to: "            if false then" },
+
+  // NEVER A SILENT ABSENCE. The record behind /vlc hidden and the count on the button is
+  // the only trace that a row was ever there; without it the filter cannot be argued with.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "hidden rows are dropped without a record, so nothing can say what went missing",
+    from: "                    ns.hidden[#ns.hidden + 1] = {",
+    to: "                    local _ = {" },
+
+  // Their own window has hide-stale, hide-looted and the rest. A filter that could turn a
+  // discovery they hid back ON would be overriding those settings from outside.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the map hook ignores their filters and can turn a hidden pin back on",
+    from: "        if not originalPass(selfRef, d, ...) then return false end",
+    to: "" },
+
+  // Switched off, it has to be completely inert on this path too.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "the map pins are filtered even with the sanity setting switched off",
+    from: "        if not ns.sanity then return true end",
+    to: "" },
+
+  // The pin layer and the arrow are the surface that costs you a walk across a zone.
+  // Without this the whole map half of the feature silently does nothing.
+  { gate: "lchook", file: "../Valuate-LootCollector/Filter.lua",
+    label: "implausible discoveries keep their map pins and their tracking arrow",
+    from: "        return ns.KeepPlausible(true, SanityVerdictFor(d))",
+    to: "    return true" },
 ];

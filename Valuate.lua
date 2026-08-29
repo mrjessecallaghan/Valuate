@@ -12341,6 +12341,14 @@ local VERIFY_CHECKS = {
         broke = "The gate proves the order - check before hide. What it cannot prove is that InCombatLockdown means what it should on this server, or that the popup is even reachable mid-fight: if the prompt is suppressed in combat entirely, this whole path is unreachable and the fix protects nothing. Worth finding out either way.",
     },
     {
+        id = "lcsanity", since = "0.231.0a",
+        gate = "tools/lcplausible.js",
+        title = "LootCollector stops listing gear that could not have dropped there",
+        steps = "Open the LootCollector window in a starter zone - Elwynn Forest, Durotar, Northshire Valley. Look at the Valuate button for a number in orange after the label, then run /vlc hidden. Open the world map for the same zone. Then /vlc sanity to switch it off and look at both again.",
+        expect = "The button shows how many it took out, and /vlc hidden names each one with its required level and the zone's range. The map loses those pins too. Switched off, every one of them comes straight back.",
+        broke = "The gate drives this against a mocked client, and a mock cannot answer the question the whole feature rests on: whether GetItemInfo's required level and item level mean on Ascension what they mean everywhere else. Ascension scales gear to your level, and this addon already knows the template requirement is not what the tooltip shows - see ns.TooltipRequiredLevel. If the template number is also unreliable in the other direction, this filter would hide real finds, and the only evidence would be an absence. So the thing to check is not that it hides things - it will - but that every single entry in /vlc hidden is one you agree should not be there. One you disagree with is the whole rule being wrong, not a near miss.",
+    },
+    {
         id = "bankwithdraw", since = "0.230.0a",
         gate = "tools/bestequiptest.js",
         title = "Opening the bank takes out the gear that beats what you are wearing",
